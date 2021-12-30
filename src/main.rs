@@ -2,8 +2,8 @@ use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
+    window::Window
 };
-use winit::window::Window;
 use wgpu::util::DeviceExt;
 
 mod texture;
@@ -17,12 +17,10 @@ struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
-    // Shader pipeline.
     render_pipeline: wgpu::RenderPipeline,
-    // Vertex buffer.
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
-    num_indices: u32,
+    num_indices: u32, // Number of vertex indices.
     diffuse_bind_group: wgpu::BindGroup,
     diffuse_texture: texture::Texture,
     camera: camera::Camera,
@@ -35,10 +33,11 @@ struct State {
 impl State {
     // Creating some of the wgpu types requires async code.
     async fn new(window: &Window) -> Self {
+        // Get window's inner size.
         let size = window.inner_size();
 
-        // The instance is a handle to our GPU
-        // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
+        // The instance is a handle to our GPU.
+        // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
 
         // The surface is the part of the window that we draw to.
@@ -59,7 +58,7 @@ impl State {
                 limits: wgpu::Limits::default(),
                 label: None,
             },
-            None, // Trace path
+            None, // Trace path.
         ).await.unwrap();
 
         // This will define how the surface creates its underlying SurfaceTextures.
@@ -75,18 +74,18 @@ impl State {
         // Load image into texture.
         // ----------------------------
         let diffuse_bytes = include_bytes!("happy-tree.png");
-        let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree.png").unwrap();
+        let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree").unwrap();
         // ----------------------------
 
         // Create camera.
         // ----------------------------
         let camera = camera::Camera {
-            // position the camera one unit up and 2 units back
-            // +z is out of the screen
+            // Position the camera one unit up and 2 units back.
+            // +z is out of the screen.
             eye: (0.0, 1.0, 2.0).into(),
-            // have it look at the origin
+            // Have it look at the origin.
             target: (0.0, 0.0, 0.0).into(),
-            // which way is "up"
+            // Decide which way is "up".
             up: cgmath::Vector3::unit_y(),
             aspect: config.width as f32 / config.height as f32,
             fovy: 45.0,
@@ -94,6 +93,7 @@ impl State {
             zfar: 100.0,
         };
 
+        // This will be used in the vertex shader.
         let mut camera_uniform = camera::CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
 
@@ -192,11 +192,13 @@ impl State {
 
         // Pipeline.
         // ----------------------------
+        // Create shader.
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
+        // Set up render pipeline layout using bind group layouts.
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -207,6 +209,7 @@ impl State {
                 push_constant_ranges: &[],
             });
 
+        // Set up render pipeline using the pipeline layout.
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
@@ -247,7 +250,7 @@ impl State {
         });
         // ----------------------------
 
-        // Create vertex buffer.
+        // Create vertex and index buffer.
         // ----------------------------
         const VERTICES: &[Vertex] = &[
             Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.00759614], }, // A
@@ -304,6 +307,7 @@ impl State {
         }
     }
 
+    /// Resize window.
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         // Reconfigure the surface everytime the window's size changes.
         if new_size.width > 0 && new_size.height > 0 {
@@ -314,11 +318,13 @@ impl State {
         }
     }
 
+    /// Handle input.
     fn input(&mut self, event: &WindowEvent) -> bool {
         self.camera_controller.process_events(event)
     }
 
     fn update(&mut self) {
+        // Update camera.
         self.camera_controller.update_camera(&mut self.camera);
         self.camera_uniform.update_view_proj(&self.camera);
 
@@ -367,9 +373,9 @@ impl State {
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16); // 1.
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1); // 2.
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
 
         // Finish the command buffer, and to submit it to the gpu's render queue.
@@ -388,15 +394,17 @@ fn main() {
     // State::new uses async code, so we're going to wait for it to finish
     let mut state = pollster::block_on(State::new(&window));
 
+    // Main loop.
     event_loop.run(move |event, _, control_flow| {
         match event {
+            // Window event.
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == window.id() => if !state.input(event) { // UPDATED!
+            } if window_id == window.id() => if !state.input(event) {
                 match event {
-                    WindowEvent::CloseRequested
-                    | WindowEvent::KeyboardInput {
+                    // Close window.
+                    WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
                         input:
                         KeyboardInput {
                             state: ElementState::Pressed,
@@ -405,30 +413,32 @@ fn main() {
                         },
                         ..
                     } => *control_flow = ControlFlow::Exit,
+                    // Resize window.
                     WindowEvent::Resized(physical_size) => {
                         state.resize(*physical_size);
                     }
+                    // Scale factor changed.
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         state.resize(**new_inner_size);
                     }
                     _ => {}
                 }
             }
+            // Redraw request.
             Event::RedrawRequested(_) => {
                 state.update();
                 match state.render() {
                     Ok(_) => {}
-                    // Reconfigure the surface if lost
+                    // Reconfigure the surface if lost.
                     Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
-                    // The system is out of memory, we should probably quit
+                    // The system is out of memory, we should probably quit.
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                    // All other errors (Outdated, Timeout) should be resolved by the next frame
+                    // All other errors (Outdated, Timeout) should be resolved by the next frame.
                     Err(e) => eprintln!("{:?}", e),
                 }
             }
             Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually
-                // request it.
+                // RedrawRequested will only trigger once, unless we manually request it.
                 window.request_redraw();
             }
             _ => {}
@@ -450,12 +460,12 @@ impl Vertex {
             array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
-                wgpu::VertexAttribute {
+                wgpu::VertexAttribute { // Position.
                     offset: 0,
                     shader_location: 0,
                     format: wgpu::VertexFormat::Float32x3,
                 },
-                wgpu::VertexAttribute {
+                wgpu::VertexAttribute { // UV.
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x2,

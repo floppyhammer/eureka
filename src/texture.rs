@@ -8,6 +8,7 @@ pub struct Texture {
 }
 
 impl Texture {
+    /// Create from bytes.
     pub fn from_bytes(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -18,6 +19,7 @@ impl Texture {
         Self::from_image(device, queue, &img, Some(label))
     }
 
+    /// Create from image.
     pub fn from_image(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
