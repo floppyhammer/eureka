@@ -34,6 +34,7 @@ impl Texture {
             height: dimensions.1,
             depth_or_array_layers: 1,
         };
+        
         let texture = device.create_texture(
             &wgpu::TextureDescriptor {
                 label,
@@ -46,6 +47,7 @@ impl Texture {
             }
         );
 
+        // Write image data to texture.
         queue.write_texture(
             wgpu::ImageCopyTexture {
                 aspect: wgpu::TextureAspect::All,
@@ -63,6 +65,7 @@ impl Texture {
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
         let sampler = device.create_sampler(
             &wgpu::SamplerDescriptor {
                 address_mode_u: wgpu::AddressMode::ClampToEdge,
