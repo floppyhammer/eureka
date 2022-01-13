@@ -6,6 +6,7 @@ use winit::{
 };
 use wgpu::util::DeviceExt;
 use cgmath::prelude::*;
+use crate::texture::Texture;
 
 mod texture;
 mod camera;
@@ -36,6 +37,7 @@ struct State {
     // Instancing.
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
+    depth_texture: texture::Texture,
 }
 
 impl State {
@@ -250,7 +252,14 @@ impl State {
                 // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::Texture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                // The depth_compare function tells us when to discard a new pixel. Using LESS means pixels will be drawn front to back.
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -325,6 +334,8 @@ impl State {
             }
         );
 
+        let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+
         Self {
             surface,
             device,
@@ -344,6 +355,7 @@ impl State {
             camera_controller,
             instances,
             instance_buffer,
+            depth_texture,
         }
     }
 
@@ -355,6 +367,11 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+
+            // Create a new depth_texture and depth_texture_view.
+            // Make sure you update the depth_texture after you update config.
+            // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
+            self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
 
@@ -406,7 +423,14 @@ impl State {
                         }
                     }
                 ],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
