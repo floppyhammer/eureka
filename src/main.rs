@@ -6,12 +6,14 @@ use winit::{
 };
 use wgpu::util::DeviceExt;
 use cgmath::prelude::*;
-use crate::mesh::Mesh;
-use crate::texture::Texture;
 
-mod texture;
-mod camera;
-mod mesh;
+mod render;
+mod scene;
+
+// Some shortcuts.
+use crate::render::mesh::Mesh;
+use crate::render::texture::Texture;
+use crate::scene::camera::Camera;
 
 // Instancing.
 const NUM_INSTANCES_PER_ROW: u32 = 10;
@@ -30,16 +32,16 @@ struct State {
     index_buffer: wgpu::Buffer,
     num_indices: u32, // Number of vertex indices.
     diffuse_bind_group: wgpu::BindGroup,
-    diffuse_texture: texture::Texture,
-    camera: camera::Camera,
-    camera_uniform: camera::CameraUniform,
+    diffuse_texture: Texture,
+    camera: Camera,
+    camera_uniform: scene::camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    camera_controller: camera::CameraController,
+    camera_controller: scene::camera::CameraController,
     // Instancing.
-    instances: Vec<mesh::Instance>,
+    instances: Vec<render::mesh::Instance>,
     instance_buffer: wgpu::Buffer,
-    depth_texture: texture::Texture,
+    depth_texture: Texture,
 }
 
 impl State {
@@ -86,12 +88,12 @@ impl State {
         // Load image into texture.
         // ----------------------------
         let diffuse_bytes = include_bytes!("happy-tree.png");
-        let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree").unwrap();
+        let diffuse_texture = Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree").unwrap();
         // ----------------------------
 
         // Create camera.
         // ----------------------------
-        let camera = camera::Camera {
+        let camera = Camera {
             // Position the camera one unit up and 2 units back.
             // +z is out of the screen.
             eye: (0.0, 1.0, 2.0).into(),
@@ -106,7 +108,7 @@ impl State {
         };
 
         // This will be used in the vertex shader.
-        let mut camera_uniform = camera::CameraUniform::new();
+        let mut camera_uniform = scene::camera::CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
 
         let camera_buffer = device.create_buffer_init(
@@ -146,7 +148,7 @@ impl State {
             label: Some("camera_bind_group"),
         });
         
-        let camera_controller = camera::CameraController::new(0.2);
+        let camera_controller = scene::camera::CameraController::new(0.2);
         // ----------------------------
 
         // BindGroup.
@@ -229,8 +231,8 @@ impl State {
                 module: &shader,
                 entry_point: "main",
                 buffers: &[
-                    mesh::Vertex::desc(),
-                    mesh::InstanceRaw::desc()
+                    render::mesh::Vertex::desc(),
+                    render::mesh::InstanceRaw::desc()
                 ],
             },
             fragment: Some(wgpu::FragmentState {
@@ -255,7 +257,7 @@ impl State {
                 conservative: false,
             },
             depth_stencil: Some(wgpu::DepthStencilState {
-                format: texture::Texture::DEPTH_FORMAT,
+                format: Texture::DEPTH_FORMAT,
                 depth_write_enabled: true,
                 // The depth_compare function tells us when to discard a new pixel. Using LESS means pixels will be drawn front to back.
                 depth_compare: wgpu::CompareFunction::Less,
@@ -307,14 +309,14 @@ impl State {
                     cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
                 };
 
-                mesh::Instance {
+                render::mesh::Instance {
                     position, rotation,
                 }
             })
         }).collect::<Vec<_>>();
 
         // Create the actual instances.
-        let instance_data = instances.iter().map(mesh::Instance::to_raw).collect::<Vec<_>>();
+        let instance_data = instances.iter().map(render::mesh::Instance::to_raw).collect::<Vec<_>>();
         let instance_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Instance Buffer"),
@@ -323,7 +325,7 @@ impl State {
             }
         );
 
-        let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+        let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
 
         Self {
             surface,
@@ -360,7 +362,7 @@ impl State {
             // Create a new depth_texture and depth_texture_view.
             // Make sure you update the depth_texture after you update config.
             // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
-            self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+            self.depth_texture = Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
 
