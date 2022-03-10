@@ -10,10 +10,12 @@ use cgmath::prelude::*;
 mod render;
 mod scene;
 
-// Some shortcuts.
-use crate::render::mesh::Mesh;
+// Import.
+use crate::render::model::Mesh;
 use crate::render::texture::Texture;
+use crate::render::{DrawModel, model, Vertex};
 use crate::scene::camera::Camera;
+use crate::render::model::Model;
 
 // Instancing.
 const NUM_INSTANCES_PER_ROW: u32 = 10;
@@ -28,9 +30,6 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32, // Number of vertex indices.
     diffuse_bind_group: wgpu::BindGroup,
     diffuse_texture: Texture,
     camera: Camera,
@@ -39,9 +38,10 @@ struct State {
     camera_bind_group: wgpu::BindGroup,
     camera_controller: scene::camera::CameraController,
     // Instancing.
-    instances: Vec<render::mesh::Instance>,
+    instances: Vec<render::model::Instance>,
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
+    obj_model: model::Model,
 }
 
 impl State {
@@ -231,8 +231,8 @@ impl State {
                 module: &shader,
                 entry_point: "main",
                 buffers: &[
-                    render::mesh::Vertex::desc(),
-                    render::mesh::InstanceRaw::desc()
+                    render::model::MeshVertex::desc(),
+                    render::model::InstanceRaw::desc()
                 ],
             },
             fragment: Some(wgpu::FragmentState {
@@ -272,34 +272,46 @@ impl State {
         });
         // ----------------------------
 
+        let res_dir = std::path::Path::new(env!("OUT_DIR")).join("res");
+        let obj_model = Model::load(
+            &device,
+            &queue,
+            &texture_bind_group_layout,
+            res_dir.join("viking_room.obj"),
+        ).unwrap();
+
         // Create vertex and index buffer.
         // ----------------------------
-        let mesh = Mesh::new();
-
-        let vertex_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                // Cast our VERTICES as a &[u8].
-                contents: bytemuck::cast_slice(&mesh.vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
-
-        let index_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(&mesh.indices),
-                usage: wgpu::BufferUsages::INDEX,
-            }
-        );
-
-        let num_indices = mesh.get_indices_num() as u32;
+        // let mesh = Mesh::new();
+        //
+        // let vertex_buffer = device.create_buffer_init(
+        //     &wgpu::util::BufferInitDescriptor {
+        //         label: Some("Vertex Buffer"),
+        //         // Cast our VERTICES as a &[u8].
+        //         contents: bytemuck::cast_slice(&mesh.vertices),
+        //         usage: wgpu::BufferUsages::VERTEX,
+        //     }
+        // );
+        //
+        // let index_buffer = device.create_buffer_init(
+        //     &wgpu::util::BufferInitDescriptor {
+        //         label: Some("Index Buffer"),
+        //         contents: bytemuck::cast_slice(&mesh.indices),
+        //         usage: wgpu::BufferUsages::INDEX,
+        //     }
+        // );
+        //
+        // let num_indices = mesh.get_indices_num() as u32;
         // ----------------------------
 
         // Create the actual instances.
+        const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| {
             (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                let position = cgmath::Vector3 { x: x as f32, y: 0.0, z: z as f32 } - INSTANCE_DISPLACEMENT;
+                let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+                let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+
+                let position = cgmath::Vector3 { x, y: 0.0, z };
 
                 let rotation = if position.is_zero() {
                     // this is needed so an object at (0, 0, 0) won't get scaled to zero
@@ -309,14 +321,14 @@ impl State {
                     cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
                 };
 
-                render::mesh::Instance {
+                render::model::Instance {
                     position, rotation,
                 }
             })
         }).collect::<Vec<_>>();
 
         // Create the actual instances.
-        let instance_data = instances.iter().map(render::mesh::Instance::to_raw).collect::<Vec<_>>();
+        let instance_data = instances.iter().map(render::model::Instance::to_raw).collect::<Vec<_>>();
         let instance_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Instance Buffer"),
@@ -334,9 +346,6 @@ impl State {
             config,
             size,
             render_pipeline,
-            vertex_buffer,
-            index_buffer,
-            num_indices,
             diffuse_bind_group,
             diffuse_texture,
             camera,
@@ -347,6 +356,7 @@ impl State {
             instances,
             instance_buffer,
             depth_texture,
+            obj_model,
         }
     }
 
@@ -424,14 +434,13 @@ impl State {
                 }),
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.draw_model_instanced(
+                &self.obj_model,
+                0..self.instances.len() as u32,
+                &self.camera_bind_group,
+            );
         }
 
         // Finish the command buffer, and to submit it to the gpu's render queue.

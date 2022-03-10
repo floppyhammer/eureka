@@ -1,5 +1,5 @@
-pub(crate) mod mesh;
+pub(crate) mod model;
 pub(crate) mod texture;
 
-pub use mesh::*;
+pub use model::*;
 pub use texture::*;
