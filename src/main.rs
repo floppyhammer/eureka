@@ -2,20 +2,20 @@ use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
-    window::Window
+    window::Window,
 };
 use wgpu::util::DeviceExt;
 use cgmath::prelude::*;
 
+// Do this before importing local crates.
 mod render;
 mod scene;
 
-// Import.
-use crate::render::model::Mesh;
+// Import local crates.
+use crate::render::model::{Mesh, Model};
 use crate::render::texture::Texture;
 use crate::render::{DrawModel, model, Vertex};
 use crate::scene::camera::Camera;
-use crate::render::model::Model;
 
 // Instancing.
 const NUM_INSTANCES_PER_ROW: u32 = 10;
@@ -30,8 +30,6 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
-    diffuse_bind_group: wgpu::BindGroup,
-    diffuse_texture: Texture,
     camera: Camera,
     camera_uniform: scene::camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
@@ -84,12 +82,6 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
         };
         surface.configure(&device, &config);
-
-        // Load image into texture.
-        // ----------------------------
-        let diffuse_bytes = include_bytes!("happy-tree.png");
-        let diffuse_texture = Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree").unwrap();
-        // ----------------------------
 
         // Create camera.
         // ----------------------------
@@ -147,13 +139,12 @@ impl State {
             ],
             label: Some("camera_bind_group"),
         });
-        
+
         let camera_controller = scene::camera::CameraController::new(0.2);
         // ----------------------------
 
-        // BindGroup.
-        // ----------------------------
-        // A BindGroup describes a set of resources and how they can be accessed by a shader.
+        // Bind group layout is used to create actual bind groups.
+        // A bind group describes a set of resources and how they can be accessed by a shader.
         let texture_bind_group_layout = device.create_bind_group_layout(
             &wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -184,25 +175,6 @@ impl State {
                 label: Some("texture_bind_group_layout"),
             }
         );
-
-        // With texture_bind_group_layout, we can now create our BindGroup.
-        let diffuse_bind_group = device.create_bind_group(
-            &wgpu::BindGroupDescriptor {
-                layout: &texture_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-                    }
-                ],
-                label: Some("diffuse_bind_group"),
-            }
-        );
-        // ----------------------------
 
         // Pipeline.
         // ----------------------------
@@ -280,31 +252,7 @@ impl State {
             res_dir.join("viking_room.obj"),
         ).unwrap();
 
-        // Create vertex and index buffer.
-        // ----------------------------
-        // let mesh = Mesh::new();
-        //
-        // let vertex_buffer = device.create_buffer_init(
-        //     &wgpu::util::BufferInitDescriptor {
-        //         label: Some("Vertex Buffer"),
-        //         // Cast our VERTICES as a &[u8].
-        //         contents: bytemuck::cast_slice(&mesh.vertices),
-        //         usage: wgpu::BufferUsages::VERTEX,
-        //     }
-        // );
-        //
-        // let index_buffer = device.create_buffer_init(
-        //     &wgpu::util::BufferInitDescriptor {
-        //         label: Some("Index Buffer"),
-        //         contents: bytemuck::cast_slice(&mesh.indices),
-        //         usage: wgpu::BufferUsages::INDEX,
-        //     }
-        // );
-        //
-        // let num_indices = mesh.get_indices_num() as u32;
-        // ----------------------------
-
-        // Create the actual instances.
+        // Instance data.
         const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| {
             (0..NUM_INSTANCES_PER_ROW).map(move |x| {
@@ -322,12 +270,13 @@ impl State {
                 };
 
                 render::model::Instance {
-                    position, rotation,
+                    position,
+                    rotation,
                 }
             })
         }).collect::<Vec<_>>();
 
-        // Create the actual instances.
+        // Create the instance buffer.
         let instance_data = instances.iter().map(render::model::Instance::to_raw).collect::<Vec<_>>();
         let instance_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -337,6 +286,7 @@ impl State {
             }
         );
 
+        // For depth test.
         let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
 
         Self {
@@ -346,8 +296,6 @@ impl State {
             config,
             size,
             render_pipeline,
-            diffuse_bind_group,
-            diffuse_texture,
             camera,
             camera_uniform,
             camera_buffer,
@@ -421,7 +369,7 @@ impl State {
                                 }
                             ),
                             store: true,
-                        }
+                        },
                     }
                 ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {

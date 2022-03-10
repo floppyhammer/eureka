@@ -1,11 +1,11 @@
-use image::GenericImageView;
-use anyhow::*;
 use std::path::Path;
+use anyhow::*;
+use image::GenericImageView;
 
 pub struct Texture {
-    pub texture: wgpu::Texture,
-    pub view: wgpu::TextureView,
-    pub sampler: wgpu::Sampler,
+    pub texture: wgpu::Texture, // Actual data.
+    pub view: wgpu::TextureView, // Thin wrapper over texture.
+    pub sampler: wgpu::Sampler, // Defines how to sample the texture.
 }
 
 impl Texture {
@@ -14,7 +14,7 @@ impl Texture {
         queue: &wgpu::Queue,
         path: P,
     ) -> Result<Self> {
-        // Needed to appease the borrow checker
+        // Needed to appease the borrow checker.
         let path_copy = path.as_ref().to_path_buf();
         let label = path_copy.to_str();
 
@@ -22,7 +22,7 @@ impl Texture {
         Self::from_image(device, queue, &img, label)
     }
 
-    /// Create from bytes.
+    /// Create texture from bytes.
     pub fn from_bytes(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -30,18 +30,24 @@ impl Texture {
         label: &str
     ) -> Result<Self> {
         let img = image::load_from_memory(bytes)?;
+
+        // Flip image.
         //image::imageops::flip_vertical(&img);
+
         Self::from_image(device, queue, &img, Some(label))
     }
 
-    /// Create from image.
+    /// Create texture from image.
     pub fn from_image(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         img: &image::DynamicImage,
         label: Option<&str>
     ) -> Result<Self> {
+        // Make a rgba8 copy.
         let rgba = img.to_rgba8();
+
+        // Image size.
         let dimensions = img.dimensions();
 
         let size = wgpu::Extent3d {
@@ -117,9 +123,11 @@ impl Texture {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING,
         };
+
         let texture = device.create_texture(&desc);
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
         let sampler = device.create_sampler(
             &wgpu::SamplerDescriptor {
                 address_mode_u: wgpu::AddressMode::ClampToEdge,

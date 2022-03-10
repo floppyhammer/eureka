@@ -123,26 +123,24 @@ impl InstanceRaw {
     }
 }
 
+/// Mesh for a rect.
 // pub struct Mesh {
-//     pub(crate) vertices: [MeshVertex; 5],
-//     pub(crate) indices: [u16; 10],
+//     pub(crate) vertices: [MeshVertex; 4],
+//     pub(crate) indices: [u16; 6],
 // }
 //
 // impl Mesh {
 //     pub fn new() -> Mesh {
 //         Mesh {
 //             vertices: [
-//                 Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.00759614] }, // A
-//                 Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.43041354] }, // B
-//                 Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.949397] }, // C
-//                 Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.84732914] }, // D
-//                 Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.2652641] }, // E
+//                 Vertex { position: [0.0, 0.0, 0.0], tex_coords: [1.0, 0.0] },
+//                 Vertex { position: [1.0, 0.0, 0.0], tex_coords: [0.0, 0.0] },
+//                 Vertex { position: [1.0, 1.0, 0.0], tex_coords: [0.0, 1.0] },
+//                 Vertex { position: [0.0, 1.0, 0.0], tex_coords: [1.0, 1.0] },
 //             ],
 //             indices: [
-//                 0, 1, 4,
-//                 1, 2, 4,
-//                 2, 3, 4,
-//                 /* padding */ 0,
+//                 0, 1, 2,
+//                 2, 3, 0,
 //             ],
 //         }
 //     }
@@ -212,6 +210,7 @@ impl Model {
                         m.mesh.positions[i * 3 + 2],
                     ],
                     // Flip the vertical component of the texture coordinates.
+                    // Cf. https://vulkan-tutorial.com/Loading_models
                     tex_coords: [m.mesh.texcoords[i * 2], 1.0 - m.mesh.texcoords[i * 2 + 1]],
                     // normal: [
                     //     m.mesh.normals[i * 3],
