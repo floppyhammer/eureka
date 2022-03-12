@@ -164,6 +164,7 @@ impl State {
         let texture_bind_group_layout = device.create_bind_group_layout(
             &wgpu::BindGroupLayoutDescriptor {
                 entries: &[
+                    // Diffuse texture.
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
                         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -183,6 +184,26 @@ impl State {
                             // This should be true if the sample_type of the texture is:
                             //     TextureSampleType::Float { filterable: true }
                             // Otherwise you'll get an error.
+                            filtering: true,
+                        },
+                        count: None,
+                    },
+                    // Normal map.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler{
+                            comparison: false,
                             filtering: true,
                         },
                         count: None,
