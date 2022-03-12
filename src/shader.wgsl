@@ -120,7 +120,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let diffuse_color = light.color * diffuse_strength;
 
     // Calculate specular.
-    let specular_strength = pow(max(dot(tangent_normal, half_dir), 0.0), 2.0);
+    let specular_strength = pow(max(dot(tangent_normal, half_dir), 0.0), 4.0);
     let specular_color = specular_strength * light.color;
 
     let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;

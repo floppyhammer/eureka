@@ -15,7 +15,7 @@ mod scene;
 use crate::render::model::{Mesh, Model};
 use crate::render::texture::Texture;
 use crate::render::{DrawModel, model, Vertex};
-use crate::scene::camera::Camera;
+use crate::scene::camera::{Camera, Projection, CameraController};
 
 // Instancing.
 const NUM_INSTANCES_PER_ROW: u32 = 10;
@@ -44,10 +44,11 @@ struct State {
     render_pipeline: wgpu::RenderPipeline,
     light_render_pipeline: wgpu::RenderPipeline,
     camera: Camera,
+    projection: Projection,
+    camera_controller: CameraController,
     camera_uniform: scene::camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    camera_controller: scene::camera::CameraController,
     // Instancing.
     instances: Vec<render::model::Instance>,
     instance_buffer: wgpu::Buffer,
@@ -56,6 +57,7 @@ struct State {
     light_uniform: LightUniform,
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
+    mouse_pressed: bool,
 }
 
 impl State {
@@ -101,23 +103,13 @@ impl State {
 
         // Create camera.
         // ----------------------------
-        let camera = Camera {
-            // Position the camera one unit up and 2 units back.
-            // +z is out of the screen.
-            eye: (0.0, 1.0, 2.0).into(),
-            // Have it look at the origin.
-            target: (0.0, 0.0, 0.0).into(),
-            // Decide which way is "up".
-            up: cgmath::Vector3::unit_y(),
-            aspect: config.width as f32 / config.height as f32,
-            fovy: 45.0,
-            znear: 0.1,
-            zfar: 100.0,
-        };
+        let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0));
+        let projection = Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
+        let camera_controller = CameraController::new(4.0, 0.4);
 
         // This will be used in the vertex shader.
         let mut camera_uniform = scene::camera::CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
+        camera_uniform.update_view_proj(&camera, &projection);
 
         let camera_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -155,8 +147,6 @@ impl State {
             ],
             label: Some("camera_bind_group"),
         });
-
-        let camera_controller = scene::camera::CameraController::new(0.2);
         // ----------------------------
 
         // Bind group layout is used to create actual bind groups.
@@ -202,7 +192,7 @@ impl State {
                     wgpu::BindGroupLayoutEntry {
                         binding: 3,
                         visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler{
+                        ty: wgpu::BindingType::Sampler {
                             comparison: false,
                             filtering: true,
                         },
@@ -369,10 +359,11 @@ impl State {
             render_pipeline,
             light_render_pipeline,
             camera,
+            projection,
+            camera_controller,
             camera_uniform,
             camera_buffer,
             camera_bind_group,
-            camera_controller,
             instances,
             instance_buffer,
             depth_texture,
@@ -380,6 +371,7 @@ impl State {
             light_uniform,
             light_buffer,
             light_bind_group,
+            mouse_pressed: false,
         }
     }
 
@@ -396,19 +388,47 @@ impl State {
             // Make sure you update the depth_texture after you update config.
             // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
             self.depth_texture = Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+
+            self.projection.resize(new_size.width, new_size.height);
         }
     }
 
     /// Handle input.
-    fn input(&mut self, event: &WindowEvent) -> bool {
-        self.camera_controller.process_events(event)
+    fn input(&mut self, event: &DeviceEvent) -> bool {
+        match event {
+            DeviceEvent::Key(
+                KeyboardInput {
+                    virtual_keycode: Some(key),
+                    state,
+                    ..
+                }
+            ) => self.camera_controller.process_keyboard(*key, *state),
+            DeviceEvent::MouseWheel { delta, .. } => {
+                self.camera_controller.process_scroll(delta);
+                true
+            }
+            DeviceEvent::Button {
+                button: 1, // Left Mouse Button
+                state,
+            } => {
+                self.mouse_pressed = *state == ElementState::Pressed;
+                true
+            }
+            DeviceEvent::MouseMotion { delta } => {
+                if self.mouse_pressed {
+                    self.camera_controller.process_mouse(delta.0, delta.1);
+                }
+                true
+            }
+            _ => false,
+        }
     }
 
-    fn update(&mut self) {
+    fn update(&mut self, dt: std::time::Duration) {
         // Update camera.
         {
-            self.camera_controller.update_camera(&mut self.camera);
-            self.camera_uniform.update_view_proj(&self.camera);
+            self.camera_controller.update_camera(&mut self.camera, dt);
+            self.camera_uniform.update_view_proj(&self.camera, &self.projection);
 
             // Update camera buffer.
             self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
@@ -418,14 +438,12 @@ impl State {
         {
             let old_position: cgmath::Vector3<_> = self.light_uniform.position.into();
             self.light_uniform.position =
-                (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(1.0))
-                    * old_position)
-                    .into();
+                (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt.as_secs_f32()))
+                    * old_position).into();
 
             // Update light buffer.
             self.queue.write_buffer(&self.light_buffer, 0, bytemuck::cast_slice(&[self.light_uniform]));
         }
-
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -572,14 +590,24 @@ fn main() {
     // State::new uses async code, so we're going to wait for it to finish
     let mut state = pollster::block_on(State::new(&window));
 
+    // Used to calculate frame delta.
+    let mut last_render_time = std::time::Instant::now();
+
     // Main loop.
     event_loop.run(move |event, _, control_flow| {
         match event {
+            // This handles input better.
+            Event::DeviceEvent {
+                ref event,
+                .. // We're not using device_id currently
+            } => {
+                state.input(event);
+            }
             // Window event.
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == window.id() => if !state.input(event) {
+            } if window_id == window.id() => {
                 match event {
                     // Close window.
                     WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
@@ -604,7 +632,12 @@ fn main() {
             }
             // Redraw request.
             Event::RedrawRequested(_) => {
-                state.update();
+                let now = std::time::Instant::now();
+                let dt = now - last_render_time;
+                last_render_time = now;
+
+                state.update(dt);
+
                 match state.render() {
                     Ok(_) => {}
                     // Reconfigure the surface if lost.
