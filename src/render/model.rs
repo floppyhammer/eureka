@@ -296,10 +296,17 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
         instances: Range<u32>,
         camera_bind_group: &'b wgpu::BindGroup,
     ) {
+        // Set vertex buffer for VertexInput.
         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+        // Set diffuse texture.
         self.set_bind_group(0, &material.bind_group, &[]);
+
+        // Set camera uniform.
         self.set_bind_group(1, camera_bind_group, &[]);
+
         self.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 
@@ -317,7 +324,9 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
     ) {
         // Draw every mesh in the model.
         for mesh in &model.meshes {
+            // Get material.
             let material = &model.materials[mesh.material];
+
             self.draw_mesh_instanced(mesh, material, instances.clone(), camera_bind_group);
         }
     }

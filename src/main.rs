@@ -249,7 +249,7 @@ impl State {
             &device,
             &queue,
             &texture_bind_group_layout,
-            res_dir.join("viking_room.obj"),
+            res_dir.join("viking_room/viking_room.obj"),
         ).unwrap();
 
         // Instance data.
@@ -382,8 +382,12 @@ impl State {
                 }),
             });
 
+            // Set vertex buffer for InstanceInput.
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+
+            // Bind pipeline.
             render_pass.set_pipeline(&self.render_pipeline);
+
             render_pass.draw_model_instanced(
                 &self.obj_model,
                 0..self.instances.len() as u32,
