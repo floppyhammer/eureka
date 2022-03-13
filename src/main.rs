@@ -108,10 +108,11 @@ impl State {
         let projection = Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
         let camera_controller = CameraController::new(4.0, 0.4);
 
-        // This will be used in the vertex shader.
+        // This will be used in the model shader.
         let mut camera_uniform = scene::camera::CameraUniform::new();
         camera_uniform.update_view_proj(&camera, &projection);
 
+        // Create a buffer for the camera uniform.
         let camera_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Camera Buffer"),
@@ -119,6 +120,9 @@ impl State {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
         );
+
+        // Bind group layout is used to create actual bind groups.
+        // A bind group describes a set of resources and how they can be accessed by a shader.
 
         // Create a bind group layout for the camera buffer.
         let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -150,8 +154,7 @@ impl State {
         });
         // ----------------------------
 
-        // Bind group layout is used to create actual bind groups.
-        // A bind group describes a set of resources and how they can be accessed by a shader.
+        // Model textures.
         let texture_bind_group_layout = device.create_bind_group_layout(
             &wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -179,7 +182,7 @@ impl State {
                         },
                         count: None,
                     },
-                    // Normal map.
+                    // Normal texture.
                     wgpu::BindGroupLayoutEntry {
                         binding: 2,
                         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -213,10 +216,10 @@ impl State {
             _padding2: 0,
         };
 
-        // We'll want to update our lights position, so we use COPY_DST
+        // We'll want to update our lights position, so we use COPY_DST.
         let light_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
-                label: Some("Light VB"),
+                label: Some("Light uniform buffer"),
                 contents: bytemuck::cast_slice(&[light_uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
@@ -247,55 +250,49 @@ impl State {
         });
         // -------------------------------
 
-        // Pipeline.
-        // ----------------------------
-        // Create shader.
-        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        });
-
-        // Set up render pipeline layout using bind group layouts.
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &texture_bind_group_layout,
-                    &camera_bind_group_layout,
-                    &light_bind_group_layout,
-                ],
-                push_constant_ranges: &[],
-            });
-
-        // Set up render pipeline using the pipeline layout.
+        // Pipeline to  model.
         let render_pipeline = {
+            // Set up render pipeline layout using bind group layouts.
+            let layout =
+                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Model Render Pipeline Layout"),
+                    bind_group_layouts: &[
+                        &texture_bind_group_layout,
+                        &camera_bind_group_layout,
+                        &light_bind_group_layout,
+                    ],
+                    push_constant_ranges: &[],
+                });
+
+            // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Normal Shader"),
+                label: Some("Model Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
             };
 
             create_render_pipeline(
                 &device,
-                &render_pipeline_layout,
+                &layout,
                 config.format,
                 Some(render::texture::Texture::DEPTH_FORMAT),
                 &[render::model::MeshVertex::desc(), render::model::InstanceRaw::desc()],
                 shader,
             )
         };
-        // ----------------------------
 
         // Pipeline to draw light source.
         let light_render_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Light Pipeline Layout"),
+                label: Some("Light Render Pipeline Layout"),
                 bind_group_layouts: &[&camera_bind_group_layout, &light_bind_group_layout],
                 push_constant_ranges: &[],
             });
+
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Light Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("light.wgsl").into()),
             };
+
             create_render_pipeline(
                 &device,
                 &layout,
@@ -306,6 +303,7 @@ impl State {
             )
         };
 
+        // Load models.
         let res_dir = std::path::Path::new(env!("OUT_DIR")).join("res");
         let obj_model = Model::load(
             &device,
@@ -330,8 +328,8 @@ impl State {
                 let position = cgmath::Vector3 { x, y: 0.0, z };
 
                 let rotation = if position.is_zero() {
-                    // this is needed so an object at (0, 0, 0) won't get scaled to zero
-                    // as Quaternions can effect scale if they're not created correctly
+                    // This is needed so an object at (0, 0, 0) won't get scaled to zero
+                    // as Quaternions can effect scale if they're not created correctly.
                     cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
                 } else {
                     cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
@@ -540,6 +538,7 @@ fn create_render_pipeline(
     vertex_layouts: &[wgpu::VertexBufferLayout],
     shader: wgpu::ShaderModuleDescriptor,
 ) -> wgpu::RenderPipeline {
+    // Create actual shader module using the shader descriptor.
     let shader = device.create_shader_module(&shader);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
