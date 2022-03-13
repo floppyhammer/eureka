@@ -12,7 +12,7 @@ mod render;
 mod scene;
 
 // Import local crates.
-use crate::render::model::{Mesh, Model};
+use crate::render::model::{Mesh, Model, DrawLight};
 use crate::render::texture::Texture;
 use crate::render::{DrawModel, model, Vertex};
 use crate::scene::camera::{Camera, Projection, CameraController};
@@ -54,6 +54,7 @@ struct State {
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
     obj_model: model::Model,
+    light_model: model::Model,
     light_uniform: LightUniform,
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
@@ -312,6 +313,12 @@ impl State {
             &texture_bind_group_layout,
             res_dir.join("viking_room/viking_room.obj"),
         ).unwrap();
+        let light_model = Model::load(
+            &device,
+            &queue,
+            &texture_bind_group_layout,
+            res_dir.join("sphere.obj"),
+        ).unwrap();
 
         // Instance data.
         const SPACE_BETWEEN: f32 = 3.0;
@@ -368,6 +375,7 @@ impl State {
             instance_buffer,
             depth_texture,
             obj_model,
+            light_model,
             light_uniform,
             light_buffer,
             light_bind_group,
@@ -408,7 +416,7 @@ impl State {
                 true
             }
             DeviceEvent::Button {
-                button: 1, // Left Mouse Button
+                button: 3, // Right Mouse Button
                 state,
             } => {
                 self.mouse_pressed = *state == ElementState::Pressed;
@@ -495,10 +503,10 @@ impl State {
 
             // Draw light.
             // ----------------------
-            use crate::model::DrawLight;
-            render_pass.set_pipeline(&self.light_render_pipeline); // NEW!
+
+            render_pass.set_pipeline(&self.light_render_pipeline);
             render_pass.draw_light_model(
-                &self.obj_model,
+                &self.light_model,
                 &self.camera_bind_group,
                 &self.light_bind_group,
             );

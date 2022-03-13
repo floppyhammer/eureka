@@ -3,8 +3,10 @@ use anyhow::*;
 use image::GenericImageView;
 
 pub struct Texture {
-    pub texture: wgpu::Texture, // Actual data.
-    pub view: wgpu::TextureView, // Thin wrapper over texture.
+    pub texture: wgpu::Texture,
+    // Actual data.
+    pub view: wgpu::TextureView,
+    // Thin wrapper over texture.
     pub sampler: wgpu::Sampler, // Defines how to sample the texture.
 }
 
@@ -18,7 +20,8 @@ impl Texture {
         let path_copy = path.as_ref().to_path_buf();
         let label = path_copy.to_str();
 
-        let img = image::open(path)?;
+        let img = image::open(path).context("Invalid image path")?;
+
         Self::from_image(device, queue, &img, label)
     }
 
@@ -27,12 +30,15 @@ impl Texture {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         bytes: &[u8],
-        label: &str
+        label: &str,
+        y_flip: bool,
     ) -> Result<Self> {
         let img = image::load_from_memory(bytes)?;
 
         // Flip image.
-        //image::imageops::flip_vertical(&img);
+        if y_flip {
+            image::imageops::flip_vertical(&img);
+        }
 
         Self::from_image(device, queue, &img, Some(label))
     }
@@ -42,7 +48,7 @@ impl Texture {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         img: &image::DynamicImage,
-        label: Option<&str>
+        label: Option<&str>,
     ) -> Result<Self> {
         // Make a rgba8 copy.
         let rgba = img.to_rgba8();
@@ -55,7 +61,7 @@ impl Texture {
             height: dimensions.1,
             depth_or_array_layers: 1,
         };
-        
+
         let texture = device.create_texture(
             &wgpu::TextureDescriptor {
                 label,

@@ -5,6 +5,7 @@ use anyhow::Context;
 use cgmath::InnerSpace;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
+use anyhow::*;
 
 use crate::render::texture;
 
@@ -198,7 +199,7 @@ impl Model {
         queue: &wgpu::Queue,
         layout: &wgpu::BindGroupLayout,
         path: P,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self> {
         let (obj_models, obj_materials) = tobj::load_obj(path.as_ref(), &LoadOptions {
             triangulate: true,
             single_index: true,
@@ -211,15 +212,29 @@ impl Model {
         // We're assuming that the texture files are stored with the obj file
         let containing_folder = path.as_ref().parent().context("Directory has no parent")?;
 
+        let default_path = "default.png";
+
         let mut materials = Vec::new();
         for mat in obj_materials {
             // Load diffuse texture.
             let diffuse_path = mat.diffuse_texture;
-            let diffuse_texture = texture::Texture::load(device, queue, containing_folder.join(diffuse_path))?;
+            let diffuse_texture = match texture::Texture::load(device, queue, containing_folder.join(diffuse_path)) {
+                Ok(i) => i,
+                Err(e) => {
+                    println!("Diffuse texture is invalid, error: {}", e);
+                    texture::Texture::load(device, queue, containing_folder.join(default_path))?
+                },
+            };
 
-            // Load normal map.
+            // Load normal texture.
             let normal_path = mat.normal_texture;
-            let normal_texture = texture::Texture::load(device, queue, containing_folder.join(normal_path))?;
+            let normal_texture = match texture::Texture::load(device, queue, containing_folder.join(normal_path)) {
+                Ok(i) => i,
+                Err(e) => {
+                    println!("Normal texture is invalid, error: {}", e);
+                    texture::Texture::load(device, queue, containing_folder.join(default_path))?
+                },
+            };
 
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout,
@@ -488,6 +503,7 @@ pub trait DrawLight<'a> {
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     );
+
     fn draw_light_mesh_instanced(
         &mut self,
         mesh: &'a Mesh,
@@ -502,6 +518,7 @@ pub trait DrawLight<'a> {
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     );
+
     fn draw_light_model_instanced(
         &mut self,
         model: &'a Model,
@@ -546,6 +563,7 @@ impl<'a, 'b> DrawLight<'b> for wgpu::RenderPass<'a>
     ) {
         self.draw_light_model_instanced(model, 0..1, camera_bind_group, light_bind_group);
     }
+
     fn draw_light_model_instanced(
         &mut self,
         model: &'b Model,
