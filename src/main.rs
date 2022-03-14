@@ -6,32 +6,19 @@ use winit::{
 };
 use wgpu::util::DeviceExt;
 use cgmath::prelude::*;
+use winit::dpi::{LogicalPosition, Position};
 
 // Do this before importing local crates.
 mod render;
 mod scene;
 
 // Import local crates.
-use crate::render::model::{Mesh, Model, DrawLight};
-use crate::render::texture::Texture;
-use crate::render::{DrawModel, model, Vertex};
-use crate::scene::camera::{Camera, Projection, CameraController};
+use crate::render::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};
+use crate::scene::{Camera, Projection, CameraController};
 
 // Instancing.
 const NUM_INSTANCES_PER_ROW: u32 = 10;
 const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0, NUM_INSTANCES_PER_ROW as f32 * 0.5);
-
-// Light.
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct LightUniform {
-    position: [f32; 3],
-    // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
-    _padding: u32,
-    color: [f32; 3],
-    // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
-    _padding2: u32,
-}
 
 // For convenience we're going to pack all the fields into a struct,
 // and create some methods on that.
@@ -53,12 +40,13 @@ struct State {
     instances: Vec<render::model::Instance>,
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
-    obj_model: model::Model,
-    light_model: model::Model,
+    obj_model: Model,
+    light_model: Model,
     light_uniform: LightUniform,
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
-    mouse_pressed: bool,
+    right_mouse_button_pressed: bool,
+    mouse_position: cgmath::Vector2<f64>,
 }
 
 impl State {
@@ -377,7 +365,8 @@ impl State {
             light_uniform,
             light_buffer,
             light_bind_group,
-            mouse_pressed: false,
+            right_mouse_button_pressed: false,
+            mouse_position: cgmath::Vector2::new(0.0, 0.0),
         }
     }
 
@@ -400,7 +389,7 @@ impl State {
     }
 
     /// Handle input.
-    fn input(&mut self, event: &DeviceEvent) -> bool {
+    fn input(&mut self, event: &DeviceEvent, window: &Window) -> bool {
         match event {
             DeviceEvent::Key(
                 KeyboardInput {
@@ -417,11 +406,20 @@ impl State {
                 button: 3, // Right Mouse Button
                 state,
             } => {
-                self.mouse_pressed = *state == ElementState::Pressed;
+                let old_status = self.right_mouse_button_pressed;
+                let new_status = *state == ElementState::Pressed;
+                if new_status != old_status {
+                    window.set_cursor_visible(!new_status);
+                    self.right_mouse_button_pressed = new_status;
+                    if !new_status {
+                        window.set_cursor_position(Position::new(LogicalPosition::new(self.mouse_position.x, self.mouse_position.y)));
+                    }
+                }
+
                 true
             }
             DeviceEvent::MouseMotion { delta } => {
-                if self.mouse_pressed {
+                if self.right_mouse_button_pressed {
                     self.camera_controller.process_mouse(delta.0, delta.1);
                 }
                 true
@@ -496,13 +494,10 @@ impl State {
                 }),
             });
 
-            // Set vertex buffer for InstanceInput.
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-
             // Draw light.
             // ----------------------
-
             render_pass.set_pipeline(&self.light_render_pipeline);
+
             render_pass.draw_light_model(
                 &self.light_model,
                 &self.camera_bind_group,
@@ -510,7 +505,11 @@ impl State {
             );
             // ----------------------
 
-            // Bind pipeline.
+            // Draw model.
+            // ----------------------
+            // Set vertex buffer for InstanceInput.
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+
             render_pass.set_pipeline(&self.render_pipeline);
 
             render_pass.draw_model_instanced(
@@ -519,9 +518,10 @@ impl State {
                 &self.camera_bind_group,
                 &self.light_bind_group,
             );
+            // ----------------------
         }
 
-        // Finish the command buffer, and to submit it to the gpu's render queue.
+        // Finish the command buffer, and to submit it to the GPU's render queue.
         // Submit will accept anything that implements IntoIter.
         self.queue.submit(std::iter::once(encoder.finish()));
 
@@ -608,7 +608,7 @@ fn main() {
                 ref event,
                 .. // We're not using device_id currently
             } => {
-                state.input(event);
+                state.input(event, &window);
             }
             // Window event.
             Event::WindowEvent {
@@ -633,6 +633,18 @@ fn main() {
                     // Scale factor changed.
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         state.resize(**new_inner_size);
+                    }
+                    WindowEvent::CursorMoved { position, .. } => {
+                        let inner_size = window.inner_size();
+
+                        // move origin to bottom left
+                        let y_position = inner_size.height as f64 - position.y;
+
+                        if !state.right_mouse_button_pressed {
+                            println!("Cursor position updated: {}, {}", position.x, position.y);
+                            state.mouse_position.x = position.x / window.scale_factor();
+                            state.mouse_position.y = position.y / window.scale_factor();
+                        }
                     }
                     _ => {}
                 }
