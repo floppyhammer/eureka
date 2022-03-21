@@ -641,7 +641,7 @@ fn main() {
                         let y_position = inner_size.height as f64 - position.y;
 
                         if !state.right_mouse_button_pressed {
-                            println!("Cursor position updated: {}, {}", position.x, position.y);
+                            //println!("Cursor position updated: {}, {}", position.x, position.y);
                             state.mouse_position.x = position.x / window.scale_factor();
                             state.mouse_position.y = position.y / window.scale_factor();
                         }
