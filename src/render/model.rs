@@ -209,10 +209,8 @@ impl Model {
 
         let obj_materials = obj_materials?;
 
-        // We're assuming that the texture files are stored with the obj file
+        // We're assuming that the texture files are stored with the obj file.
         let containing_folder = path.as_ref().parent().context("Directory has no parent")?;
-
-        let default_path = "default.png";
 
         let mut materials = Vec::new();
         for mat in obj_materials {
@@ -222,7 +220,7 @@ impl Model {
                 Ok(i) => i,
                 Err(e) => {
                     println!("Diffuse texture is invalid, error: {}", e);
-                    texture::Texture::load(device, queue, containing_folder.join(default_path))?
+                    texture::Texture::empty(device, queue)?
                 },
             };
 
@@ -232,7 +230,7 @@ impl Model {
                 Ok(i) => i,
                 Err(e) => {
                     println!("Normal texture is invalid, error: {}", e);
-                    texture::Texture::load(device, queue, containing_folder.join(default_path))?
+                    texture::Texture::empty(device, queue)?
                 },
             };
 
