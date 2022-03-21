@@ -255,7 +255,7 @@ impl State {
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Model Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shader/shader.wgsl").into()),
             };
 
             create_render_pipeline(
@@ -278,7 +278,7 @@ impl State {
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Light Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("light.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shader/light.wgsl").into()),
             };
 
             create_render_pipeline(
