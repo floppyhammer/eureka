@@ -6,7 +6,7 @@ use winit::{
 };
 use wgpu::util::DeviceExt;
 use cgmath::prelude::*;
-use winit::dpi::{LogicalPosition, Position};
+use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
 
 // Do this before importing local crates.
 mod render;
@@ -14,7 +14,7 @@ mod scene;
 
 // Import local crates.
 use crate::render::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};
-use crate::scene::{Camera, Projection, CameraController};
+use crate::scene::{Camera, Projection, CameraController, InputEvent, WithInput};
 
 // Instancing.
 const NUM_INSTANCES_PER_ROW: u32 = 1;
@@ -31,11 +31,6 @@ struct State {
     render_pipeline: wgpu::RenderPipeline,
     light_render_pipeline: wgpu::RenderPipeline,
     camera: Camera,
-    projection: Projection,
-    camera_controller: CameraController,
-    camera_uniform: scene::camera::CameraUniform,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
     // Instancing.
     instances: Vec<render::model::Instance>,
     instance_buffer: wgpu::Buffer,
@@ -45,6 +40,8 @@ struct State {
     light_uniform: LightUniform,
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
+    mouse_position: (f32, f32),
+    cursor_captured: bool,
 }
 
 impl State {
@@ -89,56 +86,7 @@ impl State {
         surface.configure(&device, &config);
 
         // Create camera.
-        // ----------------------------
-        let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0));
-        let projection = Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
-        let camera_controller = CameraController::new(4.0, 0.4);
-
-        // This will be used in the model shader.
-        let mut camera_uniform = scene::camera::CameraUniform::new();
-        camera_uniform.update_view_proj(&camera, &projection);
-
-        // Create a buffer for the camera uniform.
-        let camera_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
-
-        // Bind group layout is used to create actual bind groups.
-        // A bind group describes a set of resources and how they can be accessed by a shader.
-
-        // Create a bind group layout for the camera buffer.
-        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }
-            ],
-            label: Some("camera_bind_group_layout"),
-        });
-
-        // Create the actual bind group.
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                }
-            ],
-            label: Some("camera_bind_group"),
-        });
-        // ----------------------------
+        let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device);
 
         // Model textures.
         let texture_bind_group_layout = device.create_bind_group_layout(
@@ -244,7 +192,7 @@ impl State {
                     label: Some("Model Render Pipeline Layout"),
                     bind_group_layouts: &[
                         &texture_bind_group_layout,
-                        &camera_bind_group_layout,
+                        &camera.camera_bind_group_layout,
                         &light_bind_group_layout,
                     ],
                     push_constant_ranges: &[],
@@ -270,7 +218,7 @@ impl State {
         let light_render_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Light Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout, &light_bind_group_layout],
+                bind_group_layouts: &[&camera.camera_bind_group_layout, &light_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -352,11 +300,6 @@ impl State {
             render_pipeline,
             light_render_pipeline,
             camera,
-            projection,
-            camera_controller,
-            camera_uniform,
-            camera_buffer,
-            camera_bind_group,
             instances,
             instance_buffer,
             depth_texture,
@@ -365,7 +308,17 @@ impl State {
             light_uniform,
             light_buffer,
             light_bind_group,
+            mouse_position: (0.0, 0.0),
+            cursor_captured: false,
         }
+    }
+
+    fn capture_cursor() {
+
+    }
+
+    fn release_cursor() {
+
     }
 
     /// Resize window.
@@ -382,48 +335,80 @@ impl State {
             // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
             self.depth_texture = Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
 
-            self.projection.resize(new_size.width, new_size.height);
+            self.camera.when_view_size_changes(new_size.width, new_size.height);
         }
     }
 
-    /// Handle input.
+    /// Handle input events.
     fn input(&mut self, event: &DeviceEvent, window: &Window) -> bool {
-        match event {
+        // Convert to our own input events.
+        let input_event = match event {
             DeviceEvent::Key(
                 KeyboardInput {
                     virtual_keycode: Some(key),
                     state,
                     ..
                 }
-            ) => self.camera_controller.process_keyboard(*key, *state),
+            ) => {
+                scene::input_event::InputEvent::Key{
+                    0: scene::input_event::Key {
+                        key: *key,
+                        pressed: *state == ElementState::Pressed,
+                    }
+                }
+            },
             DeviceEvent::MouseWheel { delta, .. } => {
-                self.camera_controller.process_scroll(delta);
-                true
+                let scroll = match delta {
+                    // I'm assuming a line is about 100 pixels.
+                    MouseScrollDelta::LineDelta(_, scroll) => scroll * 100.0,
+                    MouseScrollDelta::PixelDelta(PhysicalPosition {
+                                                     y: scroll,
+                                                     ..
+                                                 }) => *scroll as f32,
+                };
+
+                scene::input_event::InputEvent::MouseScroll{
+                    0: scene::input_event::MouseScroll {
+                        delta: scroll,
+                    }
+                }
             }
             DeviceEvent::Button {
-                button: button_id, // Right Mouse Button
+                button: button_id,
                 state,
             } => {
-                self.camera_controller.process_mouse_button(button_id, state, window);
-                true
+                scene::input_event::InputEvent::MouseButton{
+                    0: scene::input_event::MouseButton {
+                        button: *button_id,
+                        pressed: *state == ElementState::Pressed,
+                        position: self.mouse_position,
+                    }
+                }
             }
             DeviceEvent::MouseMotion { delta } => {
-                self.camera_controller.process_mouse_motion(delta.0, delta.1);
-                true
+                scene::input_event::InputEvent::MouseMotion{
+                    0: scene::input_event::MouseMotion {
+                        delta: (delta.0 as f32, delta.1 as f32),
+                        position: self.mouse_position,
+                    }
+                }
             }
-            _ => false,
-        }
+            _ => {
+                scene::input_event::InputEvent::Invalid
+            }
+        };
+
+        // Pass input events to nodes.
+        self.camera.input(input_event);
+
+        self.camera.when_capture_state_changed(window);
+
+        true
     }
 
     fn update(&mut self, dt: std::time::Duration) {
         // Update camera.
-        {
-            self.camera_controller.update_camera(&mut self.camera, dt);
-            self.camera_uniform.update_view_proj(&self.camera, &self.projection);
-
-            // Update camera buffer.
-            self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
-        }
+        self.camera.update(dt.as_secs_f32(), &self.queue);
 
         // Update the light.
         {
@@ -487,7 +472,7 @@ impl State {
 
             render_pass.draw_light_model(
                 &self.light_model,
-                &self.camera_bind_group,
+                &self.camera.camera_bind_group,
                 &self.light_bind_group,
             );
             // ----------------------
@@ -502,7 +487,7 @@ impl State {
             render_pass.draw_model_instanced(
                 &self.obj_model,
                 0..self.instances.len() as u32,
-                &self.camera_bind_group,
+                &self.camera.camera_bind_group,
                 &self.light_bind_group,
             );
             // ----------------------
@@ -567,10 +552,8 @@ fn main() {
                         // Move origin to bottom left.
                         //let y_position = inner_size.height as f64 - position.y;
 
-                        state.camera_controller.process_mouse_position(
-                            position.x / window.scale_factor(),
-                            position.y / window.scale_factor(),
-                        );
+                        state.mouse_position = ((position.x / window.scale_factor()) as f32,
+                                                (position.y / window.scale_factor()) as f32);
                     }
                     _ => {}
                 }

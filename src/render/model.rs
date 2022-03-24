@@ -6,10 +6,16 @@ use cgmath::InnerSpace;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
 use anyhow::*;
+use cgmath::*;
 
 use crate::render::texture;
 
 pub struct Model {
+    // pub position: cgmath::Vector3<f32>,
+    // pub rotation: cgmath::Vector3<f32>,
+    // pub scale: cgmath::Vector3<f32>,
+    // pub name: String,
+
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
 }
@@ -26,7 +32,7 @@ pub struct Mesh {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub num_elements: u32,
-    pub material: usize,
+    pub material: usize, // id
 }
 
 // Every struct with this trait has to provide a desc() function.
