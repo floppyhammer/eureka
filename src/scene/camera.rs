@@ -1,9 +1,10 @@
 use cgmath::*;
 use winit::event::*;
-use winit::dpi::PhysicalPosition;
+use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
 use std::time::Duration;
 use std::f32::consts::FRAC_PI_2;
 use cgmath::num_traits::clamp;
+use winit::window::Window;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -124,6 +125,8 @@ pub struct CameraController {
     scroll: f32,
     speed: f32,
     sensitivity: f32,
+    pub right_mouse_button_pressed: bool,
+    pub mouse_position: cgmath::Vector2<f64>,
 }
 
 impl CameraController {
@@ -140,10 +143,12 @@ impl CameraController {
             scroll: 0.0,
             speed,
             sensitivity,
+            right_mouse_button_pressed: false,
+            mouse_position: cgmath::Vector2::new(0.0, 0.0),
         }
     }
 
-    pub fn process_keyboard(&mut self, key: VirtualKeyCode, state: ElementState) -> bool{
+    pub fn process_keyboard(&mut self, key: VirtualKeyCode, state: ElementState) -> bool {
         let amount = if state == ElementState::Pressed { 1.0 } else { 0.0 };
         match key {
             VirtualKeyCode::W | VirtualKeyCode::Up => {
@@ -174,9 +179,46 @@ impl CameraController {
         }
     }
 
-    pub fn process_mouse(&mut self, mouse_dx: f64, mouse_dy: f64) {
-        self.rotate_horizontal = mouse_dx as f32;
-        self.rotate_vertical = mouse_dy as f32;
+    pub fn process_mouse_motion(&mut self, mouse_dx: f64, mouse_dy: f64) {
+        if self.right_mouse_button_pressed {
+            self.rotate_horizontal = mouse_dx as f32;
+            self.rotate_vertical = mouse_dy as f32;
+        }
+    }
+
+    pub fn process_mouse_position(&mut self, mouse_x: f64, mouse_y: f64) {
+        if !self.right_mouse_button_pressed {
+            //println!("Cursor position updated: {}, {}", position.x, position.y);
+            self.mouse_position.x = mouse_x;
+            self.mouse_position.y = mouse_y;
+        }
+    }
+
+    pub fn process_mouse_button(&mut self, button_id: &ButtonId, state: &ElementState, window: &Window) {
+        // Not the right button.
+        if *button_id != 3 {
+            return;
+        }
+
+        let old_status = self.right_mouse_button_pressed;
+        let new_status = *state == ElementState::Pressed;
+        if new_status != old_status {
+            self.right_mouse_button_pressed = new_status;
+
+            window.set_cursor_visible(!new_status);
+
+            // When right button releases, we need to set mouse position back to where
+            // it was before being set invisible.
+            if !new_status {
+                window.set_cursor_position(
+                    Position::new(
+                        LogicalPosition::new(
+                            self.mouse_position.x,
+                            self.mouse_position.y)
+                    )
+                );
+            }
+        }
     }
 
     pub fn process_scroll(&mut self, delta: &MouseScrollDelta) {

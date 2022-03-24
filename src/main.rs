@@ -45,8 +45,6 @@ struct State {
     light_uniform: LightUniform,
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
-    right_mouse_button_pressed: bool,
-    mouse_position: cgmath::Vector2<f64>,
 }
 
 impl State {
@@ -367,8 +365,6 @@ impl State {
             light_uniform,
             light_buffer,
             light_bind_group,
-            right_mouse_button_pressed: false,
-            mouse_position: cgmath::Vector2::new(0.0, 0.0),
         }
     }
 
@@ -405,25 +401,14 @@ impl State {
                 true
             }
             DeviceEvent::Button {
-                button: 3, // Right Mouse Button
+                button: button_id, // Right Mouse Button
                 state,
             } => {
-                let old_status = self.right_mouse_button_pressed;
-                let new_status = *state == ElementState::Pressed;
-                if new_status != old_status {
-                    window.set_cursor_visible(!new_status);
-                    self.right_mouse_button_pressed = new_status;
-                    if !new_status {
-                        window.set_cursor_position(Position::new(LogicalPosition::new(self.mouse_position.x, self.mouse_position.y)));
-                    }
-                }
-
+                self.camera_controller.process_mouse_button(button_id, state, window);
                 true
             }
             DeviceEvent::MouseMotion { delta } => {
-                if self.right_mouse_button_pressed {
-                    self.camera_controller.process_mouse(delta.0, delta.1);
-                }
+                self.camera_controller.process_mouse_motion(delta.0, delta.1);
                 true
             }
             _ => false,
@@ -582,11 +567,10 @@ fn main() {
                         // Move origin to bottom left.
                         //let y_position = inner_size.height as f64 - position.y;
 
-                        if !state.right_mouse_button_pressed {
-                            //println!("Cursor position updated: {}, {}", position.x, position.y);
-                            state.mouse_position.x = position.x / window.scale_factor();
-                            state.mouse_position.y = position.y / window.scale_factor();
-                        }
+                        state.camera_controller.process_mouse_position(
+                            position.x / window.scale_factor(),
+                            position.y / window.scale_factor(),
+                        );
                     }
                     _ => {}
                 }
