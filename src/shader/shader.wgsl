@@ -1,7 +1,6 @@
 // Vertex shader
 
 // Any structure used as a uniform must be annotated with [[block]].
-[[block]]
 struct Camera {
     view_pos: vec4<f32>;
     view_proj: mat4x4<f32>;
@@ -9,7 +8,6 @@ struct Camera {
 [[group(1), binding(0)]]
 var<uniform> camera: Camera;
 
-[[block]]
 struct Light {
     position: vec3<f32>;
     color: vec3<f32>;
@@ -53,14 +51,12 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
         instance.model_matrix_0,
         instance.model_matrix_1,
         instance.model_matrix_2,
-        instance.model_matrix_3,
-    );
+        instance.model_matrix_3);
 
     let normal_matrix = mat3x3<f32>(
         instance.normal_matrix_0,
         instance.normal_matrix_1,
-        instance.normal_matrix_2,
-    );
+        instance.normal_matrix_2);
 
     // Construct the tangent matrix.
     let world_normal = normalize(normal_matrix * model.normal);
@@ -69,8 +65,7 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     let tangent_matrix = transpose(mat3x3<f32>(
         world_tangent,
         world_bitangent,
-        world_normal,
-    ));
+        world_normal));
 
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
 

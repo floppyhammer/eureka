@@ -6,7 +6,9 @@ use winit::{
 };
 use wgpu::util::DeviceExt;
 use cgmath::prelude::*;
-use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
+use winit::dpi::{LogicalPosition, PhysicalPosition, Position, Size};
+
+use wgpu::SamplerBindingType;
 
 // Do this before importing local crates.
 mod render;
@@ -15,6 +17,9 @@ mod scene;
 // Import local crates.
 use crate::render::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};
 use crate::scene::{Camera, Projection, CameraController, InputEvent, WithInput};
+
+const INITIAL_WINDOW_WIDTH: u32 = 1280;
+const INITIAL_WINDOW_HEIGHT: u32 = 720;
 
 // Instancing.
 const NUM_INSTANCES_PER_ROW: u32 = 1;
@@ -62,6 +67,7 @@ impl State {
             &wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
                 compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
             },
         ).await.unwrap();
 
@@ -107,12 +113,7 @@ impl State {
                         binding: 1,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Sampler {
-                            // This is only for TextureSampleType::Depth
-                            comparison: false,
-                            // This should be true if the sample_type of the texture is:
-                            //     TextureSampleType::Float { filterable: true }
-                            // Otherwise you'll get an error.
-                            filtering: true,
+                            0: SamplerBindingType::Filtering,
                         },
                         count: None,
                     },
@@ -131,8 +132,7 @@ impl State {
                         binding: 3,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Sampler {
-                            comparison: false,
-                            filtering: true,
+                            0: SamplerBindingType::Filtering,
                         },
                         count: None,
                     },
@@ -315,13 +315,9 @@ impl State {
         }
     }
 
-    fn capture_cursor() {
+    fn capture_cursor() {}
 
-    }
-
-    fn release_cursor() {
-
-    }
+    fn release_cursor() {}
 
     /// Resize window.
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -352,13 +348,13 @@ impl State {
                     ..
                 }
             ) => {
-                scene::input_event::InputEvent::Key{
+                scene::input_event::InputEvent::Key {
                     0: scene::input_event::Key {
                         key: *key,
                         pressed: *state == ElementState::Pressed,
                     }
                 }
-            },
+            }
             DeviceEvent::MouseWheel { delta, .. } => {
                 let scroll = match delta {
                     // I'm assuming a line is about 100 pixels.
@@ -369,7 +365,7 @@ impl State {
                                                  }) => *scroll as f32,
                 };
 
-                scene::input_event::InputEvent::MouseScroll{
+                scene::input_event::InputEvent::MouseScroll {
                     0: scene::input_event::MouseScroll {
                         delta: scroll,
                     }
@@ -379,7 +375,7 @@ impl State {
                 button: button_id,
                 state,
             } => {
-                scene::input_event::InputEvent::MouseButton{
+                scene::input_event::InputEvent::MouseButton {
                     0: scene::input_event::MouseButton {
                         button: *button_id,
                         pressed: *state == ElementState::Pressed,
@@ -388,7 +384,7 @@ impl State {
                 }
             }
             DeviceEvent::MouseMotion { delta } => {
-                scene::input_event::InputEvent::MouseMotion{
+                scene::input_event::InputEvent::MouseMotion {
                     0: scene::input_event::MouseMotion {
                         delta: (delta.0 as f32, delta.1 as f32),
                         position: self.mouse_position,
@@ -426,7 +422,7 @@ impl State {
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         // First we need to get a frame to render to.
-        let output = self.surface.get_current_frame()?.output;
+        let output = self.surface.get_current_texture()?;
 
         // Creates a TextureView with default settings.
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -499,14 +495,27 @@ impl State {
         // Submit will accept anything that implements IntoIter.
         self.queue.submit(std::iter::once(encoder.finish()));
 
+        // Present the [`SurfaceTexture`].
+        output.present();
+
         Ok(())
     }
 }
 
 fn main() {
     env_logger::init();
+
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let title = env!("CARGO_PKG_NAME");
+
+    let window = WindowBuilder::new()
+        .with_title(title)
+        .with_inner_size(winit::dpi::PhysicalSize::new(
+            INITIAL_WINDOW_WIDTH,
+            INITIAL_WINDOW_HEIGHT,
+        ))
+        .build(&event_loop)
+        .unwrap();
 
     // State::new uses async code, so we're going to wait for it to finish
     let mut state = pollster::block_on(State::new(&window));
@@ -575,7 +584,7 @@ fn main() {
                     // The system is out of memory, we should probably quit.
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     // All other errors (Outdated, Timeout) should be resolved by the next frame.
-                    Err(e) => eprintln!("{:?}", e),
+                    Err(e) => eprintln!("State render error: {:?}", e),
                 }
             }
             Event::MainEventsCleared => {
