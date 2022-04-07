@@ -237,21 +237,23 @@ impl State {
             )
         };
 
-        // Get the resources directory.
-        let res_dir = std::path::Path::new(env!("OUT_DIR")).join("res");
+        // Get the asset directory.
+        let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
+
+        println!("Asset dir: {}", asset_dir.display());
 
         // Load models.
         let obj_model = Model::load(
             &device,
             &queue,
             &texture_bind_group_layout,
-            res_dir.join("viking_room/viking_room.obj"),
+            asset_dir.join("viking_room/viking_room.obj"),
         ).unwrap();
         let light_model = Model::load(
             &device,
             &queue,
             &texture_bind_group_layout,
-            res_dir.join("sphere.obj"),
+            asset_dir.join("sphere.obj"),
         ).unwrap();
 
         // Instance data.
