@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -8,11 +9,16 @@ use wgpu::util::DeviceExt;
 use cgmath::prelude::*;
 use winit::dpi::{LogicalPosition, PhysicalPosition, Position, Size};
 
-use wgpu::SamplerBindingType;
+use wgpu::{SamplerBindingType, TextureView};
+
+use egui::FontDefinitions;
+use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
+use epi::App;
 
 // Do this before importing local crates.
 mod render;
 mod scene;
+mod editor;
 
 // Import local crates.
 use crate::render::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};
@@ -47,6 +53,13 @@ struct State {
     light_bind_group: wgpu::BindGroup,
     mouse_position: (f32, f32),
     cursor_captured: bool,
+    egui_state: egui_winit::State,
+    egui_context: egui::Context,
+    egui_render_pass: RenderPass,
+    egui_demo_app: editor::app::App,
+    previous_frame_time: f32,
+    editor_texture: wgpu::Texture,
+    editor_texture_view: TextureView,
 }
 
 impl State {
@@ -90,6 +103,21 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
         };
         surface.configure(&device, &config);
+
+        // egui
+        // --------------------------
+        let size = window.inner_size();
+        let surface_format = surface.get_preferred_format(&adapter).unwrap();
+
+        let mut egui_state = egui_winit::State::new(4096, &window);
+        let egui_context = egui::Context::default();
+
+        // We use the egui_wgpu_backend crate as the render backend.
+        let mut egui_render_pass = RenderPass::new(&device, surface_format, 1);
+
+        // Display the demo application that ships with egui.
+        let mut egui_demo_app = editor::app::App::default();
+        // --------------------------
 
         // Create camera.
         let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device);
@@ -293,6 +321,25 @@ impl State {
         // For depth test.
         let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
 
+        // Editor viewport
+        let texture_desc = wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: INITIAL_WINDOW_WIDTH,
+                height: INITIAL_WINDOW_HEIGHT,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            usage: wgpu::TextureUsages::COPY_SRC // TextureUsages::COPY_SRC is so we can pull data out of the texture so we can save it to a file.
+                | wgpu::TextureUsages::RENDER_ATTACHMENT // We're using TextureUsages::RENDER_ATTACHMENT so wgpu can render to our texture.
+            ,
+            label: None,
+        };
+        let editor_texture = device.create_texture(&texture_desc);
+        let editor_texture_view = editor_texture.create_view(&Default::default());
+
         Self {
             surface,
             device,
@@ -312,6 +359,13 @@ impl State {
             light_bind_group,
             mouse_position: (0.0, 0.0),
             cursor_captured: false,
+            egui_state,
+            egui_context,
+            egui_render_pass,
+            egui_demo_app,
+            previous_frame_time: 0.0,
+            editor_texture,
+            editor_texture_view,
         }
     }
 
@@ -420,12 +474,12 @@ impl State {
         }
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, window: &Window, repaint_signal: &Arc<ExampleRepaintSignal>) -> Result<(), wgpu::SurfaceError> {
         // First we need to get a frame to render to.
-        let output = self.surface.get_current_texture()?;
+        let output_surface = self.surface.get_current_texture()?;
 
         // Creates a TextureView with default settings.
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = output_surface.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         // Builds a command buffer that we can then send to the gpu.
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -439,7 +493,7 @@ impl State {
                 color_attachments: &[
                     // This is what [[location(0)]] in the fragment shader targets.
                     wgpu::RenderPassColorAttachment {
-                        view: &view,
+                        view: &self.editor_texture_view, // Change this to change where to draw.
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(
@@ -490,22 +544,100 @@ impl State {
             );
             // ----------------------
         }
+        
+        // egui
+        // -----------------------
+        let output_view = output_surface
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Begin to draw the UI frame.
+        let egui_start = std::time::Instant::now();
+
+        let input = self.egui_state.take_egui_input(&window);
+        self.egui_context.begin_frame(input);
+        let app_output = epi::backend::AppOutput::default();
+
+        let frame =  epi::Frame::new(epi::backend::FrameData {
+            info: epi::IntegrationInfo {
+                name: "egui_example",
+                web_info: None,
+                cpu_usage: Some(self.previous_frame_time),
+                native_pixels_per_point: Some(window.scale_factor() as _),
+                prefer_dark_mode: None,
+            },
+            output: app_output,
+            repaint_signal: repaint_signal.clone(),
+        });
+
+        // Draw the demo application.
+        self.egui_demo_app.update(&self.egui_context, &frame);
+
+        // End the UI frame. We could now handle the output and draw the UI with the backend.
+        let _output = self.egui_context.end_frame();
+        let paint_jobs = self.egui_context.tessellate(_output.shapes);
+
+        let frame_time = (std::time::Instant::now() - egui_start).as_secs_f64() as f32;
+        self.previous_frame_time = frame_time;
+
+        // Upload all resources for the GPU.
+        let screen_descriptor = ScreenDescriptor {
+            physical_width: self.config.width,
+            physical_height: self.config.height,
+            scale_factor: window.scale_factor() as f32,
+        };
+
+        self.egui_render_pass.add_textures(&self.device, &self.queue, &_output.textures_delta).unwrap();
+        self.egui_render_pass.remove_textures(_output.textures_delta).unwrap();
+        self.egui_render_pass.update_buffers(&self.device, &self.queue, &paint_jobs, &screen_descriptor);
+
+        // Record all render passes.
+        self.egui_render_pass
+            .execute(
+                &mut encoder,
+                &output_view,
+                &paint_jobs,
+                &screen_descriptor,
+                Some(wgpu::Color::BLACK),
+            )
+            .unwrap();
+        // // Submit the commands.
+        // queue.submit(std::iter::once(encoder.finish()));
+        // 
+        // // Redraw egui
+        // output_frame.present();
+        // -----------------------
 
         // Finish the command buffer, and to submit it to the GPU's render queue.
         // Submit will accept anything that implements IntoIter.
         self.queue.submit(std::iter::once(encoder.finish()));
 
         // Present the [`SurfaceTexture`].
-        output.present();
+        output_surface.present();
 
         Ok(())
+    }
+}
+
+/// A custom event type for the winit app.
+enum EguiEvent {
+    RequestRedraw,
+}
+
+/// This is the repaint signal type that egui needs for requesting a repaint from another thread.
+/// It sends the custom RequestRedraw event to the winit event loop.
+struct ExampleRepaintSignal(std::sync::Mutex<winit::event_loop::EventLoopProxy<EguiEvent>>);
+
+impl epi::backend::RepaintSignal for ExampleRepaintSignal {
+    fn request_repaint(&self) {
+        self.0.lock().unwrap().send_event(EguiEvent::RequestRedraw).ok();
     }
 }
 
 fn main() {
     env_logger::init();
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::with_user_event();
     let title = env!("CARGO_PKG_NAME");
 
     let window = WindowBuilder::new()
@@ -519,6 +651,13 @@ fn main() {
 
     // State::new uses async code, so we're going to wait for it to finish
     let mut state = pollster::block_on(State::new(&window));
+
+    // Signal for egui.
+    let repaint_signal = std::sync::Arc::new(ExampleRepaintSignal(std::sync::Mutex::new(
+        event_loop.create_proxy(),
+    )));
+
+    let start_time = std::time::Instant::now();
 
     // Used to calculate frame delta.
     let mut last_render_time = std::time::Instant::now();
@@ -538,6 +677,8 @@ fn main() {
                 ref event,
                 window_id,
             } if window_id == window.id() => {
+                state.egui_state.on_event(&state.egui_context, &event);
+
                 match event {
                     // Close window.
                     WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
@@ -577,7 +718,7 @@ fn main() {
 
                 state.update(dt);
 
-                match state.render() {
+                match state.render(&window, &repaint_signal) {
                     Ok(_) => {}
                     // Reconfigure the surface if lost.
                     Err(wgpu::SurfaceError::Lost) => state.resize(state.size),

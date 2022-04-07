@@ -1,7 +1,7 @@
 use std::path::Path;
 use anyhow::*;
 use image::{GenericImageView, ImageBuffer, Rgb};
-use image::DynamicImage::ImageBgra8;
+use image::DynamicImage::ImageRgba8;
 
 pub struct Texture {
     pub texture: wgpu::Texture,
@@ -30,7 +30,7 @@ impl Texture {
                  queue: &wgpu::Queue,
     ) -> Result<Self> {
         let data = vec![222u8, 222, 222, 0];
-        let mut image = ImageBgra8(image::ImageBuffer::from_raw(1, 1, data).unwrap());
+        let mut image = ImageRgba8(image::ImageBuffer::from_raw(1, 1, data).unwrap());
 
         Self::from_image(device, queue, &image, Some("Empty image"))
     }
