@@ -1,3 +1,6 @@
+use std::convert::TryFrom;
+use std::mem;
+use std::num::NonZeroU32;
 use std::sync::Arc;
 use winit::{
     event::*,
@@ -11,7 +14,9 @@ use winit::dpi::{LogicalPosition, PhysicalPosition, Position, Size};
 
 use wgpu::{SamplerBindingType, TextureView};
 
-use egui::FontDefinitions;
+use egui::{ColorImage, FontDefinitions};
+use egui::ImageData::Color;
+use egui_extras::RetainedImage;
 use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
 use epi::App;
 
@@ -60,6 +65,7 @@ struct State {
     previous_frame_time: f32,
     editor_texture: wgpu::Texture,
     editor_texture_view: TextureView,
+    editor_depth_texture: Texture,
 }
 
 impl State {
@@ -319,13 +325,13 @@ impl State {
         );
 
         // For depth test.
-        let depth_texture = Texture::create_depth_texture(&device, &config, "depth_texture");
+        let depth_texture = Texture::create_depth_texture(&device, (config.width, config.height), "depth_texture");
 
         // Editor viewport
         let texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
-                width: INITIAL_WINDOW_WIDTH,
-                height: INITIAL_WINDOW_HEIGHT,
+                width: 256,
+                height: 256,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -339,6 +345,7 @@ impl State {
         };
         let editor_texture = device.create_texture(&texture_desc);
         let editor_texture_view = editor_texture.create_view(&Default::default());
+        let editor_depth_texture = Texture::create_depth_texture(&device, (256, 256), "editor_depth_texture");
 
         Self {
             surface,
@@ -366,6 +373,7 @@ impl State {
             previous_frame_time: 0.0,
             editor_texture,
             editor_texture_view,
+            editor_depth_texture,
         }
     }
 
@@ -385,7 +393,7 @@ impl State {
             // Create a new depth_texture and depth_texture_view.
             // Make sure you update the depth_texture after you update config.
             // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
-            self.depth_texture = Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+            self.depth_texture = Texture::create_depth_texture(&self.device, (self.config.width, self.config.height), "depth_texture");
 
             self.camera.when_view_size_changes(new_size.width, new_size.height);
         }
@@ -493,7 +501,7 @@ impl State {
                 color_attachments: &[
                     // This is what [[location(0)]] in the fragment shader targets.
                     wgpu::RenderPassColorAttachment {
-                        view: &view, // Change this to change where to draw.
+                        view: &self.editor_texture_view, // Change this to change where to draw.
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(
@@ -509,7 +517,7 @@ impl State {
                     }
                 ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture.view,
+                    view: &self.editor_depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: true,
@@ -544,13 +552,57 @@ impl State {
             );
             // ----------------------
         }
-        
+
+        let texture_size = 256u32;
+        // wgpu requires texture -> buffer copies to be aligned using
+        // wgpu::COPY_BYTES_PER_ROW_ALIGNMENT. Because of this we'll
+        // need to save both the padded_bytes_per_row as well as the
+        // unpadded_bytes_per_row
+        let pixel_size = mem::size_of::<[u8;4]>() as u32;
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let unpadded_bytes_per_row = pixel_size * texture_size;
+        let padding = (align - unpadded_bytes_per_row % align) % align;
+        let padded_bytes_per_row = unpadded_bytes_per_row + padding;
+
+        // Create a buffer to copy the texture to so we can get the data.
+        let buffer_size = (padded_bytes_per_row * texture_size) as wgpu::BufferAddress;
+        let buffer_desc = wgpu::BufferDescriptor {
+            size: buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            label: Some("Output Buffer"),
+            mapped_at_creation: false,
+        };
+        let output_buffer = self.device.create_buffer(&buffer_desc);
+
+        encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: &self.editor_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: Default::default()
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &output_buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(NonZeroU32::try_from(padded_bytes_per_row).unwrap()),
+                    rows_per_image: Some(NonZeroU32::try_from(texture_size).unwrap()),
+                }
+            },
+            wgpu::Extent3d {
+                width: texture_size,
+                height: texture_size,
+                depth_or_array_layers: 1,
+            },
+        );
+
+
         // egui
         // -----------------------
         // let output_view = output_surface
         //     .texture
         //     .create_view(&wgpu::TextureViewDescriptor::default());
-        let egui_output_view = &self.editor_texture_view;
+        let egui_output_view = &view;
 
         // Begin to draw the UI frame.
         let egui_start = std::time::Instant::now();
@@ -612,6 +664,33 @@ impl State {
         // Finish the command buffer, and to submit it to the GPU's render queue.
         // Submit will accept anything that implements IntoIter.
         self.queue.submit(std::iter::once(encoder.finish()));
+
+        // Wait for the scene viewport to be drawn, and set the result to editor.
+        {
+            // Create the map request.
+            let buffer_slice = output_buffer.slice(..);
+            let request = buffer_slice.map_async(wgpu::MapMode::Read);
+            // wait for the GPU to finish
+            self.device.poll(wgpu::Maintain::Wait);
+            let result = pollster::block_on(request);
+
+            match result {
+                Ok(()) => {
+                    let padded_data = buffer_slice.get_mapped_range();
+                    let data = padded_data
+                        .chunks(padded_bytes_per_row as _)
+                        .map(|chunk| { &chunk[..unpadded_bytes_per_row as _]})
+                        .flatten()
+                        .map(|x| { *x })
+                        .collect::<Vec<_>>();
+                    drop(padded_data);
+                    output_buffer.unmap();
+                    self.egui_demo_app.image = Some(RetainedImage::from_color_image("Scene Editor Texture",
+                                                                                    ColorImage::from_rgba_unmultiplied([256, 256], &*data)));
+                }
+                _ => { eprintln!("Something went wrong") }
+            }
+        }
 
         // Present the [`SurfaceTexture`].
         output_surface.present();
