@@ -8,86 +8,19 @@ use wgpu::util::DeviceExt;
 use anyhow::*;
 use cgmath::*;
 
-use crate::render::texture;
+use crate::render::{texture, mesh, material};
+use mesh::{Mesh, MeshVertex3d};
+use material::Material3d;
 
 pub struct Model {
     // pub position: cgmath::Vector3<f32>,
-    // pub rotation: cgmath::Vector3<f32>,
+    // pub rotation: cgmath::Quaternion<f32>,
     // pub scale: cgmath::Vector3<f32>,
-    // pub name: String,
 
     pub meshes: Vec<Mesh>,
-    pub materials: Vec<Material>,
-}
+    pub materials: Vec<Material3d>,
 
-pub struct Material {
-    pub name: String, // Material name for debugging reason.
-    pub diffuse_texture: texture::Texture,
-    pub normal_texture: texture::Texture,
-    pub bind_group: wgpu::BindGroup, // Bind group for the textures.
-}
-
-pub struct Mesh {
-    pub name: String, // Mesh name for debugging reason.
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
-    pub num_elements: u32,
-    pub material: usize, // id
-}
-
-// Every struct with this trait has to provide a desc() function.
-pub trait Vertex {
-    /// Vertex buffer layout provided to pipeline.
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
-}
-
-// Vertex data.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct MeshVertex {
-    pub(crate) position: [f32; 3],
-    pub(crate) tex_coords: [f32; 2],
-    pub(crate) normal: [f32; 3],
-
-    tangent: [f32; 3],
-    bitangent: [f32; 3],
-}
-
-impl Vertex for MeshVertex {
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<MeshVertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute { // Position.
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute { // UV.
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-                wgpu::VertexAttribute { // Normal.
-                    offset: std::mem::size_of::<[f32; 5]>() as wgpu::BufferAddress,
-                    shader_location: 2,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // Tangent and bi-tangent.
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                    shader_location: 3,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 11]>() as wgpu::BufferAddress,
-                    shader_location: 4,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-            ],
-        }
-    }
+    pub name: String,
 }
 
 /// Used to do instancing.
@@ -172,34 +105,8 @@ impl InstanceRaw {
     }
 }
 
-/// Mesh for a rect.
-// pub struct Mesh {
-//     pub(crate) vertices: [MeshVertex; 4],
-//     pub(crate) indices: [u16; 6],
-// }
-//
-// impl Mesh {
-//     pub fn new() -> Mesh {
-//         Mesh {
-//             vertices: [
-//                 Vertex { position: [0.0, 0.0, 0.0], tex_coords: [1.0, 0.0] },
-//                 Vertex { position: [1.0, 0.0, 0.0], tex_coords: [0.0, 0.0] },
-//                 Vertex { position: [1.0, 1.0, 0.0], tex_coords: [0.0, 1.0] },
-//                 Vertex { position: [0.0, 1.0, 0.0], tex_coords: [1.0, 1.0] },
-//             ],
-//             indices: [
-//                 0, 1, 2,
-//                 2, 3, 0,
-//             ],
-//         }
-//     }
-//
-//     pub(crate) fn get_indices_num(&self) -> usize {
-//         self.indices.len()
-//     }
-// }
-
 impl Model {
+    /// Load model from file.
     pub fn load<P: AsRef<Path>>(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -227,7 +134,7 @@ impl Model {
                 Err(e) => {
                     println!("Diffuse texture is invalid, error: {}", e);
                     texture::Texture::empty(device, queue)?
-                },
+                }
             };
 
             // Load normal texture.
@@ -237,7 +144,7 @@ impl Model {
                 Err(e) => {
                     println!("Normal texture is invalid, error: {}", e);
                     texture::Texture::empty(device, queue)?
-                },
+                }
             };
 
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -263,7 +170,7 @@ impl Model {
                 label: None,
             });
 
-            materials.push(Material {
+            materials.push(Material3d {
                 name: mat.name,
                 diffuse_texture,
                 normal_texture,
@@ -275,7 +182,7 @@ impl Model {
         for m in obj_models {
             let mut vertices = Vec::new();
             for i in 0..m.mesh.positions.len() / 3 {
-                vertices.push(MeshVertex {
+                vertices.push(MeshVertex3d {
                     position: [
                         m.mesh.positions[i * 3],
                         m.mesh.positions[i * 3 + 1],
@@ -283,7 +190,7 @@ impl Model {
                     ],
                     // Flip the vertical component of the texture coordinates.
                     // Cf. https://vulkan-tutorial.com/Loading_models
-                    tex_coords: [m.mesh.texcoords[i * 2], 1.0 - m.mesh.texcoords[i * 2 + 1]],
+                    uv: [m.mesh.texcoords[i * 2], 1.0 - m.mesh.texcoords[i * 2 + 1]],
                     normal: [
                         m.mesh.normals[i * 3],
                         m.mesh.normals[i * 3 + 1],
@@ -291,14 +198,14 @@ impl Model {
                     ],
                     // We'll calculate these later.
                     tangent: [0.0; 3],
-                    bitangent: [0.0; 3],
+                    bi_tangent: [0.0; 3],
                 });
             }
 
             let indices = &m.mesh.indices;
             let mut triangles_included = (0..vertices.len()).collect::<Vec<_>>();
 
-            // Calculate tangents and bitangets. We're going to
+            // Calculate tangents and bi-tangets. We're going to
             // use the triangles, so we need to loop through the
             // indices in chunks of 3.
             for c in indices.chunks(3) {
@@ -310,59 +217,59 @@ impl Model {
                 let pos1: cgmath::Vector3<_> = v1.position.into();
                 let pos2: cgmath::Vector3<_> = v2.position.into();
 
-                let uv0: cgmath::Vector2<_> = v0.tex_coords.into();
-                let uv1: cgmath::Vector2<_> = v1.tex_coords.into();
-                let uv2: cgmath::Vector2<_> = v2.tex_coords.into();
+                let uv0: cgmath::Vector2<_> = v0.uv.into();
+                let uv1: cgmath::Vector2<_> = v1.uv.into();
+                let uv2: cgmath::Vector2<_> = v2.uv.into();
 
                 // Calculate the edges of the triangle.
                 let delta_pos1 = pos1 - pos0;
                 let delta_pos2 = pos2 - pos0;
 
                 // This will give us a direction to calculate the
-                // tangent and bitangent.
+                // tangent and bi-tangent.
                 let delta_uv1 = uv1 - uv0;
                 let delta_uv2 = uv2 - uv0;
 
                 // Solving the following system of equations will
-                // give us the tangent and bitangent.
+                // give us the tangent and bi-tangent.
                 //     delta_pos1 = delta_uv1.x * T + delta_u.y * B
                 //     delta_pos2 = delta_uv2.x * T + delta_uv2.y * B
                 // Luckily, the place I found this equation provided
                 // the solution!
                 let r = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x);
                 let tangent = (delta_pos1 * delta_uv2.y - delta_pos2 * delta_uv1.y) * r;
-                // We flip the bitangent to enable right-handed normal
+                // We flip the bi-tangent to enable right-handed normal
                 // maps with wgpu texture coordinate system
-                let bitangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
+                let bi_tangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
 
-                // We'll use the same tangent/bitangent for each vertex in the triangle
+                // We'll use the same tangent/bi-tangent for each vertex in the triangle
                 vertices[c[0] as usize].tangent =
                     (tangent + cgmath::Vector3::from(vertices[c[0] as usize].tangent)).into();
                 vertices[c[1] as usize].tangent =
                     (tangent + cgmath::Vector3::from(vertices[c[1] as usize].tangent)).into();
                 vertices[c[2] as usize].tangent =
                     (tangent + cgmath::Vector3::from(vertices[c[2] as usize].tangent)).into();
-                vertices[c[0] as usize].bitangent =
-                    (bitangent + cgmath::Vector3::from(vertices[c[0] as usize].bitangent)).into();
-                vertices[c[1] as usize].bitangent =
-                    (bitangent + cgmath::Vector3::from(vertices[c[1] as usize].bitangent)).into();
-                vertices[c[2] as usize].bitangent =
-                    (bitangent + cgmath::Vector3::from(vertices[c[2] as usize].bitangent)).into();
+                vertices[c[0] as usize].bi_tangent =
+                    (bi_tangent + cgmath::Vector3::from(vertices[c[0] as usize].bi_tangent)).into();
+                vertices[c[1] as usize].bi_tangent =
+                    (bi_tangent + cgmath::Vector3::from(vertices[c[1] as usize].bi_tangent)).into();
+                vertices[c[2] as usize].bi_tangent =
+                    (bi_tangent + cgmath::Vector3::from(vertices[c[2] as usize].bi_tangent)).into();
 
-                // Used to average the tangents/bitangents
+                // Used to average the tangents/bi-tangents.
                 triangles_included[c[0] as usize] += 1;
                 triangles_included[c[1] as usize] += 1;
                 triangles_included[c[2] as usize] += 1;
             }
 
-            // Average the tangents/bitangents
+            // Average the tangents/bi-tangents.
             for (i, n) in triangles_included.into_iter().enumerate() {
                 let denom = 1.0 / n as f32;
                 let mut v = &mut vertices[i];
                 v.tangent = (cgmath::Vector3::from(v.tangent) * denom)
                     .normalize()
                     .into();
-                v.bitangent = (cgmath::Vector3::from(v.bitangent) * denom)
+                v.bi_tangent = (cgmath::Vector3::from(v.bi_tangent) * denom)
                     .normalize()
                     .into();
             }
@@ -386,12 +293,12 @@ impl Model {
                 name: m.name,
                 vertex_buffer,
                 index_buffer,
-                num_elements: m.mesh.indices.len() as u32,
+                num_indices: m.mesh.indices.len() as u32,
                 material: m.mesh.material_id.unwrap_or(0),
             });
         }
 
-        Ok(Self { meshes, materials })
+        Ok(Self { meshes, materials, name: "".to_string() })
     }
 }
 
@@ -399,7 +306,7 @@ pub trait DrawModel<'a> {
     fn draw_mesh(
         &mut self,
         mesh: &'a Mesh,
-        material: &'a Material,
+        material: &'a Material3d,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     );
@@ -407,7 +314,7 @@ pub trait DrawModel<'a> {
     fn draw_mesh_instanced(
         &mut self,
         mesh: &'a Mesh,
-        material: &'a Material,
+        material: &'a Material3d,
         instances: Range<u32>,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
@@ -437,7 +344,7 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
     fn draw_mesh(
         &mut self,
         mesh: &'b Mesh,
-        material: &'b Material,
+        material: &'b Material3d,
         camera_bind_group: &'b wgpu::BindGroup,
         light_bind_group: &'b wgpu::BindGroup,
     ) {
@@ -448,7 +355,7 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
     fn draw_mesh_instanced(
         &mut self,
         mesh: &'b Mesh,
-        material: &'b Material,
+        material: &'b Material3d,
         instances: Range<u32>,
         camera_bind_group: &'b wgpu::BindGroup,
         light_bind_group: &'b wgpu::BindGroup,
@@ -467,7 +374,7 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
         // Set light uniform.
         self.set_bind_group(2, light_bind_group, &[]);
 
-        self.draw_indexed(0..mesh.num_elements, 0, instances);
+        self.draw_indexed(0..mesh.num_indices, 0, instances);
     }
 
     /// Draw a model instance.
@@ -568,7 +475,7 @@ impl<'a, 'b> DrawLight<'b> for wgpu::RenderPass<'a>
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         self.set_bind_group(0, camera_bind_group, &[]);
         self.set_bind_group(1, light_bind_group, &[]);
-        self.draw_indexed(0..mesh.num_elements, 0, instances);
+        self.draw_indexed(0..mesh.num_indices, 0, instances);
     }
 
     fn draw_light_model(

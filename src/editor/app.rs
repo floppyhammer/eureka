@@ -87,7 +87,7 @@ impl epi::App for App {
             });
         });
 
-        egui::SidePanel::left("side_panel").default_width(320.0).show(ctx, |ui| {
+        egui::SidePanel::left("left_side_panel").default_width(320.0).show(ctx, |ui| {
             ui.heading("Options");
 
             ui.add_space(8.0);
@@ -222,31 +222,42 @@ impl epi::App for App {
             self.image = Some(RetainedImage::from_image_bytes("happy-tree", include_bytes!("../../assets/happy-tree.png")).unwrap());
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            if let Some(image) = self.image.as_ref() {
-                ui.heading("Scene Editor");
-                ui.add(
-                    egui::Image::new(
-                        image.texture_id(ctx),
-                        image.size_vec2()),
-                );
-            }
-        });
-
         // egui::CentralPanel::default().show(ctx, |ui| {
-        //     // The central panel the region left after adding TopPanel's and SidePanel's
-        //     ui.heading("Terminal output");
-        //     ui.add_space(8.0);
-        //
-        //     ScrollArea::vertical()
-        //         .auto_shrink([false; 2])
-        //         .show(ui, |ui| {
-        //             let mut terminal = TextEdit::multiline(terminal_output)
-        //                 .desired_width(f32::INFINITY);
-        //             terminal = terminal.interactive(false);
-        //             ui.add(terminal);
+        //     if let Some(image) = self.image.as_ref() {
+        //         ui.vertical_centered(|ui| {
+        //             ui.heading("Scene Editor");
         //         });
+        //         ui.add(
+        //             egui::Image::new(
+        //                 image.texture_id(ctx),
+        //                 image.size_vec2()),
+        //         );
+        //     }
         // });
+
+        // egui::SidePanel::right("right_panel")
+        //     .resizable(true)
+        //     .default_width(150.0)
+        //     .width_range(80.0..=200.0)
+        //     .show(ctx, |ui| {
+        //         ui.vertical_centered(|ui| {
+        //             ui.heading("Right Panel");
+        //         });
+        //         egui::ScrollArea::vertical().show(ui, |ui| {
+        //         });
+        //     });
+
+        egui::SidePanel::right("right_side_panel")
+            .default_width(320.0)
+            .resizable(true)
+            .width_range(80.0..=200.0)
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.heading("Inspector");
+                });
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                });
+            });
     }
 
     /// Called once before the first frame.

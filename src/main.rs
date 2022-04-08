@@ -237,7 +237,7 @@ impl State {
                 &layout,
                 config.format,
                 Some(render::texture::Texture::DEPTH_FORMAT),
-                &[render::model::MeshVertex::desc(), render::model::InstanceRaw::desc()],
+                &[render::mesh::MeshVertex3d::desc(), render::model::InstanceRaw::desc()],
                 shader,
             )
         };
@@ -260,7 +260,7 @@ impl State {
                 &layout,
                 config.format,
                 Some(render::texture::Texture::DEPTH_FORMAT),
-                &[render::model::MeshVertex::desc()],
+                &[render::mesh::MeshVertex3d::desc()],
                 shader,
             )
         };
@@ -493,7 +493,7 @@ impl State {
                 color_attachments: &[
                     // This is what [[location(0)]] in the fragment shader targets.
                     wgpu::RenderPassColorAttachment {
-                        view: &self.editor_texture_view, // Change this to change where to draw.
+                        view: &view, // Change this to change where to draw.
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(
@@ -547,9 +547,10 @@ impl State {
         
         // egui
         // -----------------------
-        let output_view = output_surface
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        // let output_view = output_surface
+        //     .texture
+        //     .create_view(&wgpu::TextureViewDescriptor::default());
+        let egui_output_view = &self.editor_texture_view;
 
         // Begin to draw the UI frame.
         let egui_start = std::time::Instant::now();
@@ -595,7 +596,7 @@ impl State {
         self.egui_render_pass
             .execute(
                 &mut encoder,
-                &output_view,
+                egui_output_view,
                 &paint_jobs,
                 &screen_descriptor,
                 Some(wgpu::Color::BLACK),
