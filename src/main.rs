@@ -24,6 +24,7 @@ use epi::App;
 mod render;
 mod scene;
 mod editor;
+mod ecs;
 
 // Import local crates.
 use crate::render::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};

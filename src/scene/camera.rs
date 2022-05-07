@@ -6,7 +6,7 @@ use std::f32::consts::FRAC_PI_2;
 use cgmath::num_traits::clamp;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
-use crate::scene::scene_tree::WithInput;
+use crate::scene::node::WithInput;
 use crate::scene::input_event::InputEvent;
 
 #[rustfmt::skip]
