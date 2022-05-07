@@ -1,5 +1,5 @@
 [package]
-name = "flint"
+name = "eureka"
 version = "0.1.0"
 authors = ["floppyhammer <tannhauser_chen@outlook.com>"]
 edition = "2018"

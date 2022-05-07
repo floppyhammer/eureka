@@ -826,6 +826,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "eureka"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "cgmath",
+ "chrono",
+ "egui",
+ "egui-winit",
+ "egui_extras",
+ "egui_wgpu_backend",
+ "env_logger",
+ "epi",
+ "fs_extra",
+ "glob",
+ "image",
+ "log",
+ "pollster",
+ "serde_json",
+ "tobj",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
 name = "event-listener"
 version = "2.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -850,31 +875,6 @@ dependencies = [
  "crc32fast",
  "libc",
  "miniz_oxide 0.4.4",
-]
-
-[[package]]
-name = "flint"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "cgmath",
- "chrono",
- "egui",
- "egui-winit",
- "egui_extras",
- "egui_wgpu_backend",
- "env_logger",
- "epi",
- "fs_extra",
- "glob",
- "image",
- "log",
- "pollster",
- "serde_json",
- "tobj",
- "wgpu",
- "winit",
 ]
 
 [[package]]
