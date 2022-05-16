@@ -122,7 +122,7 @@ impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
     pub fn create_depth_texture(device: &wgpu::Device, size: (u32, u32), label: &str) -> Self {
-        // Our depth texture needs to be the same size as our screen if we want things to render correctly.
+        // Our depth texture needs to be the same size as our screen if we want things to resource correctly.
         let size = wgpu::Extent3d {
             width: size.0,
             height: size.1,

@@ -8,7 +8,7 @@ use wgpu::util::DeviceExt;
 use anyhow::*;
 use cgmath::*;
 
-use crate::render::{texture, mesh, material};
+use crate::resource::{texture, mesh, material};
 use mesh::{Mesh, Vertex3d};
 use material::Material3d;
 

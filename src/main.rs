@@ -2,17 +2,19 @@ use std::convert::TryFrom;
 use std::mem;
 use std::num::NonZeroU32;
 use std::sync::Arc;
+
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
     window::Window,
+    dpi::{LogicalPosition, PhysicalPosition, Position, Size},
 };
-use wgpu::util::DeviceExt;
+
 use cgmath::prelude::*;
-use winit::dpi::{LogicalPosition, PhysicalPosition, Position, Size};
 
 use wgpu::{SamplerBindingType, TextureView};
+use wgpu::util::DeviceExt;
 
 use egui::{ColorImage, FontDefinitions};
 use egui::ImageData::Color;
@@ -21,14 +23,14 @@ use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
 use epi::App;
 
 // Do this before importing local crates.
-mod render;
+mod resource;
 mod scene;
 mod editor;
 mod ecs;
 mod server;
 
 // Import local crates.
-use crate::render::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};
+use crate::resource::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};
 use crate::scene::{Camera, Projection, CameraController, InputEvent, WithInput};
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
@@ -50,7 +52,7 @@ struct State {
     light_render_pipeline: wgpu::RenderPipeline,
     camera: Camera,
     // Instancing.
-    instances: Vec<render::model::Instance>,
+    instances: Vec<resource::model::Instance>,
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
     obj_model: Model,
@@ -120,7 +122,7 @@ impl State {
         let mut egui_state = egui_winit::State::new(4096, &window);
         let egui_context = egui::Context::default();
 
-        // We use the egui_wgpu_backend crate as the render backend.
+        // We use the egui_wgpu_backend crate as the resource backend.
         let mut egui_render_pass = RenderPass::new(&device, surface_format, 1);
 
         // Display the demo application that ships with egui.
@@ -222,7 +224,7 @@ impl State {
 
         // Pipeline to model.
         let render_pipeline = {
-            // Set up render pipeline layout using bind group layouts.
+            // Set up resource pipeline layout using bind group layouts.
             let layout =
                 device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Model Render Pipeline Layout"),
@@ -240,12 +242,12 @@ impl State {
                 source: wgpu::ShaderSource::Wgsl(include_str!("shader/shader.wgsl").into()),
             };
 
-            render::server::create_render_pipeline(
+            server::render_server::create_render_pipeline(
                 &device,
                 &layout,
                 config.format,
-                Some(render::texture::Texture::DEPTH_FORMAT),
-                &[render::mesh::Vertex3d::desc(), render::model::InstanceRaw::desc()],
+                Some(resource::texture::Texture::DEPTH_FORMAT),
+                &[resource::mesh::Vertex3d::desc(), resource::model::InstanceRaw::desc()],
                 shader,
             )
         };
@@ -263,12 +265,12 @@ impl State {
                 source: wgpu::ShaderSource::Wgsl(include_str!("shader/light.wgsl").into()),
             };
 
-            render::server::create_render_pipeline(
+            server::render_server::create_render_pipeline(
                 &device,
                 &layout,
                 config.format,
-                Some(render::texture::Texture::DEPTH_FORMAT),
-                &[render::mesh::Vertex3d::desc()],
+                Some(resource::texture::Texture::DEPTH_FORMAT),
+                &[resource::mesh::Vertex3d::desc()],
                 shader,
             )
         };
@@ -309,7 +311,7 @@ impl State {
                     cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
                 };
 
-                render::model::Instance {
+                resource::model::Instance {
                     position,
                     rotation,
                 }
@@ -317,7 +319,7 @@ impl State {
         }).collect::<Vec<_>>();
 
         // Create the instance buffer.
-        let instance_data = instances.iter().map(render::model::Instance::to_raw).collect::<Vec<_>>();
+        let instance_data = instances.iter().map(resource::model::Instance::to_raw).collect::<Vec<_>>();
         let instance_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Instance Buffer"),
@@ -341,7 +343,7 @@ impl State {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             usage: wgpu::TextureUsages::COPY_SRC // TextureUsages::COPY_SRC is so we can pull data out of the texture so we can save it to a file.
-                | wgpu::TextureUsages::RENDER_ATTACHMENT // We're using TextureUsages::RENDER_ATTACHMENT so wgpu can render to our texture.
+                | wgpu::TextureUsages::RENDER_ATTACHMENT // We're using TextureUsages::RENDER_ATTACHMENT so wgpu can resource to our texture.
             ,
             label: None,
         };
@@ -485,7 +487,7 @@ impl State {
     }
 
     fn render(&mut self, window: &Window, repaint_signal: &Arc<ExampleRepaintSignal>) -> Result<(), wgpu::SurfaceError> {
-        // First we need to get a frame to render to.
+        // First we need to get a frame to resource to.
         let output_surface = self.surface.get_current_texture()?;
 
         // Creates a TextureView with default settings.
@@ -646,7 +648,7 @@ impl State {
         self.egui_render_pass.remove_textures(_output.textures_delta).unwrap();
         self.egui_render_pass.update_buffers(&self.device, &self.queue, &paint_jobs, &screen_descriptor);
 
-        // Record all render passes.
+        // Record all resource passes.
         self.egui_render_pass
             .execute(
                 &mut encoder,
@@ -663,7 +665,7 @@ impl State {
         // output_frame.present();
         // -----------------------
 
-        // Finish the command buffer, and to submit it to the GPU's render queue.
+        // Finish the command buffer, and to submit it to the GPU's resource queue.
         // Submit will accept anything that implements IntoIter.
         self.queue.submit(std::iter::once(encoder.finish()));
 
@@ -807,7 +809,7 @@ fn main() {
                     // The system is out of memory, we should probably quit.
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     // All other errors (Outdated, Timeout) should be resolved by the next frame.
-                    Err(e) => eprintln!("State render error: {:?}", e),
+                    Err(e) => eprintln!("State resource error: {:?}", e),
                 }
             }
             Event::MainEventsCleared => {

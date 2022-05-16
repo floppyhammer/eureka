@@ -1,4 +1,4 @@
-/// Set up render pipeline using the pipeline layout.
+/// Set up resource pipeline using the pipeline layout.
 pub fn create_render_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::PipelineLayout,
@@ -55,7 +55,7 @@ pub fn create_render_pipeline(
             mask: !0,
             alpha_to_coverage_enabled: false,
         },
-        // If the pipeline will be used with a multiview render pass, this
+        // If the pipeline will be used with a multiview resource pass, this
         // indicates how many array layers the attachments will have.
         multiview: None,
     })

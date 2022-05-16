@@ -1,4 +1,4 @@
-use crate::render::texture;
+use crate::resource::texture;
 
 pub struct Material2d {
     // Material name for debugging reason.

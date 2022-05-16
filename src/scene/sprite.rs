@@ -1,4 +1,4 @@
-use crate::render::{texture, mesh, material};
+use crate::resource::{texture, mesh, material};
 use mesh::{Mesh};
 use material::Material2d;
 
