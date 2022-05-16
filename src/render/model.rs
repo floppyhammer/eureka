@@ -9,7 +9,7 @@ use anyhow::*;
 use cgmath::*;
 
 use crate::render::{texture, mesh, material};
-use mesh::{Mesh, MeshVertex3d};
+use mesh::{Mesh, Vertex3d};
 use material::Material3d;
 
 pub struct Model {
@@ -47,7 +47,8 @@ impl Instance {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct InstanceRaw {
     model: [[f32; 4]; 4],
-    normal: [[f32; 3]; 3], // Normal matrix to correct the normal direction.
+    // Normal matrix to correct the normal direction.
+    normal: [[f32; 3]; 3],
 }
 
 impl InstanceRaw {
@@ -113,12 +114,12 @@ impl Model {
         layout: &wgpu::BindGroupLayout,
         path: P,
     ) -> Result<Self> {
-        let (obj_models, obj_materials) = tobj::load_obj(path.as_ref(), &LoadOptions {
-            triangulate: true,
-            single_index: true,
-            ..Default::default()
-        },
-        )?;
+        let (obj_models, obj_materials) =
+            tobj::load_obj(path.as_ref(), &LoadOptions {
+                triangulate: true,
+                single_index: true,
+                ..Default::default()
+            })?;
 
         let obj_materials = obj_materials?;
 
@@ -182,7 +183,7 @@ impl Model {
         for m in obj_models {
             let mut vertices = Vec::new();
             for i in 0..m.mesh.positions.len() / 3 {
-                vertices.push(MeshVertex3d {
+                vertices.push(Vertex3d {
                     position: [
                         m.mesh.positions[i * 3],
                         m.mesh.positions[i * 3 + 1],
@@ -293,7 +294,7 @@ impl Model {
                 name: m.name,
                 vertex_buffer,
                 index_buffer,
-                num_indices: m.mesh.indices.len() as u32,
+                index_count: m.mesh.indices.len() as u32,
                 material: m.mesh.material_id.unwrap_or(0),
             });
         }
@@ -374,7 +375,7 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
         // Set light uniform.
         self.set_bind_group(2, light_bind_group, &[]);
 
-        self.draw_indexed(0..mesh.num_indices, 0, instances);
+        self.draw_indexed(0..mesh.index_count, 0, instances);
     }
 
     /// Draw a model instance.
@@ -475,7 +476,7 @@ impl<'a, 'b> DrawLight<'b> for wgpu::RenderPass<'a>
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         self.set_bind_group(0, camera_bind_group, &[]);
         self.set_bind_group(1, light_bind_group, &[]);
-        self.draw_indexed(0..mesh.num_indices, 0, instances);
+        self.draw_indexed(0..mesh.index_count, 0, instances);
     }
 
     fn draw_light_model(

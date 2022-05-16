@@ -25,6 +25,7 @@ mod render;
 mod scene;
 mod editor;
 mod ecs;
+mod server;
 
 // Import local crates.
 use crate::render::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};
@@ -98,7 +99,7 @@ impl State {
                 limits: wgpu::Limits::default(),
                 label: None,
             },
-            None, // Trace path.
+            None,
         ).await.unwrap();
 
         // This will define how the surface creates its underlying SurfaceTextures.
@@ -244,7 +245,7 @@ impl State {
                 &layout,
                 config.format,
                 Some(render::texture::Texture::DEPTH_FORMAT),
-                &[render::mesh::MeshVertex3d::desc(), render::model::InstanceRaw::desc()],
+                &[render::mesh::Vertex3d::desc(), render::model::InstanceRaw::desc()],
                 shader,
             )
         };
@@ -267,7 +268,7 @@ impl State {
                 &layout,
                 config.format,
                 Some(render::texture::Texture::DEPTH_FORMAT),
-                &[render::mesh::MeshVertex3d::desc()],
+                &[render::mesh::Vertex3d::desc()],
                 shader,
             )
         };
@@ -411,8 +412,8 @@ impl State {
                     ..
                 }
             ) => {
-                scene::input_event::InputEvent::Key {
-                    0: scene::input_event::Key {
+                server::input_event::InputEvent::Key {
+                    0: server::input_event::Key {
                         key: *key,
                         pressed: *state == ElementState::Pressed,
                     }
@@ -428,8 +429,8 @@ impl State {
                                                  }) => *scroll as f32,
                 };
 
-                scene::input_event::InputEvent::MouseScroll {
-                    0: scene::input_event::MouseScroll {
+                server::input_event::InputEvent::MouseScroll {
+                    0: server::input_event::MouseScroll {
                         delta: scroll,
                     }
                 }
@@ -438,8 +439,8 @@ impl State {
                 button: button_id,
                 state,
             } => {
-                scene::input_event::InputEvent::MouseButton {
-                    0: scene::input_event::MouseButton {
+                server::input_event::InputEvent::MouseButton {
+                    0: server::input_event::MouseButton {
                         button: *button_id,
                         pressed: *state == ElementState::Pressed,
                         position: self.mouse_position,
@@ -447,15 +448,15 @@ impl State {
                 }
             }
             DeviceEvent::MouseMotion { delta } => {
-                scene::input_event::InputEvent::MouseMotion {
-                    0: scene::input_event::MouseMotion {
+                server::input_event::InputEvent::MouseMotion {
+                    0: server::input_event::MouseMotion {
                         delta: (delta.0 as f32, delta.1 as f32),
                         position: self.mouse_position,
                     }
                 }
             }
             _ => {
-                scene::input_event::InputEvent::Invalid
+                server::input_event::InputEvent::Invalid
             }
         };
 

@@ -4,11 +4,12 @@ use image::{GenericImageView, ImageBuffer, Rgb};
 use image::DynamicImage::ImageRgba8;
 
 pub struct Texture {
-    pub texture: wgpu::Texture,
     // Actual data.
-    pub view: wgpu::TextureView,
+    pub texture: wgpu::Texture,
     // Thin wrapper over texture.
-    pub sampler: wgpu::Sampler, // Defines how to sample the texture.
+    pub view: wgpu::TextureView,
+    // Defines how to sample the texture.
+    pub sampler: wgpu::Sampler,
 }
 
 impl Texture {
@@ -30,7 +31,7 @@ impl Texture {
                  queue: &wgpu::Queue,
     ) -> Result<Self> {
         let data = vec![222u8, 222, 222, 0];
-        let mut image = ImageRgba8(image::ImageBuffer::from_raw(1, 1, data).unwrap());
+        let mut image = ImageRgba8(image::ImageBuffer::from_raw(4, 4, data).unwrap());
 
         Self::from_image(device, queue, &image, Some("Empty image"))
     }

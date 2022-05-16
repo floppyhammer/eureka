@@ -1,5 +1,5 @@
 use cgmath::*;
-use crate::scene::input_event::InputEvent;
+use crate::server::input_event::InputEvent;
 
 pub trait WithDraw {
     fn draw(&self);
