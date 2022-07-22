@@ -1,16 +1,20 @@
 use std::borrow::Borrow;
 use std::ops::Deref;
-use epi;
-use egui::widgets::TextEdit;
-use egui::color::Color32;
-use egui::containers::ScrollArea;
 use std::process::Command;
 use std::str;
+
+use egui::{
+    widgets::TextEdit,
+    color::Color32,
+    containers::ScrollArea,
+    TextStyle,
+};
+use egui_extras::RetainedImage;
+use epi;
+
 use anyhow::Context;
 use chrono;
-use egui::TextStyle;
 use image::GenericImageView;
-use egui_extras::RetainedImage;
 
 #[derive(PartialEq)]
 enum Enum { First, Second }
@@ -87,7 +91,7 @@ impl epi::App for App {
             });
         });
 
-        egui::SidePanel::left("left_side_panel")
+        egui::SidePanel::left("scene_tree_panel")
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.heading("Scene");
@@ -96,10 +100,10 @@ impl epi::App for App {
                     egui::ScrollArea::vertical()
                         .min_scrolled_height(256.0)
                         .show(ui, |ui| {
-                            ui.collapsing("SceneTree", |ui| {
-                                ui.collapsing("Node", |ui| {
+                            ui.collapsing("Root", |ui| {
+                                ui.collapsing("Node0", |ui| {
                                     ui.horizontal(|ui| {
-                                        ui.label("Root");
+                                        ui.button("Node1");
                                     });
                                 });
                             });
@@ -169,32 +173,6 @@ impl epi::App for App {
     }
 
     fn name(&self) -> &str {
-        "NDK Powershell GUI"
+        "Eureka Editor"
     }
-}
-
-fn run_powershell(cmd_lines: &mut Vec<String>) -> (String, bool) {
-    let output = if cfg!(target_os = "windows") {
-        Command::new("powershell")
-            .args(cmd_lines)
-            .output()
-            .expect("failed to execute process")
-    } else {
-        Command::new("sh")
-            .arg("-c")
-            .arg("echo hello")
-            .output()
-            .expect("failed to execute process")
-    };
-
-    let out = output.stdout;
-    let err = output.stderr;
-
-    let (output_str, res) = if err.is_empty() {
-        (str::from_utf8(&out).unwrap(), true)
-    } else {
-        (str::from_utf8(&err).unwrap(), false)
-    };
-
-    (output_str.to_owned(), res)
 }

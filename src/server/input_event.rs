@@ -19,6 +19,16 @@ pub struct MouseButton {
     pub(crate) position: (f32, f32),
 }
 
+impl MouseButton {
+    pub fn new() -> MouseButton {
+        MouseButton{
+            button: 0,
+            pressed: true,
+            position: (0.0, 0.0),
+        }
+    }
+}
+
 pub struct MouseScroll {
     pub(crate) delta: f32,
 }
