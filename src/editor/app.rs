@@ -109,6 +109,8 @@ impl epi::App for App {
                             });
                         });
 
+                    ui.separator();
+
                     ui.heading("Assets");
                 });
             });

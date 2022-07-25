@@ -29,6 +29,7 @@ egui_wgpu_backend = "0.17"
 chrono = "0.4.19"
 serde_json = "1.0"
 egui_extras = { version = "0.17", features = ["image", "svg"] }
+lyon = "1.0.0"
 
 [build-dependencies]
 anyhow = "1.0"
