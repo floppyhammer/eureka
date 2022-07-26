@@ -1,4 +1,4 @@
-pub(crate) mod input_event;
+pub(crate) mod input_server;
 pub(crate) mod render_server;
 
-pub use input_event::*;
+pub use input_server::*;

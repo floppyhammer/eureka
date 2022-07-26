@@ -1,4 +1,18 @@
 use crate::resource::{Material2d, Mesh};
+use crate::scene::node::WithDraw;
+
+pub struct Sprite {
+    pub position: cgmath::Vector2<f32>,
+    pub size: cgmath::Vector2<f32>,
+    pub scale: cgmath::Vector2<f32>,
+    pub name: String,
+}
+
+impl WithDraw for Sprite {
+    fn draw(&self) {
+        // Code to actually draw.
+    }
+}
 
 pub trait DrawSprite<'a> {
     fn draw_mesh(

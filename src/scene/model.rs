@@ -11,6 +11,13 @@ use cgmath::*;
 use crate::resource::{texture, mesh, material};
 use mesh::{Mesh, Vertex3d};
 use material::Material3d;
+use crate::scene::node::WithDraw;
+
+impl WithDraw for Model {
+    fn draw(&self) {
+        // Code to actually draw.
+    }
+}
 
 pub struct Model {
     // pub position: cgmath::Vector3<f32>,

@@ -1,5 +1,13 @@
 // Vertex shader
 
+// Any structure used as a uniform must be annotated with [[block]].
+struct Camera {
+    view_pos: vec4<f32>;
+    view_proj: mat4x4<f32>;
+};
+[[group(1), binding(0)]]
+var<uniform> camera: Camera;
+
 struct VertexInput {
     [[location(0)]] position: vec3<f32>;
 };

@@ -1,5 +1,5 @@
 use cgmath::*;
-use crate::server::input_event::InputEvent;
+use crate::server::input_server::InputEvent;
 use crate::server::MouseButton;
 
 pub trait WithDraw {

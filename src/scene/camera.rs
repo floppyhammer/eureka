@@ -7,7 +7,7 @@ use cgmath::num_traits::clamp;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 use crate::scene::node::WithInput;
-use crate::server::input_event::InputEvent;
+use crate::server::input_server::InputEvent;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
