@@ -93,7 +93,7 @@ impl State {
         // This will define how the surface creates its underlying SurfaceTextures.
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface.get_preferred_format(&adapter).unwrap(),
+            format: surface.get_supported_formats(&adapter)[0],
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::Fifo,
@@ -448,7 +448,7 @@ impl State {
                 label: Some("Render Pass"),
                 color_attachments: &[
                     // This is what [[location(0)]] in the fragment shader targets.
-                    wgpu::RenderPassColorAttachment {
+                    Some(wgpu::RenderPassColorAttachment {
                         view: &view, // Change this to change where to draw.
                         resolve_target: None,
                         ops: wgpu::Operations {
@@ -462,7 +462,7 @@ impl State {
                             ),
                             store: true,
                         },
-                    }
+                    })
                 ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture.view,
