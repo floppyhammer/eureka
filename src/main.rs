@@ -16,16 +16,9 @@ use cgmath::prelude::*;
 use wgpu::{SamplerBindingType, TextureView};
 use wgpu::util::DeviceExt;
 
-use egui::{ColorImage, FontDefinitions};
-use egui::ImageData::Color;
-use egui_extras::RetainedImage;
-use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
-use epi::App;
-
 // Do this before importing local crates.
 mod resource;
 mod scene;
-mod editor;
 mod ecs;
 mod server;
 
@@ -62,14 +55,7 @@ struct State {
     light_bind_group: wgpu::BindGroup,
     mouse_position: (f32, f32),
     cursor_captured: bool,
-    egui_state: egui_winit::State,
-    egui_context: egui::Context,
-    egui_render_pass: RenderPass,
-    egui_demo_app: editor::app::App,
     previous_frame_time: f32,
-    editor_texture: wgpu::Texture,
-    editor_texture_view: TextureView,
-    editor_depth_texture: Texture,
 }
 
 impl State {
@@ -113,21 +99,6 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
         };
         surface.configure(&device, &config);
-
-        // egui
-        // --------------------------
-        let size = window.inner_size();
-        let surface_format = surface.get_preferred_format(&adapter).unwrap();
-
-        let mut egui_state = egui_winit::State::new(4096, &window);
-        let egui_context = egui::Context::default();
-
-        // We use the egui_wgpu_backend crate as the resource backend.
-        let mut egui_render_pass = RenderPass::new(&device, surface_format, 1);
-
-        // Display the demo application that ships with egui.
-        let mut egui_demo_app = editor::app::App::default();
-        // --------------------------
 
         // Create camera.
         let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device);
@@ -331,26 +302,6 @@ impl State {
         // For depth test.
         let depth_texture = Texture::create_depth_texture(&device, (config.width, config.height), "depth_texture");
 
-        // Editor viewport
-        let texture_desc = wgpu::TextureDescriptor {
-            size: wgpu::Extent3d {
-                width: 256,
-                height: 256,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            usage: wgpu::TextureUsages::COPY_SRC // TextureUsages::COPY_SRC is so we can pull data out of the texture so we can save it to a file.
-                | wgpu::TextureUsages::RENDER_ATTACHMENT // We're using TextureUsages::RENDER_ATTACHMENT so wgpu can resource to our texture.
-            ,
-            label: None,
-        };
-        let editor_texture = device.create_texture(&texture_desc);
-        let editor_texture_view = editor_texture.create_view(&Default::default());
-        let editor_depth_texture = Texture::create_depth_texture(&device, (256, 256), "editor_depth_texture");
-
         Self {
             surface,
             device,
@@ -370,14 +321,7 @@ impl State {
             light_bind_group,
             mouse_position: (0.0, 0.0),
             cursor_captured: false,
-            egui_state,
-            egui_context,
-            egui_render_pass,
-            egui_demo_app,
             previous_frame_time: 0.0,
-            editor_texture,
-            editor_texture_view,
-            editor_depth_texture,
         }
     }
 
@@ -486,7 +430,7 @@ impl State {
         }
     }
 
-    fn render(&mut self, window: &Window, repaint_signal: &Arc<ExampleRepaintSignal>) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
         // First we need to get a frame to resource to.
         let output_surface = self.surface.get_current_texture()?;
 
@@ -505,7 +449,7 @@ impl State {
                 color_attachments: &[
                     // This is what [[location(0)]] in the fragment shader targets.
                     wgpu::RenderPassColorAttachment {
-                        view: &self.editor_texture_view, // Change this to change where to draw.
+                        view: &view, // Change this to change where to draw.
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(
@@ -521,7 +465,7 @@ impl State {
                     }
                 ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.editor_depth_texture.view,
+                    view: &self.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: true,
@@ -557,144 +501,9 @@ impl State {
             // ----------------------
         }
 
-        let texture_size = 256u32;
-        // wgpu requires texture -> buffer copies to be aligned using
-        // wgpu::COPY_BYTES_PER_ROW_ALIGNMENT. Because of this we'll
-        // need to save both the padded_bytes_per_row as well as the
-        // unpadded_bytes_per_row.
-        let pixel_size = mem::size_of::<[u8;4]>() as u32;
-        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-        let unpadded_bytes_per_row = pixel_size * texture_size;
-        let padding = (align - unpadded_bytes_per_row % align) % align;
-        let padded_bytes_per_row = unpadded_bytes_per_row + padding;
-
-        // Create a buffer to copy the texture to so we can get the data.
-        let buffer_size = (padded_bytes_per_row * texture_size) as wgpu::BufferAddress;
-        let buffer_desc = wgpu::BufferDescriptor {
-            size: buffer_size,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            label: Some("Output Buffer"),
-            mapped_at_creation: false,
-        };
-        let output_buffer = self.device.create_buffer(&buffer_desc);
-
-        encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
-                texture: &self.editor_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: Default::default()
-            },
-            wgpu::ImageCopyBuffer {
-                buffer: &output_buffer,
-                layout: wgpu::ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: Some(NonZeroU32::try_from(padded_bytes_per_row).unwrap()),
-                    rows_per_image: Some(NonZeroU32::try_from(texture_size).unwrap()),
-                }
-            },
-            wgpu::Extent3d {
-                width: texture_size,
-                height: texture_size,
-                depth_or_array_layers: 1,
-            },
-        );
-
-        // egui
-        // -----------------------
-        // let output_view = output_surface
-        //     .texture
-        //     .create_view(&wgpu::TextureViewDescriptor::default());
-        let egui_output_view = &view;
-
-        // Begin to draw the UI frame.
-        let egui_start = std::time::Instant::now();
-
-        let input = self.egui_state.take_egui_input(&window);
-        self.egui_context.begin_frame(input);
-        let app_output = epi::backend::AppOutput::default();
-
-        let frame =  epi::Frame::new(epi::backend::FrameData {
-            info: epi::IntegrationInfo {
-                name: "egui_example",
-                web_info: None,
-                cpu_usage: Some(self.previous_frame_time),
-                native_pixels_per_point: Some(window.scale_factor() as _),
-                prefer_dark_mode: None,
-            },
-            output: app_output,
-            repaint_signal: repaint_signal.clone(),
-        });
-
-        // Draw the demo application.
-        self.egui_demo_app.update(&self.egui_context, &frame);
-
-        // End the UI frame. We could now handle the output and draw the UI with the backend.
-        let _output = self.egui_context.end_frame();
-        let paint_jobs = self.egui_context.tessellate(_output.shapes);
-
-        let frame_time = (std::time::Instant::now() - egui_start).as_secs_f64() as f32;
-        self.previous_frame_time = frame_time;
-
-        // Upload all resources for the GPU.
-        let screen_descriptor = ScreenDescriptor {
-            physical_width: self.config.width,
-            physical_height: self.config.height,
-            scale_factor: window.scale_factor() as f32,
-        };
-
-        self.egui_render_pass.add_textures(&self.device, &self.queue, &_output.textures_delta).unwrap();
-        self.egui_render_pass.remove_textures(_output.textures_delta).unwrap();
-        self.egui_render_pass.update_buffers(&self.device, &self.queue, &paint_jobs, &screen_descriptor);
-
-        // Record all resource passes.
-        self.egui_render_pass
-            .execute(
-                &mut encoder,
-                egui_output_view,
-                &paint_jobs,
-                &screen_descriptor,
-                Some(wgpu::Color::BLACK),
-            )
-            .unwrap();
-
-        // // Submit the commands.
-        // queue.submit(std::iter::once(encoder.finish()));
-        // 
-        // // Redraw egui
-        // output_frame.present();
-        // -----------------------
-
         // Finish the command buffer, and to submit it to the GPU's resource queue.
         // Submit will accept anything that implements IntoIter.
         self.queue.submit(std::iter::once(encoder.finish()));
-
-        // Wait for the scene viewport to be drawn, and set the result to editor.
-        {
-            // Create the map request.
-            let buffer_slice = output_buffer.slice(..);
-            let request = buffer_slice.map_async(wgpu::MapMode::Read);
-            // wait for the GPU to finish
-            self.device.poll(wgpu::Maintain::Wait);
-            let result = pollster::block_on(request);
-
-            match result {
-                Ok(()) => {
-                    let padded_data = buffer_slice.get_mapped_range();
-                    let data = padded_data
-                        .chunks(padded_bytes_per_row as _)
-                        .map(|chunk| { &chunk[..unpadded_bytes_per_row as _]})
-                        .flatten()
-                        .map(|x| { *x })
-                        .collect::<Vec<_>>();
-                    drop(padded_data);
-                    output_buffer.unmap();
-                    self.egui_demo_app.image = Some(RetainedImage::from_color_image("Scene Editor Texture",
-                                                                                    ColorImage::from_rgba_unmultiplied([256, 256], &*data)));
-                }
-                _ => { eprintln!("Something went wrong") }
-            }
-        }
 
         // Present the [`SurfaceTexture`].
         output_surface.present();
@@ -703,25 +512,10 @@ impl State {
     }
 }
 
-/// A custom event type for the winit app.
-enum EguiEvent {
-    RequestRedraw,
-}
-
-/// This is the repaint signal type that egui needs for requesting a repaint from another thread.
-/// It sends the custom RequestRedraw event to the winit event loop.
-struct ExampleRepaintSignal(std::sync::Mutex<winit::event_loop::EventLoopProxy<EguiEvent>>);
-
-impl epi::backend::RepaintSignal for ExampleRepaintSignal {
-    fn request_repaint(&self) {
-        self.0.lock().unwrap().send_event(EguiEvent::RequestRedraw).ok();
-    }
-}
-
 fn main() {
     env_logger::init();
 
-    let event_loop = EventLoop::with_user_event();
+    let event_loop = EventLoop::new();
     let title = env!("CARGO_PKG_NAME");
 
     let window = WindowBuilder::new()
@@ -735,11 +529,6 @@ fn main() {
 
     // State::new uses async code, so we're going to wait for it to finish
     let mut state = pollster::block_on(State::new(&window));
-
-    // Signal for egui.
-    let repaint_signal = std::sync::Arc::new(ExampleRepaintSignal(std::sync::Mutex::new(
-        event_loop.create_proxy(),
-    )));
 
     let start_time = std::time::Instant::now();
 
@@ -761,8 +550,6 @@ fn main() {
                 ref event,
                 window_id,
             } if window_id == window.id() => {
-                state.egui_state.on_event(&state.egui_context, &event);
-
                 match event {
                     // Close window.
                     WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
@@ -802,7 +589,7 @@ fn main() {
 
                 state.update(dt);
 
-                match state.render(&window, &repaint_signal) {
+                match state.render(&window) {
                     Ok(_) => {}
                     // Reconfigure the surface if lost.
                     Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
