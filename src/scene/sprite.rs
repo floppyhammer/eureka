@@ -1,16 +1,36 @@
+use wgpu::Texture;
 use crate::resource::{Material2d, Mesh};
 use crate::scene::node::WithDraw;
 
 pub struct Sprite {
+    pub name: String,
+
     pub position: cgmath::Vector2<f32>,
     pub size: cgmath::Vector2<f32>,
     pub scale: cgmath::Vector2<f32>,
-    pub name: String,
+
+    pub texture: Option<Texture>,
 }
 
 impl WithDraw for Sprite {
     fn draw(&self) {
         // Code to actually draw.
+    }
+}
+
+impl Sprite {
+    fn new() -> Sprite {
+        let position = cgmath::Vector2::new(0.0 as f32, 0.0);
+        let size = cgmath::Vector2::new(128.0 as f32, 128.0);
+        let scale = cgmath::Vector2::new(1.0 as f32, 1.0);
+
+        Self {
+            name: "".to_string(),
+            position,
+            size,
+            scale,
+            texture: None,
+        }
     }
 }
 

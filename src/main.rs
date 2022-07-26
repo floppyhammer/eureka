@@ -535,6 +535,8 @@ fn main() {
     // Used to calculate frame delta.
     let mut last_render_time = std::time::Instant::now();
 
+    let mut is_init = false;
+
     // Main loop.
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -563,11 +565,20 @@ fn main() {
                     } => *control_flow = ControlFlow::Exit,
                     // Resize window.
                     WindowEvent::Resized(physical_size) => {
+                        // See https://github.com/rust-windowing/winit/issues/2094.
+                        if is_init {
+                            return;
+                        }
+
                         state.resize(*physical_size);
+
+                        println!("Window resized to {:?}", physical_size);
                     }
                     // Scale factor changed.
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         state.resize(**new_inner_size);
+
+                        println!("Scale factor changed, new window size is {:?}", new_inner_size);
                     }
                     WindowEvent::CursorMoved { position, .. } => {
                         //let inner_size = window.inner_size();
@@ -602,6 +613,13 @@ fn main() {
             Event::MainEventsCleared => {
                 // RedrawRequested will only trigger once, unless we manually request it.
                 window.request_redraw();
+            }
+            Event::NewEvents(cause) => {
+                if cause == StartCause::Init {
+                    is_init = true;
+                } else {
+                    is_init = false;
+                }
             }
             _ => {}
         }

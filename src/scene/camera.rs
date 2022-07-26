@@ -1,11 +1,11 @@
 use cgmath::*;
+use cgmath::num_traits::clamp;
 use winit::event::*;
 use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
+use winit::window::Window;
 use std::time::Duration;
 use std::f32::consts::FRAC_PI_2;
-use cgmath::num_traits::clamp;
 use wgpu::util::DeviceExt;
-use winit::window::Window;
 use crate::scene::node::WithInput;
 use crate::server::input_server::InputEvent;
 
@@ -26,8 +26,10 @@ pub struct Camera {
 
     projection: Projection,
     camera_controller: CameraController,
+
     camera_uniform: CameraUniform,
-    camera_buffer: wgpu::Buffer,
+    // CPU data
+    camera_buffer: wgpu::Buffer, // GPU data
 
     pub(crate) camera_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) camera_bind_group: wgpu::BindGroup,
@@ -45,7 +47,14 @@ impl Camera {
         config: &wgpu::SurfaceConfiguration,
         device: &wgpu::Device,
     ) -> Self {
-        let projection = Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
+        let projection = Projection::new(
+            config.width, // Render target size
+            config.height,
+            cgmath::Deg(45.0),
+            0.1,
+            100.0,
+        );
+
         let camera_controller = CameraController::new(4.0, 0.4);
 
         // This will be used in the model shader.
@@ -60,37 +69,38 @@ impl Camera {
             }
         );
 
-        // Bind group layout is used to create actual bind groups.
-        // A bind group describes a set of resources and how they can be accessed by a shader.
-
         // Create a bind group layout for the camera buffer.
-        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }
-            ],
-            label: Some("camera_bind_group_layout"),
-        });
+        // Bind group layout is used to create actual bind groups.
+        let camera_bind_group_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }
+                ],
+                label: Some("camera_bind_group_layout"),
+            });
 
         // Create the actual bind group.
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                }
-            ],
-            label: Some("camera_bind_group"),
-        });
+        // A bind group describes a set of resources and how they can be accessed by a shader.
+        let camera_bind_group = device.create_bind_group(
+            &wgpu::BindGroupDescriptor {
+                layout: &camera_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: camera_buffer.as_entire_binding(),
+                    }
+                ],
+                label: Some("camera_bind_group"),
+            });
         // ----------------------------
 
         Self {
@@ -185,7 +195,7 @@ impl Camera {
                             self.camera_controller.cursor_captured_position.x,
                             self.camera_controller.cursor_captured_position.y)
                     )
-                );
+                ).expect("Setting cursor position failed!");
             }
         }
     }
@@ -218,7 +228,7 @@ impl WithInput for Camera {
     }
 }
 
-/// The projection only really needs to change if the window resizes.
+/// The projection needs to change only if the window (or render target) resizes.
 pub struct Projection {
     aspect: f32,
     fovy: Rad<f32>,
@@ -274,6 +284,7 @@ impl CameraUniform {
     }
 }
 
+/// A simple 3D fly camera controller.
 #[derive(Debug)]
 pub struct CameraController {
     amount_left: f32,
@@ -356,7 +367,7 @@ impl CameraController {
     }
 
     pub fn process_mouse_button(&mut self, button_id: u32, pressed: bool) {
-        // Not the right button.
+        // If the right button is not pressed.
         if button_id != 3 {
             return;
         }
