@@ -1,7 +1,11 @@
 use std::path::Path;
 use anyhow::*;
-use image::{GenericImageView, ImageBuffer, Rgb};
-use image::DynamicImage::ImageRgba8;
+use image::{GenericImageView, ImageBuffer, Rgb, DynamicImage::ImageRgba8};
+
+use crate::resource::{Material2d, Mesh};
+
+/// This is a wrapper over wgpu texture, view and sampler
+/// and is not responsible for drawing.
 
 pub struct Texture {
     // Actual data.
@@ -27,11 +31,13 @@ impl Texture {
         Self::from_image(device, queue, &img, label)
     }
 
-    pub fn empty(device: &wgpu::Device,
-                 queue: &wgpu::Queue,
+    pub fn empty(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        size: (u32, u32),
     ) -> Result<Self> {
         let data = vec![222u8, 222, 222, 0];
-        let mut image = ImageRgba8(image::ImageBuffer::from_raw(4, 4, data).unwrap());
+        let mut image = ImageRgba8(image::ImageBuffer::from_raw(size.0, size.1, data).unwrap());
 
         Self::from_image(device, queue, &image, Some("Empty image"))
     }

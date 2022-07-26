@@ -134,7 +134,7 @@ impl Model {
                 Ok(i) => i,
                 Err(e) => {
                     println!("Diffuse texture is invalid, error: {}", e);
-                    texture::Texture::empty(device, queue)?
+                    texture::Texture::empty(device, queue, (4, 4))?
                 }
             };
 
@@ -144,7 +144,7 @@ impl Model {
                 Ok(i) => i,
                 Err(e) => {
                     println!("Normal texture is invalid, error: {}", e);
-                    texture::Texture::empty(device, queue)?
+                    texture::Texture::empty(device, queue, (4, 4))?
                 }
             };
 

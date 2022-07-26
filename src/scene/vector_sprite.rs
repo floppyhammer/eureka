@@ -5,7 +5,7 @@ use lyon::path::Path;
 use lyon::tessellation::*;
 use crate::Vertex;
 
-pub struct VectorTexture {
+pub struct VectorSprite {
     pub path: Path,
     geometry: VertexBuffers<MyVertex, u16>,
 }
@@ -16,11 +16,11 @@ struct MyVertex {
     position: [f32; 2],
 }
 
-impl VectorTexture {
+impl VectorSprite {
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-    ) -> VectorTexture {
+    ) -> VectorSprite {
         // Build a Path.
         let mut builder = Path::builder();
         builder.begin(point(0.0, 0.0));

@@ -52,7 +52,7 @@ struct State {
     light_render_pipeline: wgpu::RenderPipeline,
     camera: Camera,
     // Instancing.
-    instances: Vec<resource::model::Instance>,
+    instances: Vec<scene::model::Instance>,
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
     obj_model: Model,
@@ -247,7 +247,7 @@ impl State {
                 &layout,
                 config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[resource::mesh::Vertex3d::desc(), resource::model::InstanceRaw::desc()],
+                &[resource::mesh::Vertex3d::desc(), scene::model::InstanceRaw::desc()],
                 shader,
             )
         };
@@ -311,7 +311,7 @@ impl State {
                     cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
                 };
 
-                resource::model::Instance {
+                scene::model::Instance {
                     position,
                     rotation,
                 }
@@ -319,7 +319,7 @@ impl State {
         }).collect::<Vec<_>>();
 
         // Create the instance buffer.
-        let instance_data = instances.iter().map(resource::model::Instance::to_raw).collect::<Vec<_>>();
+        let instance_data = instances.iter().map(scene::model::Instance::to_raw).collect::<Vec<_>>();
         let instance_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Instance Buffer"),
@@ -561,7 +561,7 @@ impl State {
         // wgpu requires texture -> buffer copies to be aligned using
         // wgpu::COPY_BYTES_PER_ROW_ALIGNMENT. Because of this we'll
         // need to save both the padded_bytes_per_row as well as the
-        // unpadded_bytes_per_row
+        // unpadded_bytes_per_row.
         let pixel_size = mem::size_of::<[u8;4]>() as u32;
         let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let unpadded_bytes_per_row = pixel_size * texture_size;
@@ -599,7 +599,6 @@ impl State {
                 depth_or_array_layers: 1,
             },
         );
-
 
         // egui
         // -----------------------
@@ -658,6 +657,7 @@ impl State {
                 Some(wgpu::Color::BLACK),
             )
             .unwrap();
+
         // // Submit the commands.
         // queue.submit(std::iter::once(encoder.finish()));
         // 
