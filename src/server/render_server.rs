@@ -1,3 +1,13 @@
+struct RenderServer {
+    model_pipeline: wgpu::RenderPipeline,
+    light_pipeline: wgpu::RenderPipeline,
+    sprite_pipeline: wgpu::RenderPipeline,
+}
+
+impl RenderServer {
+
+}
+
 /// Set up resource pipeline using the pipeline layout.
 pub fn create_render_pipeline(
     device: &wgpu::Device,

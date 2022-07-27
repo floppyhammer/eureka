@@ -447,7 +447,7 @@ impl State {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[
-                    // This is what [[location(0)]] in the fragment shader targets.
+                    // This is what @location(0) in the fragment shader targets.
                     Some(wgpu::RenderPassColorAttachment {
                         view: &view, // Change this to change where to draw.
                         resolve_target: None,

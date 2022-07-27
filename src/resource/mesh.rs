@@ -94,40 +94,42 @@ pub struct Mesh {
     pub material: usize,
 }
 
-pub fn default_2d(device: &wgpu::Device) -> Mesh {
-    let vertices = [
-        Vertex2d { position: [0.0, 0.0, 0.0], uv: [1.0, 0.0] },
-        Vertex2d { position: [1.0, 0.0, 0.0], uv: [0.0, 0.0] },
-        Vertex2d { position: [1.0, 1.0, 0.0], uv: [0.0, 1.0] },
-        Vertex2d { position: [0.0, 1.0, 0.0], uv: [1.0, 1.0] },
-    ];
+impl Mesh {
+    pub fn default_2d(device: &wgpu::Device) -> Mesh {
+        let vertices = [
+            Vertex2d { position: [0.0, 0.0, 0.0], uv: [1.0, 0.0] },
+            Vertex2d { position: [1.0, 0.0, 0.0], uv: [0.0, 0.0] },
+            Vertex2d { position: [1.0, 1.0, 0.0], uv: [0.0, 1.0] },
+            Vertex2d { position: [0.0, 1.0, 0.0], uv: [1.0, 1.0] },
+        ];
 
-    let indices = [
-        0, 1, 2,
-        2, 3, 0,
-    ];
+        let indices = [
+            0, 1, 2,
+            2, 3, 0,
+        ];
 
-    let vertex_buffer = device.create_buffer_init(
-        &wgpu::util::BufferInitDescriptor {
-            label: Some(&format!("Default 2D Mesh Vertex Buffer")),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("Default 2D Mesh Vertex Buffer")),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+
+        let index_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("Default 2D Mesh Index Buffer")),
+                contents: bytemuck::cast_slice(&indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        );
+
+        Self {
+            name: "Default 2D Mesh".to_string(),
+            vertex_buffer,
+            index_buffer,
+            index_count: indices.len() as u32,
+            material: 0,
         }
-    );
-    
-    let index_buffer = device.create_buffer_init(
-        &wgpu::util::BufferInitDescriptor {
-            label: Some(&format!("Default 2D Mesh Index Buffer")),
-            contents: bytemuck::cast_slice(&indices),
-            usage: wgpu::BufferUsages::INDEX,
-        }
-    );
-    
-    Mesh {
-        name: "Default 2D Mesh".to_string(),
-        vertex_buffer,
-        index_buffer,
-        index_count: indices.len() as u32,
-        material: 0,
     }
 }

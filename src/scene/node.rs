@@ -3,7 +3,7 @@ use crate::server::input_server::InputEvent;
 use crate::server::MouseButton;
 
 pub trait WithDraw {
-    fn draw(&self);
+    fn draw(&self, render_pass: &mut wgpu::RenderPass, camera_bind_group: &wgpu::BindGroup);
 }
 
 pub trait WithUpdate {
@@ -36,7 +36,7 @@ impl World {
 
         // Draw nodes.
         for node in self.nodes.iter() {
-            node.draw();
+            //node.draw();
         }
     }
 }
