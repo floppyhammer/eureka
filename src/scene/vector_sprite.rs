@@ -9,7 +9,7 @@ use crate::Vertex;
 pub struct VectorSprite {
     pub path: Path,
     geometry: VertexBuffers<MyVertex, u16>,
-    mesh: VectorMesh,
+    pub(crate) mesh: VectorMesh,
 }
 
 // Let's use our own custom vertex type instead of the default one.
@@ -26,9 +26,9 @@ impl VectorSprite {
         // Build a Path.
         let mut builder = Path::builder();
         builder.begin(point(0.0, 0.0));
-        builder.line_to(point(1.0, 0.0));
-        builder.quadratic_bezier_to(point(2.0, 0.0), point(2.0, 1.0));
-        builder.cubic_bezier_to(point(1.0, 1.0), point(0.0, 1.0), point(0.0, 0.0));
+        builder.line_to(point(100.0, 0.0));
+        builder.quadratic_bezier_to(point(200.0, 0.0), point(200.0, 100.0));
+        builder.cubic_bezier_to(point(100.0, 100.0), point(0.0, 100.0), point(0.0, 0.0));
         builder.end(true);
         let path = builder.build();
 
@@ -151,8 +151,8 @@ impl<'a, 'b> DrawVector<'b> for wgpu::RenderPass<'a>
 
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-        // Set camera uniform.
-        self.set_bind_group(1, camera_bind_group, &[]);
+        // Bind camera at 0.
+        self.set_bind_group(0, camera_bind_group, &[]);
 
         self.draw_indexed(0..mesh.index_count, 0, 0..1);
     }

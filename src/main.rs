@@ -12,6 +12,7 @@ use winit::{
 };
 
 use cgmath::prelude::*;
+use cgmath::{Point2, Vector2, Vector3};
 
 use wgpu::{SamplerBindingType, TextureView};
 use wgpu::util::DeviceExt;
@@ -24,8 +25,8 @@ mod server;
 
 // Import local crates.
 use crate::resource::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};
-use crate::scene::{Camera, Projection, CameraController, InputEvent, WithInput};
-use crate::scene::vector_sprite::VectorSprite;
+use crate::scene::{Camera, Camera2d, Projection, CameraController, InputEvent, WithInput};
+use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::server::render_server::RenderServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
@@ -45,6 +46,7 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     render_server: RenderServer,
     camera: Camera,
+    camera2d: Camera2d,
     // Instancing.
     instances: Vec<scene::model::Instance>,
     instance_buffer: wgpu::Buffer,
@@ -57,6 +59,7 @@ struct State {
     mouse_position: (f32, f32),
     cursor_captured: bool,
     previous_frame_time: f32,
+    vec_sprite: VectorSprite,
 }
 
 impl State {
@@ -104,7 +107,9 @@ impl State {
         // Create camera.
         let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device);
 
-        let render_server = RenderServer::new(&device, &camera, config.format);
+        let camera2d = Camera2d::new(Point2::new(0.0, 0.0), (size.width, size.height), &config, &device);
+
+        let render_server = RenderServer::new(&device, &camera, &camera2d, config.format);
 
         let vec_sprite = VectorSprite::new(&device, &queue);
 
@@ -200,6 +205,7 @@ impl State {
             size,
             render_server,
             camera,
+            camera2d,
             instances,
             instance_buffer,
             depth_texture,
@@ -211,6 +217,7 @@ impl State {
             mouse_position: (0.0, 0.0),
             cursor_captured: false,
             previous_frame_time: 0.0,
+            vec_sprite,
         }
     }
 
@@ -233,6 +240,7 @@ impl State {
             self.depth_texture = Texture::create_depth_texture(&self.device, (self.config.width, self.config.height), "depth_texture");
 
             self.camera.when_view_size_changes(new_size.width, new_size.height);
+            self.camera2d.when_view_size_changes(new_size.width, new_size.height);
         }
     }
 
@@ -306,6 +314,7 @@ impl State {
     fn update(&mut self, dt: std::time::Duration) {
         // Update camera.
         self.camera.update(dt.as_secs_f32(), &self.queue);
+        self.camera2d.update(dt.as_secs_f32(), &self.queue);
 
         // Update the light.
         {
@@ -387,6 +396,16 @@ impl State {
                 &self.camera.camera_bind_group,
                 &self.light_bind_group,
             );
+            // ----------------------
+
+            // Draw vector.
+            // ----------------------
+            // Set vertex buffer.
+            render_pass.set_vertex_buffer(1, self.vec_sprite.mesh.vertex_buffer.slice(..));
+
+            render_pass.set_pipeline(&self.render_server.vector_pipeline);
+
+            render_pass.draw_path(&self.vec_sprite.mesh, &self.camera2d.camera_bind_group);
             // ----------------------
         }
 

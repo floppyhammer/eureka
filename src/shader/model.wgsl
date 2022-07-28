@@ -5,6 +5,7 @@ struct Camera {
     view_proj: mat4x4<f32>,
 }
 
+// Bind group 1.
 @group(1) @binding(0)
 var<uniform> camera: Camera;
 
@@ -13,6 +14,7 @@ struct Light {
     color: vec3<f32>,
 }
 
+// Bind group 2.
 @group(2) @binding(0)
 var<uniform> light: Light;
 
@@ -82,6 +84,8 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
 
 //////////////////////////////// Fragment shader ////////////////////////////////
 
+// Bind group 0.
+// -------------------------
 // Diffuse.
 @group(0) @binding(0)
 var t_diffuse: texture_2d<f32>;
@@ -95,6 +99,7 @@ var t_normal: texture_2d<f32>;
 
 @group(0) @binding(3)
 var s_normal: sampler;
+// -------------------------
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

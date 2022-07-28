@@ -1,16 +1,17 @@
 use wgpu::TextureFormat;
-use crate::{Camera, resource, SamplerBindingType, scene, Vertex};
+use crate::{Camera, Camera2d, resource, SamplerBindingType, scene, Vertex};
 
 pub struct RenderServer {
     pub model_pipeline: wgpu::RenderPipeline,
     pub light_pipeline: wgpu::RenderPipeline,
+    pub vector_pipeline: wgpu::RenderPipeline,
     //sprite_pipeline: wgpu::RenderPipeline,
     pub light_bind_group_layout: wgpu::BindGroupLayout,
     pub model_texture_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl RenderServer {
-    pub(crate) fn new(device: &wgpu::Device, camera: &Camera, color_format: TextureFormat) -> Self {
+    pub(crate) fn new(device: &wgpu::Device, camera: &Camera, camera2d: &Camera2d, color_format: TextureFormat) -> Self {
         // Light.
         // -----------------------------------------------
         let light_bind_group_layout =
@@ -30,7 +31,7 @@ impl RenderServer {
 
         // Pipeline to draw light source.
         let light_pipeline = {
-            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Light Render Pipeline Layout"),
                 bind_group_layouts: &[&camera.camera_bind_group_layout, &light_bind_group_layout],
                 push_constant_ranges: &[],
@@ -43,11 +44,12 @@ impl RenderServer {
 
             create_render_pipeline(
                 &device,
-                &layout,
+                &pipeline_layout,
                 color_format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
                 &[resource::mesh::Vertex3d::desc()],
                 shader,
+                "Light Pipeline",
             )
         };
         // -----------------------------------------------
@@ -104,7 +106,7 @@ impl RenderServer {
         // Pipeline to draw a model.
         let model_pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let layout =
+            let pipeline_layout =
                 device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Model Render Pipeline Layout"),
                     bind_group_layouts: &[
@@ -123,11 +125,41 @@ impl RenderServer {
 
             create_render_pipeline(
                 &device,
-                &layout,
+                &pipeline_layout,
                 color_format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
                 &[resource::mesh::Vertex3d::desc(), scene::model::InstanceRaw::desc()],
                 shader,
+                "Model Pipeline",
+            )
+        };
+        // -----------------------------------------------
+
+        // Vector pipeline.
+        // -----------------------------------------------
+        let vector_pipeline = {
+            // Set up resource pipeline layout using bind group layouts.
+            let pipeline_layout =
+                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Vector Render Pipeline Layout"),
+                    bind_group_layouts: &[&camera2d.camera_bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+            // Shader descriptor, not a shader module yet.
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Vector Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/vector.wgsl").into()),
+            };
+
+            create_render_pipeline(
+                &device,
+                &pipeline_layout,
+                color_format,
+                Some(resource::texture::Texture::DEPTH_FORMAT),
+                &[scene::vector_sprite::VectorVertex::desc()],
+                shader,
+                "Vector Pipeline",
             )
         };
         // -----------------------------------------------
@@ -135,6 +167,7 @@ impl RenderServer {
         Self {
             model_pipeline,
             light_pipeline,
+            vector_pipeline,
             light_bind_group_layout,
             model_texture_bind_group_layout,
         }
@@ -149,12 +182,13 @@ pub fn create_render_pipeline(
     depth_format: Option<wgpu::TextureFormat>,
     vertex_layouts: &[wgpu::VertexBufferLayout],
     shader: wgpu::ShaderModuleDescriptor,
+    label: &str,
 ) -> wgpu::RenderPipeline {
     // Create actual shader module using the shader descriptor.
     let shader = device.create_shader_module(shader);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
+        label: Some(label),
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -177,7 +211,7 @@ pub fn create_render_pipeline(
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
-            cull_mode: Some(wgpu::Face::Back),
+            cull_mode: None, // Some(wgpu::Face::Back)
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: wgpu::PolygonMode::Fill,
             // Requires Features::DEPTH_CLIP_CONTROL
