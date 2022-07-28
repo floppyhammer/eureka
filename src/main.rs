@@ -350,7 +350,7 @@ impl State {
 
             render_pass.draw_light_model(
                 &self.light_model,
-                &self.camera.camera_bind_group,
+                &self.camera.bind_group,
                 &self.light.bind_group,
             );
             // ----------------------
@@ -365,7 +365,7 @@ impl State {
             render_pass.draw_model_instanced(
                 &self.obj_model,
                 0..self.instances.len() as u32,
-                &self.camera.camera_bind_group,
+                &self.camera.bind_group,
                 &self.light.bind_group,
             );
             // ----------------------
@@ -377,7 +377,7 @@ impl State {
 
             render_pass.set_pipeline(&self.render_server.vector_pipeline);
 
-            render_pass.draw_path(&self.vec_sprite.mesh, &self.camera2d.camera_bind_group);
+            render_pass.draw_path(&self.vec_sprite.mesh, &self.camera2d.bind_group);
             // ----------------------
         }
 

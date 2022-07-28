@@ -25,14 +25,18 @@ pub struct Camera {
     pitch: Rad<f32>,
 
     projection: Projection,
-    camera_controller: CameraController,
 
-    camera_uniform: CameraUniform,
+    controller: CameraController,
+
     // CPU data
-    camera_buffer: wgpu::Buffer, // GPU data
+    uniform: CameraUniform,
 
-    pub(crate) camera_bind_group_layout: wgpu::BindGroupLayout,
-    pub(crate) camera_bind_group: wgpu::BindGroup,
+    // GPU data
+    buffer: wgpu::Buffer,
+
+    pub(crate) bind_group_layout: wgpu::BindGroupLayout,
+
+    pub(crate) bind_group: wgpu::BindGroup,
 }
 
 impl Camera {
@@ -55,23 +59,23 @@ impl Camera {
             100.0,
         );
 
-        let camera_controller = CameraController::new(4.0, 0.4);
+        let controller = CameraController::new(4.0, 0.4);
 
         // This will be used in the model shader.
-        let mut camera_uniform = CameraUniform::new();
+        let mut uniform = CameraUniform::new();
 
         // Create a buffer for the camera uniform.
-        let camera_buffer = device.create_buffer_init(
+        let buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
+                contents: bytemuck::cast_slice(&[uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
         );
 
         // Create a bind group layout for the camera buffer.
         // Bind group layout is used to create actual bind groups.
-        let camera_bind_group_layout = device.create_bind_group_layout(
+        let bind_group_layout = device.create_bind_group_layout(
             &wgpu::BindGroupLayoutDescriptor {
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
@@ -90,13 +94,13 @@ impl Camera {
 
         // Create the actual bind group.
         // A bind group describes a set of resources and how they can be accessed by a shader.
-        let camera_bind_group = device.create_bind_group(
+        let bind_group = device.create_bind_group(
             &wgpu::BindGroupDescriptor {
-                layout: &camera_bind_group_layout,
+                layout: &bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: camera_buffer.as_entire_binding(),
+                        resource: buffer.as_entire_binding(),
                     }
                 ],
                 label: Some("camera_bind_group"),
@@ -108,11 +112,11 @@ impl Camera {
             yaw: yaw.into(),
             pitch: pitch.into(),
             projection,
-            camera_controller,
-            camera_uniform,
-            camera_buffer,
-            camera_bind_group_layout,
-            camera_bind_group,
+            controller,
+            uniform,
+            buffer,
+            bind_group_layout,
+            bind_group,
         }
     }
 
@@ -137,27 +141,27 @@ impl Camera {
             let (pitch_sin, pitch_cos) = self.pitch.0.sin_cos();
             let forward = Vector3::new(pitch_cos * yaw_cos, pitch_sin, pitch_cos * yaw_sin).normalize();
             let right = Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
-            self.position += forward * (self.camera_controller.amount_forward - self.camera_controller.amount_backward) * self.camera_controller.speed * dt;
-            self.position += right * (self.camera_controller.amount_right - self.camera_controller.amount_left) * self.camera_controller.speed * dt;
+            self.position += forward * (self.controller.amount_forward - self.controller.amount_backward) * self.controller.speed * dt;
+            self.position += right * (self.controller.amount_right - self.controller.amount_left) * self.controller.speed * dt;
 
             // Adjust navigation speed by scrolling.
-            self.camera_controller.speed += self.camera_controller.scroll * 0.001;
-            self.camera_controller.speed = clamp(self.camera_controller.speed, 0.1, 10.0);
-            self.camera_controller.scroll = 0.0;
+            self.controller.speed += self.controller.scroll * 0.001;
+            self.controller.speed = clamp(self.controller.speed, 0.1, 10.0);
+            self.controller.scroll = 0.0;
 
             // Move up/down. Since we don't use roll, we can just
             // modify the y coordinate directly.
-            self.position.y += (self.camera_controller.amount_up - self.camera_controller.amount_down) * self.camera_controller.speed * dt;
+            self.position.y += (self.controller.amount_up - self.controller.amount_down) * self.controller.speed * dt;
 
             // Rotate.
-            self.yaw += Rad(self.camera_controller.rotate_horizontal) * self.camera_controller.sensitivity * dt;
-            self.pitch += Rad(-self.camera_controller.rotate_vertical) * self.camera_controller.sensitivity * dt;
+            self.yaw += Rad(self.controller.rotate_horizontal) * self.controller.sensitivity * dt;
+            self.pitch += Rad(-self.controller.rotate_vertical) * self.controller.sensitivity * dt;
 
             // If process_mouse isn't called every frame, these values
             // will not get set to zero, and the camera will rotate
             // when moving in a non cardinal direction.
-            self.camera_controller.rotate_horizontal = 0.0;
-            self.camera_controller.rotate_vertical = 0.0;
+            self.controller.rotate_horizontal = 0.0;
+            self.controller.rotate_vertical = 0.0;
 
             // Keep the camera's angle from going too high/low.
             if self.pitch < -Rad(SAFE_FRAC_PI_2) {
@@ -170,12 +174,12 @@ impl Camera {
         // Update camera uniform and its buffer.
         {
             // We're using Vector4 because of the uniforms 16 byte spacing requirement.
-            self.camera_uniform.view_position = self.position.to_homogeneous().into();
-            self.camera_uniform.view_proj = (self.projection.calc_matrix() * self.calc_matrix()).into();
-            self.camera_uniform.proj = self.projection.calc_matrix().into();
+            self.uniform.view_position = self.position.to_homogeneous().into();
+            self.uniform.view_proj = (self.projection.calc_matrix() * self.calc_matrix()).into();
+            self.uniform.proj = self.projection.calc_matrix().into();
 
             // Update camera buffer.
-            queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+            queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
         }
     }
 
@@ -184,17 +188,17 @@ impl Camera {
     }
 
     pub fn when_capture_state_changed(&self, window: &Window) {
-        if self.camera_controller.cursor_capture_state_changed {
-            window.set_cursor_visible(!self.camera_controller.cursor_captured);
+        if self.controller.cursor_capture_state_changed {
+            window.set_cursor_visible(!self.controller.cursor_captured);
 
             // When right button releases, we need to set mouse position back to where
             // it was before being set invisible.
-            if !self.camera_controller.cursor_captured {
+            if !self.controller.cursor_captured {
                 window.set_cursor_position(
                     Position::new(
                         LogicalPosition::new(
-                            self.camera_controller.cursor_captured_position.x,
-                            self.camera_controller.cursor_captured_position.y)
+                            self.controller.cursor_captured_position.x,
+                            self.controller.cursor_captured_position.y)
                     )
                 ).expect("Setting cursor position failed!");
             }
@@ -204,14 +208,14 @@ impl Camera {
 
 impl WithInput for Camera {
     fn input(&mut self, input: InputEvent) {
-        self.camera_controller.cursor_capture_state_changed = false;
+        self.controller.cursor_capture_state_changed = false;
 
         match input {
             InputEvent::MouseButton(event) => {
-                self.camera_controller.process_mouse_button(event.button, event.pressed);
+                self.controller.process_mouse_button(event.button, event.pressed);
             }
             InputEvent::MouseMotion(event) => {
-                self.camera_controller.process_mouse_motion(
+                self.controller.process_mouse_motion(
                     event.delta.0,
                     event.delta.1,
                     event.position.0,
@@ -219,10 +223,10 @@ impl WithInput for Camera {
                 );
             }
             InputEvent::MouseScroll(event) => {
-                self.camera_controller.process_scroll(event.delta);
+                self.controller.process_scroll(event.delta);
             }
             InputEvent::Key(event) => {
-                self.camera_controller.process_keyboard(event.key, event.pressed);
+                self.controller.process_keyboard(event.key, event.pressed);
             }
             _ => {}
         }

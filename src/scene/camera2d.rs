@@ -24,13 +24,14 @@ pub struct Camera2d {
     position: Point2<f32>,
 
     // CPU data
-    camera_uniform: Camera2dUniform,
+    uniform: Camera2dUniform,
 
     // GPU data
-    camera_buffer: wgpu::Buffer,
+    buffer: wgpu::Buffer,
 
-    pub(crate) camera_bind_group_layout: wgpu::BindGroupLayout,
-    pub(crate) camera_bind_group: wgpu::BindGroup,
+    pub(crate) bind_group_layout: wgpu::BindGroupLayout,
+
+    pub(crate) bind_group: wgpu::BindGroup,
 }
 
 impl Camera2d {
@@ -41,23 +42,23 @@ impl Camera2d {
         device: &wgpu::Device,
     ) -> Self {
         // This will be used in the model shader.
-        let mut camera_uniform = Camera2dUniform::new();
+        let mut uniform = Camera2dUniform::new();
         let translation = cgmath::Matrix4::from_translation(Vector3::new(1.0, 1.0, 0.0));
         let scale = cgmath::Matrix4::from_nonuniform_scale(1.0 / view_size.0 as f32, 1.0 / view_size.1 as f32, 1.0);
-        camera_uniform.proj = (scale * translation).into();
+        uniform.proj = (scale * translation).into();
 
         // Create a buffer for the camera uniform.
-        let camera_buffer = device.create_buffer_init(
+        let buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
+                contents: bytemuck::cast_slice(&[uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
         );
 
         // Create a bind group layout for the camera buffer.
         // Bind group layout is used to create actual bind groups.
-        let camera_bind_group_layout = device.create_bind_group_layout(
+        let bind_group_layout = device.create_bind_group_layout(
             &wgpu::BindGroupLayoutDescriptor {
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
@@ -76,13 +77,13 @@ impl Camera2d {
 
         // Create the actual bind group.
         // A bind group describes a set of resources and how they can be accessed by a shader.
-        let camera_bind_group = device.create_bind_group(
+        let bind_group = device.create_bind_group(
             &wgpu::BindGroupDescriptor {
-                layout: &camera_bind_group_layout,
+                layout: &bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: camera_buffer.as_entire_binding(),
+                        resource: buffer.as_entire_binding(),
                     }
                 ],
                 label: Some("camera_bind_group"),
@@ -91,22 +92,22 @@ impl Camera2d {
 
         Self {
             position: position.into(),
-            camera_uniform,
-            camera_buffer,
-            camera_bind_group_layout,
-            camera_bind_group,
+            uniform,
+            buffer,
+            bind_group_layout,
+            bind_group,
         }
     }
 
     pub fn update(&mut self, dt: f32, queue: &wgpu::Queue) {
         // Update camera buffer.
-        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
     }
 
     pub fn when_view_size_changes(&mut self, new_width: u32, new_height: u32) {
         let translation = cgmath::Matrix4::from_translation(Vector3::new(1.0, 1.0, 0.0));
         let scale = cgmath::Matrix4::from_nonuniform_scale(1.0 / new_width as f32, 1.0 / new_height as f32, 1.0);
 
-        self.camera_uniform.proj = (scale * translation).into();
+        self.uniform.proj = (scale * translation).into();
     }
 }

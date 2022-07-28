@@ -33,7 +33,7 @@ impl RenderServer {
         let light_pipeline = {
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Light Render Pipeline Layout"),
-                bind_group_layouts: &[&camera.camera_bind_group_layout, &light_bind_group_layout],
+                bind_group_layouts: &[&camera.bind_group_layout, &light_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -111,7 +111,7 @@ impl RenderServer {
                     label: Some("Model Render Pipeline Layout"),
                     bind_group_layouts: &[
                         &model_texture_bind_group_layout,
-                        &camera.camera_bind_group_layout,
+                        &camera.bind_group_layout,
                         &light_bind_group_layout,
                     ],
                     push_constant_ranges: &[],
@@ -142,7 +142,7 @@ impl RenderServer {
             let pipeline_layout =
                 device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Vector Render Pipeline Layout"),
-                    bind_group_layouts: &[&camera2d.camera_bind_group_layout],
+                    bind_group_layouts: &[&camera2d.bind_group_layout],
                     push_constant_ranges: &[],
                 });
 
