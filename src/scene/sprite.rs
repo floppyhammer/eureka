@@ -16,11 +16,11 @@ pub struct Sprite {
     pub mesh: Mesh,
 }
 
-// impl WithDraw for Sprite {
-//     fn draw(&self, render_pass: &mut wgpu::RenderPass, camera_bind_group: &wgpu::BindGroup) {
-//         render_pass.draw_sprite(&self.mesh, &self.bind_group, &camera_bind_group);
-//     }
-// }
+impl WithDraw for Sprite {
+    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup) {
+        render_pass.draw_sprite(&self.mesh, &self.bind_group, &camera_bind_group);
+    }
+}
 
 impl Sprite {
     fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Sprite {

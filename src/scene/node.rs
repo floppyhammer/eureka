@@ -3,7 +3,7 @@ use crate::server::input_server::InputEvent;
 use crate::server::MouseButton;
 
 pub trait WithDraw {
-    fn draw(&self, render_pass: &mut wgpu::RenderPass, camera_bind_group: &wgpu::BindGroup);
+    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup);
 }
 
 pub trait WithUpdate {
