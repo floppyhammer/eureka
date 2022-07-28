@@ -25,6 +25,8 @@ mod server;
 // Import local crates.
 use crate::resource::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};
 use crate::scene::{Camera, Projection, CameraController, InputEvent, WithInput};
+use crate::scene::vector_sprite::VectorSprite;
+use crate::server::render_server::RenderServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
@@ -41,8 +43,7 @@ struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
-    render_pipeline: wgpu::RenderPipeline,
-    light_render_pipeline: wgpu::RenderPipeline,
+    render_server: RenderServer,
     camera: Camera,
     // Instancing.
     instances: Vec<scene::model::Instance>,
@@ -103,52 +104,9 @@ impl State {
         // Create camera.
         let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device);
 
-        // Model textures.
-        let texture_bind_group_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    // Diffuse texture.
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler {
-                            0: SamplerBindingType::Filtering,
-                        },
-                        count: None,
-                    },
-                    // Normal texture.
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler {
-                            0: SamplerBindingType::Filtering,
-                        },
-                        count: None,
-                    },
-                ],
-                label: Some("texture_bind_group_layout"),
-            }
-        );
+        let render_server = RenderServer::new(&device, &camera, config.format);
+
+        let vec_sprite = VectorSprite::new(&device, &queue);
 
         // Light.
         // -------------------------------
@@ -168,23 +126,8 @@ impl State {
             }
         );
 
-        let light_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: None,
-            });
-
         let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &light_bind_group_layout,
+            layout: &render_server.light_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: light_buffer.as_entire_binding(),
@@ -192,59 +135,6 @@ impl State {
             label: None,
         });
         // -------------------------------
-
-        // Pipeline to model.
-        let render_pipeline = {
-            // Set up resource pipeline layout using bind group layouts.
-            let layout =
-                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("Model Render Pipeline Layout"),
-                    bind_group_layouts: &[
-                        &texture_bind_group_layout,
-                        &camera.camera_bind_group_layout,
-                        &light_bind_group_layout,
-                    ],
-                    push_constant_ranges: &[],
-                });
-
-            // Shader descriptor, not a shader module yet.
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Model Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shader/model.wgsl").into()),
-            };
-
-            server::render_server::create_render_pipeline(
-                &device,
-                &layout,
-                config.format,
-                Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[resource::mesh::Vertex3d::desc(), scene::model::InstanceRaw::desc()],
-                shader,
-            )
-        };
-
-        // Pipeline to draw light source.
-        let light_render_pipeline = {
-            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Light Render Pipeline Layout"),
-                bind_group_layouts: &[&camera.camera_bind_group_layout, &light_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Light Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shader/light.wgsl").into()),
-            };
-
-            server::render_server::create_render_pipeline(
-                &device,
-                &layout,
-                config.format,
-                Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[resource::mesh::Vertex3d::desc()],
-                shader,
-            )
-        };
 
         // Get the asset directory.
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
@@ -255,13 +145,13 @@ impl State {
         let obj_model = Model::load(
             &device,
             &queue,
-            &texture_bind_group_layout,
+            &render_server.model_texture_bind_group_layout,
             asset_dir.join("viking_room/viking_room.obj"),
         ).unwrap();
         let light_model = Model::load(
             &device,
             &queue,
-            &texture_bind_group_layout,
+            &render_server.model_texture_bind_group_layout,
             asset_dir.join("sphere.obj"),
         ).unwrap();
 
@@ -308,8 +198,7 @@ impl State {
             queue,
             config,
             size,
-            render_pipeline,
-            light_render_pipeline,
+            render_server,
             camera,
             instances,
             instance_buffer,
@@ -476,7 +365,7 @@ impl State {
 
             // Draw light.
             // ----------------------
-            render_pass.set_pipeline(&self.light_render_pipeline);
+            render_pass.set_pipeline(&self.render_server.light_pipeline);
 
             render_pass.draw_light_model(
                 &self.light_model,
@@ -490,7 +379,7 @@ impl State {
             // Set vertex buffer for InstanceInput.
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&self.render_server.model_pipeline);
 
             render_pass.draw_model_instanced(
                 &self.obj_model,

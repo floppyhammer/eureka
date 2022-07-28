@@ -3,11 +3,13 @@ extern crate lyon;
 use lyon::math::point;
 use lyon::path::Path;
 use lyon::tessellation::*;
+use wgpu::util::DeviceExt;
 use crate::Vertex;
 
 pub struct VectorSprite {
     pub path: Path,
     geometry: VertexBuffers<MyVertex, u16>,
+    mesh: VectorMesh,
 }
 
 // Let's use our own custom vertex type instead of the default one.
@@ -51,7 +53,43 @@ impl VectorSprite {
                  geometry.indices.len()
         );
 
-        Self { path, geometry }
+        let mut vertices = Vec::new();
+        for v in &geometry.vertices {
+            vertices.push(VectorVertex {
+                position: [v.position[0], v.position[1]],
+                color: [1.0, 1.0, 1.0],
+            });
+        }
+
+        let mut indices = Vec::new();
+        for i in &geometry.indices {
+            indices.push(*i as i32);
+        }
+
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("Default 2D Mesh Vertex Buffer")),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+
+        let index_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("Default 2D Mesh Index Buffer")),
+                contents: bytemuck::cast_slice(&indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        );
+
+        let mesh = VectorMesh {
+            name: "".to_string(),
+            vertex_buffer,
+            index_buffer,
+            index_count: indices.len() as u32,
+        };
+
+        Self { path, geometry, mesh }
     }
 }
 

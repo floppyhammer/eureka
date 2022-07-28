@@ -1,11 +1,144 @@
-struct RenderServer {
-    model_pipeline: wgpu::RenderPipeline,
-    light_pipeline: wgpu::RenderPipeline,
-    sprite_pipeline: wgpu::RenderPipeline,
+use wgpu::TextureFormat;
+use crate::{Camera, resource, SamplerBindingType, scene, Vertex};
+
+pub struct RenderServer {
+    pub model_pipeline: wgpu::RenderPipeline,
+    pub light_pipeline: wgpu::RenderPipeline,
+    //sprite_pipeline: wgpu::RenderPipeline,
+    pub light_bind_group_layout: wgpu::BindGroupLayout,
+    pub model_texture_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl RenderServer {
+    pub(crate) fn new(device: &wgpu::Device, camera: &Camera, color_format: TextureFormat) -> Self {
+        // Light.
+        // -----------------------------------------------
+        let light_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: None,
+            });
 
+        // Pipeline to draw light source.
+        let light_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Light Render Pipeline Layout"),
+                bind_group_layouts: &[&camera.camera_bind_group_layout, &light_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Light Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/light.wgsl").into()),
+            };
+
+            create_render_pipeline(
+                &device,
+                &layout,
+                color_format,
+                Some(resource::texture::Texture::DEPTH_FORMAT),
+                &[resource::mesh::Vertex3d::desc()],
+                shader,
+            )
+        };
+        // -----------------------------------------------
+
+        // Model pipeline.
+        // -----------------------------------------------
+        // Model textures.
+        let model_texture_bind_group_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    // Diffuse texture.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler {
+                            0: SamplerBindingType::Filtering,
+                        },
+                        count: None,
+                    },
+                    // Normal texture.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler {
+                            0: SamplerBindingType::Filtering,
+                        },
+                        count: None,
+                    },
+                ],
+                label: Some("texture_bind_group_layout"),
+            }
+        );
+
+        // Pipeline to draw a model.
+        let model_pipeline = {
+            // Set up resource pipeline layout using bind group layouts.
+            let layout =
+                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Model Render Pipeline Layout"),
+                    bind_group_layouts: &[
+                        &model_texture_bind_group_layout,
+                        &camera.camera_bind_group_layout,
+                        &light_bind_group_layout,
+                    ],
+                    push_constant_ranges: &[],
+                });
+
+            // Shader descriptor, not a shader module yet.
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Model Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/model.wgsl").into()),
+            };
+
+            create_render_pipeline(
+                &device,
+                &layout,
+                color_format,
+                Some(resource::texture::Texture::DEPTH_FORMAT),
+                &[resource::mesh::Vertex3d::desc(), scene::model::InstanceRaw::desc()],
+                shader,
+            )
+        };
+        // -----------------------------------------------
+
+        Self {
+            model_pipeline,
+            light_pipeline,
+            light_bind_group_layout,
+            model_texture_bind_group_layout,
+        }
+    }
 }
 
 /// Set up resource pipeline using the pipeline layout.
