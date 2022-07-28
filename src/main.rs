@@ -24,7 +24,8 @@ mod ecs;
 mod server;
 
 // Import local crates.
-use crate::resource::{DrawModel, DrawLight, Model, Vertex, Texture, LightUniform};
+use crate::resource::{Vertex, Texture};
+use crate::scene::{DrawModel, Model, Light, DrawLight, LightUniform};
 use crate::scene::{Camera, Camera2d, Projection, CameraController, InputEvent, WithInput};
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::server::render_server::RenderServer;
@@ -53,9 +54,7 @@ struct State {
     depth_texture: Texture,
     obj_model: Model,
     light_model: Model,
-    light_uniform: LightUniform,
-    light_buffer: wgpu::Buffer,
-    light_bind_group: wgpu::BindGroup,
+    light: Light,
     mouse_position: (f32, f32),
     cursor_captured: bool,
     previous_frame_time: f32,
@@ -114,32 +113,7 @@ impl State {
         let vec_sprite = VectorSprite::new(&device, &queue);
 
         // Light.
-        // -------------------------------
-        let light_uniform = LightUniform {
-            position: [2.0, 2.0, 2.0],
-            _padding: 0,
-            color: [1.0, 1.0, 1.0],
-            _padding2: 0,
-        };
-
-        // We'll want to update our lights position, so we use COPY_DST.
-        let light_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Light uniform buffer"),
-                contents: bytemuck::cast_slice(&[light_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
-
-        let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &render_server.light_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: light_buffer.as_entire_binding(),
-            }],
-            label: None,
-        });
-        // -------------------------------
+        let light = Light::new(&device, &render_server);
 
         // Get the asset directory.
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
@@ -211,9 +185,7 @@ impl State {
             depth_texture,
             obj_model,
             light_model,
-            light_uniform,
-            light_buffer,
-            light_bind_group,
+            light,
             mouse_position: (0.0, 0.0),
             cursor_captured: false,
             previous_frame_time: 0.0,
@@ -318,13 +290,13 @@ impl State {
 
         // Update the light.
         {
-            let old_position: cgmath::Vector3<_> = self.light_uniform.position.into();
-            self.light_uniform.position =
+            let old_position: cgmath::Vector3<_> = self.light.uniform.position.into();
+            self.light.uniform.position =
                 (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt.as_secs_f32()))
                     * old_position).into();
 
             // Update light buffer.
-            self.queue.write_buffer(&self.light_buffer, 0, bytemuck::cast_slice(&[self.light_uniform]));
+            self.queue.write_buffer(&self.light.buffer, 0, bytemuck::cast_slice(&[self.light.uniform]));
         }
     }
 
@@ -379,7 +351,7 @@ impl State {
             render_pass.draw_light_model(
                 &self.light_model,
                 &self.camera.camera_bind_group,
-                &self.light_bind_group,
+                &self.light.bind_group,
             );
             // ----------------------
 
@@ -394,7 +366,7 @@ impl State {
                 &self.obj_model,
                 0..self.instances.len() as u32,
                 &self.camera.camera_bind_group,
-                &self.light_bind_group,
+                &self.light.bind_group,
             );
             // ----------------------
 

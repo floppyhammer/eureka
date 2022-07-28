@@ -11,3 +11,5 @@ pub use camera::*;
 pub use camera2d::*;
 pub use crate::server::input_server::*;
 pub use node::*;
+pub use model::*;
+pub use light::*;
