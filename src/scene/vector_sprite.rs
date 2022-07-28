@@ -48,7 +48,7 @@ impl VectorSprite {
             ).unwrap();
         }
         // The tessellated geometry is ready to be uploaded to the GPU.
-        println!(" -- {} vertices {} indices",
+        println!("Vector sprite info: {} vertices, {} indices",
                  geometry.vertices.len(),
                  geometry.indices.len()
         );

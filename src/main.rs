@@ -284,20 +284,14 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        // Update camera.
-        self.camera.update(dt.as_secs_f32(), &self.queue);
-        self.camera2d.update(dt.as_secs_f32(), &self.queue);
+        let dt_in_secs = dt.as_secs_f32();
+
+        // Update the cameras.
+        self.camera.update(dt_in_secs, &self.queue);
+        self.camera2d.update(dt_in_secs, &self.queue);
 
         // Update the light.
-        {
-            let old_position: cgmath::Vector3<_> = self.light.uniform.position.into();
-            self.light.uniform.position =
-                (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt.as_secs_f32()))
-                    * old_position).into();
-
-            // Update light buffer.
-            self.queue.write_buffer(&self.light.buffer, 0, bytemuck::cast_slice(&[self.light.uniform]));
-        }
+        self.light.update(dt_in_secs, &self.queue);
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
@@ -307,7 +301,7 @@ impl State {
         // Creates a TextureView with default settings.
         let view = output_surface.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Builds a command buffer that we can then send to the gpu.
+        // Builds a command buffer that we can then send to the GPU.
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });

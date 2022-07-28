@@ -412,4 +412,3 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
         }
     }
 }
-

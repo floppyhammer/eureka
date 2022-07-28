@@ -2,6 +2,7 @@ use std::ops::Range;
 use wgpu::util::DeviceExt;
 use crate::{Model, RenderServer};
 use crate::resource::Mesh;
+use cgmath::prelude::*;
 
 pub struct Light {
     pub(crate) uniform: LightUniform,
@@ -41,6 +42,14 @@ impl Light {
             buffer,
             bind_group,
         }
+    }
+
+    pub fn update(&mut self, dt: f32, queue: &wgpu::Queue) {
+        let old_position: cgmath::Vector3<_> = self.uniform.position.into();
+        self.uniform.position = (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt)) * old_position).into();
+
+        // Update buffer.
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
     }
 }
 
