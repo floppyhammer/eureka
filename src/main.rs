@@ -109,17 +109,17 @@ impl State {
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         println!("Asset dir: {}", asset_dir.display());
 
+        let render_server = RenderServer::new(&device, config.format);
+
         // Create camera.
-        let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device);
+        let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device, &render_server);
 
         let camera2d = Camera2d::new(Point2::new(0.0, 0.0), (size.width, size.height), &config, &device);
 
-        let render_server = RenderServer::new(&device, &camera, &camera2d, config.format);
-
-        let vec_sprite = VectorSprite::new(&device, &queue);
+        let vec_sprite = VectorSprite::new(&device, &queue, &render_server);
 
         let sprite_tex = Texture::load(&device, &queue, asset_dir.join("happy-tree.png")).unwrap();
-        let mut sprite = Sprite::new(&device, &queue, sprite_tex);
+        let mut sprite = Sprite::new(&device, &queue, &render_server, sprite_tex);
 
         // Light.
         let light = Light::new(&device, &render_server);
@@ -131,6 +131,7 @@ impl State {
             &render_server.model_texture_bind_group_layout,
             asset_dir.join("viking_room/viking_room.obj"),
         ).unwrap();
+
         let light_model = Model::load(
             &device,
             &queue,
@@ -297,6 +298,8 @@ impl State {
 
         // Update the light.
         self.light.update(dt_in_secs, &self.queue);
+
+        self.vec_sprite.update(dt_in_secs, &self.queue, &self.camera2d);
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
@@ -354,30 +357,24 @@ impl State {
             );
             // ----------------------
 
+            // FIXME
             // Draw model.
             // ----------------------
-            // Set vertex buffer for InstanceInput.
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-
-            render_pass.set_pipeline(&self.render_server.model_pipeline);
-
-            render_pass.draw_model_instanced(
-                &self.obj_model,
-                0..self.instances.len() as u32,
-                &self.camera.bind_group,
-                &self.light.bind_group,
-            );
+            // render_pass.set_pipeline(&self.render_server.model_pipeline);
+            //
+            // // Set vertex buffer for InstanceInput.
+            // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            //
+            // render_pass.draw_model_instanced(
+            //     &self.obj_model,
+            //     0..self.instances.len() as u32,
+            //     &self.camera.bind_group,
+            //     &self.light.bind_group,
+            // );
             // ----------------------
 
             // Draw vector.
-            // ----------------------
-            // Set vertex buffer.
-            render_pass.set_vertex_buffer(1, self.vec_sprite.mesh.vertex_buffer.slice(..));
-
-            render_pass.set_pipeline(&self.render_server.vector_pipeline);
-
-            render_pass.draw_path(&self.vec_sprite.mesh, &self.camera2d.bind_group);
-            // ----------------------
+            self.vec_sprite.draw(&mut render_pass);
         }
 
         // Finish the command buffer, and to submit it to the GPU's resource queue.

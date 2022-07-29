@@ -1,14 +1,24 @@
 extern crate lyon;
 
+use cgmath::Vector3;
 use lyon::math::point;
 use lyon::path::Path;
 use lyon::tessellation::*;
 use wgpu::util::DeviceExt;
-use crate::Vertex;
+use crate::{Camera2d, RenderServer, Vertex};
+use crate::scene::Camera2dUniform;
 
 pub struct VectorSprite {
     pub path: Path,
     geometry: VertexBuffers<MyVertex, u16>,
+
+    pub position: cgmath::Vector2<f32>,
+    pub size: cgmath::Vector2<f32>,
+    pub scale: cgmath::Vector2<f32>,
+
+    pub camera_buffer: wgpu::Buffer,
+    pub camera_bind_group: wgpu::BindGroup,
+
     pub(crate) mesh: VectorMesh,
 }
 
@@ -22,6 +32,7 @@ impl VectorSprite {
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        render_server: &RenderServer,
     ) -> VectorSprite {
         // Build a Path.
         let mut builder = Path::builder();
@@ -82,6 +93,12 @@ impl VectorSprite {
             }
         );
 
+        let (camera_buffer, camera_bind_group) = render_server.create_camera2d_resources(device);
+
+        let position = cgmath::Vector2::new(0.0 as f32, 0.0);
+        let size = cgmath::Vector2::new(128.0 as f32, 128.0);
+        let scale = cgmath::Vector2::new(1.0 as f32, 1.0);
+
         let mesh = VectorMesh {
             name: "".to_string(),
             vertex_buffer,
@@ -89,7 +106,42 @@ impl VectorSprite {
             index_count: indices.len() as u32,
         };
 
-        Self { path, geometry, mesh }
+        Self {
+            path,
+            geometry,
+            position,
+            size,
+            scale,
+            camera_buffer,
+            camera_bind_group,
+            mesh,
+        }
+    }
+
+    pub(crate) fn update(&self, dt: f32, queue: &wgpu::Queue, camera: &Camera2d) {
+        let translation = cgmath::Matrix4::from_translation(
+            Vector3::new(self.position.x / camera.view_size.x as f32,
+                         self.position.y / camera.view_size.y as f32,
+                         0.0)
+        );
+
+        let scale = cgmath::Matrix4::from_nonuniform_scale(
+            self.scale.x,
+            self.scale.y,
+            1.0,
+        );
+
+        let mut uniform = Camera2dUniform::new();
+
+        uniform.proj = (camera.proj * scale * translation).into();
+
+        // Update camera buffer.
+        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+    }
+
+    pub(crate) fn draw<'a, 'b>(&'b self, render_pass: &'a mut wgpu::RenderPass<'b>)
+        where 'b: 'a {
+        render_pass.draw_path(&self.mesh, &self.camera_bind_group);
     }
 }
 

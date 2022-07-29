@@ -6,6 +6,7 @@ use winit::window::Window;
 use std::time::Duration;
 use std::f32::consts::FRAC_PI_2;
 use wgpu::util::DeviceExt;
+use crate::RenderServer;
 use crate::scene::node::WithInput;
 use crate::server::input_server::InputEvent;
 
@@ -34,8 +35,6 @@ pub struct Camera {
     // GPU data
     buffer: wgpu::Buffer,
 
-    pub(crate) bind_group_layout: wgpu::BindGroupLayout,
-
     pub(crate) bind_group: wgpu::BindGroup,
 }
 
@@ -50,6 +49,7 @@ impl Camera {
         pitch: P,
         config: &wgpu::SurfaceConfiguration,
         device: &wgpu::Device,
+        render_server: &RenderServer,
     ) -> Self {
         let projection = Projection::new(
             config.width, // Render target size
@@ -67,43 +67,22 @@ impl Camera {
         // Create a buffer for the camera uniform.
         let buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
+                label: Some("camera buffer"),
                 contents: bytemuck::cast_slice(&[uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
         );
 
-        // Create a bind group layout for the camera buffer.
-        // Bind group layout is used to create actual bind groups.
-        let bind_group_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }
-                ],
-                label: Some("camera_bind_group_layout"),
-            });
-
-        // Create the actual bind group.
-        // A bind group describes a set of resources and how they can be accessed by a shader.
         let bind_group = device.create_bind_group(
             &wgpu::BindGroupDescriptor {
-                layout: &bind_group_layout,
+                layout: &render_server.camera_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
                         resource: buffer.as_entire_binding(),
                     }
                 ],
-                label: Some("camera_bind_group"),
+                label: Some("camera bind group"),
             });
         // ----------------------------
 
@@ -115,7 +94,6 @@ impl Camera {
             controller,
             uniform,
             buffer,
-            bind_group_layout,
             bind_group,
         }
     }

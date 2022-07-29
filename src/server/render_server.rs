@@ -1,61 +1,61 @@
 use wgpu::TextureFormat;
+use wgpu::util::DeviceExt;
 use crate::{Camera, Camera2d, resource, SamplerBindingType, scene, Vertex};
+use crate::scene::Camera2dUniform;
 
 pub struct RenderServer {
     pub model_pipeline: wgpu::RenderPipeline,
     pub light_pipeline: wgpu::RenderPipeline,
-    pub vector_pipeline: wgpu::RenderPipeline,
-    //sprite_pipeline: wgpu::RenderPipeline,
+    pub vector_sprite_pipeline: wgpu::RenderPipeline,
+
+    pub sprite_pipeline: wgpu::RenderPipeline,
+    pub sprite_texture_bind_group_layout: wgpu::BindGroupLayout,
+
     pub light_bind_group_layout: wgpu::BindGroupLayout,
     pub model_texture_bind_group_layout: wgpu::BindGroupLayout,
+    pub camera2d_bind_group_layout: wgpu::BindGroupLayout,
+    pub camera_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl RenderServer {
-    pub(crate) fn new(device: &wgpu::Device, camera: &Camera, camera2d: &Camera2d, color_format: TextureFormat) -> Self {
-        // Light.
-        // -----------------------------------------------
-        let light_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: None,
+    pub(crate) fn new(device: &wgpu::Device, color_format: TextureFormat) -> Self {
+        // Create various bind group layouts.
+        // Bind group layouts are used to create bind groups.
+        // ------------------------------------------------------------------
+        let camera_bind_group_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }
+                ],
+                label: Some("camera bind group layout"),
             });
 
-        // Pipeline to draw light source.
-        let light_pipeline = {
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Light Render Pipeline Layout"),
-                bind_group_layouts: &[&camera.bind_group_layout, &light_bind_group_layout],
-                push_constant_ranges: &[],
+        let camera2d_bind_group_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }
+                ],
+                label: Some("camera2d bind group layout"),
             });
 
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Light Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/light.wgsl").into()),
-            };
-
-            create_render_pipeline(
-                &device,
-                &pipeline_layout,
-                color_format,
-                Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[resource::mesh::Vertex3d::desc()],
-                shader,
-                "Light Pipeline",
-            )
-        };
-        // -----------------------------------------------
-
-        // Model pipeline.
-        // -----------------------------------------------
         // Model textures.
         let model_texture_bind_group_layout = device.create_bind_group_layout(
             &wgpu::BindGroupLayoutDescriptor {
@@ -99,19 +99,87 @@ impl RenderServer {
                         count: None,
                     },
                 ],
-                label: Some("texture_bind_group_layout"),
+                label: Some("model texture bind group layout"),
             }
         );
 
-        // Pipeline to draw a model.
+        let light_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("light bind group layout"),
+            });
+
+        let sprite_texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler {
+                            0: SamplerBindingType::Filtering,
+                        },
+                        count: None,
+                    },
+                ],
+                label: Some("sprite texture bind group layout"),
+            });
+        // ------------------------------------------------------------------
+
+        // Light pipeline to draw light source.
+        let light_pipeline = {
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("light render pipeline layout"),
+                bind_group_layouts: &[
+                    &camera_bind_group_layout,
+                    &light_bind_group_layout
+                ],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("light shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/light.wgsl").into()),
+            };
+
+            create_render_pipeline(
+                &device,
+                &pipeline_layout,
+                color_format,
+                Some(resource::texture::Texture::DEPTH_FORMAT),
+                &[resource::mesh::Vertex3d::desc()],
+                shader,
+                "light pipeline",
+            )
+        };
+
+        // Model pipeline to draw a model.
         let model_pipeline = {
             // Set up resource pipeline layout using bind group layouts.
             let pipeline_layout =
                 device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("Model Render Pipeline Layout"),
+                    label: Some("model render pipeline layout"),
                     bind_group_layouts: &[
                         &model_texture_bind_group_layout,
-                        &camera.bind_group_layout,
+                        &camera_bind_group_layout,
                         &light_bind_group_layout,
                     ],
                     push_constant_ranges: &[],
@@ -119,7 +187,7 @@ impl RenderServer {
 
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Model Shader"),
+                label: Some("model shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("../shader/model.wgsl").into()),
             };
 
@@ -130,25 +198,53 @@ impl RenderServer {
                 Some(resource::texture::Texture::DEPTH_FORMAT),
                 &[resource::mesh::Vertex3d::desc(), scene::model::InstanceRaw::desc()],
                 shader,
-                "Model Pipeline",
+                "model pipeline",
             )
         };
-        // -----------------------------------------------
 
-        // Vector pipeline.
-        // -----------------------------------------------
-        let vector_pipeline = {
+        // Sprite pipeline.
+        let sprite_pipeline = {
             // Set up resource pipeline layout using bind group layouts.
             let pipeline_layout =
                 device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("Vector Render Pipeline Layout"),
-                    bind_group_layouts: &[&camera2d.bind_group_layout],
+                    label: Some("vector render pipeline layout"),
+                    bind_group_layouts: &[
+                        &camera2d_bind_group_layout,
+                        &sprite_texture_bind_group_layout,
+                    ],
                     push_constant_ranges: &[],
                 });
 
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Vector Shader"),
+                label: Some("sprite shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/blit.wgsl").into()),
+            };
+
+            create_render_pipeline(
+                &device,
+                &pipeline_layout,
+                color_format,
+                Some(resource::texture::Texture::DEPTH_FORMAT),
+                &[resource::mesh::Vertex2d::desc()],
+                shader,
+                "sprite pipeline",
+            )
+        };
+
+        // Vector sprite pipeline.
+        let vector_sprite_pipeline = {
+            // Set up resource pipeline layout using bind group layouts.
+            let pipeline_layout =
+                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("vector sprite render pipeline layout"),
+                    bind_group_layouts: &[&camera2d_bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+            // Shader descriptor, not a shader module yet.
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("vector sprite shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("../shader/vector.wgsl").into()),
             };
 
@@ -159,18 +255,46 @@ impl RenderServer {
                 Some(resource::texture::Texture::DEPTH_FORMAT),
                 &[scene::vector_sprite::VectorVertex::desc()],
                 shader,
-                "Vector Pipeline",
+                "vector sprite pipeline",
             )
         };
-        // -----------------------------------------------
 
         Self {
             model_pipeline,
             light_pipeline,
-            vector_pipeline,
+            vector_sprite_pipeline,
+            sprite_pipeline,
+            sprite_texture_bind_group_layout,
             light_bind_group_layout,
             model_texture_bind_group_layout,
+            camera2d_bind_group_layout,
+            camera_bind_group_layout,
         }
+    }
+
+    pub(crate) fn create_camera2d_resources(&self, device: &wgpu::Device) -> (wgpu::Buffer, wgpu::BindGroup) {
+        // Create a buffer for the camera uniform.
+        let camera_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("camera2d buffer"),
+                contents: bytemuck::cast_slice(&[Camera2dUniform::new()]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+
+        let camera_bind_group = device.create_bind_group(
+            &wgpu::BindGroupDescriptor {
+                layout: &self.camera2d_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: camera_buffer.as_entire_binding(),
+                    }
+                ],
+                label: Some("camera2d bind group"),
+            });
+
+        (camera_buffer, camera_bind_group)
     }
 }
 

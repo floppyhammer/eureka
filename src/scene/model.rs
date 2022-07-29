@@ -373,7 +373,7 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
 
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-        // Set diffuse texture.
+        // Set textures.
         self.set_bind_group(0, &material.bind_group, &[]);
 
         // Set camera uniform.
