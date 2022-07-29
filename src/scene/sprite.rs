@@ -1,4 +1,5 @@
 use crate::resource::{Material2d, Mesh, Texture};
+use crate::SamplerBindingType;
 use crate::scene::node::WithDraw;
 
 pub struct Sprite {
@@ -23,7 +24,7 @@ impl WithDraw for Sprite {
 }
 
 impl Sprite {
-    fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Sprite {
+    pub(crate) fn new(device: &wgpu::Device, queue: &wgpu::Queue, texture: Texture) -> Sprite {
         let position = cgmath::Vector2::new(0.0 as f32, 0.0);
         let size = cgmath::Vector2::new(128.0 as f32, 128.0);
         let scale = cgmath::Vector2::new(1.0 as f32, 1.0);
@@ -32,22 +33,41 @@ impl Sprite {
 
         let bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler {
+                            0: SamplerBindingType::Filtering,
+                        },
+                        count: None,
+                    },
+                ],
                 label: None,
             });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &bind_group_layout,
-            entries: &[],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&(texture.view)),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                },
+            ],
             label: None,
         });
 
@@ -56,14 +76,14 @@ impl Sprite {
             position,
             size,
             scale,
-            texture: None,
+            texture: Some(texture),
             bind_group_layout,
             bind_group,
             mesh,
         }
     }
 
-    fn set_texture(&mut self, device: &wgpu::Device, new_texture: Texture) {
+    pub(crate) fn set_texture(&mut self, device: &wgpu::Device, new_texture: Texture) {
         self.texture = Some(new_texture);
 
         self.bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -111,11 +131,11 @@ impl<'a, 'b> DrawSprite<'b> for wgpu::RenderPass<'a>
 
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-        // Set texture.
-        self.set_bind_group(0, &texture_bind_group, &[]);
+        // Set camera group.
+        self.set_bind_group(0, &camera_bind_group, &[]);
 
-        // Set camera uniform.
-        self.set_bind_group(1, &camera_bind_group, &[]);
+        // Set texture group.
+        self.set_bind_group(1, &texture_bind_group, &[]);
 
         self.draw_indexed(0..mesh.index_count, 0, 0..1);
     }

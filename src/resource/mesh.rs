@@ -60,6 +60,7 @@ impl Vertex for Vertex3d {
 pub(crate) struct Vertex2d {
     pub(crate) position: [f32; 3],
     pub(crate) uv: [f32; 2],
+    pub(crate) color: [f32; 3],
 }
 
 impl Vertex for Vertex2d {
@@ -77,6 +78,11 @@ impl Vertex for Vertex2d {
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x2,
+                },
+                wgpu::VertexAttribute { // Color.
+                    offset: std::mem::size_of::<[f32; 5]>() as wgpu::BufferAddress,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x3,
                 },
             ],
         }
@@ -97,10 +103,10 @@ pub struct Mesh {
 impl Mesh {
     pub fn default_2d(device: &wgpu::Device) -> Mesh {
         let vertices = [
-            Vertex2d { position: [0.0, 0.0, 0.0], uv: [1.0, 0.0] },
-            Vertex2d { position: [1.0, 0.0, 0.0], uv: [0.0, 0.0] },
-            Vertex2d { position: [1.0, 1.0, 0.0], uv: [0.0, 1.0] },
-            Vertex2d { position: [0.0, 1.0, 0.0], uv: [1.0, 1.0] },
+            Vertex2d { position: [0.0, 0.0, 0.0], uv: [1.0, 0.0], color: [1.0, 1.0, 1.0] },
+            Vertex2d { position: [1.0, 0.0, 0.0], uv: [0.0, 0.0], color: [1.0, 1.0, 1.0] },
+            Vertex2d { position: [1.0, 1.0, 0.0], uv: [0.0, 1.0], color: [1.0, 1.0, 1.0] },
+            Vertex2d { position: [0.0, 1.0, 0.0], uv: [1.0, 1.0], color: [1.0, 1.0, 1.0] },
         ];
 
         let indices = [

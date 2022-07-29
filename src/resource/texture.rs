@@ -4,8 +4,8 @@ use image::{GenericImageView, ImageBuffer, Rgb, DynamicImage::ImageRgba8};
 
 use crate::resource::{Material2d, Mesh};
 
-/// This is a wrapper over wgpu texture, view and sampler
-/// and is not responsible for drawing.
+/// [`Texture`] is a wrapper over wgpu texture, view and sampler.
+/// It only stores data and is not responsible for drawing.
 
 pub struct Texture {
     // Actual data.

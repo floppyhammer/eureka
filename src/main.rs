@@ -27,6 +27,7 @@ mod server;
 use crate::resource::{Vertex, Texture};
 use crate::scene::{DrawModel, Model, Light, DrawLight, LightUniform};
 use crate::scene::{Camera, Camera2d, Projection, CameraController, InputEvent, WithInput};
+use crate::scene::sprite::Sprite;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::server::render_server::RenderServer;
 
@@ -59,6 +60,7 @@ struct State {
     cursor_captured: bool,
     previous_frame_time: f32,
     vec_sprite: VectorSprite,
+    sprite: Sprite,
 }
 
 impl State {
@@ -103,6 +105,10 @@ impl State {
         };
         surface.configure(&device, &config);
 
+        // Get the asset directory.
+        let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
+        println!("Asset dir: {}", asset_dir.display());
+
         // Create camera.
         let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device);
 
@@ -112,13 +118,11 @@ impl State {
 
         let vec_sprite = VectorSprite::new(&device, &queue);
 
+        let sprite_tex = Texture::load(&device, &queue, asset_dir.join("happy-tree.png")).unwrap();
+        let mut sprite = Sprite::new(&device, &queue, sprite_tex);
+
         // Light.
         let light = Light::new(&device, &render_server);
-
-        // Get the asset directory.
-        let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
-
-        println!("Asset dir: {}", asset_dir.display());
 
         // Load models.
         let obj_model = Model::load(
@@ -190,6 +194,7 @@ impl State {
             cursor_captured: false,
             previous_frame_time: 0.0,
             vec_sprite,
+            sprite,
         }
     }
 
