@@ -65,9 +65,13 @@ impl Sprite {
         }
     }
 
-    fn draw<'a, 'b>(&'b self, render_pass: &'a mut wgpu::RenderPass<'b>)
+    fn draw<'a, 'b>(&'b self, render_pass: &'a mut wgpu::RenderPass<'b>,
+                    render_server: &'b RenderServer)
         where 'b: 'a {
-        render_pass.draw_sprite(&self.mesh, &self.texture_bind_group, &self.camera_bind_group);
+        render_pass.draw_sprite(&render_server.sprite_pipeline,
+                                &self.mesh,
+                                &self.texture_bind_group,
+                                &self.camera_bind_group);
     }
 
     fn update(&self, queue: &wgpu::Queue, camera: &Camera2d) {
@@ -95,6 +99,7 @@ impl Sprite {
 pub trait DrawSprite<'a> {
     fn draw_sprite(
         &mut self,
+        pipeline: &'a wgpu::RenderPipeline,
         mesh: &'a Mesh,
         texture_bind_group: &'a wgpu::BindGroup,
         camera_bind_group: &'a wgpu::BindGroup,
@@ -106,6 +111,7 @@ impl<'a, 'b> DrawSprite<'b> for wgpu::RenderPass<'a>
 {
     fn draw_sprite(
         &mut self,
+        pipeline: &'b wgpu::RenderPipeline,
         mesh: &'b Mesh,
         texture_bind_group: &'b wgpu::BindGroup,
         camera_bind_group: &'b wgpu::BindGroup,

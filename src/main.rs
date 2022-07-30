@@ -357,24 +357,23 @@ impl State {
             );
             // ----------------------
 
-            // FIXME
             // Draw model.
             // ----------------------
-            // render_pass.set_pipeline(&self.render_server.model_pipeline);
-            //
-            // // Set vertex buffer for InstanceInput.
-            // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            //
-            // render_pass.draw_model_instanced(
-            //     &self.obj_model,
-            //     0..self.instances.len() as u32,
-            //     &self.camera.bind_group,
-            //     &self.light.bind_group,
-            // );
+            render_pass.set_pipeline(&self.render_server.model_pipeline);
+
+            // Set vertex buffer for InstanceInput.
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+
+            render_pass.draw_model_instanced(
+                &self.obj_model,
+                0..self.instances.len() as u32,
+                &self.camera.bind_group,
+                &self.light.bind_group,
+            );
             // ----------------------
 
             // Draw vector.
-            self.vec_sprite.draw(&mut render_pass);
+            self.vec_sprite.draw(&mut render_pass, &self.render_server);
         }
 
         // Finish the command buffer, and to submit it to the GPU's resource queue.

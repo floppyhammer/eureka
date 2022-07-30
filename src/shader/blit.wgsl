@@ -1,7 +1,8 @@
 //////////////////////////////// Vertex shader ////////////////////////////////
 
 struct Camera {
-    mvp: mat4x4<f32>,
+    view_pos: vec4<f32>,
+    proj: mat4x4<f32>,
 }
 
 @group(0) @binding(0)
@@ -25,7 +26,7 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
 
-    out.clip_position = camera.mvp * vec4<f32>(model.position, 0.0, 1.0);
+    out.clip_position = camera.proj * vec4<f32>(model.position, 0.0, 1.0);
     out.tex_coords = model.tex_coords;
     out.color = model.color;
 

@@ -79,7 +79,7 @@ impl VectorSprite {
 
         let vertex_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("Default 2D Mesh Vertex Buffer")),
+                label: Some(&format!("vertex buffer for vector sprite")),
                 contents: bytemuck::cast_slice(&vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             }
@@ -87,7 +87,7 @@ impl VectorSprite {
 
         let index_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("Default 2D Mesh Index Buffer")),
+                label: Some(&format!("index buffer for vector sprite")),
                 contents: bytemuck::cast_slice(&indices),
                 usage: wgpu::BufferUsages::INDEX,
             }
@@ -139,18 +139,12 @@ impl VectorSprite {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
     }
 
-    pub(crate) fn draw<'a, 'b>(&'b self, render_pass: &'a mut wgpu::RenderPass<'b>)
+    pub(crate) fn draw<'a, 'b>(&'b self,
+                               render_pass: &'a mut wgpu::RenderPass<'b>,
+                               render_server: &'b RenderServer)
         where 'b: 'a {
-        render_pass.draw_path(&self.mesh, &self.camera_bind_group);
+        render_pass.draw_path(&render_server.vector_sprite_pipeline, &self.mesh, &self.camera_bind_group);
     }
-}
-
-pub trait DrawVector<'a> {
-    fn draw_path(
-        &mut self,
-        mesh: &'a VectorMesh,
-        camera_bind_group: &'a wgpu::BindGroup,
-    );
 }
 
 #[repr(C)]
@@ -189,15 +183,25 @@ pub struct VectorMesh {
     pub index_count: u32,
 }
 
-impl<'a, 'b> DrawVector<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
-{
+pub trait DrawVector<'a> {
     fn draw_path(
         &mut self,
+        pipeline: &'a wgpu::RenderPipeline,
+        mesh: &'a VectorMesh,
+        camera_bind_group: &'a wgpu::BindGroup,
+    );
+}
+
+impl<'a, 'b> DrawVector<'b> for wgpu::RenderPass<'a>
+    where 'b: 'a, {
+    fn draw_path(
+        &mut self,
+        pipeline: &'b wgpu::RenderPipeline,
         mesh: &'b VectorMesh,
         camera_bind_group: &'b wgpu::BindGroup,
     ) {
+        self.set_pipeline(&pipeline);
+
         // Set vertex buffer for VertexInput.
         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
 
