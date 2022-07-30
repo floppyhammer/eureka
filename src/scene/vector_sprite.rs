@@ -5,8 +5,8 @@ use lyon::math::point;
 use lyon::path::Path;
 use lyon::tessellation::*;
 use wgpu::util::DeviceExt;
-use crate::{Camera2d, RenderServer, Vertex};
-use crate::scene::Camera2dUniform;
+use crate::{Camera2d, InputEvent, RenderServer, Vertex};
+use crate::scene::{AsNode, Camera2dUniform};
 
 pub struct VectorSprite {
     pub path: Path,
@@ -117,8 +117,14 @@ impl VectorSprite {
             mesh,
         }
     }
+}
 
-    pub(crate) fn update(&self, dt: f32, queue: &wgpu::Queue, camera: &Camera2d) {
+impl AsNode for VectorSprite {
+    fn input(&mut self, input: InputEvent) {
+
+    }
+
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, camera: &Camera2d) {
         let translation = cgmath::Matrix4::from_translation(
             Vector3::new(self.position.x / camera.view_size.x as f32,
                          self.position.y / camera.view_size.y as f32,
@@ -139,11 +145,10 @@ impl VectorSprite {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
     }
 
-    pub(crate) fn draw<'a, 'b>(&'b self,
-                               render_pass: &'a mut wgpu::RenderPass<'b>,
-                               render_server: &'b RenderServer)
-        where 'b: 'a {
-        render_pass.draw_path(&render_server.vector_sprite_pipeline, &self.mesh, &self.camera_bind_group);
+    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, render_server: &'b RenderServer) {
+        render_pass.draw_path(&render_server.vector_sprite_pipeline,
+                              &self.mesh,
+                              &self.camera_bind_group);
     }
 }
 

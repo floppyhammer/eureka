@@ -4,6 +4,7 @@ use crate::{Model, RenderServer};
 use crate::resource::Mesh;
 use cgmath::prelude::*;
 
+// TODO: Use Sprite3d (billboard) to represent a Light.
 pub struct Light {
     pub(crate) uniform: LightUniform,
     pub(crate) buffer: wgpu::Buffer,

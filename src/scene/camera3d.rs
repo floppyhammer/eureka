@@ -7,7 +7,6 @@ use std::time::Duration;
 use std::f32::consts::FRAC_PI_2;
 use wgpu::util::DeviceExt;
 use crate::RenderServer;
-use crate::scene::node::WithInput;
 use crate::server::input_server::InputEvent;
 
 #[rustfmt::skip]
@@ -182,10 +181,8 @@ impl Camera3d {
             }
         }
     }
-}
 
-impl WithInput for Camera3d {
-    fn input(&mut self, input: InputEvent) {
+    pub(crate) fn input(&mut self, input: InputEvent) {
         self.controller.cursor_capture_state_changed = false;
 
         match input {

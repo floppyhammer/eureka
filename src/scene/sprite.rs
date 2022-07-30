@@ -1,9 +1,8 @@
 use cgmath::Vector3;
 use wgpu::util::DeviceExt;
 use crate::resource::{Material2d, Mesh, Texture};
-use crate::{Camera2d, RenderServer, SamplerBindingType};
-use crate::scene::Camera2dUniform;
-use crate::scene::node::WithDraw;
+use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType};
+use crate::scene::{AsNode, Camera2dUniform};
 
 pub struct Sprite {
     pub name: String,
@@ -21,11 +20,39 @@ pub struct Sprite {
     pub mesh: Mesh,
 }
 
-// impl WithDraw for Sprite {
-//     fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, camera_bind_group: &'a wgpu::BindGroup) {
-//         render_pass.draw_sprite(&self.mesh, &self.bind_group, &camera_bind_group);
-//     }
-// }
+impl AsNode for Sprite {
+    fn input(&mut self, input: InputEvent) {
+
+    }
+
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, camera: &Camera2d) {
+        let translation = cgmath::Matrix4::from_translation(
+            Vector3::new(self.position.x / camera.view_size.x as f32,
+                         self.position.y / camera.view_size.y as f32,
+                         0.0)
+        );
+
+        let scale = cgmath::Matrix4::from_nonuniform_scale(
+            self.scale.x,
+            self.scale.y,
+            1.0,
+        );
+
+        let mut uniform = Camera2dUniform::new();
+
+        uniform.proj = (camera.proj * scale * translation).into();
+
+        // Update camera buffer.
+        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+    }
+
+    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, render_server: &'b RenderServer) {
+        render_pass.draw_sprite(&render_server.sprite_pipeline,
+                                &self.mesh,
+                                &self.texture_bind_group,
+                                &self.camera_bind_group);
+    }
+}
 
 impl Sprite {
     pub(crate) fn new(device: &wgpu::Device, queue: &wgpu::Queue, render_server: &RenderServer, texture: Texture) -> Sprite {
@@ -63,36 +90,6 @@ impl Sprite {
             camera_bind_group,
             mesh,
         }
-    }
-
-    pub(crate) fn draw<'a, 'b>(&'b self, render_pass: &'a mut wgpu::RenderPass<'b>,
-                               render_server: &'b RenderServer)
-        where 'b: 'a {
-        render_pass.draw_sprite(&render_server.sprite_pipeline,
-                                &self.mesh,
-                                &self.texture_bind_group,
-                                &self.camera_bind_group);
-    }
-
-    fn update(&self, queue: &wgpu::Queue, camera: &Camera2d) {
-        let translation = cgmath::Matrix4::from_translation(
-            Vector3::new(self.position.x / camera.view_size.x as f32,
-                         self.position.y / camera.view_size.y as f32,
-                         0.0)
-        );
-
-        let scale = cgmath::Matrix4::from_nonuniform_scale(
-            self.scale.x,
-            self.scale.y,
-            1.0,
-        );
-
-        let mut uniform = Camera2dUniform::new();
-
-        uniform.proj = (camera.proj * scale * translation).into();
-
-        // Update camera buffer.
-        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
     }
 }
 

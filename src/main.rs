@@ -25,8 +25,8 @@ mod server;
 
 // Import local crates.
 use crate::resource::{Vertex, Texture};
-use crate::scene::{DrawModel, Model, Light, DrawLight, LightUniform};
-use crate::scene::{Camera3d, Camera2d, Projection, Camera3dController, InputEvent, WithInput};
+use crate::scene::{DrawModel, Model, Light, DrawLight, LightUniform, World};
+use crate::scene::{Camera3d, Camera2d, Projection, Camera3dController, InputEvent};
 use crate::scene::sprite::Sprite;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::server::render_server::RenderServer;
@@ -59,8 +59,7 @@ struct App {
     mouse_position: (f32, f32),
     cursor_captured: bool,
     previous_frame_time: f32,
-    vec_sprite: VectorSprite,
-    sprite: Sprite,
+    world: World,
 }
 
 impl App {
@@ -117,14 +116,18 @@ impl App {
 
         // Create nodes.
         // ---------------------------------------------------
+        let mut world = World::new();
+
         let camera3d = Camera3d::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device, &render_server);
 
         let camera2d = Camera2d::new(Point2::new(0.0, 0.0), (size.width, size.height), &config, &device);
 
-        let vec_sprite = VectorSprite::new(&device, &queue, &render_server);
+        let vec_sprite = Box::new(VectorSprite::new(&device, &queue, &render_server));
+        world.add_node(vec_sprite);
 
         let sprite_tex = Texture::load(&device, &queue, asset_dir.join("happy-tree.png")).unwrap();
-        let mut sprite = Sprite::new(&device, &queue, &render_server, sprite_tex);
+        let sprite = Box::new(Sprite::new(&device, &queue, &render_server, sprite_tex));
+        world.add_node(sprite);
 
         // Light.
         let light = Light::new(&device, &render_server);
@@ -197,8 +200,7 @@ impl App {
             mouse_position: (0.0, 0.0),
             cursor_captured: false,
             previous_frame_time: 0.0,
-            vec_sprite,
-            sprite,
+            world,
         }
     }
 
@@ -302,7 +304,7 @@ impl App {
         // Update the light.
         self.light.update(dt_in_secs, &self.queue);
 
-        self.vec_sprite.update(dt_in_secs, &self.queue, &self.camera2d);
+        self.world.update(&self.queue, dt_in_secs, &self.camera2d);
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
@@ -375,11 +377,7 @@ impl App {
             );
             // ----------------------
 
-            // Draw vector sprite.
-            self.vec_sprite.draw(&mut render_pass, &self.render_server);
-
-            // Draw sprite.
-            self.sprite.draw(&mut render_pass, &self.render_server);
+            self.world.draw(&mut render_pass, &self.render_server);
         }
 
         // Finish the command buffer, and to submit it to the GPU's resource queue.

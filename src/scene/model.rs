@@ -11,7 +11,6 @@ use cgmath::*;
 use crate::resource::{texture, mesh, material};
 use mesh::{Mesh, Vertex3d};
 use material::Material3d;
-use crate::scene::node::WithDraw;
 
 // impl WithDraw for Model {
 //     fn draw(&self, render_pass: &mut wgpu::RenderPass, camera_bind_group: &wgpu::BindGroup) {
