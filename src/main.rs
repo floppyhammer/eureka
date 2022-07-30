@@ -40,7 +40,7 @@ const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(NUM_INS
 
 // For convenience we're going to pack all the fields into a struct,
 // and create some methods on that.
-struct State {
+struct App {
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -63,7 +63,7 @@ struct State {
     sprite: Sprite,
 }
 
-impl State {
+impl App {
     // Create some of the wgpu types requires async code.
     async fn new(window: &Window) -> Self {
         // The instance is a handle to our GPU.
@@ -314,13 +314,13 @@ impl State {
 
         // Builds a command buffer that we can then send to the GPU.
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
+            label: Some("main render encoder"),
         });
 
         // The RenderPass has all the methods to do the actual drawing.
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("main render pass"),
                 color_attachments: &[
                     // This is what @location(0) in the fragment shader targets.
                     Some(wgpu::RenderPassColorAttachment {
@@ -375,7 +375,7 @@ impl State {
             );
             // ----------------------
 
-            // Draw vector.
+            // Draw vector sprite.
             self.vec_sprite.draw(&mut render_pass, &self.render_server);
 
             // Draw sprite.
@@ -397,6 +397,8 @@ fn main() {
     env_logger::init();
 
     let event_loop = EventLoop::new();
+
+    // Use cargo package name as the window title.
     let title = env!("CARGO_PKG_NAME");
 
     let window = WindowBuilder::new()
@@ -408,8 +410,8 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    // State::new uses async code, so we're going to wait for it to finish
-    let mut state = pollster::block_on(State::new(&window));
+    // App::new uses async code, so we're going to wait for it to finish
+    let mut app = pollster::block_on(App::new(&window));
 
     let start_time = std::time::Instant::now();
 
@@ -426,7 +428,7 @@ fn main() {
                 ref event,
                 .. // We're not using device_id currently
             } => {
-                state.input(event, &window);
+                app.input(event, &window);
             }
             // Window event.
             Event::WindowEvent {
@@ -451,13 +453,13 @@ fn main() {
                             return;
                         }
 
-                        state.resize(*physical_size);
+                        app.resize(*physical_size);
 
                         println!("Window resized to {:?}", physical_size);
                     }
                     // Scale factor changed.
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        state.resize(**new_inner_size);
+                        app.resize(**new_inner_size);
 
                         println!("Scale factor changed, new window size is {:?}", new_inner_size);
                     }
@@ -467,7 +469,7 @@ fn main() {
                         // Move origin to bottom left.
                         //let y_position = inner_size.height as f64 - position.y;
 
-                        state.mouse_position = ((position.x / window.scale_factor()) as f32,
+                        app.mouse_position = ((position.x / window.scale_factor()) as f32,
                                                 (position.y / window.scale_factor()) as f32);
                     }
                     _ => {}
@@ -479,16 +481,16 @@ fn main() {
                 let dt = now - last_render_time;
                 last_render_time = now;
 
-                state.update(dt);
+                app.update(dt);
 
-                match state.render(&window) {
+                match app.render(&window) {
                     Ok(_) => {}
                     // Reconfigure the surface if lost.
-                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                    Err(wgpu::SurfaceError::Lost) => app.resize(app.size),
                     // The system is out of memory, we should probably quit.
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     // All other errors (Outdated, Timeout) should be resolved by the next frame.
-                    Err(e) => eprintln!("State resource error: {:?}", e),
+                    Err(e) => eprintln!("App resource error: {:?}", e),
                 }
             }
             Event::MainEventsCleared => {

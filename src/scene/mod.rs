@@ -9,7 +9,8 @@ pub(crate) mod camera2d;
 
 pub use camera3d::*;
 pub use camera2d::*;
-pub use crate::server::input_server::*;
 pub use node::*;
 pub use model::*;
 pub use light::*;
+
+pub use crate::server::input_server::*;
