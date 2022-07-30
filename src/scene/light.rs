@@ -1,8 +1,9 @@
 use std::ops::Range;
 use wgpu::util::DeviceExt;
-use crate::{Model, RenderServer};
+use crate::{InputEvent, Model, RenderServer};
 use crate::resource::Mesh;
 use cgmath::prelude::*;
+use crate::scene::AsNode;
 
 // TODO: Use Sprite3d (billboard) to represent a Light.
 pub struct Light {

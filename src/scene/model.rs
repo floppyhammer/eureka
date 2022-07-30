@@ -11,6 +11,8 @@ use cgmath::*;
 use crate::resource::{texture, mesh, material};
 use mesh::{Mesh, Vertex3d};
 use material::Material3d;
+use crate::{Camera2d, InputEvent, RenderServer};
+use crate::scene::AsNode;
 
 // impl WithDraw for Model {
 //     fn draw(&self, render_pass: &mut wgpu::RenderPass, camera_bind_group: &wgpu::BindGroup) {
@@ -23,13 +25,22 @@ pub struct Model {
     // pub rotation: cgmath::Quaternion<f32>,
     // pub scale: cgmath::Vector3<f32>,
 
+    // A single model contains multiple meshes.
     pub meshes: Vec<Mesh>,
+
+    // Each mesh has a material.
     pub materials: Vec<Material3d>,
+
+    instances: Vec<Instance>,
+
+    instance_buffer: wgpu::Buffer,
 
     pub name: String,
 }
 
-/// Used to do instancing.
+// [Instance] provides model instancing.
+// Drawing thousands of [Model]s can be slow,
+// since each object is submitted to the GPU then drawn individually.
 pub(crate) struct Instance {
     pub(crate) position: cgmath::Vector3<f32>,
     pub(crate) rotation: cgmath::Quaternion<f32>,
@@ -305,7 +316,99 @@ impl Model {
             });
         }
 
-        Ok(Self { meshes, materials, name: "".to_string() })
+        // Set instance data. Default number of instances is one.
+        let instances = vec!({
+            let position = cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 };
+
+            let rotation = if position.is_zero() {
+                // This is needed so an object at (0, 0, 0) won't get scaled to zero
+                // as Quaternions can effect scale if they're not created correctly.
+                cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
+            } else {
+                cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
+            };
+
+            Instance {
+                position,
+                rotation,
+            }
+        });
+
+        // Copy data from [Instance] to [InstanceRaw].
+        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+
+        // Create the instance buffer.
+        let instance_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("model instance buffer"),
+                contents: bytemuck::cast_slice(&instance_data),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+
+        Ok(Self { meshes, materials, name: "".to_string(), instances, instance_buffer })
+    }
+
+    /// Draw multiple models.
+    fn set_instances(&mut self, device: &wgpu::Device) {
+        // Instancing.
+        const NUM_INSTANCES_PER_ROW: u32 = 1;
+        const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0, NUM_INSTANCES_PER_ROW as f32 * 0.5);
+
+        const SPACE_BETWEEN: f32 = 3.0;
+        let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| {
+            (0..NUM_INSTANCES_PER_ROW).map(move |x| {
+                let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+                let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+
+                let position = cgmath::Vector3 { x, y: 0.0, z };
+
+                let rotation = if position.is_zero() {
+                    // This is needed so an object at (0, 0, 0) won't get scaled to zero
+                    // as Quaternions can effect scale if they're not created correctly.
+                    cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
+                } else {
+                    cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
+                };
+
+                Instance {
+                    position,
+                    rotation,
+                }
+            })
+        }).collect::<Vec<_>>();
+
+        // Copy data from [Instance] to [InstanceRaw].
+        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+
+        // Create the instance buffer.
+        self.instance_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("model instance buffer"),
+                contents: bytemuck::cast_slice(&instance_data),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+    }
+}
+
+impl AsNode for Model {
+    fn input(&mut self, input: InputEvent) {}
+
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {}
+
+    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, render_server: &'b RenderServer) {
+        render_pass.set_pipeline(&render_server.model_pipeline);
+
+        // Set vertex buffer for InstanceInput.
+        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+
+        render_pass.draw_model_instanced(
+            &self,
+            0..self.instances.len() as u32,
+            &render_server.camera3d.as_ref().unwrap().bind_group,
+            &render_server.light.as_ref().unwrap().bind_group,
+        );
     }
 }
 

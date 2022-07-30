@@ -34,9 +34,6 @@ use crate::server::render_server::RenderServer;
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
 
-// Instancing.
-const NUM_INSTANCES_PER_ROW: u32 = 1;
-const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0, NUM_INSTANCES_PER_ROW as f32 * 0.5);
 
 // For convenience we're going to pack all the fields into a struct,
 // and create some methods on that.
@@ -47,15 +44,8 @@ struct App {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_server: RenderServer,
-    camera3d: Camera3d,
-    camera2d: Camera2d,
-    // Instancing.
-    instances: Vec<scene::model::Instance>,
-    instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
-    obj_model: Model,
     light_model: Model,
-    light: Light,
     mouse_position: (f32, f32),
     cursor_captured: bool,
     previous_frame_time: f32,
@@ -108,7 +98,7 @@ impl App {
         let depth_texture = Texture::create_depth_texture(&device, (config.width, config.height), "depth texture");
 
         // Create our own render server.
-        let render_server = RenderServer::new(&device, config.format);
+        let mut render_server = RenderServer::new(&device, config.format);
 
         // Get the asset directory.
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
@@ -122,6 +112,9 @@ impl App {
 
         let camera2d = Camera2d::new(Point2::new(0.0, 0.0), (size.width, size.height), &config, &device);
 
+        render_server.camera2d = Some(camera2d);
+        render_server.camera3d = Some(camera3d);
+
         let vec_sprite = Box::new(VectorSprite::new(&device, &queue, &render_server));
         world.add_node(vec_sprite);
 
@@ -131,55 +124,24 @@ impl App {
 
         // Light.
         let light = Light::new(&device, &render_server);
+        render_server.light = Some(light);
 
         // Load models.
-        let obj_model = Model::load(
+        let obj_model = Box::new(Model::load(
             &device,
             &queue,
             &render_server.model_texture_bind_group_layout,
             asset_dir.join("viking_room/viking_room.obj"),
-        ).unwrap();
+        ).unwrap());
+        world.add_node(obj_model);
 
+        // TODO: Light is not a [Node] yet.
         let light_model = Model::load(
             &device,
             &queue,
             &render_server.model_texture_bind_group_layout,
             asset_dir.join("sphere.obj"),
         ).unwrap();
-
-        // Instance data.
-        const SPACE_BETWEEN: f32 = 3.0;
-        let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| {
-            (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
-                let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
-
-                let position = cgmath::Vector3 { x, y: 0.0, z };
-
-                let rotation = if position.is_zero() {
-                    // This is needed so an object at (0, 0, 0) won't get scaled to zero
-                    // as Quaternions can effect scale if they're not created correctly.
-                    cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
-                } else {
-                    cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
-                };
-
-                scene::model::Instance {
-                    position,
-                    rotation,
-                }
-            })
-        }).collect::<Vec<_>>();
-
-        // Create the instance buffer.
-        let instance_data = instances.iter().map(scene::model::Instance::to_raw).collect::<Vec<_>>();
-        let instance_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Instance Buffer"),
-                contents: bytemuck::cast_slice(&instance_data),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
         // ---------------------------------------------------
 
         Self {
@@ -189,14 +151,8 @@ impl App {
             config,
             size,
             render_server,
-            camera3d,
-            camera2d,
-            instances,
-            instance_buffer,
             depth_texture,
-            obj_model,
             light_model,
-            light,
             mouse_position: (0.0, 0.0),
             cursor_captured: false,
             previous_frame_time: 0.0,
@@ -222,8 +178,8 @@ impl App {
             // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
             self.depth_texture = Texture::create_depth_texture(&self.device, (self.config.width, self.config.height), "depth_texture");
 
-            self.camera3d.when_view_size_changes(new_size.width, new_size.height);
-            self.camera2d.when_view_size_changes(new_size.width, new_size.height);
+            self.render_server.camera3d.as_mut().unwrap().when_view_size_changes(new_size.width, new_size.height);
+            self.render_server.camera2d.as_mut().unwrap().when_view_size_changes(new_size.width, new_size.height);
         }
     }
 
@@ -287,9 +243,9 @@ impl App {
         };
 
         // Pass input events to nodes.
-        self.camera3d.input(input_event);
+        self.render_server.camera3d.as_mut().unwrap().input(input_event);
 
-        self.camera3d.when_capture_state_changed(window);
+        self.render_server.camera3d.as_mut().unwrap().when_capture_state_changed(window);
 
         true
     }
@@ -298,13 +254,13 @@ impl App {
         let dt_in_secs = dt.as_secs_f32();
 
         // Update the cameras.
-        self.camera3d.update(dt_in_secs, &self.queue);
-        self.camera2d.update(dt_in_secs, &self.queue);
+        self.render_server.camera3d.as_mut().unwrap().update(dt_in_secs, &self.queue);
+        self.render_server.camera2d.as_mut().unwrap().update(dt_in_secs, &self.queue);
 
         // Update the light.
-        self.light.update(dt_in_secs, &self.queue);
+        self.render_server.light.as_mut().unwrap().update(dt_in_secs, &self.queue);
 
-        self.world.update(&self.queue, dt_in_secs, &self.camera2d);
+        self.world.update(&self.queue, dt_in_secs, &self.render_server);
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
@@ -357,23 +313,8 @@ impl App {
 
             render_pass.draw_light_model(
                 &self.light_model,
-                &self.camera3d.bind_group,
-                &self.light.bind_group,
-            );
-            // ----------------------
-
-            // Draw model.
-            // ----------------------
-            render_pass.set_pipeline(&self.render_server.model_pipeline);
-
-            // Set vertex buffer for InstanceInput.
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-
-            render_pass.draw_model_instanced(
-                &self.obj_model,
-                0..self.instances.len() as u32,
-                &self.camera3d.bind_group,
-                &self.light.bind_group,
+                &self.render_server.camera3d.as_ref().unwrap().bind_group,
+                &self.render_server.light.as_ref().unwrap().bind_group,
             );
             // ----------------------
 
@@ -468,7 +409,7 @@ fn main() {
                         //let y_position = inner_size.height as f64 - position.y;
 
                         app.mouse_position = ((position.x / window.scale_factor()) as f32,
-                                                (position.y / window.scale_factor()) as f32);
+                                              (position.y / window.scale_factor()) as f32);
                     }
                     _ => {}
                 }

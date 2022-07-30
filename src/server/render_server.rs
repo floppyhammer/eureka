@@ -1,6 +1,6 @@
 use wgpu::TextureFormat;
 use wgpu::util::DeviceExt;
-use crate::{Camera3d, Camera2d, resource, SamplerBindingType, scene, Vertex};
+use crate::{Camera3d, Camera2d, resource, SamplerBindingType, scene, Vertex, Light};
 use crate::scene::Camera2dUniform;
 
 pub struct RenderServer {
@@ -15,6 +15,10 @@ pub struct RenderServer {
     pub model_texture_bind_group_layout: wgpu::BindGroupLayout,
     pub camera2d_bind_group_layout: wgpu::BindGroupLayout,
     pub camera3d_bind_group_layout: wgpu::BindGroupLayout,
+
+    pub camera2d: Option<Camera2d>,
+    pub camera3d: Option<Camera3d>,
+    pub light: Option<Light>,
 }
 
 impl RenderServer {
@@ -269,6 +273,9 @@ impl RenderServer {
             model_texture_bind_group_layout,
             camera2d_bind_group_layout,
             camera3d_bind_group_layout,
+            camera2d: None,
+            camera3d: None,
+            light: None,
         }
     }
 

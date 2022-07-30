@@ -124,7 +124,9 @@ impl AsNode for VectorSprite {
 
     }
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, camera: &Camera2d) {
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
+        let camera = render_server.camera2d.as_ref().unwrap();
+
         let translation = cgmath::Matrix4::from_translation(
             Vector3::new(self.position.x / camera.view_size.x as f32,
                          self.position.y / camera.view_size.y as f32,

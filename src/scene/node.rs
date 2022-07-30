@@ -6,7 +6,7 @@ use crate::server::MouseButton;
 pub trait AsNode {
     fn input(&mut self, input: InputEvent);
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, camera: &Camera2d);
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer);
 
     fn draw<'a, 'b: 'a>(&'b self,
                         render_pass: &mut wgpu::RenderPass<'a>,
@@ -42,10 +42,10 @@ impl World {
     pub fn update(&mut self,
                   queue: &wgpu::Queue,
                   dt: f32,
-                  camera: &Camera2d) {
+                  render_server: &RenderServer) {
         // Update nodes.
         for node in self.nodes.iter_mut() {
-            node.update(&queue, dt, &camera);
+            node.update(&queue, dt, &render_server);
         }
     }
 
