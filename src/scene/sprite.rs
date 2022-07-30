@@ -17,32 +17,45 @@ pub struct Sprite {
     pub camera_buffer: wgpu::Buffer,
     pub camera_bind_group: wgpu::BindGroup,
 
+    pub centered: bool,
+
     pub mesh: Mesh,
 }
 
 impl AsNode for Sprite {
-    fn input(&mut self, input: InputEvent) {
-
-    }
+    fn input(&mut self, input: InputEvent) {}
 
     fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
         let camera = render_server.camera2d.as_ref().unwrap();
 
-        let translation = cgmath::Matrix4::from_translation(
-            Vector3::new(self.position.x / camera.view_size.x as f32,
-                         self.position.y / camera.view_size.y as f32,
-                         0.0)
-        );
+        let scaled_width = self.scale.x * self.size.x;
+        let scaled_height = self.scale.y * self.size.y;
+
+        let translation = if self.centered {
+            cgmath::Matrix4::from_translation(
+                Vector3::new((self.position.x / camera.view_size.x as f32 - scaled_width) / camera.view_size.x as f32 * 2.0 - 1.0,
+                             (self.position.y / camera.view_size.y as f32 - scaled_height) / camera.view_size.x as f32 * 2.0 - 1.0,
+                             0.0)
+            )
+        } else {
+            cgmath::Matrix4::from_translation(
+                Vector3::new((self.position.x / camera.view_size.x as f32) / camera.view_size.x as f32 * 2.0 - 1.0,
+                             (self.position.y / camera.view_size.y as f32) / camera.view_size.x as f32 * 2.0 - 1.0,
+                             0.0)
+            )
+        };
 
         let scale = cgmath::Matrix4::from_nonuniform_scale(
-            self.scale.x * self.size.x,
-            self.scale.y * self.size.x,
+            scaled_width / camera.view_size.x as f32,
+            scaled_height / camera.view_size.y as f32,
             1.0,
         );
 
         let mut uniform = Camera2dUniform::new();
 
-        uniform.proj = (camera.proj * scale * translation).into();
+        // Note the multiplication direction (left multiplication).
+        // So, scale first, translation second.
+        uniform.proj = (translation * scale).into();
 
         // Update camera buffer.
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
@@ -90,6 +103,7 @@ impl Sprite {
             texture_bind_group,
             camera_buffer,
             camera_bind_group,
+            centered: false,
             mesh,
         }
     }

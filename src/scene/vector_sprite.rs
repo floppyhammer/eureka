@@ -120,28 +120,28 @@ impl VectorSprite {
 }
 
 impl AsNode for VectorSprite {
-    fn input(&mut self, input: InputEvent) {
-
-    }
+    fn input(&mut self, input: InputEvent) {}
 
     fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
         let camera = render_server.camera2d.as_ref().unwrap();
 
         let translation = cgmath::Matrix4::from_translation(
-            Vector3::new(self.position.x / camera.view_size.x as f32,
-                         self.position.y / camera.view_size.y as f32,
+            Vector3::new(-1.0,
+                         -1.0,
                          0.0)
         );
 
         let scale = cgmath::Matrix4::from_nonuniform_scale(
-            self.scale.x,
-            self.scale.y,
+            1.0 / camera.view_size.x as f32,
+            1.0 / camera.view_size.y as f32,
             1.0,
         );
 
         let mut uniform = Camera2dUniform::new();
 
-        uniform.proj = (camera.proj * scale * translation).into();
+        // Note the multiplication direction (left multiplication).
+        // So, scale first, translation second.
+        uniform.proj = (translation * scale).into();
 
         // Update camera buffer.
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
