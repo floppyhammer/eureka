@@ -105,13 +105,18 @@ impl State {
         };
         surface.configure(&device, &config);
 
+        // For depth test.
+        let depth_texture = Texture::create_depth_texture(&device, (config.width, config.height), "depth texture");
+
+        // Create our own render server.
+        let render_server = RenderServer::new(&device, config.format);
+
         // Get the asset directory.
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         println!("Asset dir: {}", asset_dir.display());
 
-        let render_server = RenderServer::new(&device, config.format);
-
-        // Create camera.
+        // Create nodes.
+        // ---------------------------------------------------
         let camera3d = Camera3d::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device, &render_server);
 
         let camera2d = Camera2d::new(Point2::new(0.0, 0.0), (size.width, size.height), &config, &device);
@@ -172,9 +177,7 @@ impl State {
                 usage: wgpu::BufferUsages::VERTEX,
             }
         );
-
-        // For depth test.
-        let depth_texture = Texture::create_depth_texture(&device, (config.width, config.height), "depth_texture");
+        // ---------------------------------------------------
 
         Self {
             surface,
@@ -374,6 +377,9 @@ impl State {
 
             // Draw vector.
             self.vec_sprite.draw(&mut render_pass, &self.render_server);
+
+            // Draw sprite.
+            self.sprite.draw(&mut render_pass, &self.render_server);
         }
 
         // Finish the command buffer, and to submit it to the GPU's resource queue.

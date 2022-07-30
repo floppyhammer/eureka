@@ -65,8 +65,8 @@ impl Sprite {
         }
     }
 
-    fn draw<'a, 'b>(&'b self, render_pass: &'a mut wgpu::RenderPass<'b>,
-                    render_server: &'b RenderServer)
+    pub(crate) fn draw<'a, 'b>(&'b self, render_pass: &'a mut wgpu::RenderPass<'b>,
+                               render_server: &'b RenderServer)
         where 'b: 'a {
         render_pass.draw_sprite(&render_server.sprite_pipeline,
                                 &self.mesh,
@@ -116,6 +116,8 @@ impl<'a, 'b> DrawSprite<'b> for wgpu::RenderPass<'a>
         texture_bind_group: &'b wgpu::BindGroup,
         camera_bind_group: &'b wgpu::BindGroup,
     ) {
+        self.set_pipeline(&pipeline);
+
         // Set vertex buffer for VertexInput.
         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
 

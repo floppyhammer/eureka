@@ -116,7 +116,7 @@ impl Mesh {
 
         let vertex_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("Default 2D Mesh Vertex Buffer")),
+                label: Some(&format!("default 2d mesh's vertex buffer")),
                 contents: bytemuck::cast_slice(&vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             }
@@ -124,14 +124,14 @@ impl Mesh {
 
         let index_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("Default 2D Mesh Index Buffer")),
+                label: Some(&format!("default 2d mesh's index buffer")),
                 contents: bytemuck::cast_slice(&indices),
                 usage: wgpu::BufferUsages::INDEX,
             }
         );
 
         Self {
-            name: "Default 2D Mesh".to_string(),
+            name: "default 2d mesh".to_string(),
             vertex_buffer,
             index_buffer,
             index_count: indices.len() as u32,
