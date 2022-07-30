@@ -103,10 +103,10 @@ pub struct Mesh {
 impl Mesh {
     pub fn default_2d(device: &wgpu::Device) -> Mesh {
         let vertices = [
-            Vertex2d { position: [0.0, 0.0], uv: [1.0, 0.0], color: [1.0, 1.0, 1.0] },
-            Vertex2d { position: [1.0, 0.0], uv: [0.0, 0.0], color: [1.0, 1.0, 1.0] },
-            Vertex2d { position: [1.0, 1.0], uv: [0.0, 1.0], color: [1.0, 1.0, 1.0] },
-            Vertex2d { position: [0.0, 1.0], uv: [1.0, 1.0], color: [1.0, 1.0, 1.0] },
+            Vertex2d { position: [0.0, 0.0], uv: [0.0, 1.0], color: [1.0, 1.0, 1.0] },
+            Vertex2d { position: [1.0, 0.0], uv: [1.0, 1.0], color: [1.0, 1.0, 1.0] },
+            Vertex2d { position: [1.0, 1.0], uv: [1.0, 0.0], color: [1.0, 1.0, 1.0] },
+            Vertex2d { position: [0.0, 1.0], uv: [0.0, 0.0], color: [1.0, 1.0, 1.0] },
         ];
 
         let indices = [

@@ -37,9 +37,10 @@ impl VectorSprite {
         // Build a Path.
         let mut builder = Path::builder();
         builder.begin(point(0.0, 0.0));
-        builder.line_to(point(100.0, 0.0));
-        builder.quadratic_bezier_to(point(200.0, 0.0), point(200.0, 100.0));
-        builder.cubic_bezier_to(point(100.0, 100.0), point(0.0, 100.0), point(0.0, 0.0));
+        builder.line_to(point(50.0, 0.0));
+        builder.line_to(point(0.0, 50.0));
+        //builder.quadratic_bezier_to(point(200.0, 0.0), point(200.0, 100.0));
+        //builder.cubic_bezier_to(point(100.0, 100.0), point(0.0, 100.0), point(0.0, 0.0));
         builder.end(true);
         let path = builder.build();
 

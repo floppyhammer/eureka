@@ -22,53 +22,6 @@ pub struct Sprite {
     pub mesh: Mesh,
 }
 
-impl AsNode for Sprite {
-    fn input(&mut self, input: InputEvent) {}
-
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
-        let camera = render_server.camera2d.as_ref().unwrap();
-
-        let scaled_width = self.scale.x * self.size.x;
-        let scaled_height = self.scale.y * self.size.y;
-
-        let translation = if self.centered {
-            cgmath::Matrix4::from_translation(
-                Vector3::new((self.position.x / camera.view_size.x as f32 - scaled_width) / camera.view_size.x as f32 * 2.0 - 1.0,
-                             (self.position.y / camera.view_size.y as f32 - scaled_height) / camera.view_size.x as f32 * 2.0 - 1.0,
-                             0.0)
-            )
-        } else {
-            cgmath::Matrix4::from_translation(
-                Vector3::new((self.position.x / camera.view_size.x as f32) / camera.view_size.x as f32 * 2.0 - 1.0,
-                             (self.position.y / camera.view_size.y as f32) / camera.view_size.x as f32 * 2.0 - 1.0,
-                             0.0)
-            )
-        };
-
-        let scale = cgmath::Matrix4::from_nonuniform_scale(
-            scaled_width / camera.view_size.x as f32,
-            scaled_height / camera.view_size.y as f32,
-            1.0,
-        );
-
-        let mut uniform = Camera2dUniform::new();
-
-        // Note the multiplication direction (left multiplication).
-        // So, scale first, translation second.
-        uniform.proj = (translation * scale).into();
-
-        // Update camera buffer.
-        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
-    }
-
-    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, render_server: &'b RenderServer) {
-        render_pass.draw_sprite(&render_server.sprite_pipeline,
-                                &self.mesh,
-                                &self.texture_bind_group,
-                                &self.camera_bind_group);
-    }
-}
-
 impl Sprite {
     pub(crate) fn new(device: &wgpu::Device, queue: &wgpu::Queue, render_server: &RenderServer, texture: Texture) -> Sprite {
         let position = cgmath::Vector2::new(0.0 as f32, 0.0);
@@ -106,6 +59,53 @@ impl Sprite {
             centered: false,
             mesh,
         }
+    }
+}
+
+impl AsNode for Sprite {
+    fn input(&mut self, input: InputEvent) {}
+
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
+        let camera = render_server.camera2d.as_ref().unwrap();
+
+        let scaled_width = self.scale.x * self.size.x;
+        let scaled_height = self.scale.y * self.size.y;
+
+        let translation = if self.centered {
+            cgmath::Matrix4::from_translation(
+                Vector3::new((self.position.x / camera.view_size.x as f32 - scaled_width * 0.5) / camera.view_size.x as f32 * 2.0 - 1.0,
+                             (self.position.y / camera.view_size.y as f32 - scaled_height * 0.5) / camera.view_size.x as f32 * 2.0 - 1.0,
+                             0.0)
+            )
+        } else {
+            cgmath::Matrix4::from_translation(
+                Vector3::new((self.position.x / camera.view_size.x as f32) / camera.view_size.x as f32 * 2.0 - 1.0,
+                             (self.position.y / camera.view_size.y as f32) / camera.view_size.x as f32 * 2.0 - 1.0,
+                             0.0)
+            )
+        };
+
+        let scale = cgmath::Matrix4::from_nonuniform_scale(
+            scaled_width / camera.view_size.x as f32,
+            scaled_height / camera.view_size.y as f32,
+            1.0,
+        );
+
+        let mut uniform = Camera2dUniform::new();
+
+        // Note the multiplication direction (left multiplication).
+        // So, scale first, translation second.
+        uniform.proj = (translation * scale).into();
+
+        // Update camera buffer.
+        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+    }
+
+    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, render_server: &'b RenderServer) {
+        render_pass.draw_sprite(&render_server.sprite_pipeline,
+                                &self.mesh,
+                                &self.texture_bind_group,
+                                &self.camera_bind_group);
     }
 }
 
