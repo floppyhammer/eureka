@@ -1,6 +1,6 @@
 use wgpu::TextureFormat;
 use wgpu::util::DeviceExt;
-use crate::{Camera, Camera2d, resource, SamplerBindingType, scene, Vertex};
+use crate::{Camera3d, Camera2d, resource, SamplerBindingType, scene, Vertex};
 use crate::scene::Camera2dUniform;
 
 pub struct RenderServer {
@@ -14,7 +14,7 @@ pub struct RenderServer {
     pub light_bind_group_layout: wgpu::BindGroupLayout,
     pub model_texture_bind_group_layout: wgpu::BindGroupLayout,
     pub camera2d_bind_group_layout: wgpu::BindGroupLayout,
-    pub camera_bind_group_layout: wgpu::BindGroupLayout,
+    pub camera3d_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl RenderServer {
@@ -22,7 +22,7 @@ impl RenderServer {
         // Create various bind group layouts.
         // Bind group layouts are used to create bind groups.
         // ------------------------------------------------------------------
-        let camera_bind_group_layout = device.create_bind_group_layout(
+        let camera3d_bind_group_layout = device.create_bind_group_layout(
             &wgpu::BindGroupLayoutDescriptor {
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
@@ -149,7 +149,7 @@ impl RenderServer {
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("light render pipeline layout"),
                 bind_group_layouts: &[
-                    &camera_bind_group_layout,
+                    &camera3d_bind_group_layout,
                     &light_bind_group_layout
                 ],
                 push_constant_ranges: &[],
@@ -179,7 +179,7 @@ impl RenderServer {
                     label: Some("model render pipeline layout"),
                     bind_group_layouts: &[
                         &model_texture_bind_group_layout,
-                        &camera_bind_group_layout,
+                        &camera3d_bind_group_layout,
                         &light_bind_group_layout,
                     ],
                     push_constant_ranges: &[],
@@ -268,7 +268,7 @@ impl RenderServer {
             light_bind_group_layout,
             model_texture_bind_group_layout,
             camera2d_bind_group_layout,
-            camera_bind_group_layout,
+            camera3d_bind_group_layout,
         }
     }
 

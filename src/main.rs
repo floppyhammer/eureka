@@ -26,7 +26,7 @@ mod server;
 // Import local crates.
 use crate::resource::{Vertex, Texture};
 use crate::scene::{DrawModel, Model, Light, DrawLight, LightUniform};
-use crate::scene::{Camera, Camera2d, Projection, CameraController, InputEvent, WithInput};
+use crate::scene::{Camera3d, Camera2d, Projection, Camera3dController, InputEvent, WithInput};
 use crate::scene::sprite::Sprite;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::server::render_server::RenderServer;
@@ -47,7 +47,7 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_server: RenderServer,
-    camera: Camera,
+    camera3d: Camera3d,
     camera2d: Camera2d,
     // Instancing.
     instances: Vec<scene::model::Instance>,
@@ -64,11 +64,8 @@ struct State {
 }
 
 impl State {
-    // Creating some of the wgpu types requires async code.
+    // Create some of the wgpu types requires async code.
     async fn new(window: &Window) -> Self {
-        // Get window's inner size.
-        let size = window.inner_size();
-
         // The instance is a handle to our GPU.
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -85,7 +82,7 @@ impl State {
             },
         ).await.unwrap();
 
-        // Let's use the adapter to create the device and queue.
+        // Use the adapter to create the device and queue.
         let (device, queue) = adapter.request_device(
             &wgpu::DeviceDescriptor {
                 features: wgpu::Features::empty(),
@@ -94,6 +91,9 @@ impl State {
             },
             None,
         ).await.unwrap();
+
+        // Get the window's inner size.
+        let size = window.inner_size();
 
         // This will define how the surface creates its underlying SurfaceTextures.
         let config = wgpu::SurfaceConfiguration {
@@ -112,7 +112,7 @@ impl State {
         let render_server = RenderServer::new(&device, config.format);
 
         // Create camera.
-        let camera = Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device, &render_server);
+        let camera3d = Camera3d::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device, &render_server);
 
         let camera2d = Camera2d::new(Point2::new(0.0, 0.0), (size.width, size.height), &config, &device);
 
@@ -183,7 +183,7 @@ impl State {
             config,
             size,
             render_server,
-            camera,
+            camera3d,
             camera2d,
             instances,
             instance_buffer,
@@ -217,7 +217,7 @@ impl State {
             // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
             self.depth_texture = Texture::create_depth_texture(&self.device, (self.config.width, self.config.height), "depth_texture");
 
-            self.camera.when_view_size_changes(new_size.width, new_size.height);
+            self.camera3d.when_view_size_changes(new_size.width, new_size.height);
             self.camera2d.when_view_size_changes(new_size.width, new_size.height);
         }
     }
@@ -282,9 +282,9 @@ impl State {
         };
 
         // Pass input events to nodes.
-        self.camera.input(input_event);
+        self.camera3d.input(input_event);
 
-        self.camera.when_capture_state_changed(window);
+        self.camera3d.when_capture_state_changed(window);
 
         true
     }
@@ -293,7 +293,7 @@ impl State {
         let dt_in_secs = dt.as_secs_f32();
 
         // Update the cameras.
-        self.camera.update(dt_in_secs, &self.queue);
+        self.camera3d.update(dt_in_secs, &self.queue);
         self.camera2d.update(dt_in_secs, &self.queue);
 
         // Update the light.
@@ -352,7 +352,7 @@ impl State {
 
             render_pass.draw_light_model(
                 &self.light_model,
-                &self.camera.bind_group,
+                &self.camera3d.bind_group,
                 &self.light.bind_group,
             );
             // ----------------------
@@ -367,7 +367,7 @@ impl State {
             render_pass.draw_model_instanced(
                 &self.obj_model,
                 0..self.instances.len() as u32,
-                &self.camera.bind_group,
+                &self.camera3d.bind_group,
                 &self.light.bind_group,
             );
             // ----------------------

@@ -20,17 +20,17 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
 
 const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
 
-pub struct Camera {
+pub struct Camera3d {
     position: Point3<f32>,
     yaw: Rad<f32>,
     pitch: Rad<f32>,
 
     projection: Projection,
 
-    controller: CameraController,
+    controller: Camera3dController,
 
     // CPU data
-    uniform: CameraUniform,
+    uniform: Camera3dUniform,
 
     // GPU data
     buffer: wgpu::Buffer,
@@ -38,7 +38,7 @@ pub struct Camera {
     pub(crate) bind_group: wgpu::BindGroup,
 }
 
-impl Camera {
+impl Camera3d {
     pub fn new<
         V: Into<Point3<f32>>,
         Y: Into<Rad<f32>>,
@@ -59,15 +59,15 @@ impl Camera {
             100.0,
         );
 
-        let controller = CameraController::new(4.0, 0.4);
+        let controller = Camera3dController::new(4.0, 0.4);
 
         // This will be used in the model shader.
-        let mut uniform = CameraUniform::new();
+        let mut uniform = Camera3dUniform::new();
 
         // Create a buffer for the camera uniform.
         let buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
-                label: Some("camera buffer"),
+                label: Some("camera3d buffer"),
                 contents: bytemuck::cast_slice(&[uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
@@ -75,14 +75,14 @@ impl Camera {
 
         let bind_group = device.create_bind_group(
             &wgpu::BindGroupDescriptor {
-                layout: &render_server.camera_bind_group_layout,
+                layout: &render_server.camera3d_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
                         resource: buffer.as_entire_binding(),
                     }
                 ],
-                label: Some("camera bind group"),
+                label: Some("camera3d bind group"),
             });
         // ----------------------------
 
@@ -184,7 +184,7 @@ impl Camera {
     }
 }
 
-impl WithInput for Camera {
+impl WithInput for Camera3d {
     fn input(&mut self, input: InputEvent) {
         self.controller.cursor_capture_state_changed = false;
 
@@ -249,7 +249,7 @@ impl Projection {
 #[repr(C)]
 // This is so we can store this in a buffer.
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct CameraUniform {
+pub struct Camera3dUniform {
     view_position: [f32; 4],
     /// Multiplication of the view and projection matrices.
     // We can't use cgmath with bytemuck directly so we'll have
@@ -258,7 +258,7 @@ pub struct CameraUniform {
     proj: [[f32; 4]; 4],
 }
 
-impl CameraUniform {
+impl Camera3dUniform {
     pub(crate) fn new() -> Self {
         use cgmath::SquareMatrix;
         Self {
@@ -271,7 +271,7 @@ impl CameraUniform {
 
 /// A simple 3D fly camera controller.
 #[derive(Debug)]
-pub struct CameraController {
+pub struct Camera3dController {
     amount_left: f32,
     amount_right: f32,
     amount_forward: f32,
@@ -289,7 +289,7 @@ pub struct CameraController {
     pub(crate) cursor_capture_state_changed: bool,
 }
 
-impl CameraController {
+impl Camera3dController {
     pub fn new(speed: f32, sensitivity: f32) -> Self {
         Self {
             amount_left: 0.0,
