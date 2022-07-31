@@ -7,14 +7,15 @@ pub struct RenderServer {
     pub model_pipeline: wgpu::RenderPipeline,
     pub light_pipeline: wgpu::RenderPipeline,
     pub vector_sprite_pipeline: wgpu::RenderPipeline,
-
     pub sprite_pipeline: wgpu::RenderPipeline,
-    pub sprite_texture_bind_group_layout: wgpu::BindGroupLayout,
+    pub skybox_pipeline: wgpu::RenderPipeline,
 
+    pub sprite_texture_bind_group_layout: wgpu::BindGroupLayout,
     pub light_bind_group_layout: wgpu::BindGroupLayout,
     pub model_texture_bind_group_layout: wgpu::BindGroupLayout,
     pub camera2d_bind_group_layout: wgpu::BindGroupLayout,
     pub camera3d_bind_group_layout: wgpu::BindGroupLayout,
+    pub skybox_texture_bind_group_layout: wgpu::BindGroupLayout,
 
     pub camera2d: Option<Camera2d>,
     pub camera3d: Option<Camera3d>,
@@ -131,6 +132,31 @@ impl RenderServer {
                         ty: wgpu::BindingType::Texture {
                             multisampled: false,
                             view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler {
+                            0: SamplerBindingType::Filtering,
+                        },
+                        count: None,
+                    },
+                ],
+                label: Some("sprite texture bind group layout"),
+            });
+
+        let skybox_texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::Cube,
                             sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         },
                         count: None,
@@ -263,16 +289,44 @@ impl RenderServer {
             )
         };
 
+        let skybox_pipeline = {
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("skybox render pipeline layout"),
+                bind_group_layouts: &[
+                    &camera3d_bind_group_layout,
+                    &skybox_texture_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("skybox shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/skybox.wgsl").into()),
+            };
+
+            create_render_pipeline(
+                &device,
+                &pipeline_layout,
+                color_format,
+                Some(resource::texture::Texture::DEPTH_FORMAT),
+                &[resource::mesh::VertexSky::desc()],
+                shader,
+                "skybox pipeline",
+            )
+        };
+
         Self {
             model_pipeline,
             light_pipeline,
             vector_sprite_pipeline,
             sprite_pipeline,
+            skybox_pipeline,
             sprite_texture_bind_group_layout,
             light_bind_group_layout,
             model_texture_bind_group_layout,
             camera2d_bind_group_layout,
             camera3d_bind_group_layout,
+            skybox_texture_bind_group_layout,
             camera2d: None,
             camera3d: None,
             light: None,

@@ -169,3 +169,104 @@ impl Texture {
         Self { texture, view, sampler }
     }
 }
+
+pub struct CubemapTexture {
+    // Actual data.
+    pub texture: wgpu::Texture,
+    // Thin wrapper over texture.
+    pub view: wgpu::TextureView,
+    // Defines how to sample the texture.
+    pub sampler: wgpu::Sampler,
+}
+
+impl CubemapTexture {
+    pub fn load<P: AsRef<Path>>(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        path: P,
+    ) -> Result<Self> {
+        // Needed to appease the borrow checker.
+        let path_copy = path.as_ref().to_path_buf();
+        let label = path_copy.to_str();
+
+        let img = image::open(path).context("Invalid image path")?;
+
+        Self::from_image(device, queue, &img, label)
+    }
+
+    /// Create texture from image.
+    pub fn from_image(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        img: &image::DynamicImage,
+        label: Option<&str>,
+    ) -> Result<Self> {
+        // Make a rgba8 copy.
+        let rgba = img.to_rgba8();
+
+        // Image size.
+        let dimensions = img.dimensions();
+
+        assert_eq!(dimensions.1 % 6, 0, "Skybox texture has invalid size!");
+
+        let size = wgpu::Extent3d {
+            width: dimensions.0,
+            height: dimensions.1 / 6,
+            depth_or_array_layers: 6,
+        };
+
+        let texture = device.create_texture(
+            &wgpu::TextureDescriptor {
+                label,
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            }
+        );
+
+        // Write image data to texture.
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            &rgba,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: std::num::NonZeroU32::new(4 * size.width),
+                rows_per_image: std::num::NonZeroU32::new(size.height),
+            },
+            size,
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("cubemap texture view"),
+            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            aspect: wgpu::TextureAspect::default(),
+            base_mip_level: 0,
+            mip_level_count: std::num::NonZeroU32::new(1),
+            base_array_layer: 0,
+            array_layer_count: std::num::NonZeroU32::new(6),
+        });
+
+        let sampler = device.create_sampler(
+            &wgpu::SamplerDescriptor {
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Nearest,
+                mipmap_filter: wgpu::FilterMode::Nearest,
+                ..Default::default()
+            }
+        );
+
+        Ok(Self { texture, view, sampler })
+    }
+}

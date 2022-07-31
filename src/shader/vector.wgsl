@@ -16,7 +16,7 @@ var<uniform> camera: Camera;
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec3<f32>,
-};
+}
 
 @vertex
 fn vs_main(

@@ -14,12 +14,6 @@ use material::Material3d;
 use crate::{Camera2d, InputEvent, RenderServer};
 use crate::scene::AsNode;
 
-// impl WithDraw for Model {
-//     fn draw(&self, render_pass: &mut wgpu::RenderPass, camera_bind_group: &wgpu::BindGroup) {
-//
-//     }
-// }
-
 pub struct Model {
     // pub position: cgmath::Vector3<f32>,
     // pub rotation: cgmath::Quaternion<f32>,
@@ -299,6 +293,7 @@ impl Model {
                     usage: wgpu::BufferUsages::VERTEX,
                 }
             );
+
             let index_buffer = device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
                     label: Some(&format!("{:?} Index Buffer", path.as_ref())),

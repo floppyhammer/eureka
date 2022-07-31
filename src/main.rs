@@ -24,9 +24,12 @@ mod ecs;
 mod server;
 
 // Import local crates.
-use crate::resource::{Vertex, Texture};
-use crate::scene::{DrawModel, Model, Light, DrawLight, LightUniform, World};
-use crate::scene::{Camera3d, Camera2d, Projection, Camera3dController, InputEvent};
+use crate::resource::{Vertex, Texture, CubemapTexture};
+use crate::scene::{
+    DrawModel, Model, Light, DrawLight, LightUniform, World,
+    Camera3d, Camera2d, Projection, Camera3dController, InputEvent,
+    Sky,
+};
 use crate::scene::sprite::Sprite;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::server::render_server::RenderServer;
@@ -121,6 +124,10 @@ impl App {
         let sprite_tex = Texture::load(&device, &queue, asset_dir.join("happy-tree.png")).unwrap();
         let sprite = Box::new(Sprite::new(&device, &queue, &render_server, sprite_tex));
         world.add_node(sprite);
+
+        let skybox_tex = CubemapTexture::load(&device, &queue, asset_dir.join("labeled_skybox.png")).unwrap();
+        let sky = Box::new(Sky::new(&device, &queue, &render_server, skybox_tex));
+        world.add_node(sky);
 
         // Light.
         let light = Light::new(&device, &render_server);

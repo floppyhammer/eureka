@@ -89,6 +89,29 @@ impl Vertex for Vertex2d {
     }
 }
 
+// Vertex data.
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub(crate) struct VertexSky {
+    pub(crate) position: [f32; 3],
+}
+
+impl Vertex for VertexSky {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<VertexSky>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute { // Position.
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+}
+
 /// Shared by 2D/3D meshes.
 pub struct Mesh {
     // Mesh name for debugging reason.
@@ -96,7 +119,7 @@ pub struct Mesh {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub index_count: u32,
-    // A simple ID.
+    // Optional, a simple ID.
     pub material: usize,
 }
 
@@ -132,6 +155,58 @@ impl Mesh {
 
         Self {
             name: "default 2d mesh".to_string(),
+            vertex_buffer,
+            index_buffer,
+            index_count: indices.len() as u32,
+            material: 0,
+        }
+    }
+
+    pub fn default_skybox(device: &wgpu::Device) -> Mesh {
+        let vertices = [
+            VertexSky { position: [-1.0, -1.0, -1.0] },
+            VertexSky { position: [1.0, -1.0, -1.0] },
+            VertexSky { position: [1.0, 1.0, -1.0] },
+            VertexSky { position: [-1.0, 1.0, -1.0] },
+            VertexSky { position: [-1.0, -1.0, 1.0] },
+            VertexSky { position: [1.0, -1.0, 1.0] },
+            VertexSky { position: [1.0, 1.0, 1.0] },
+            VertexSky { position: [-1.0, 1.0, 1.0] },
+        ];
+
+        let indices = [
+            0, 1, 2,
+            2, 3, 0,
+            4, 6, 5,
+            6, 4, 7,
+            2, 6, 7,
+            2, 7, 3,
+            1, 5, 6,
+            1, 6, 2,
+            3, 7, 0,
+            4, 0, 7,
+            5, 1, 4,
+            4, 1, 0,
+        ];
+
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("default skybox mesh's vertex buffer")),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+
+        let index_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("default skybox mesh's index buffer")),
+                contents: bytemuck::cast_slice(&indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        );
+
+        Self {
+            name: "default skybox mesh".to_string(),
             vertex_buffer,
             index_buffer,
             index_count: indices.len() as u32,

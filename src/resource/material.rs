@@ -15,3 +15,10 @@ pub struct Material3d {
     // Bind group for the textures.
     pub bind_group: wgpu::BindGroup,
 }
+
+pub struct MaterialSky {
+    pub name: String,
+    pub texture: texture::CubemapTexture,
+    // Bind group for the texture.
+    pub bind_group: wgpu::BindGroup,
+}
