@@ -1,12 +1,12 @@
 extern crate lyon;
 
+use crate::scene::{AsNode, Camera2dUniform};
+use crate::{Camera2d, InputEvent, RenderServer, Vertex};
 use cgmath::Vector3;
 use lyon::math::point;
 use lyon::path::Path;
 use lyon::tessellation::*;
 use wgpu::util::DeviceExt;
-use crate::{Camera2d, InputEvent, RenderServer, Vertex};
-use crate::scene::{AsNode, Camera2dUniform};
 
 pub struct VectorSprite {
     pub path: Path,
@@ -49,20 +49,21 @@ impl VectorSprite {
         let mut tessellator = FillTessellator::new();
         {
             // Compute the tessellation.
-            tessellator.tessellate_path(
-                &path,
-                &FillOptions::default(),
-                &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
-                    MyVertex {
+            tessellator
+                .tessellate_path(
+                    &path,
+                    &FillOptions::default(),
+                    &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| MyVertex {
                         position: vertex.position().to_array(),
-                    }
-                }),
-            ).unwrap();
+                    }),
+                )
+                .unwrap();
         }
         // The tessellated geometry is ready to be uploaded to the GPU.
-        println!("Vector sprite info: {} vertices, {} indices",
-                 geometry.vertices.len(),
-                 geometry.indices.len()
+        println!(
+            "Vector sprite info: {} vertices, {} indices",
+            geometry.vertices.len(),
+            geometry.indices.len()
         );
 
         let mut vertices = Vec::new();
@@ -78,21 +79,17 @@ impl VectorSprite {
             indices.push(*i as i32);
         }
 
-        let vertex_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("vertex buffer for vector sprite")),
-                contents: bytemuck::cast_slice(&vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("vertex buffer for vector sprite")),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
-        let index_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("index buffer for vector sprite")),
-                contents: bytemuck::cast_slice(&indices),
-                usage: wgpu::BufferUsages::INDEX,
-            }
-        );
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("index buffer for vector sprite")),
+            contents: bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
 
         let (camera_buffer, camera_bind_group) = render_server.create_camera2d_resources(device);
 
@@ -126,11 +123,7 @@ impl AsNode for VectorSprite {
     fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
         let camera = render_server.camera2d.as_ref().unwrap();
 
-        let translation = cgmath::Matrix4::from_translation(
-            Vector3::new(-1.0,
-                         -1.0,
-                         0.0)
-        );
+        let translation = cgmath::Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0));
 
         let scale = cgmath::Matrix4::from_nonuniform_scale(
             1.0 / camera.view_size.x as f32,
@@ -148,10 +141,16 @@ impl AsNode for VectorSprite {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
     }
 
-    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, render_server: &'b RenderServer) {
-        render_pass.draw_path(&render_server.vector_sprite_pipeline,
-                              &self.mesh,
-                              &self.camera_bind_group);
+    fn draw<'a, 'b: 'a>(
+        &'b self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        render_server: &'b RenderServer,
+    ) {
+        render_pass.draw_path(
+            &render_server.vector_sprite_pipeline,
+            &self.mesh,
+            &self.camera_bind_group,
+        );
     }
 }
 
@@ -168,12 +167,14 @@ impl Vertex for VectorVertex {
             array_stride: std::mem::size_of::<VectorVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
-                wgpu::VertexAttribute { // Position.
+                wgpu::VertexAttribute {
+                    // Position.
                     offset: 0,
                     shader_location: 0,
                     format: wgpu::VertexFormat::Float32x2,
                 },
-                wgpu::VertexAttribute { // Color.
+                wgpu::VertexAttribute {
+                    // Color.
                     offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x3,
@@ -201,7 +202,9 @@ pub trait DrawVector<'a> {
 }
 
 impl<'a, 'b> DrawVector<'b> for wgpu::RenderPass<'a>
-    where 'b: 'a, {
+where
+    'b: 'a,
+{
     fn draw_path(
         &mut self,
         pipeline: &'b wgpu::RenderPipeline,

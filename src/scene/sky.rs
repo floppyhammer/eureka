@@ -1,18 +1,18 @@
+use anyhow::Context;
+use anyhow::*;
+use cgmath::InnerSpace;
+use cgmath::*;
 use std::error::Error;
 use std::ops::Range;
 use std::path::Path;
-use anyhow::Context;
-use cgmath::InnerSpace;
 use wgpu::util::DeviceExt;
-use anyhow::*;
-use cgmath::*;
 
-use crate::resource::{texture, mesh, material};
 use crate::resource::CubemapTexture;
-use mesh::{Mesh, VertexSky};
-use material::MaterialSky;
-use crate::{InputEvent, RenderServer};
+use crate::resource::{material, mesh, texture};
 use crate::scene::AsNode;
+use crate::{InputEvent, RenderServer};
+use material::MaterialSky;
+use mesh::{Mesh, VertexSky};
 
 pub struct Sky {
     pub rotation: cgmath::Quaternion<f32>,
@@ -56,7 +56,12 @@ impl Sky {
 
         let rotation = cgmath::Quaternion::new(0.0, 0.0, 0.0, 0.0);
 
-        Self { rotation, mesh, material, name: "sky".to_string() }
+        Self {
+            rotation,
+            mesh,
+            material,
+            name: "sky".to_string(),
+        }
     }
 }
 
@@ -65,7 +70,11 @@ impl AsNode for Sky {
 
     fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {}
 
-    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, render_server: &'b RenderServer) {
+    fn draw<'a, 'b: 'a>(
+        &'b self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        render_server: &'b RenderServer,
+    ) {
         render_pass.set_pipeline(&render_server.skybox_pipeline);
 
         render_pass.draw_skybox(
@@ -86,7 +95,9 @@ pub trait DrawSky<'a> {
 }
 
 impl<'a, 'b> DrawSky<'b> for wgpu::RenderPass<'a>
-    where 'b: 'a {
+where
+    'b: 'a,
+{
     fn draw_skybox(
         &mut self,
         mesh: &'a Mesh,

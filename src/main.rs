@@ -4,39 +4,37 @@ use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use winit::{
+    dpi::{LogicalPosition, PhysicalPosition, Position, Size},
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
     window::Window,
-    dpi::{LogicalPosition, PhysicalPosition, Position, Size},
+    window::WindowBuilder,
 };
 
 use cgmath::prelude::*;
 use cgmath::{Point2, Vector2, Vector3};
 
-use wgpu::{SamplerBindingType, TextureView};
 use wgpu::util::DeviceExt;
+use wgpu::{SamplerBindingType, TextureView};
 
 // Do this before importing local crates.
+mod ecs;
 mod resource;
 mod scene;
-mod ecs;
 mod server;
 
 // Import local crates.
-use crate::resource::{Vertex, Texture, CubemapTexture};
-use crate::scene::{
-    DrawModel, Model, Light, DrawLight, LightUniform, World,
-    Camera3d, Camera2d, Projection, Camera3dController, InputEvent,
-    Sky,
-};
+use crate::resource::{CubemapTexture, Texture, Vertex};
 use crate::scene::sprite::Sprite;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
+use crate::scene::{
+    Camera2d, Camera3d, Camera3dController, DrawLight, DrawModel, InputEvent, Light, LightUniform,
+    Model, Projection, Sky, World,
+};
 use crate::server::render_server::RenderServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
-
 
 // For convenience we're going to pack all the fields into a struct,
 // and create some methods on that.
@@ -66,23 +64,27 @@ impl App {
         let surface = unsafe { instance.create_surface(window) };
 
         // The adapter is a handle to our actual graphics card.
-        let adapter = instance.request_adapter(
-            &wgpu::RequestAdapterOptions {
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
-            },
-        ).await.unwrap();
+            })
+            .await
+            .unwrap();
 
         // Use the adapter to create the device and queue.
-        let (device, queue) = adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                features: wgpu::Features::empty(),
-                limits: wgpu::Limits::default(),
-                label: None,
-            },
-            None,
-        ).await.unwrap();
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    features: wgpu::Features::empty(),
+                    limits: wgpu::Limits::default(),
+                    label: None,
+                },
+                None,
+            )
+            .await
+            .unwrap();
 
         // Get the window's inner size.
         let size = window.inner_size();
@@ -98,7 +100,8 @@ impl App {
         surface.configure(&device, &config);
 
         // For depth test.
-        let depth_texture = Texture::create_depth_texture(&device, (config.width, config.height), "depth texture");
+        let depth_texture =
+            Texture::create_depth_texture(&device, (config.width, config.height), "depth texture");
 
         // Create our own render server.
         let mut render_server = RenderServer::new(&device, config.format);
@@ -111,9 +114,21 @@ impl App {
         // ---------------------------------------------------
         let mut world = World::new();
 
-        let camera3d = Camera3d::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0), &config, &device, &render_server);
+        let camera3d = Camera3d::new(
+            (0.0, 5.0, 10.0),
+            cgmath::Deg(-90.0),
+            cgmath::Deg(-20.0),
+            &config,
+            &device,
+            &render_server,
+        );
 
-        let camera2d = Camera2d::new(Point2::new(0.0, 0.0), (size.width, size.height), &config, &device);
+        let camera2d = Camera2d::new(
+            Point2::new(0.0, 0.0),
+            (size.width, size.height),
+            &config,
+            &device,
+        );
 
         render_server.camera2d = Some(camera2d);
         render_server.camera3d = Some(camera3d);
@@ -125,7 +140,8 @@ impl App {
         let sprite = Box::new(Sprite::new(&device, &queue, &render_server, sprite_tex));
         world.add_node(sprite);
 
-        let skybox_tex = CubemapTexture::load(&device, &queue, asset_dir.join("labeled_skybox.png")).unwrap();
+        let skybox_tex =
+            CubemapTexture::load(&device, &queue, asset_dir.join("labeled_skybox.png")).unwrap();
         let sky = Box::new(Sky::new(&device, &queue, &render_server, skybox_tex));
         world.add_node(sky);
 
@@ -134,12 +150,15 @@ impl App {
         render_server.light = Some(light);
 
         // Load models.
-        let obj_model = Box::new(Model::load(
-            &device,
-            &queue,
-            &render_server.model_texture_bind_group_layout,
-            asset_dir.join("viking_room/viking_room.obj"),
-        ).unwrap());
+        let obj_model = Box::new(
+            Model::load(
+                &device,
+                &queue,
+                &render_server.model_texture_bind_group_layout,
+                asset_dir.join("viking_room/viking_room.obj"),
+            )
+            .unwrap(),
+        );
         world.add_node(obj_model);
 
         // TODO: Light is not a [Node] yet.
@@ -148,7 +167,8 @@ impl App {
             &queue,
             &render_server.model_texture_bind_group_layout,
             asset_dir.join("sphere.obj"),
-        ).unwrap();
+        )
+        .unwrap();
         // ---------------------------------------------------
 
         Self {
@@ -183,10 +203,22 @@ impl App {
             // Create a new depth_texture and depth_texture_view.
             // Make sure you update the depth_texture after you update config.
             // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
-            self.depth_texture = Texture::create_depth_texture(&self.device, (self.config.width, self.config.height), "depth_texture");
+            self.depth_texture = Texture::create_depth_texture(
+                &self.device,
+                (self.config.width, self.config.height),
+                "depth_texture",
+            );
 
-            self.render_server.camera3d.as_mut().unwrap().when_view_size_changes(new_size.width, new_size.height);
-            self.render_server.camera2d.as_mut().unwrap().when_view_size_changes(new_size.width, new_size.height);
+            self.render_server
+                .camera3d
+                .as_mut()
+                .unwrap()
+                .when_view_size_changes(new_size.width, new_size.height);
+            self.render_server
+                .camera2d
+                .as_mut()
+                .unwrap()
+                .when_view_size_changes(new_size.width, new_size.height);
         }
     }
 
@@ -194,65 +226,60 @@ impl App {
     fn input(&mut self, event: &DeviceEvent, window: &Window) -> bool {
         // Convert to our own input events.
         let input_event = match event {
-            DeviceEvent::Key(
-                KeyboardInput {
-                    virtual_keycode: Some(key),
-                    state,
-                    ..
-                }
-            ) => {
-                server::input_server::InputEvent::Key {
-                    0: server::input_server::Key {
-                        key: *key,
-                        pressed: *state == ElementState::Pressed,
-                    }
-                }
-            }
+            DeviceEvent::Key(KeyboardInput {
+                virtual_keycode: Some(key),
+                state,
+                ..
+            }) => server::input_server::InputEvent::Key {
+                0: server::input_server::Key {
+                    key: *key,
+                    pressed: *state == ElementState::Pressed,
+                },
+            },
             DeviceEvent::MouseWheel { delta, .. } => {
                 let scroll = match delta {
                     // I'm assuming a line is about 100 pixels.
                     MouseScrollDelta::LineDelta(_, scroll) => scroll * 100.0,
-                    MouseScrollDelta::PixelDelta(PhysicalPosition {
-                                                     y: scroll,
-                                                     ..
-                                                 }) => *scroll as f32,
+                    MouseScrollDelta::PixelDelta(PhysicalPosition { y: scroll, .. }) => {
+                        *scroll as f32
+                    }
                 };
 
                 server::input_server::InputEvent::MouseScroll {
-                    0: server::input_server::MouseScroll {
-                        delta: scroll,
-                    }
+                    0: server::input_server::MouseScroll { delta: scroll },
                 }
             }
             DeviceEvent::Button {
                 button: button_id,
                 state,
-            } => {
-                server::input_server::InputEvent::MouseButton {
-                    0: server::input_server::MouseButton {
-                        button: *button_id,
-                        pressed: *state == ElementState::Pressed,
-                        position: self.mouse_position,
-                    }
-                }
-            }
-            DeviceEvent::MouseMotion { delta } => {
-                server::input_server::InputEvent::MouseMotion {
-                    0: server::input_server::MouseMotion {
-                        delta: (delta.0 as f32, delta.1 as f32),
-                        position: self.mouse_position,
-                    }
-                }
-            }
-            _ => {
-                server::input_server::InputEvent::Invalid
-            }
+            } => server::input_server::InputEvent::MouseButton {
+                0: server::input_server::MouseButton {
+                    button: *button_id,
+                    pressed: *state == ElementState::Pressed,
+                    position: self.mouse_position,
+                },
+            },
+            DeviceEvent::MouseMotion { delta } => server::input_server::InputEvent::MouseMotion {
+                0: server::input_server::MouseMotion {
+                    delta: (delta.0 as f32, delta.1 as f32),
+                    position: self.mouse_position,
+                },
+            },
+            _ => server::input_server::InputEvent::Invalid,
         };
 
         // Pass input events to nodes.
-        self.render_server.camera3d.as_mut().unwrap().input(input_event);
+        self.render_server
+            .camera3d
+            .as_mut()
+            .unwrap()
+            .input(input_event);
 
-        self.render_server.camera3d.as_mut().unwrap().when_capture_state_changed(window);
+        self.render_server
+            .camera3d
+            .as_mut()
+            .unwrap()
+            .when_capture_state_changed(window);
 
         true
     }
@@ -261,13 +288,26 @@ impl App {
         let dt_in_secs = dt.as_secs_f32();
 
         // Update the cameras.
-        self.render_server.camera3d.as_mut().unwrap().update(dt_in_secs, &self.queue);
-        self.render_server.camera2d.as_mut().unwrap().update(dt_in_secs, &self.queue);
+        self.render_server
+            .camera3d
+            .as_mut()
+            .unwrap()
+            .update(dt_in_secs, &self.queue);
+        self.render_server
+            .camera2d
+            .as_mut()
+            .unwrap()
+            .update(dt_in_secs, &self.queue);
 
         // Update the light.
-        self.render_server.light.as_mut().unwrap().update(dt_in_secs, &self.queue);
+        self.render_server
+            .light
+            .as_mut()
+            .unwrap()
+            .update(dt_in_secs, &self.queue);
 
-        self.world.update(&self.queue, dt_in_secs, &self.render_server);
+        self.world
+            .update(&self.queue, dt_in_secs, &self.render_server);
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
@@ -275,12 +315,16 @@ impl App {
         let output_surface = self.surface.get_current_texture()?;
 
         // Creates a TextureView with default settings.
-        let view = output_surface.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = output_surface
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
         // Builds a command buffer that we can then send to the GPU.
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("main render encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("main render encoder"),
+            });
 
         // The RenderPass has all the methods to do the actual drawing.
         {
@@ -292,17 +336,15 @@ impl App {
                         view: &view, // Change this to change where to draw.
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(
-                                wgpu::Color {
-                                    r: 0.1,
-                                    g: 0.2,
-                                    b: 0.3,
-                                    a: 1.0,
-                                }
-                            ),
+                            load: wgpu::LoadOp::Clear(wgpu::Color {
+                                r: 0.1,
+                                g: 0.2,
+                                b: 0.3,
+                                a: 1.0,
+                            }),
                             store: true,
                         },
-                    })
+                    }),
                 ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture.view,

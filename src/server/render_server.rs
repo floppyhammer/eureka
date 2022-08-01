@@ -1,7 +1,7 @@
-use wgpu::TextureFormat;
-use wgpu::util::DeviceExt;
-use crate::{Camera3d, Camera2d, resource, SamplerBindingType, scene, Vertex, Light};
 use crate::scene::Camera2dUniform;
+use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Vertex};
+use wgpu::util::DeviceExt;
+use wgpu::TextureFormat;
 
 pub struct RenderServer {
     pub model_pipeline: wgpu::RenderPipeline,
@@ -27,43 +27,39 @@ impl RenderServer {
         // Create various bind group layouts.
         // Bind group layouts are used to create bind groups.
         // ------------------------------------------------------------------
-        let camera3d_bind_group_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }
-                ],
+        let camera3d_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
                 label: Some("camera bind group layout"),
             });
 
-        let camera2d_bind_group_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }
-                ],
+        let camera2d_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
                 label: Some("camera2d bind group layout"),
             });
 
         // Model textures.
-        let model_texture_bind_group_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
+        let model_texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
                     // Diffuse texture.
                     wgpu::BindGroupLayoutEntry {
@@ -105,8 +101,7 @@ impl RenderServer {
                     },
                 ],
                 label: Some("model texture bind group layout"),
-            }
-        );
+            });
 
         let light_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -178,10 +173,7 @@ impl RenderServer {
         let light_pipeline = {
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("light render pipeline layout"),
-                bind_group_layouts: &[
-                    &camera3d_bind_group_layout,
-                    &light_bind_group_layout
-                ],
+                bind_group_layouts: &[&camera3d_bind_group_layout, &light_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -204,16 +196,15 @@ impl RenderServer {
         // Model pipeline to draw a model.
         let model_pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout =
-                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("model render pipeline layout"),
-                    bind_group_layouts: &[
-                        &model_texture_bind_group_layout,
-                        &camera3d_bind_group_layout,
-                        &light_bind_group_layout,
-                    ],
-                    push_constant_ranges: &[],
-                });
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("model render pipeline layout"),
+                bind_group_layouts: &[
+                    &model_texture_bind_group_layout,
+                    &camera3d_bind_group_layout,
+                    &light_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
 
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
@@ -226,7 +217,10 @@ impl RenderServer {
                 &pipeline_layout,
                 color_format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[resource::mesh::Vertex3d::desc(), scene::model::InstanceRaw::desc()],
+                &[
+                    resource::mesh::Vertex3d::desc(),
+                    scene::model::InstanceRaw::desc(),
+                ],
                 shader,
                 "model pipeline",
             )
@@ -235,15 +229,14 @@ impl RenderServer {
         // Sprite pipeline.
         let sprite_pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout =
-                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("vector render pipeline layout"),
-                    bind_group_layouts: &[
-                        &camera2d_bind_group_layout,
-                        &sprite_texture_bind_group_layout,
-                    ],
-                    push_constant_ranges: &[],
-                });
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("vector render pipeline layout"),
+                bind_group_layouts: &[
+                    &camera2d_bind_group_layout,
+                    &sprite_texture_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
 
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
@@ -265,12 +258,11 @@ impl RenderServer {
         // Vector sprite pipeline.
         let vector_sprite_pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout =
-                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("vector sprite render pipeline layout"),
-                    bind_group_layouts: &[&camera2d_bind_group_layout],
-                    push_constant_ranges: &[],
-                });
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("vector sprite render pipeline layout"),
+                bind_group_layouts: &[&camera2d_bind_group_layout],
+                push_constant_ranges: &[],
+            });
 
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
@@ -333,27 +325,25 @@ impl RenderServer {
         }
     }
 
-    pub(crate) fn create_camera2d_resources(&self, device: &wgpu::Device) -> (wgpu::Buffer, wgpu::BindGroup) {
+    pub(crate) fn create_camera2d_resources(
+        &self,
+        device: &wgpu::Device,
+    ) -> (wgpu::Buffer, wgpu::BindGroup) {
         // Create a buffer for the camera uniform.
-        let camera_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("camera2d buffer"),
-                contents: bytemuck::cast_slice(&[Camera2dUniform::new()]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("camera2d buffer"),
+            contents: bytemuck::cast_slice(&[Camera2dUniform::new()]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
-        let camera_bind_group = device.create_bind_group(
-            &wgpu::BindGroupDescriptor {
-                layout: &self.camera2d_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: camera_buffer.as_entire_binding(),
-                    }
-                ],
-                label: Some("camera2d bind group"),
-            });
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.camera2d_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera2d bind group"),
+        });
 
         (camera_buffer, camera_bind_group)
     }

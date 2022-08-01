@@ -1,18 +1,18 @@
+use anyhow::Context;
+use anyhow::*;
+use cgmath::InnerSpace;
+use cgmath::*;
 use std::error::Error;
 use std::ops::Range;
 use std::path::Path;
-use anyhow::Context;
-use cgmath::InnerSpace;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
-use anyhow::*;
-use cgmath::*;
 
-use crate::resource::{texture, mesh, material};
-use mesh::{Mesh, Vertex3d};
-use material::Material3d;
-use crate::{Camera2d, InputEvent, RenderServer};
+use crate::resource::{material, mesh, texture};
 use crate::scene::AsNode;
+use crate::{Camera2d, InputEvent, RenderServer};
+use material::Material3d;
+use mesh::{Mesh, Vertex3d};
 
 pub struct Model {
     // pub position: cgmath::Vector3<f32>,
@@ -125,12 +125,14 @@ impl Model {
         layout: &wgpu::BindGroupLayout,
         path: P,
     ) -> Result<Self> {
-        let (obj_models, obj_materials) =
-            tobj::load_obj(path.as_ref(), &LoadOptions {
+        let (obj_models, obj_materials) = tobj::load_obj(
+            path.as_ref(),
+            &LoadOptions {
                 triangulate: true,
                 single_index: true,
                 ..Default::default()
-            })?;
+            },
+        )?;
 
         let obj_materials = obj_materials?;
 
@@ -141,23 +143,25 @@ impl Model {
         for mat in obj_materials {
             // Load diffuse texture.
             let diffuse_path = mat.diffuse_texture;
-            let diffuse_texture = match texture::Texture::load(device, queue, containing_folder.join(diffuse_path)) {
-                Ok(i) => i,
-                Err(e) => {
-                    println!("Diffuse texture is invalid, error: {}", e);
-                    texture::Texture::empty(device, queue, (4, 4))?
-                }
-            };
+            let diffuse_texture =
+                match texture::Texture::load(device, queue, containing_folder.join(diffuse_path)) {
+                    Ok(i) => i,
+                    Err(e) => {
+                        println!("Diffuse texture is invalid, error: {}", e);
+                        texture::Texture::empty(device, queue, (4, 4))?
+                    }
+                };
 
             // Load normal texture.
             let normal_path = mat.normal_texture;
-            let normal_texture = match texture::Texture::load(device, queue, containing_folder.join(normal_path)) {
-                Ok(i) => i,
-                Err(e) => {
-                    println!("Normal texture is invalid, error: {}", e);
-                    texture::Texture::empty(device, queue, (4, 4))?
-                }
-            };
+            let normal_texture =
+                match texture::Texture::load(device, queue, containing_folder.join(normal_path)) {
+                    Ok(i) => i,
+                    Err(e) => {
+                        println!("Normal texture is invalid, error: {}", e);
+                        texture::Texture::empty(device, queue, (4, 4))?
+                    }
+                };
 
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout,
@@ -286,21 +290,17 @@ impl Model {
                     .into();
             }
 
-            let vertex_buffer = device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some(&format!("{:?} Vertex Buffer", path.as_ref())),
-                    contents: bytemuck::cast_slice(&vertices),
-                    usage: wgpu::BufferUsages::VERTEX,
-                }
-            );
+            let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("{:?} Vertex Buffer", path.as_ref())),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
 
-            let index_buffer = device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some(&format!("{:?} Index Buffer", path.as_ref())),
-                    contents: bytemuck::cast_slice(&m.mesh.indices),
-                    usage: wgpu::BufferUsages::INDEX,
-                }
-            );
+            let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("{:?} Index Buffer", path.as_ref())),
+                contents: bytemuck::cast_slice(&m.mesh.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
 
             meshes.push(Mesh {
                 name: m.name,
@@ -312,8 +312,12 @@ impl Model {
         }
 
         // Set instance data. Default number of instances is one.
-        let instances = vec!({
-            let position = cgmath::Vector3 { x: 0.0, y: 0.0, z: 0.0 };
+        let instances = vec![{
+            let position = cgmath::Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            };
 
             let rotation = if position.is_zero() {
                 // This is needed so an object at (0, 0, 0) won't get scaled to zero
@@ -323,67 +327,72 @@ impl Model {
                 cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
             };
 
-            Instance {
-                position,
-                rotation,
-            }
-        });
+            Instance { position, rotation }
+        }];
 
         // Copy data from [Instance] to [InstanceRaw].
         let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
 
         // Create the instance buffer.
-        let instance_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("model instance buffer"),
-                contents: bytemuck::cast_slice(&instance_data),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("model instance buffer"),
+            contents: bytemuck::cast_slice(&instance_data),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
-        Ok(Self { meshes, materials, name: "".to_string(), instances, instance_buffer })
+        Ok(Self {
+            meshes,
+            materials,
+            name: "".to_string(),
+            instances,
+            instance_buffer,
+        })
     }
 
     /// Draw multiple models.
     fn set_instances(&mut self, device: &wgpu::Device) {
         // Instancing.
         const NUM_INSTANCES_PER_ROW: u32 = 1;
-        const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0, NUM_INSTANCES_PER_ROW as f32 * 0.5);
+        const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
+            NUM_INSTANCES_PER_ROW as f32 * 0.5,
+            0.0,
+            NUM_INSTANCES_PER_ROW as f32 * 0.5,
+        );
 
         const SPACE_BETWEEN: f32 = 3.0;
-        let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| {
-            (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
-                let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+        let instances = (0..NUM_INSTANCES_PER_ROW)
+            .flat_map(|z| {
+                (0..NUM_INSTANCES_PER_ROW).map(move |x| {
+                    let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+                    let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
 
-                let position = cgmath::Vector3 { x, y: 0.0, z };
+                    let position = cgmath::Vector3 { x, y: 0.0, z };
 
-                let rotation = if position.is_zero() {
-                    // This is needed so an object at (0, 0, 0) won't get scaled to zero
-                    // as Quaternions can effect scale if they're not created correctly.
-                    cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
-                } else {
-                    cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
-                };
+                    let rotation = if position.is_zero() {
+                        // This is needed so an object at (0, 0, 0) won't get scaled to zero
+                        // as Quaternions can effect scale if they're not created correctly.
+                        cgmath::Quaternion::from_axis_angle(
+                            cgmath::Vector3::unit_z(),
+                            cgmath::Deg(0.0),
+                        )
+                    } else {
+                        cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
+                    };
 
-                Instance {
-                    position,
-                    rotation,
-                }
+                    Instance { position, rotation }
+                })
             })
-        }).collect::<Vec<_>>();
+            .collect::<Vec<_>>();
 
         // Copy data from [Instance] to [InstanceRaw].
         let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
 
         // Create the instance buffer.
-        self.instance_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("model instance buffer"),
-                contents: bytemuck::cast_slice(&instance_data),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
+        self.instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("model instance buffer"),
+            contents: bytemuck::cast_slice(&instance_data),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
     }
 }
 
@@ -392,7 +401,11 @@ impl AsNode for Model {
 
     fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {}
 
-    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, render_server: &'b RenderServer) {
+    fn draw<'a, 'b: 'a>(
+        &'b self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        render_server: &'b RenderServer,
+    ) {
         render_pass.set_pipeline(&render_server.model_pipeline);
 
         // Set vertex buffer for InstanceInput.
@@ -443,8 +456,8 @@ pub trait DrawModel<'a> {
 
 /// Rendering a mesh.
 impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
+where
+    'b: 'a,
 {
     fn draw_mesh(
         &mut self,
@@ -505,7 +518,13 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
             // Get material.
             let material = &model.materials[mesh.material];
 
-            self.draw_mesh_instanced(mesh, material, instances.clone(), camera_bind_group, light_bind_group);
+            self.draw_mesh_instanced(
+                mesh,
+                material,
+                instances.clone(),
+                camera_bind_group,
+                light_bind_group,
+            );
         }
     }
 }

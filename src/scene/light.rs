@@ -1,9 +1,9 @@
+use crate::resource::Mesh;
+use crate::scene::AsNode;
+use crate::{InputEvent, Model, RenderServer};
+use cgmath::prelude::*;
 use std::ops::Range;
 use wgpu::util::DeviceExt;
-use crate::{InputEvent, Model, RenderServer};
-use crate::resource::Mesh;
-use cgmath::prelude::*;
-use crate::scene::AsNode;
 
 // TODO: Use Sprite3d (billboard) to represent a Light.
 pub struct Light {
@@ -22,13 +22,11 @@ impl Light {
         };
 
         // We'll want to update our lights position, so we use COPY_DST.
-        let buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Light uniform buffer"),
-                contents: bytemuck::cast_slice(&[uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Light uniform buffer"),
+            contents: bytemuck::cast_slice(&[uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &render_server.light_bind_group_layout,
@@ -48,7 +46,10 @@ impl Light {
 
     pub fn update(&mut self, dt: f32, queue: &wgpu::Queue) {
         let old_position: cgmath::Vector3<_> = self.uniform.position.into();
-        self.uniform.position = (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt)) * old_position).into();
+        self.uniform.position =
+            (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt))
+                * old_position)
+                .into();
 
         // Update buffer.
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
@@ -99,8 +100,8 @@ pub trait DrawLight<'a> {
 }
 
 impl<'a, 'b> DrawLight<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
+where
+    'b: 'a,
 {
     fn draw_light_mesh(
         &mut self,
@@ -142,7 +143,12 @@ impl<'a, 'b> DrawLight<'b> for wgpu::RenderPass<'a>
         light_bind_group: &'b wgpu::BindGroup,
     ) {
         for mesh in &model.meshes {
-            self.draw_light_mesh_instanced(mesh, instances.clone(), camera_bind_group, light_bind_group);
+            self.draw_light_mesh_instanced(
+                mesh,
+                instances.clone(),
+                camera_bind_group,
+                light_bind_group,
+            );
         }
     }
 }

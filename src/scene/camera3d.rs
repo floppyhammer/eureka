@@ -1,13 +1,13 @@
-use cgmath::*;
-use cgmath::num_traits::clamp;
-use winit::event::*;
-use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
-use winit::window::Window;
-use std::time::Duration;
-use std::f32::consts::FRAC_PI_2;
-use wgpu::util::DeviceExt;
-use crate::RenderServer;
 use crate::server::input_server::InputEvent;
+use crate::RenderServer;
+use cgmath::num_traits::clamp;
+use cgmath::*;
+use std::f32::consts::FRAC_PI_2;
+use std::time::Duration;
+use wgpu::util::DeviceExt;
+use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
+use winit::event::*;
+use winit::window::Window;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -38,11 +38,7 @@ pub struct Camera3d {
 }
 
 impl Camera3d {
-    pub fn new<
-        V: Into<Point3<f32>>,
-        Y: Into<Rad<f32>>,
-        P: Into<Rad<f32>>,
-    >(
+    pub fn new<V: Into<Point3<f32>>, Y: Into<Rad<f32>>, P: Into<Rad<f32>>>(
         position: V,
         yaw: Y,
         pitch: P,
@@ -64,25 +60,20 @@ impl Camera3d {
         let mut uniform = Camera3dUniform::new();
 
         // Create a buffer for the camera uniform.
-        let buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("camera3d buffer"),
-                contents: bytemuck::cast_slice(&[uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("camera3d buffer"),
+            contents: bytemuck::cast_slice(&[uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
-        let bind_group = device.create_bind_group(
-            &wgpu::BindGroupDescriptor {
-                layout: &render_server.camera3d_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: buffer.as_entire_binding(),
-                    }
-                ],
-                label: Some("camera3d bind group"),
-            });
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &render_server.camera3d_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+            label: Some("camera3d bind group"),
+        });
         // ----------------------------
 
         Self {
@@ -101,11 +92,7 @@ impl Camera3d {
     pub fn calc_matrix(&self) -> Matrix4<f32> {
         Matrix4::look_to_rh(
             self.position,
-            Vector3::new(
-                self.yaw.0.cos(),
-                self.pitch.0.sin(),
-                self.yaw.0.sin(),
-            ).normalize(),
+            Vector3::new(self.yaw.0.cos(), self.pitch.0.sin(), self.yaw.0.sin()).normalize(),
             Vector3::unit_y(),
         )
     }
@@ -116,10 +103,17 @@ impl Camera3d {
             // Move forward/backward and left/right.
             let (yaw_sin, yaw_cos) = self.yaw.0.sin_cos();
             let (pitch_sin, pitch_cos) = self.pitch.0.sin_cos();
-            let forward = Vector3::new(pitch_cos * yaw_cos, pitch_sin, pitch_cos * yaw_sin).normalize();
+            let forward =
+                Vector3::new(pitch_cos * yaw_cos, pitch_sin, pitch_cos * yaw_sin).normalize();
             let right = Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
-            self.position += forward * (self.controller.amount_forward - self.controller.amount_backward) * self.controller.speed * dt;
-            self.position += right * (self.controller.amount_right - self.controller.amount_left) * self.controller.speed * dt;
+            self.position += forward
+                * (self.controller.amount_forward - self.controller.amount_backward)
+                * self.controller.speed
+                * dt;
+            self.position += right
+                * (self.controller.amount_right - self.controller.amount_left)
+                * self.controller.speed
+                * dt;
 
             // Adjust navigation speed by scrolling.
             self.controller.speed += self.controller.scroll * 0.001;
@@ -128,7 +122,9 @@ impl Camera3d {
 
             // Move up/down. Since we don't use roll, we can just
             // modify the y coordinate directly.
-            self.position.y += (self.controller.amount_up - self.controller.amount_down) * self.controller.speed * dt;
+            self.position.y += (self.controller.amount_up - self.controller.amount_down)
+                * self.controller.speed
+                * dt;
 
             // Rotate.
             self.yaw += Rad(self.controller.rotate_horizontal) * self.controller.sensitivity * dt;
@@ -171,13 +167,12 @@ impl Camera3d {
             // When right button releases, we need to set mouse position back to where
             // it was before being set invisible.
             if !self.controller.cursor_captured {
-                window.set_cursor_position(
-                    Position::new(
-                        LogicalPosition::new(
-                            self.controller.cursor_captured_position.x,
-                            self.controller.cursor_captured_position.y)
-                    )
-                ).expect("Setting cursor position failed!");
+                window
+                    .set_cursor_position(Position::new(LogicalPosition::new(
+                        self.controller.cursor_captured_position.x,
+                        self.controller.cursor_captured_position.y,
+                    )))
+                    .expect("Setting cursor position failed!");
             }
         }
     }
@@ -187,7 +182,8 @@ impl Camera3d {
 
         match input {
             InputEvent::MouseButton(event) => {
-                self.controller.process_mouse_button(event.button, event.pressed);
+                self.controller
+                    .process_mouse_button(event.button, event.pressed);
             }
             InputEvent::MouseMotion(event) => {
                 self.controller.process_mouse_motion(
@@ -217,13 +213,7 @@ pub struct Projection {
 }
 
 impl Projection {
-    pub fn new<F: Into<Rad<f32>>>(
-        width: u32,
-        height: u32,
-        fovy: F,
-        znear: f32,
-        zfar: f32,
-    ) -> Self {
+    pub fn new<F: Into<Rad<f32>>>(width: u32, height: u32, fovy: F, znear: f32, zfar: f32) -> Self {
         Self {
             aspect: width as f32 / height as f32,
             fovy: fovy.into(),
@@ -337,7 +327,13 @@ impl Camera3dController {
         }
     }
 
-    pub fn process_mouse_motion(&mut self, mouse_dx: f32, mouse_dy: f32, mouse_x: f32, mouse_y: f32) {
+    pub fn process_mouse_motion(
+        &mut self,
+        mouse_dx: f32,
+        mouse_dy: f32,
+        mouse_x: f32,
+        mouse_y: f32,
+    ) {
         if self.cursor_captured {
             self.rotate_horizontal = mouse_dx;
             self.rotate_vertical = mouse_dy;

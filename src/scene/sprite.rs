@@ -1,8 +1,8 @@
+use crate::resource::{Material2d, Mesh, Texture};
+use crate::scene::{AsNode, Camera2dUniform};
+use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType};
 use cgmath::Vector3;
 use wgpu::util::DeviceExt;
-use crate::resource::{Material2d, Mesh, Texture};
-use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType};
-use crate::scene::{AsNode, Camera2dUniform};
 
 pub struct Sprite {
     pub name: String,
@@ -23,7 +23,12 @@ pub struct Sprite {
 }
 
 impl Sprite {
-    pub(crate) fn new(device: &wgpu::Device, queue: &wgpu::Queue, render_server: &RenderServer, texture: Texture) -> Sprite {
+    pub(crate) fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_server: &RenderServer,
+        texture: Texture,
+    ) -> Sprite {
         let position = cgmath::Vector2::new(0.0 as f32, 0.0);
         let size = cgmath::Vector2::new(128.0 as f32, 128.0);
         let scale = cgmath::Vector2::new(1.0 as f32, 1.0);
@@ -72,17 +77,25 @@ impl AsNode for Sprite {
         let scaled_height = self.scale.y * self.size.y;
 
         let translation = if self.centered {
-            cgmath::Matrix4::from_translation(
-                Vector3::new((self.position.x / camera.view_size.x as f32 - scaled_width * 0.5) / camera.view_size.x as f32 * 2.0 - 1.0,
-                             (self.position.y / camera.view_size.y as f32 - scaled_height * 0.5) / camera.view_size.x as f32 * 2.0 - 1.0,
-                             0.0)
-            )
+            cgmath::Matrix4::from_translation(Vector3::new(
+                (self.position.x / camera.view_size.x as f32 - scaled_width * 0.5)
+                    / camera.view_size.x as f32
+                    * 2.0
+                    - 1.0,
+                (self.position.y / camera.view_size.y as f32 - scaled_height * 0.5)
+                    / camera.view_size.x as f32
+                    * 2.0
+                    - 1.0,
+                0.0,
+            ))
         } else {
-            cgmath::Matrix4::from_translation(
-                Vector3::new((self.position.x / camera.view_size.x as f32) / camera.view_size.x as f32 * 2.0 - 1.0,
-                             (self.position.y / camera.view_size.y as f32) / camera.view_size.x as f32 * 2.0 - 1.0,
-                             0.0)
-            )
+            cgmath::Matrix4::from_translation(Vector3::new(
+                (self.position.x / camera.view_size.x as f32) / camera.view_size.x as f32 * 2.0
+                    - 1.0,
+                (self.position.y / camera.view_size.y as f32) / camera.view_size.x as f32 * 2.0
+                    - 1.0,
+                0.0,
+            ))
         };
 
         let scale = cgmath::Matrix4::from_nonuniform_scale(
@@ -101,11 +114,17 @@ impl AsNode for Sprite {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
     }
 
-    fn draw<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, render_server: &'b RenderServer) {
-        render_pass.draw_sprite(&render_server.sprite_pipeline,
-                                &self.mesh,
-                                &self.texture_bind_group,
-                                &self.camera_bind_group);
+    fn draw<'a, 'b: 'a>(
+        &'b self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        render_server: &'b RenderServer,
+    ) {
+        render_pass.draw_sprite(
+            &render_server.sprite_pipeline,
+            &self.mesh,
+            &self.texture_bind_group,
+            &self.camera_bind_group,
+        );
     }
 }
 
@@ -120,7 +139,8 @@ pub trait DrawSprite<'a> {
 }
 
 impl<'a, 'b> DrawSprite<'b> for wgpu::RenderPass<'a>
-    where 'b: 'a, // This means 'b must outlive 'a.
+where
+    'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,

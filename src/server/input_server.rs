@@ -21,7 +21,7 @@ pub struct MouseButton {
 
 impl MouseButton {
     pub fn new() -> MouseButton {
-        MouseButton{
+        MouseButton {
             button: 0,
             pressed: true,
             position: (0.0, 0.0),
