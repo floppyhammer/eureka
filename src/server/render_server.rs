@@ -386,7 +386,7 @@ pub fn create_render_pipeline(
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
-            cull_mode: None, // Some(wgpu::Face::Back)
+            cull_mode: None, // Some(wgpu::Face::Back),
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: wgpu::PolygonMode::Fill,
             // Requires Features::DEPTH_CLIP_CONTROL
@@ -397,8 +397,10 @@ pub fn create_render_pipeline(
         depth_stencil: depth_format.map(|format| wgpu::DepthStencilState {
             format,
             depth_write_enabled: true,
-            // The depth_compare function tells us when to discard a new pixel. Using LESS means pixels will be drawn front to back.
-            depth_compare: wgpu::CompareFunction::Less,
+            // The depth_compare function tells us when to discard a new pixel.
+            // Using LESS means pixels will be drawn front to back.
+            // This has to be LESS_OR_EQUAL for correct skybox rendering.
+            depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),

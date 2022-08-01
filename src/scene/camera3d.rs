@@ -148,8 +148,9 @@ impl Camera3d {
         {
             // We're using Vector4 because of the uniforms 16 byte spacing requirement.
             self.uniform.view_position = self.position.to_homogeneous().into();
-            self.uniform.view_proj = (self.projection.calc_matrix() * self.calc_matrix()).into();
-            self.uniform.proj = self.projection.calc_matrix().into();
+            let proj = self.projection.calc_matrix();
+            self.uniform.view_proj = (proj * self.calc_matrix()).into();
+            self.uniform.proj = proj.into();
 
             // Update camera buffer.
             queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));

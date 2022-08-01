@@ -115,7 +115,7 @@ impl App {
         let mut world = World::new();
 
         let camera3d = Camera3d::new(
-            (0.0, 5.0, 10.0),
+            (0.0, 0.0, 0.0),
             cgmath::Deg(-90.0),
             cgmath::Deg(-20.0),
             &config,
@@ -141,7 +141,7 @@ impl App {
         world.add_node(sprite);
 
         let skybox_tex =
-            CubemapTexture::load(&device, &queue, asset_dir.join("labeled_skybox.png")).unwrap();
+            CubemapTexture::load(&device, &queue, asset_dir.join("skybox.png")).unwrap();
         let sky = Box::new(Sky::new(&device, &queue, &render_server, skybox_tex));
         world.add_node(sky);
 
