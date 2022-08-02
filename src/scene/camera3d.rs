@@ -89,9 +89,17 @@ impl Camera3d {
     }
 
     /// Get view matrix.
-    pub fn calc_matrix(&self) -> Matrix4<f32> {
+    pub fn calc_view_matrix(&self) -> Matrix4<f32> {
         Matrix4::look_to_rh(
             self.position,
+            Vector3::new(self.yaw.0.cos(), self.pitch.0.sin(), self.yaw.0.sin()).normalize(),
+            Vector3::unit_y(),
+        )
+    }
+
+    pub fn calc_view_matrix_without_pos(&self) -> Matrix4<f32> {
+        Matrix4::look_to_rh(
+            Point3::new(0.0, 0.0, 0.0),
             Vector3::new(self.yaw.0.cos(), self.pitch.0.sin(), self.yaw.0.sin()).normalize(),
             Vector3::unit_y(),
         )
@@ -149,8 +157,10 @@ impl Camera3d {
             // We're using Vector4 because of the uniforms 16 byte spacing requirement.
             self.uniform.view_position = self.position.to_homogeneous().into();
             let proj = self.projection.calc_matrix();
-            self.uniform.view_proj = (proj * self.calc_matrix()).into();
-            self.uniform.proj = proj.into();
+            self.uniform.view_proj = (proj * self.calc_view_matrix()).into();
+            // self.uniform.proj = proj.into();
+            self.uniform.view_proj_without_pos =
+                (proj * self.calc_view_matrix_without_pos()).into();
 
             // Update camera buffer.
             queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
@@ -205,7 +215,7 @@ impl Camera3d {
     }
 }
 
-/// The projection needs to change only if the window (or render target) resizes.
+/// The projection needs to change if the window (or render target) resizes.
 pub struct Projection {
     aspect: f32,
     fovy: Rad<f32>,
@@ -237,13 +247,30 @@ impl Projection {
 #[repr(C)]
 // This is so we can store this in a buffer.
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct ModelUniform {
+    model: [[f32; 4]; 4],
+}
+
+impl ModelUniform {
+    pub(crate) fn new() -> Self {
+        use cgmath::SquareMatrix;
+        Self {
+            model: cgmath::Matrix4::identity().into(),
+        }
+    }
+}
+
+// We need this for Rust to store our data correctly for the shaders.
+#[repr(C)]
+// This is so we can store this in a buffer.
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Camera3dUniform {
     view_position: [f32; 4],
     /// Multiplication of the view and projection matrices.
     // We can't use cgmath with bytemuck directly so we'll have
     // to convert the Matrix4 into a 4x4 f32 array.
     view_proj: [[f32; 4]; 4],
-    proj: [[f32; 4]; 4],
+    view_proj_without_pos: [[f32; 4]; 4],
 }
 
 impl Camera3dUniform {
@@ -252,7 +279,7 @@ impl Camera3dUniform {
         Self {
             view_position: [0.0; 4],
             view_proj: cgmath::Matrix4::identity().into(),
-            proj: cgmath::Matrix4::identity().into(),
+            view_proj_without_pos: cgmath::Matrix4::identity().into(),
         }
     }
 }

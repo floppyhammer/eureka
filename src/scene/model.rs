@@ -15,20 +15,21 @@ use material::Material3d;
 use mesh::{Mesh, Vertex3d};
 
 pub struct Model {
-    // pub position: cgmath::Vector3<f32>,
-    // pub rotation: cgmath::Quaternion<f32>,
-    // pub scale: cgmath::Vector3<f32>,
+    pub position: cgmath::Vector3<f32>,
+    pub rotation: cgmath::Quaternion<f32>,
+    pub scale: cgmath::Vector3<f32>,
 
-    // A single model contains multiple meshes.
+    // A single model usually contains multiple meshes.
     pub meshes: Vec<Mesh>,
 
-    // Each mesh has a material.
+    // Mesh material.
     pub materials: Vec<Material3d>,
 
+    // For instancing.
     instances: Vec<Instance>,
-
     instance_buffer: wgpu::Buffer,
 
+    // For debugging.
     pub name: String,
 }
 
@@ -122,10 +123,10 @@ impl Model {
     pub fn load<P: AsRef<Path>>(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        layout: &wgpu::BindGroupLayout,
+        render_server: &RenderServer,
         path: P,
     ) -> Result<Self> {
-        let (obj_models, obj_materials) = tobj::load_obj(
+        let (obj_meshes, obj_materials) = tobj::load_obj(
             path.as_ref(),
             &LoadOptions {
                 triangulate: true,
@@ -136,9 +137,10 @@ impl Model {
 
         let obj_materials = obj_materials?;
 
-        // We're assuming that the texture files are stored with the obj file.
+        // We're assuming that the texture files are stored in the same folder as the obj file.
         let containing_folder = path.as_ref().parent().context("Directory has no parent")?;
 
+        // Handle materials.
         let mut materials = Vec::new();
         for mat in obj_materials {
             // Load diffuse texture.
@@ -164,7 +166,7 @@ impl Model {
                 };
 
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout,
+                layout: &render_server.model_texture_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -194,8 +196,9 @@ impl Model {
             });
         }
 
+        // Handle meshes.
         let mut meshes = Vec::new();
-        for m in obj_models {
+        for m in obj_meshes {
             let mut vertices = Vec::new();
             for i in 0..m.mesh.positions.len() / 3 {
                 vertices.push(Vertex3d {
@@ -311,6 +314,25 @@ impl Model {
             });
         }
 
+        // Transform.
+        let position = cgmath::Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let rotation = if position.is_zero() {
+            // This is needed so an object at (0, 0, 0) won't get scaled to zero
+            // as Quaternions can effect scale if they're not created correctly.
+            cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
+        } else {
+            cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
+        };
+        let scale = cgmath::Vector3 {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        };
+
         // Set instance data. Default number of instances is one.
         let instances = vec![{
             let position = cgmath::Vector3 {
@@ -341,6 +363,9 @@ impl Model {
         });
 
         Ok(Self {
+            position,
+            rotation,
+            scale,
             meshes,
             materials,
             name: "".to_string(),

@@ -117,7 +117,7 @@ impl App {
         let camera3d = Camera3d::new(
             (0.0, 0.0, 0.0),
             cgmath::Deg(-90.0),
-            cgmath::Deg(-20.0),
+            cgmath::Deg(0.0),
             &config,
             &device,
             &render_server,
@@ -154,7 +154,7 @@ impl App {
             Model::load(
                 &device,
                 &queue,
-                &render_server.model_texture_bind_group_layout,
+                &render_server,
                 asset_dir.join("viking_room/viking_room.obj"),
             )
             .unwrap(),
@@ -165,7 +165,7 @@ impl App {
         let light_model = Model::load(
             &device,
             &queue,
-            &render_server.model_texture_bind_group_layout,
+            &render_server,
             asset_dir.join("sphere.obj"),
         )
         .unwrap();
