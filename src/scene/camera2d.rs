@@ -1,5 +1,7 @@
 use cgmath::{Point2, Vector2, Vector3};
 use wgpu::util::DeviceExt;
+use crate::{InputEvent, RenderServer};
+use crate::scene::AsNode;
 
 // We need this for Rust to store our data correctly for the shaders.
 #[repr(C)]

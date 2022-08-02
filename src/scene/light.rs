@@ -1,19 +1,19 @@
 use crate::resource::Mesh;
 use crate::scene::AsNode;
-use crate::{InputEvent, Model, RenderServer};
+use crate::{InputEvent, Model, RenderServer, Singletons, Sprite3d, Texture};
 use cgmath::prelude::*;
 use std::ops::Range;
 use wgpu::util::DeviceExt;
 
-// TODO: Use Sprite3d (billboard) to represent a Light.
 pub struct Light {
     pub(crate) uniform: LightUniform,
     pub(crate) buffer: wgpu::Buffer,
     pub(crate) bind_group: wgpu::BindGroup,
+    pub(crate) sprite: Sprite3d,
 }
 
 impl Light {
-    pub(crate) fn new(device: &wgpu::Device, render_server: &RenderServer) -> Self {
+    pub(crate) fn new(device: &wgpu::Device, queue: &wgpu::Queue, render_server: &RenderServer) -> Self {
         let uniform = LightUniform {
             position: [2.0, 2.0, 2.0],
             _padding: 0,
@@ -23,7 +23,7 @@ impl Light {
 
         // We'll want to update our lights position, so we use COPY_DST.
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Light uniform buffer"),
+            label: Some("light uniform buffer"),
             contents: bytemuck::cast_slice(&[uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -37,22 +37,41 @@ impl Light {
             label: None,
         });
 
+        let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
+        println!("Asset dir: {}", asset_dir.display());
+
+        let sprite_tex = Texture::load(&device, &queue, asset_dir.join("light.png")).unwrap();
+        let sprite3d = Sprite3d::new(&device, &queue, &render_server, sprite_tex);
+
         Self {
             uniform,
             buffer,
             bind_group,
+            sprite: sprite3d,
         }
     }
 
-    pub fn update(&mut self, dt: f32, queue: &wgpu::Queue) {
+    pub fn update(&mut self, dt: f32, queue: &wgpu::Queue, render_server: &RenderServer) {
         let old_position: cgmath::Vector3<_> = self.uniform.position.into();
-        self.uniform.position =
-            (cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt))
-                * old_position)
-                .into();
+        let new_position = cgmath::Quaternion::from_axis_angle(
+            (0.0, 1.0, 0.0).into(),
+            cgmath::Deg(60.0 * dt)) * old_position;
+
+        self.uniform.position = new_position.into();
 
         // Update buffer.
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
+
+        self.sprite.position = new_position;
+        self.sprite.update(&queue, dt, &render_server, None);
+    }
+
+    pub fn draw<'a, 'b: 'a>(
+        &'b self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        render_server: &'b RenderServer,
+        singletons: &'b Singletons) {
+        self.sprite.draw(render_pass, render_server, singletons);
     }
 }
 
@@ -65,90 +84,4 @@ pub(crate) struct LightUniform {
     pub(crate) color: [f32; 3],
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
     pub(crate) _padding2: u32,
-}
-
-pub trait DrawLight<'a> {
-    fn draw_light_mesh(
-        &mut self,
-        mesh: &'a Mesh,
-        camera_bind_group: &'a wgpu::BindGroup,
-        light_bind_group: &'a wgpu::BindGroup,
-    );
-
-    fn draw_light_mesh_instanced(
-        &mut self,
-        mesh: &'a Mesh,
-        instances: Range<u32>,
-        camera_bind_group: &'a wgpu::BindGroup,
-        light_bind_group: &'a wgpu::BindGroup,
-    );
-
-    fn draw_light_model(
-        &mut self,
-        model: &'a Model,
-        camera_bind_group: &'a wgpu::BindGroup,
-        light_bind_group: &'a wgpu::BindGroup,
-    );
-
-    fn draw_light_model_instanced(
-        &mut self,
-        model: &'a Model,
-        instances: Range<u32>,
-        camera_bind_group: &'a wgpu::BindGroup,
-        light_bind_group: &'a wgpu::BindGroup,
-    );
-}
-
-impl<'a, 'b> DrawLight<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a,
-{
-    fn draw_light_mesh(
-        &mut self,
-        mesh: &'b Mesh,
-        camera_bind_group: &'b wgpu::BindGroup,
-        light_bind_group: &'b wgpu::BindGroup,
-    ) {
-        self.draw_light_mesh_instanced(mesh, 0..1, camera_bind_group, light_bind_group);
-    }
-
-    fn draw_light_mesh_instanced(
-        &mut self,
-        mesh: &'b Mesh,
-        instances: Range<u32>,
-        camera_bind_group: &'b wgpu::BindGroup,
-        light_bind_group: &'b wgpu::BindGroup,
-    ) {
-        self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-        self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        self.set_bind_group(0, camera_bind_group, &[]);
-        self.set_bind_group(1, light_bind_group, &[]);
-        self.draw_indexed(0..mesh.index_count, 0, instances);
-    }
-
-    fn draw_light_model(
-        &mut self,
-        model: &'b Model,
-        camera_bind_group: &'b wgpu::BindGroup,
-        light_bind_group: &'b wgpu::BindGroup,
-    ) {
-        self.draw_light_model_instanced(model, 0..1, camera_bind_group, light_bind_group);
-    }
-
-    fn draw_light_model_instanced(
-        &mut self,
-        model: &'b Model,
-        instances: Range<u32>,
-        camera_bind_group: &'b wgpu::BindGroup,
-        light_bind_group: &'b wgpu::BindGroup,
-    ) {
-        for mesh in &model.meshes {
-            self.draw_light_mesh_instanced(
-                mesh,
-                instances.clone(),
-                camera_bind_group,
-                light_bind_group,
-            );
-        }
-    }
 }

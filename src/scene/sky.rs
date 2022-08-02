@@ -10,7 +10,7 @@ use wgpu::util::DeviceExt;
 use crate::resource::CubemapTexture;
 use crate::resource::{material, mesh, texture};
 use crate::scene::AsNode;
-use crate::{InputEvent, RenderServer};
+use crate::{InputEvent, RenderServer, Singletons};
 use material::MaterialSky;
 use mesh::{Mesh, VertexSky};
 
@@ -68,19 +68,20 @@ impl Sky {
 impl AsNode for Sky {
     fn input(&mut self, input: InputEvent) {}
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {}
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {}
 
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_server: &'b RenderServer,
+        singletons: &'b Singletons,
     ) {
         render_pass.set_pipeline(&render_server.skybox_pipeline);
 
         render_pass.draw_skybox(
             &self.mesh,
             &self.material,
-            &render_server.camera3d.as_ref().unwrap().bind_group,
+            &singletons.camera3d.as_ref().unwrap().bind_group,
         );
     }
 }

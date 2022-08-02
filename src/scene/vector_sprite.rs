@@ -1,7 +1,7 @@
 extern crate lyon;
 
 use crate::scene::{AsNode, Camera2dUniform};
-use crate::{Camera2d, InputEvent, RenderServer, Vertex};
+use crate::{Camera2d, InputEvent, RenderServer, Singletons, Vertex};
 use cgmath::Vector3;
 use lyon::math::point;
 use lyon::path::Path;
@@ -120,8 +120,8 @@ impl VectorSprite {
 impl AsNode for VectorSprite {
     fn input(&mut self, input: InputEvent) {}
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
-        let camera = render_server.camera2d.as_ref().unwrap();
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
+        let camera = singletons.unwrap().camera2d.as_ref().unwrap();
 
         let translation = cgmath::Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0));
 
@@ -145,6 +145,7 @@ impl AsNode for VectorSprite {
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_server: &'b RenderServer,
+        singletons: &'b Singletons,
     ) {
         render_pass.draw_path(
             &render_server.vector_sprite_pipeline,

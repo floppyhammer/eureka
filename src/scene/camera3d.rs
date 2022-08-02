@@ -8,6 +8,7 @@ use wgpu::util::DeviceExt;
 use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
 use winit::event::*;
 use winit::window::Window;
+use crate::scene::AsNode;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(

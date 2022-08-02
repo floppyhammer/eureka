@@ -1,12 +1,13 @@
 use crate::resource::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform};
-use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Zero};
+use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons, Zero};
 use cgmath::{InnerSpace, Rotation3, Vector3};
 use wgpu::util::DeviceExt;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SpriteParamsUniform {
+    model_matrix: [[f32; 4]; 4],
     billboard_mode: f32,
     pad0: f32,
     pad1: f32,
@@ -71,6 +72,7 @@ impl Sprite3d {
         // Create a buffer for the params.
         // ------------------------------------------
         let params_uniform = SpriteParamsUniform {
+            model_matrix: cgmath::Matrix4::from_translation(position).into(),
             billboard_mode: if billboard_mode == BillboardMode::Spherical {
                 1.0
             } else {
@@ -105,7 +107,7 @@ impl Sprite3d {
             position,
             rotation,
             scale,
-            billboard_mode: billboard_mode,
+            billboard_mode,
             texture: Some(texture),
             texture_bind_group,
             params_uniform,
@@ -125,18 +127,34 @@ pub enum BillboardMode {
 impl AsNode for Sprite3d {
     fn input(&mut self, input: InputEvent) {}
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {}
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
+        let params_uniform = SpriteParamsUniform {
+            model_matrix: cgmath::Matrix4::from_translation(self.position).into(),
+            billboard_mode: if self.billboard_mode == BillboardMode::Spherical {
+                1.0
+            } else {
+                0.0
+            },
+            pad0: 0.0,
+            pad1: 0.0,
+            pad2: 0.0,
+        };
+
+        // Update buffer.
+        queue.write_buffer(&self.params_buffer, 0, bytemuck::cast_slice(&[params_uniform]));
+    }
 
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_server: &'b RenderServer,
+        singletons: &'b Singletons,
     ) {
         render_pass.draw_sprite(
             &render_server.sprite3d_pipeline,
             &self.mesh,
             &self.texture_bind_group,
-            &render_server.camera3d.as_ref().unwrap().bind_group,
+            &singletons.camera3d.as_ref().unwrap().bind_group,
             &self.params_bind_group,
         );
     }

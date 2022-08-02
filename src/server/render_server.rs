@@ -5,7 +5,6 @@ use wgpu::TextureFormat;
 
 pub struct RenderServer {
     pub model_pipeline: wgpu::RenderPipeline,
-    pub light_pipeline: wgpu::RenderPipeline,
     pub vector_sprite_pipeline: wgpu::RenderPipeline,
     pub sprite_pipeline: wgpu::RenderPipeline,
     pub sprite3d_pipeline: wgpu::RenderPipeline,
@@ -18,10 +17,6 @@ pub struct RenderServer {
     pub camera3d_bind_group_layout: wgpu::BindGroupLayout,
     pub skybox_texture_bind_group_layout: wgpu::BindGroupLayout,
     pub sprite_params_bind_group_layout: wgpu::BindGroupLayout,
-
-    pub camera2d: Option<Camera2d>,
-    pub camera3d: Option<Camera3d>,
-    pub light: Option<Light>,
 }
 
 impl RenderServer {
@@ -186,30 +181,6 @@ impl RenderServer {
             });
         // ------------------------------------------------------------------
 
-        // Light pipeline to draw light source.
-        let light_pipeline = {
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("light render pipeline layout"),
-                bind_group_layouts: &[&camera3d_bind_group_layout, &light_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("light shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/light.wgsl").into()),
-            };
-
-            create_render_pipeline(
-                &device,
-                &pipeline_layout,
-                color_format,
-                Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[resource::mesh::Vertex3d::desc()],
-                shader,
-                "light pipeline",
-            )
-        };
-
         // Model pipeline to draw a model.
         let model_pipeline = {
             // Set up resource pipeline layout using bind group layouts.
@@ -356,7 +327,6 @@ impl RenderServer {
 
         Self {
             model_pipeline,
-            light_pipeline,
             vector_sprite_pipeline,
             sprite_pipeline,
             sprite3d_pipeline,
@@ -368,9 +338,6 @@ impl RenderServer {
             camera3d_bind_group_layout,
             skybox_texture_bind_group_layout,
             sprite_params_bind_group_layout,
-            camera2d: None,
-            camera3d: None,
-            light: None,
         }
     }
 

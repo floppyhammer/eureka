@@ -1,17 +1,18 @@
 use crate::server::input_server::InputEvent;
 use crate::server::MouseButton;
-use crate::{Camera2d, RenderServer};
+use crate::{Camera2d, RenderServer, Singletons};
 use cgmath::*;
 
 pub trait AsNode {
     fn input(&mut self, input: InputEvent);
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer);
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>);
 
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_server: &'b RenderServer,
+        singletons: &'b Singletons,
     );
 }
 
@@ -39,10 +40,13 @@ impl World {
         }
     }
 
-    pub fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
+    pub fn update(&mut self, queue: &wgpu::Queue,
+                  dt: f32,
+                  render_server: &RenderServer,
+                  singletons: Option<&Singletons>) {
         // Update nodes.
         for node in self.nodes.iter_mut() {
-            node.update(&queue, dt, &render_server);
+            node.update(&queue, dt, &render_server, singletons);
         }
     }
 
@@ -50,10 +54,11 @@ impl World {
         &'b mut self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_server: &'b RenderServer,
+        singletons: &'b Singletons,
     ) {
         // Draw nodes.
         for node in self.nodes.iter() {
-            node.draw(render_pass, &render_server);
+            node.draw(render_pass, render_server, singletons);
         }
     }
 }

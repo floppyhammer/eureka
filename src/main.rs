@@ -28,14 +28,45 @@ use crate::resource::{CubemapTexture, Texture, Vertex};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
-use crate::scene::{
-    Camera2d, Camera3d, Camera3dController, DrawLight, DrawModel, InputEvent, Light, LightUniform,
-    Model, Projection, Sky, World,
-};
+use crate::scene::{AsNode, Camera2d, Camera3d, Camera3dController, InputEvent, Light, LightUniform, Model, Projection, Sky, World};
 use crate::server::render_server::RenderServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
+
+pub struct Singletons {
+    pub camera2d: Option<Camera2d>,
+    pub camera3d: Option<Camera3d>,
+    pub light: Option<Light>,
+}
+
+impl Singletons {
+    pub fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
+        // Update the cameras.
+        self.camera3d
+            .as_mut()
+            .unwrap()
+            .update(dt, &queue);
+        self.camera2d
+            .as_mut()
+            .unwrap()
+            .update(dt, &queue);
+
+        // Update the light.
+        self.light
+            .as_mut()
+            .unwrap()
+            .update(dt, &queue, &render_server);
+    }
+
+    pub fn draw<'a, 'b: 'a>(
+        &'b self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        render_server: &'b RenderServer,
+        singletons: &'b Singletons) {
+        self.light.as_ref().unwrap().sprite.draw(render_pass, &render_server, &self);
+    }
+}
 
 // For convenience we're going to pack all the fields into a struct,
 // and create some methods on that.
@@ -47,16 +78,16 @@ struct App {
     size: winit::dpi::PhysicalSize<u32>,
     render_server: RenderServer,
     depth_texture: Texture,
-    light_model: Model,
     mouse_position: (f32, f32),
     cursor_captured: bool,
     previous_frame_time: f32,
     world: World,
+    singletons: Singletons,
 }
 
 impl App {
     // Create some of the wgpu types requires async code.
-    async fn new(window: &Window) -> Self {
+    async fn new(window: &Window) -> App {
         // The instance is a handle to our GPU.
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -111,6 +142,12 @@ impl App {
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         println!("Asset dir: {}", asset_dir.display());
 
+        let mut singletons = Singletons {
+            camera2d: None,
+            camera3d: None,
+            light: None,
+        };
+
         // Create nodes.
         // ---------------------------------------------------
         let mut world = World::new();
@@ -123,6 +160,7 @@ impl App {
             &device,
             &render_server,
         );
+        singletons.camera3d = Some(camera3d);
 
         let camera2d = Camera2d::new(
             Point2::new(0.0, 0.0),
@@ -130,9 +168,7 @@ impl App {
             &config,
             &device,
         );
-
-        render_server.camera2d = Some(camera2d);
-        render_server.camera3d = Some(camera3d);
+        singletons.camera2d = Some(camera2d);
 
         let vec_sprite = Box::new(VectorSprite::new(&device, &queue, &render_server));
         world.add_node(vec_sprite);
@@ -141,18 +177,14 @@ impl App {
         let sprite = Box::new(Sprite2d::new(&device, &queue, &render_server, sprite_tex));
         world.add_node(sprite);
 
-        let sprite_tex = Texture::load(&device, &queue, asset_dir.join("light.png")).unwrap();
-        let sprite3d = Box::new(Sprite3d::new(&device, &queue, &render_server, sprite_tex));
-        world.add_node(sprite3d);
-
         let skybox_tex =
             CubemapTexture::load(&device, &queue, asset_dir.join("skybox.png")).unwrap();
         let sky = Box::new(Sky::new(&device, &queue, &render_server, skybox_tex));
         world.add_node(sky);
 
         // Light.
-        let light = Light::new(&device, &render_server);
-        render_server.light = Some(light);
+        let light = Light::new(&device, &queue, &render_server);
+        singletons.light = Some(light);
 
         // Load models.
         let obj_model = Box::new(
@@ -165,15 +197,6 @@ impl App {
             .unwrap(),
         );
         world.add_node(obj_model);
-
-        // TODO: Light is not a [Node] yet.
-        let light_model = Model::load(
-            &device,
-            &queue,
-            &render_server,
-            asset_dir.join("sphere.obj"),
-        )
-        .unwrap();
         // ---------------------------------------------------
 
         Self {
@@ -184,11 +207,11 @@ impl App {
             size,
             render_server,
             depth_texture,
-            light_model,
             mouse_position: (0.0, 0.0),
             cursor_captured: false,
             previous_frame_time: 0.0,
             world,
+            singletons,
         }
     }
 
@@ -214,12 +237,12 @@ impl App {
                 "depth_texture",
             );
 
-            self.render_server
+            self.singletons
                 .camera3d
                 .as_mut()
                 .unwrap()
                 .when_view_size_changes(new_size.width, new_size.height);
-            self.render_server
+            self.singletons
                 .camera2d
                 .as_mut()
                 .unwrap()
@@ -274,13 +297,13 @@ impl App {
         };
 
         // Pass input events to nodes.
-        self.render_server
+        self.singletons
             .camera3d
             .as_mut()
             .unwrap()
             .input(input_event);
 
-        self.render_server
+        self.singletons
             .camera3d
             .as_mut()
             .unwrap()
@@ -292,27 +315,9 @@ impl App {
     fn update(&mut self, dt: std::time::Duration) {
         let dt_in_secs = dt.as_secs_f32();
 
-        // Update the cameras.
-        self.render_server
-            .camera3d
-            .as_mut()
-            .unwrap()
-            .update(dt_in_secs, &self.queue);
-        self.render_server
-            .camera2d
-            .as_mut()
-            .unwrap()
-            .update(dt_in_secs, &self.queue);
+        self.singletons.update(&self.queue, dt_in_secs, &self.render_server);
 
-        // Update the light.
-        self.render_server
-            .light
-            .as_mut()
-            .unwrap()
-            .update(dt_in_secs, &self.queue);
-
-        self.world
-            .update(&self.queue, dt_in_secs, &self.render_server);
+        self.world.update(&self.queue, dt_in_secs, &self.render_server, Some(&self.singletons));
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
@@ -361,18 +366,9 @@ impl App {
                 }),
             });
 
-            // Draw light.
-            // ----------------------
-            render_pass.set_pipeline(&self.render_server.light_pipeline);
+            self.singletons.draw(&mut render_pass, &self.render_server, &self.singletons);
 
-            render_pass.draw_light_model(
-                &self.light_model,
-                &self.render_server.camera3d.as_ref().unwrap().bind_group,
-                &self.render_server.light.as_ref().unwrap().bind_group,
-            );
-            // ----------------------
-
-            self.world.draw(&mut render_pass, &self.render_server);
+            self.world.draw(&mut render_pass, &self.render_server, &self.singletons);
         }
 
         // Finish the command buffer, and to submit it to the GPU's resource queue.

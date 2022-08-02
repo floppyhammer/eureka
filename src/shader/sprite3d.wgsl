@@ -10,6 +10,7 @@ struct Camera {
 var<uniform> camera: Camera;
 
 struct Params {
+    model_matrix: mat4x4<f32>,
     billboard_mode: f32,
     pad0: f32,
     pad1: f32,
@@ -38,7 +39,7 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
 
-    var model_view = camera.view;
+    var model_view = camera.view * params.model_matrix;
 
     let billboard_mode = u32(params.billboard_mode);
 

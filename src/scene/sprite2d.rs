@@ -1,6 +1,6 @@
 use crate::resource::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform};
-use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType};
+use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons};
 use cgmath::Vector3;
 use wgpu::util::DeviceExt;
 
@@ -70,8 +70,8 @@ impl Sprite2d {
 impl AsNode for Sprite2d {
     fn input(&mut self, input: InputEvent) {}
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
-        let camera = render_server.camera2d.as_ref().unwrap();
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
+        let camera = singletons.unwrap().camera2d.as_ref().unwrap();
 
         let scaled_width = self.scale.x * self.size.x;
         let scaled_height = self.scale.y * self.size.y;
@@ -118,6 +118,7 @@ impl AsNode for Sprite2d {
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_server: &'b RenderServer,
+        singletons: &'b Singletons,
     ) {
         render_pass.draw_sprite(
             &render_server.sprite_pipeline,

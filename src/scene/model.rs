@@ -10,7 +10,7 @@ use wgpu::util::DeviceExt;
 
 use crate::resource::{material, mesh, texture};
 use crate::scene::AsNode;
-use crate::{Camera2d, InputEvent, RenderServer};
+use crate::{Camera2d, InputEvent, RenderServer, Singletons};
 use material::Material3d;
 use mesh::{Mesh, Vertex3d};
 
@@ -424,12 +424,13 @@ impl Model {
 impl AsNode for Model {
     fn input(&mut self, input: InputEvent) {}
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {}
+    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {}
 
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_server: &'b RenderServer,
+        singletons: &'b Singletons,
     ) {
         render_pass.set_pipeline(&render_server.model_pipeline);
 
@@ -439,8 +440,8 @@ impl AsNode for Model {
         render_pass.draw_model_instanced(
             &self,
             0..self.instances.len() as u32,
-            &render_server.camera3d.as_ref().unwrap().bind_group,
-            &render_server.light.as_ref().unwrap().bind_group,
+            &singletons.camera3d.as_ref().unwrap().bind_group,
+            &singletons.light.as_ref().unwrap().bind_group,
         );
     }
 }
