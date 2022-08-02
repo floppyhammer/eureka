@@ -25,7 +25,8 @@ mod server;
 
 // Import local crates.
 use crate::resource::{CubemapTexture, Texture, Vertex};
-use crate::scene::sprite::Sprite;
+use crate::scene::sprite2d::Sprite2d;
+use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::scene::{
     Camera2d, Camera3d, Camera3dController, DrawLight, DrawModel, InputEvent, Light, LightUniform,
@@ -137,8 +138,12 @@ impl App {
         world.add_node(vec_sprite);
 
         let sprite_tex = Texture::load(&device, &queue, asset_dir.join("happy-tree.png")).unwrap();
-        let sprite = Box::new(Sprite::new(&device, &queue, &render_server, sprite_tex));
+        let sprite = Box::new(Sprite2d::new(&device, &queue, &render_server, sprite_tex));
         world.add_node(sprite);
+
+        let sprite_tex = Texture::load(&device, &queue, asset_dir.join("light.png")).unwrap();
+        let sprite3d = Box::new(Sprite3d::new(&device, &queue, &render_server, sprite_tex));
+        world.add_node(sprite3d);
 
         let skybox_tex =
             CubemapTexture::load(&device, &queue, asset_dir.join("skybox.png")).unwrap();

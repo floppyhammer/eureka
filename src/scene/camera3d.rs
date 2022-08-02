@@ -156,11 +156,8 @@ impl Camera3d {
         {
             // We're using Vector4 because of the uniforms 16 byte spacing requirement.
             self.uniform.view_position = self.position.to_homogeneous().into();
-            let proj = self.projection.calc_matrix();
-            self.uniform.view_proj = (proj * self.calc_view_matrix()).into();
-            // self.uniform.proj = proj.into();
-            self.uniform.view_proj_without_pos =
-                (proj * self.calc_view_matrix_without_pos()).into();
+            self.uniform.view = self.calc_view_matrix().into();
+            self.uniform.proj = self.projection.calc_matrix().into();
 
             // Update camera buffer.
             queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
@@ -269,8 +266,8 @@ pub struct Camera3dUniform {
     /// Multiplication of the view and projection matrices.
     // We can't use cgmath with bytemuck directly so we'll have
     // to convert the Matrix4 into a 4x4 f32 array.
-    view_proj: [[f32; 4]; 4],
-    view_proj_without_pos: [[f32; 4]; 4],
+    view: [[f32; 4]; 4],
+    proj: [[f32; 4]; 4],
 }
 
 impl Camera3dUniform {
@@ -278,8 +275,8 @@ impl Camera3dUniform {
         use cgmath::SquareMatrix;
         Self {
             view_position: [0.0; 4],
-            view_proj: cgmath::Matrix4::identity().into(),
-            view_proj_without_pos: cgmath::Matrix4::identity().into(),
+            view: cgmath::Matrix4::identity().into(),
+            proj: cgmath::Matrix4::identity().into(),
         }
     }
 }

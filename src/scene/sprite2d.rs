@@ -4,7 +4,7 @@ use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType};
 use cgmath::Vector3;
 use wgpu::util::DeviceExt;
 
-pub struct Sprite {
+pub struct Sprite2d {
     pub name: String,
 
     pub position: cgmath::Vector2<f32>,
@@ -22,13 +22,13 @@ pub struct Sprite {
     pub mesh: Mesh,
 }
 
-impl Sprite {
+impl Sprite2d {
     pub(crate) fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         render_server: &RenderServer,
         texture: Texture,
-    ) -> Sprite {
+    ) -> Sprite2d {
         let position = cgmath::Vector2::new(0.0 as f32, 0.0);
         let size = cgmath::Vector2::new(128.0 as f32, 128.0);
         let scale = cgmath::Vector2::new(1.0 as f32, 1.0);
@@ -67,7 +67,7 @@ impl Sprite {
     }
 }
 
-impl AsNode for Sprite {
+impl AsNode for Sprite2d {
     fn input(&mut self, input: InputEvent) {}
 
     fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
@@ -128,7 +128,7 @@ impl AsNode for Sprite {
     }
 }
 
-pub trait DrawSprite<'a> {
+pub trait DrawSprite2d<'a> {
     fn draw_sprite(
         &mut self,
         pipeline: &'a wgpu::RenderPipeline,
@@ -138,7 +138,7 @@ pub trait DrawSprite<'a> {
     );
 }
 
-impl<'a, 'b> DrawSprite<'b> for wgpu::RenderPass<'a>
+impl<'a, 'b> DrawSprite2d<'b> for wgpu::RenderPass<'a>
 where
     'b: 'a, // This means 'b must outlive 'a.
 {

@@ -5,8 +5,9 @@ pub(crate) mod model;
 mod node;
 pub(crate) mod scene_tree;
 pub(crate) mod sky;
-pub(crate) mod sprite;
+pub(crate) mod sprite2d;
 pub(crate) mod vector_sprite;
+pub(crate) mod sprite3d;
 
 pub use camera2d::*;
 pub use camera3d::*;
