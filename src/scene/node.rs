@@ -6,7 +6,13 @@ use cgmath::*;
 pub trait AsNode {
     fn input(&mut self, input: InputEvent);
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>);
+    fn update(
+        &mut self,
+        queue: &wgpu::Queue,
+        dt: f32,
+        render_server: &RenderServer,
+        singletons: Option<&Singletons>,
+    );
 
     fn draw<'a, 'b: 'a>(
         &'b self,
@@ -40,10 +46,13 @@ impl World {
         }
     }
 
-    pub fn update(&mut self, queue: &wgpu::Queue,
-                  dt: f32,
-                  render_server: &RenderServer,
-                  singletons: Option<&Singletons>) {
+    pub fn update(
+        &mut self,
+        queue: &wgpu::Queue,
+        dt: f32,
+        render_server: &RenderServer,
+        singletons: Option<&Singletons>,
+    ) {
         // Update nodes.
         for node in self.nodes.iter_mut() {
             node.update(&queue, dt, &render_server, singletons);

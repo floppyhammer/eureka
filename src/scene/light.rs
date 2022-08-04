@@ -13,7 +13,11 @@ pub struct Light {
 }
 
 impl Light {
-    pub(crate) fn new(device: &wgpu::Device, queue: &wgpu::Queue, render_server: &RenderServer) -> Self {
+    pub(crate) fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_server: &RenderServer,
+    ) -> Self {
         let uniform = LightUniform {
             position: [2.0, 2.0, 2.0],
             _padding: 0,
@@ -53,9 +57,9 @@ impl Light {
 
     pub fn update(&mut self, dt: f32, queue: &wgpu::Queue, render_server: &RenderServer) {
         let old_position: cgmath::Vector3<_> = self.uniform.position.into();
-        let new_position = cgmath::Quaternion::from_axis_angle(
-            (0.0, 1.0, 0.0).into(),
-            cgmath::Deg(60.0 * dt)) * old_position;
+        let new_position =
+            cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt))
+                * old_position;
 
         self.uniform.position = new_position.into();
 
@@ -70,7 +74,8 @@ impl Light {
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_server: &'b RenderServer,
-        singletons: &'b Singletons) {
+        singletons: &'b Singletons,
+    ) {
         self.sprite.draw(render_pass, render_server, singletons);
     }
 }

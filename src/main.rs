@@ -28,7 +28,10 @@ use crate::resource::{CubemapTexture, Texture, Vertex};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
-use crate::scene::{AsNode, Camera2d, Camera3d, Camera3dController, InputEvent, Light, LightUniform, Model, Projection, Sky, World};
+use crate::scene::{
+    AsNode, Camera2d, Camera3d, Camera3dController, InputEvent, Light, LightUniform, Model,
+    Projection, Sky, World,
+};
 use crate::server::render_server::RenderServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
@@ -43,14 +46,8 @@ pub struct Singletons {
 impl Singletons {
     pub fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
         // Update the cameras.
-        self.camera3d
-            .as_mut()
-            .unwrap()
-            .update(dt, &queue);
-        self.camera2d
-            .as_mut()
-            .unwrap()
-            .update(dt, &queue);
+        self.camera3d.as_mut().unwrap().update(dt, &queue);
+        self.camera2d.as_mut().unwrap().update(dt, &queue);
 
         // Update the light.
         self.light
@@ -63,8 +60,13 @@ impl Singletons {
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_server: &'b RenderServer,
-        singletons: &'b Singletons) {
-        self.light.as_ref().unwrap().sprite.draw(render_pass, &render_server, &self);
+        singletons: &'b Singletons,
+    ) {
+        self.light
+            .as_ref()
+            .unwrap()
+            .sprite
+            .draw(render_pass, &render_server, &self);
     }
 }
 
@@ -315,9 +317,15 @@ impl App {
     fn update(&mut self, dt: std::time::Duration) {
         let dt_in_secs = dt.as_secs_f32();
 
-        self.singletons.update(&self.queue, dt_in_secs, &self.render_server);
+        self.singletons
+            .update(&self.queue, dt_in_secs, &self.render_server);
 
-        self.world.update(&self.queue, dt_in_secs, &self.render_server, Some(&self.singletons));
+        self.world.update(
+            &self.queue,
+            dt_in_secs,
+            &self.render_server,
+            Some(&self.singletons),
+        );
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
@@ -366,9 +374,11 @@ impl App {
                 }),
             });
 
-            self.singletons.draw(&mut render_pass, &self.render_server, &self.singletons);
+            self.singletons
+                .draw(&mut render_pass, &self.render_server, &self.singletons);
 
-            self.world.draw(&mut render_pass, &self.render_server, &self.singletons);
+            self.world
+                .draw(&mut render_pass, &self.render_server, &self.singletons);
         }
 
         // Finish the command buffer, and to submit it to the GPU's resource queue.

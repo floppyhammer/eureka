@@ -68,7 +68,14 @@ impl Sky {
 impl AsNode for Sky {
     fn input(&mut self, input: InputEvent) {}
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {}
+    fn update(
+        &mut self,
+        queue: &wgpu::Queue,
+        dt: f32,
+        render_server: &RenderServer,
+        singletons: Option<&Singletons>,
+    ) {
+    }
 
     fn draw<'a, 'b: 'a>(
         &'b self,

@@ -119,7 +119,7 @@ impl InstanceRaw {
 }
 
 impl Model {
-    /// Load model from file.
+    /// Load model from a wavefront file (.obj).
     pub fn load<P: AsRef<Path>>(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -135,6 +135,7 @@ impl Model {
             },
         )?;
 
+        // Unwrap Result.
         let obj_materials = obj_materials?;
 
         // We're assuming that the texture files are stored in the same folder as the obj file.
@@ -142,29 +143,34 @@ impl Model {
 
         // Handle materials.
         let mut materials = Vec::new();
-        for mat in obj_materials {
+        for m in obj_materials {
             // Load diffuse texture.
-            let diffuse_path = mat.diffuse_texture;
-            let diffuse_texture =
-                match texture::Texture::load(device, queue, containing_folder.join(diffuse_path)) {
-                    Ok(i) => i,
-                    Err(e) => {
-                        println!("Diffuse texture is invalid, error: {}", e);
-                        texture::Texture::empty(device, queue, (4, 4))?
-                    }
-                };
+            let diffuse_texture = match texture::Texture::load(
+                device,
+                queue,
+                containing_folder.join(m.diffuse_texture),
+            ) {
+                Ok(i) => i,
+                Err(e) => {
+                    println!("Invalid diffuse texture, error: {}", e);
+                    texture::Texture::empty(device, queue, (4, 4))?
+                }
+            };
 
             // Load normal texture.
-            let normal_path = mat.normal_texture;
-            let normal_texture =
-                match texture::Texture::load(device, queue, containing_folder.join(normal_path)) {
-                    Ok(i) => i,
-                    Err(e) => {
-                        println!("Normal texture is invalid, error: {}", e);
-                        texture::Texture::empty(device, queue, (4, 4))?
-                    }
-                };
+            let normal_texture = match texture::Texture::load(
+                device,
+                queue,
+                containing_folder.join(m.normal_texture),
+            ) {
+                Ok(i) => i,
+                Err(e) => {
+                    println!("Invalid normal texture, error: {}", e);
+                    texture::Texture::empty(device, queue, (4, 4))?
+                }
+            };
 
+            // Create a bind group for the material textures.
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &render_server.model_texture_bind_group_layout,
                 entries: &[
@@ -189,7 +195,7 @@ impl Model {
             });
 
             materials.push(Material3d {
-                name: mat.name,
+                name: m.name,
                 diffuse_texture,
                 normal_texture,
                 bind_group,
@@ -251,17 +257,16 @@ impl Model {
 
                 // Solving the following system of equations will
                 // give us the tangent and bi-tangent.
-                //     delta_pos1 = delta_uv1.x * T + delta_u.y * B
+                //     delta_pos1 = delta_uv1.x * T + delta_uv1.y * B
                 //     delta_pos2 = delta_uv2.x * T + delta_uv2.y * B
-                // Luckily, the place I found this equation provided
-                // the solution!
+                // Luckily, the place I found this equation provided the solution!
                 let r = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x);
                 let tangent = (delta_pos1 * delta_uv2.y - delta_pos2 * delta_uv1.y) * r;
                 // We flip the bi-tangent to enable right-handed normal
-                // maps with wgpu texture coordinate system
+                // maps with wgpu texture coordinate system.
                 let bi_tangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
 
-                // We'll use the same tangent/bi-tangent for each vertex in the triangle
+                // We'll use the same tangent/bi-tangent for each vertex in the triangle.
                 vertices[c[0] as usize].tangent =
                     (tangent + cgmath::Vector3::from(vertices[c[0] as usize].tangent)).into();
                 vertices[c[1] as usize].tangent =
@@ -334,23 +339,7 @@ impl Model {
         };
 
         // Set instance data. Default number of instances is one.
-        let instances = vec![{
-            let position = cgmath::Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            };
-
-            let rotation = if position.is_zero() {
-                // This is needed so an object at (0, 0, 0) won't get scaled to zero
-                // as Quaternions can effect scale if they're not created correctly.
-                cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
-            } else {
-                cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
-            };
-
-            Instance { position, rotation }
-        }];
+        let instances = vec![{ Instance { position, rotation } }];
 
         // Copy data from [Instance] to [InstanceRaw].
         let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
@@ -424,7 +413,14 @@ impl Model {
 impl AsNode for Model {
     fn input(&mut self, input: InputEvent) {}
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {}
+    fn update(
+        &mut self,
+        queue: &wgpu::Queue,
+        dt: f32,
+        render_server: &RenderServer,
+        singletons: Option<&Singletons>,
+    ) {
+    }
 
     fn draw<'a, 'b: 'a>(
         &'b self,

@@ -120,7 +120,13 @@ impl VectorSprite {
 impl AsNode for VectorSprite {
     fn input(&mut self, input: InputEvent) {}
 
-    fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
+    fn update(
+        &mut self,
+        queue: &wgpu::Queue,
+        dt: f32,
+        render_server: &RenderServer,
+        singletons: Option<&Singletons>,
+    ) {
         let camera = singletons.unwrap().camera2d.as_ref().unwrap();
 
         let translation = cgmath::Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0));
