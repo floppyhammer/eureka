@@ -178,7 +178,7 @@ impl App {
         world.add_node(sky);
 
         // Light.
-        let light = Light::new(&device, &queue, &render_server);
+        let light = Light::new(&device, &queue, &render_server, asset_dir.join("light.png"));
         singletons.light = Some(light);
 
         // Model.
@@ -192,6 +192,17 @@ impl App {
             .unwrap(),
         );
         world.add_node(obj_model);
+
+        let ground_model = Box::new(
+            Model::load(
+                &device,
+                &queue,
+                &render_server,
+                asset_dir.join("granite_ground/granite_ground.obj"),
+            )
+            .unwrap(),
+        );
+        world.add_node(ground_model);
 
         let vec_sprite = Box::new(VectorSprite::new(&device, &queue, &render_server));
         world.add_node(vec_sprite);

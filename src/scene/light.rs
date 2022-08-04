@@ -3,6 +3,7 @@ use crate::scene::AsNode;
 use crate::{InputEvent, Model, RenderServer, Singletons, Sprite3d, Texture};
 use cgmath::prelude::*;
 use std::ops::Range;
+use std::path::Path;
 use wgpu::util::DeviceExt;
 
 pub struct Light {
@@ -13,10 +14,11 @@ pub struct Light {
 }
 
 impl Light {
-    pub(crate) fn new(
+    pub(crate) fn new<P: AsRef<Path>>(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         render_server: &RenderServer,
+        icon_path: P,
     ) -> Self {
         let uniform = LightUniform {
             position: [2.0, 2.0, 2.0],
@@ -41,10 +43,7 @@ impl Light {
             label: None,
         });
 
-        let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
-        println!("Asset dir: {}", asset_dir.display());
-
-        let sprite_tex = Texture::load(&device, &queue, asset_dir.join("light.png")).unwrap();
+        let sprite_tex = Texture::load(&device, &queue, icon_path).unwrap();
         let sprite3d = Sprite3d::new(&device, &queue, &render_server, sprite_tex);
 
         Self {

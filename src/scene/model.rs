@@ -148,11 +148,14 @@ impl Model {
             let diffuse_texture = match texture::Texture::load(
                 device,
                 queue,
-                containing_folder.join(m.diffuse_texture),
+                containing_folder.join(&m.diffuse_texture),
             ) {
                 Ok(i) => i,
                 Err(e) => {
-                    println!("Invalid diffuse texture, error: {}", e);
+                    println!(
+                        "Failed to load diffuse texture {:?}: {}",
+                        m.diffuse_texture, e
+                    );
                     texture::Texture::empty(device, queue, (4, 4))?
                 }
             };
@@ -161,11 +164,14 @@ impl Model {
             let normal_texture = match texture::Texture::load(
                 device,
                 queue,
-                containing_folder.join(m.normal_texture),
+                containing_folder.join(&m.normal_texture),
             ) {
                 Ok(i) => i,
                 Err(e) => {
-                    println!("Invalid normal texture, error: {}", e);
+                    println!(
+                        "Failed to load normal texture {:?}: {}",
+                        m.normal_texture, e
+                    );
                     texture::Texture::empty(device, queue, (4, 4))?
                 }
             };
