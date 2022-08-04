@@ -211,6 +211,7 @@ impl RenderServer {
                 ],
                 shader,
                 "model pipeline",
+                false,
             )
         };
 
@@ -240,6 +241,7 @@ impl RenderServer {
                 &[resource::mesh::Vertex2d::desc()],
                 shader,
                 "sprite2d pipeline",
+                false,
             )
         };
 
@@ -270,6 +272,7 @@ impl RenderServer {
                 &[resource::mesh::Vertex3d::desc()],
                 shader,
                 "sprite3d pipeline",
+                false,
             )
         };
 
@@ -296,6 +299,7 @@ impl RenderServer {
                 &[scene::vector_sprite::VectorVertex::desc()],
                 shader,
                 "vector sprite pipeline",
+                false,
             )
         };
 
@@ -322,6 +326,7 @@ impl RenderServer {
                 &[resource::mesh::VertexSky::desc()],
                 shader,
                 "skybox pipeline",
+                false,
             )
         };
 
@@ -374,6 +379,7 @@ pub fn create_render_pipeline(
     vertex_layouts: &[wgpu::VertexBufferLayout],
     shader: wgpu::ShaderModuleDescriptor,
     label: &str,
+    transparency: bool,
 ) -> wgpu::RenderPipeline {
     // Create actual shader module using the shader descriptor.
     let shader = device.create_shader_module(shader);
@@ -391,9 +397,24 @@ pub fn create_render_pipeline(
             entry_point: "fs_main",
             targets: &[Some(wgpu::ColorTargetState {
                 format: color_format,
-                blend: Some(wgpu::BlendState {
-                    alpha: wgpu::BlendComponent::REPLACE,
-                    color: wgpu::BlendComponent::REPLACE,
+                blend: Some(if !transparency {
+                    wgpu::BlendState {
+                        alpha: wgpu::BlendComponent::REPLACE,
+                        color: wgpu::BlendComponent::REPLACE,
+                    }
+                } else {
+                    wgpu::BlendState {
+                        alpha: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                    }
                 }),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
@@ -412,7 +433,7 @@ pub fn create_render_pipeline(
         },
         depth_stencil: depth_format.map(|format| wgpu::DepthStencilState {
             format,
-            depth_write_enabled: true,
+            depth_write_enabled: !transparency,
             // The depth_compare function tells us when to discard a new pixel.
             // Using LESS means pixels will be drawn front to back.
             // This has to be LESS_OR_EQUAL for correct skybox rendering.

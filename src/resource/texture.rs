@@ -32,7 +32,12 @@ impl Texture {
     }
 
     pub fn empty(device: &wgpu::Device, queue: &wgpu::Queue, size: (u32, u32)) -> Result<Self> {
-        let data = vec![222u8, 222, 222, 0];
+        let mut data: Vec<u8> = Vec::new();
+        data.reserve((size.0 * size.1 * 4) as usize);
+        for _ in 0..(size.0 * size.1) {
+            data.extend([222u8, 222, 222, 0]);
+        }
+
         let mut image = ImageRgba8(image::ImageBuffer::from_raw(size.0, size.1, data).unwrap());
 
         Self::from_image(device, queue, &image, Some("Empty image"))

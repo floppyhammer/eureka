@@ -135,8 +135,10 @@ impl Camera3d {
                 * self.controller.speed
                 * dt;
 
-            // Rotate.
+            // Horizontal rotation.
             self.yaw += Rad(self.controller.rotate_horizontal) * self.controller.sensitivity * dt;
+
+            // Vertical rotation.
             self.pitch += Rad(-self.controller.rotate_vertical) * self.controller.sensitivity * dt;
 
             // If process_mouse isn't called every frame, these values

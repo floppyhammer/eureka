@@ -170,13 +170,6 @@ impl App {
         );
         singletons.camera2d = Some(camera2d);
 
-        let vec_sprite = Box::new(VectorSprite::new(&device, &queue, &render_server));
-        world.add_node(vec_sprite);
-
-        let sprite_tex = Texture::load(&device, &queue, asset_dir.join("happy-tree.png")).unwrap();
-        let sprite = Box::new(Sprite2d::new(&device, &queue, &render_server, sprite_tex));
-        world.add_node(sprite);
-
         let skybox_tex =
             CubemapTexture::load(&device, &queue, asset_dir.join("skybox.png")).unwrap();
         let sky = Box::new(Sky::new(&device, &queue, &render_server, skybox_tex));
@@ -186,17 +179,24 @@ impl App {
         let light = Light::new(&device, &queue, &render_server);
         singletons.light = Some(light);
 
-        // Load models.
+        // Model.
         let obj_model = Box::new(
             Model::load(
                 &device,
                 &queue,
                 &render_server,
-                asset_dir.join("viking_room/viking_room.obj"),
+                asset_dir.join("ferris/ferris3d_v1.0.obj"),
             )
             .unwrap(),
         );
         world.add_node(obj_model);
+
+        let vec_sprite = Box::new(VectorSprite::new(&device, &queue, &render_server));
+        world.add_node(vec_sprite);
+
+        let sprite_tex = Texture::load(&device, &queue, asset_dir.join("happy-tree.png")).unwrap();
+        let sprite = Box::new(Sprite2d::new(&device, &queue, &render_server, sprite_tex));
+        world.add_node(sprite);
         // ---------------------------------------------------
 
         Self {
