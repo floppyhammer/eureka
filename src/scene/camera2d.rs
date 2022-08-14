@@ -32,12 +32,10 @@ pub struct Camera2d {
 }
 
 impl Camera2d {
-    pub fn new(
-        position: Point2<f32>,
-        view_size: (u32, u32),
-        config: &wgpu::SurfaceConfiguration,
-        device: &wgpu::Device,
-    ) -> Self {
+    pub fn new(position: Point2<f32>, view_size: (u32, u32), render_server: &RenderServer) -> Self {
+        let device = &render_server.device;
+        let config = &render_server.config;
+
         Self {
             position: position.into(),
             view_size: Point2::new(view_size.0, view_size.1),

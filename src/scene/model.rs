@@ -120,12 +120,10 @@ impl InstanceRaw {
 
 impl Model {
     /// Load model from a wavefront file (.obj).
-    pub fn load<P: AsRef<Path>>(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_server: &RenderServer,
-        path: P,
-    ) -> Result<Self> {
+    pub fn load<P: AsRef<Path>>(render_server: &RenderServer, path: P) -> Result<Self> {
+        let device = &render_server.device;
+        let queue = &render_server.queue;
+
         let (obj_meshes, obj_materials) = tobj::load_obj(
             path.as_ref(),
             &LoadOptions {
@@ -417,7 +415,7 @@ impl Model {
 }
 
 impl AsNode for Model {
-    fn input(&mut self, input: InputEvent) {}
+    fn input(&mut self, input: &InputEvent) {}
 
     fn update(
         &mut self,

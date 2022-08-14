@@ -1,10 +1,10 @@
 use crate::server::input_server::InputEvent;
 use crate::server::MouseButton;
-use crate::{Camera2d, RenderServer, Singletons};
+use crate::{Camera2d, InputServer, RenderServer, Singletons};
 use cgmath::*;
 
 pub trait AsNode {
-    fn input(&mut self, input: InputEvent);
+    fn input(&mut self, input: &InputEvent);
 
     fn update(
         &mut self,
@@ -39,10 +39,10 @@ impl World {
         self.nodes.push(new_node);
     }
 
-    pub fn input(&mut self) {
+    pub fn input(&mut self, input_event: &InputEvent) {
         // Handle input.
         for node in self.nodes.iter_mut() {
-            node.input(InputEvent::MouseButton(MouseButton::new()));
+            node.input(input_event);
         }
     }
 

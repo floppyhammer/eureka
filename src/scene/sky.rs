@@ -25,26 +25,23 @@ pub struct Sky {
 }
 
 impl Sky {
-    pub fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_server: &RenderServer,
-        texture: CubemapTexture,
-    ) -> Self {
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &render_server.skybox_texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                },
-            ],
-            label: None,
-        });
+    pub fn new(render_server: &RenderServer, texture: CubemapTexture) -> Self {
+        let bind_group = render_server
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &render_server.skybox_texture_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&texture.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                    },
+                ],
+                label: None,
+            });
 
         let material = MaterialSky {
             name: "sky material".to_string(),
@@ -52,7 +49,7 @@ impl Sky {
             bind_group,
         };
 
-        let mesh = Mesh::default_skybox(device);
+        let mesh = Mesh::default_skybox(&render_server.device);
 
         let rotation = cgmath::Quaternion::new(0.0, 0.0, 0.0, 0.0);
 
@@ -66,7 +63,7 @@ impl Sky {
 }
 
 impl AsNode for Sky {
-    fn input(&mut self, input: InputEvent) {}
+    fn input(&mut self, input: &InputEvent) {}
 
     fn update(
         &mut self,

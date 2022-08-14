@@ -1,3 +1,4 @@
+use crate::RenderServer;
 use anyhow::*;
 use image::{DynamicImage::ImageRgba8, GenericImageView, ImageBuffer, Rgb};
 use std::path::Path;
@@ -128,11 +129,15 @@ impl Texture {
 
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
-    pub fn create_depth_texture(device: &wgpu::Device, size: (u32, u32), label: &str) -> Self {
+    pub fn create_depth_texture(
+        device: &wgpu::Device,
+        config: &wgpu::SurfaceConfiguration,
+        label: &str,
+    ) -> Self {
         // Our depth texture needs to be the same size as our screen if we want things to resource correctly.
         let size = wgpu::Extent3d {
-            width: size.0,
-            height: size.1,
+            width: config.width,
+            height: config.height,
             depth_or_array_layers: 1,
         };
 
@@ -187,18 +192,14 @@ pub struct CubemapTexture {
 }
 
 impl CubemapTexture {
-    pub fn load<P: AsRef<Path>>(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        path: P,
-    ) -> Result<Self> {
+    pub fn load<P: AsRef<Path>>(render_server: &RenderServer, path: P) -> Result<Self> {
         // Needed to appease the borrow checker.
         let path_copy = path.as_ref().to_path_buf();
         let label = path_copy.to_str();
 
         let img = image::open(path).context("Invalid image path")?;
 
-        Self::from_image(device, queue, &img, label)
+        Self::from_image(&render_server.device, &render_server.queue, &img, label)
     }
 
     /// Create texture from image.

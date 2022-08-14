@@ -43,10 +43,11 @@ impl Camera3d {
         position: V,
         yaw: Y,
         pitch: P,
-        config: &wgpu::SurfaceConfiguration,
-        device: &wgpu::Device,
         render_server: &RenderServer,
     ) -> Self {
+        let device = &render_server.device;
+        let config = &render_server.config;
+
         let projection = Projection::new(
             config.width, // Render target size
             config.height,

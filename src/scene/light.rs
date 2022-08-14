@@ -14,12 +14,10 @@ pub struct Light {
 }
 
 impl Light {
-    pub(crate) fn new<P: AsRef<Path>>(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_server: &RenderServer,
-        icon_path: P,
-    ) -> Self {
+    pub(crate) fn new<P: AsRef<Path>>(render_server: &RenderServer, icon_path: P) -> Self {
+        let device = &render_server.device;
+        let queue = &render_server.queue;
+
         let uniform = LightUniform {
             position: [2.0, 2.0, 2.0],
             _padding: 0,
@@ -44,7 +42,7 @@ impl Light {
         });
 
         let sprite_tex = Texture::load(&device, &queue, icon_path).unwrap();
-        let sprite3d = Sprite3d::new(&device, &queue, &render_server, sprite_tex);
+        let sprite3d = Sprite3d::new(&render_server, sprite_tex);
 
         Self {
             uniform,

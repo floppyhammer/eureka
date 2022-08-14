@@ -1,9 +1,14 @@
 use crate::scene::Camera2dUniform;
-use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Vertex, Texture};
+use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture, Vertex};
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
 pub struct RenderServer {
+    pub surface: wgpu::Surface,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub config: wgpu::SurfaceConfiguration,
+
     pub model_pipeline: wgpu::RenderPipeline,
     pub vector_sprite_pipeline: wgpu::RenderPipeline,
     pub sprite_pipeline: wgpu::RenderPipeline,
@@ -20,7 +25,12 @@ pub struct RenderServer {
 }
 
 impl RenderServer {
-    pub(crate) fn new(device: &wgpu::Device, color_format: TextureFormat) -> Self {
+    pub(crate) fn new(
+        surface: wgpu::Surface,
+        config: wgpu::SurfaceConfiguration,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+    ) -> Self {
         // Create various bind group layouts.
         // Bind group layouts are used to create bind groups.
         // ------------------------------------------------------------------
@@ -203,7 +213,7 @@ impl RenderServer {
             create_render_pipeline(
                 &device,
                 &pipeline_layout,
-                color_format,
+                config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
                 &[
                     resource::mesh::Vertex3d::desc(),
@@ -237,7 +247,7 @@ impl RenderServer {
             create_render_pipeline(
                 &device,
                 &pipeline_layout,
-                color_format,
+                config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
                 &[resource::mesh::Vertex2d::desc()],
                 shader,
@@ -269,7 +279,7 @@ impl RenderServer {
             create_render_pipeline(
                 &device,
                 &pipeline_layout,
-                color_format,
+                config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
                 &[resource::mesh::Vertex3d::desc()],
                 shader,
@@ -297,7 +307,7 @@ impl RenderServer {
             create_render_pipeline(
                 &device,
                 &pipeline_layout,
-                color_format,
+                config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
                 &[scene::vector_sprite::VectorVertex::desc()],
                 shader,
@@ -325,7 +335,7 @@ impl RenderServer {
             create_render_pipeline(
                 &device,
                 &pipeline_layout,
-                color_format,
+                config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
                 &[resource::mesh::VertexSky::desc()],
                 shader,
@@ -336,6 +346,10 @@ impl RenderServer {
         };
 
         Self {
+            surface,
+            config,
+            device,
+            queue,
             model_pipeline,
             vector_sprite_pipeline,
             sprite_pipeline,
@@ -374,7 +388,11 @@ impl RenderServer {
         (camera_buffer, camera_bind_group)
     }
 
-    pub fn create_sprite2d_bind_group(&self, device: &wgpu::Device, texture: &Texture) -> wgpu::BindGroup {
+    pub fn create_sprite2d_bind_group(
+        &self,
+        device: &wgpu::Device,
+        texture: &Texture,
+    ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &self.sprite_texture_bind_group_layout,
             entries: &[

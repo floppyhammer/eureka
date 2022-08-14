@@ -29,11 +29,9 @@ struct MyVertex {
 }
 
 impl VectorSprite {
-    pub fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_server: &RenderServer,
-    ) -> VectorSprite {
+    pub fn new(render_server: &RenderServer) -> VectorSprite {
+        let device = &render_server.device;
+
         // Build a Path.
         let mut builder = Path::builder();
         builder.begin(point(256.0, 256.0));
@@ -118,7 +116,7 @@ impl VectorSprite {
 }
 
 impl AsNode for VectorSprite {
-    fn input(&mut self, input: InputEvent) {}
+    fn input(&mut self, input: &InputEvent) {}
 
     fn update(
         &mut self,

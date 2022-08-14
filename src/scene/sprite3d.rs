@@ -34,13 +34,11 @@ pub struct Sprite3d {
 }
 
 impl Sprite3d {
-    pub(crate) fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_server: &RenderServer,
-        texture: Texture,
-    ) -> Sprite3d {
-        let position = cgmath::Vector3::new(0.0 as f32, 0.0, 0.0);
+    pub(crate) fn new(render_server: &RenderServer, texture: Texture) -> Sprite3d {
+        let device = &render_server.device;
+        let queue = &render_server.queue;
+
+        let position = Vector3::new(0.0 as f32, 0.0, 0.0);
         let rotation = if position.is_zero() {
             // This is needed so an object at (0, 0, 0) won't get scaled to zero
             // as Quaternions can effect scale if they're not created correctly.
@@ -48,7 +46,7 @@ impl Sprite3d {
         } else {
             cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
         };
-        let scale = cgmath::Vector3::new(1.0 as f32, 1.0, 1.0);
+        let scale = Vector3::new(1.0 as f32, 1.0, 1.0);
 
         let mesh = Mesh::default_3d(device);
 
@@ -125,7 +123,7 @@ pub enum BillboardMode {
 }
 
 impl AsNode for Sprite3d {
-    fn input(&mut self, input: InputEvent) {}
+    fn input(&mut self, input: &InputEvent) {}
 
     fn update(
         &mut self,

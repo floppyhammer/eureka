@@ -29,8 +29,8 @@ use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::scene::{
-    AsNode, Camera2d, Camera3d, Camera3dController, InputEvent, Light, LightUniform, Model,
-    Projection, Sky, World,
+    AsNode, Camera2d, Camera3d, Camera3dController, InputEvent, InputServer, Light, LightUniform,
+    Model, Projection, Sky, World,
 };
 use crate::server::render_server::RenderServer;
 
@@ -73,14 +73,10 @@ impl Singletons {
 // For convenience we're going to pack all the fields into a struct,
 // and create some methods on that.
 struct App {
-    surface: wgpu::Surface,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_server: RenderServer,
+    input_server: InputServer,
     depth_texture: Texture,
-    mouse_position: (f32, f32),
     cursor_captured: bool,
     previous_frame_time: f32,
     world: World,
@@ -133,12 +129,15 @@ impl App {
         };
         surface.configure(&device, &config);
 
-        // For depth test.
-        let depth_texture =
-            Texture::create_depth_texture(&device, (config.width, config.height), "depth texture");
-
         // Create our own render server.
-        let mut render_server = RenderServer::new(&device, config.format);
+        let mut render_server = RenderServer::new(surface, config, device, queue);
+
+        // For depth test.
+        let depth_texture = Texture::create_depth_texture(
+            &render_server.device,
+            &render_server.config,
+            "depth texture",
+        );
 
         // Get the asset directory.
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
@@ -158,8 +157,6 @@ impl App {
             (0.0, 0.0, 0.0),
             cgmath::Deg(-90.0),
             cgmath::Deg(0.0),
-            &config,
-            &device,
             &render_server,
         );
         singletons.camera3d = Some(camera3d);
@@ -167,36 +164,27 @@ impl App {
         let camera2d = Camera2d::new(
             Point2::new(0.0, 0.0),
             (size.width, size.height),
-            &config,
-            &device,
+            &render_server,
         );
         singletons.camera2d = Some(camera2d);
 
         let skybox_tex =
-            CubemapTexture::load(&device, &queue, asset_dir.join("skybox.png")).unwrap();
-        let sky = Box::new(Sky::new(&device, &queue, &render_server, skybox_tex));
+            CubemapTexture::load(&render_server, asset_dir.join("skybox.png")).unwrap();
+        let sky = Box::new(Sky::new(&render_server, skybox_tex));
         world.add_node(sky);
 
         // Light.
-        let light = Light::new(&device, &queue, &render_server, asset_dir.join("light.png"));
+        let light = Light::new(&render_server, asset_dir.join("light.png"));
         singletons.light = Some(light);
 
         // Model.
         let obj_model = Box::new(
-            Model::load(
-                &device,
-                &queue,
-                &render_server,
-                asset_dir.join("ferris/ferris3d_v1.0.obj"),
-            )
-            .unwrap(),
+            Model::load(&render_server, asset_dir.join("ferris/ferris3d_v1.0.obj")).unwrap(),
         );
         world.add_node(obj_model);
 
         let ground_model = Box::new(
             Model::load(
-                &device,
-                &queue,
                 &render_server,
                 asset_dir.join("granite_ground/granite_ground.obj"),
             )
@@ -204,23 +192,24 @@ impl App {
         );
         world.add_node(ground_model);
 
-        let vec_sprite = Box::new(VectorSprite::new(&device, &queue, &render_server));
+        let vec_sprite = Box::new(VectorSprite::new(&render_server));
         world.add_node(vec_sprite);
 
-        let sprite_tex = Texture::load(&device, &queue, asset_dir.join("happy-tree.png")).unwrap();
-        let sprite = Box::new(Sprite2d::new(&device, &queue, &render_server, sprite_tex));
+        let sprite_tex = Texture::load(
+            &render_server.device,
+            &render_server.queue,
+            asset_dir.join("happy-tree.png"),
+        )
+        .unwrap();
+        let sprite = Box::new(Sprite2d::new(&render_server, sprite_tex));
         world.add_node(sprite);
         // ---------------------------------------------------
 
         Self {
-            surface,
-            device,
-            queue,
-            config,
             size,
             render_server,
+            input_server: InputServer::new(),
             depth_texture,
-            mouse_position: (0.0, 0.0),
             cursor_captured: false,
             previous_frame_time: 0.0,
             world,
@@ -237,16 +226,18 @@ impl App {
         // Reconfigure the surface everytime the window's size changes.
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
-            self.surface.configure(&self.device, &self.config);
+            self.render_server.config.width = new_size.width;
+            self.render_server.config.height = new_size.height;
+            self.render_server
+                .surface
+                .configure(&self.render_server.device, &self.render_server.config);
 
             // Create a new depth_texture and depth_texture_view.
             // Make sure you update the depth_texture after you update config.
             // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
             self.depth_texture = Texture::create_depth_texture(
-                &self.device,
-                (self.config.width, self.config.height),
+                &self.render_server.device,
+                &self.render_server.config,
                 "depth_texture",
             );
 
@@ -266,48 +257,7 @@ impl App {
     /// Handle input events.
     fn input(&mut self, event: &DeviceEvent, window: &Window) -> bool {
         // Convert to our own input events.
-        let input_event = match event {
-            DeviceEvent::Key(KeyboardInput {
-                virtual_keycode: Some(key),
-                state,
-                ..
-            }) => server::input_server::InputEvent::Key {
-                0: server::input_server::Key {
-                    key: *key,
-                    pressed: *state == ElementState::Pressed,
-                },
-            },
-            DeviceEvent::MouseWheel { delta, .. } => {
-                let scroll = match delta {
-                    // I'm assuming a line is about 100 pixels.
-                    MouseScrollDelta::LineDelta(_, scroll) => scroll * 100.0,
-                    MouseScrollDelta::PixelDelta(PhysicalPosition { y: scroll, .. }) => {
-                        *scroll as f32
-                    }
-                };
-
-                server::input_server::InputEvent::MouseScroll {
-                    0: server::input_server::MouseScroll { delta: scroll },
-                }
-            }
-            DeviceEvent::Button {
-                button: button_id,
-                state,
-            } => server::input_server::InputEvent::MouseButton {
-                0: server::input_server::MouseButton {
-                    button: *button_id,
-                    pressed: *state == ElementState::Pressed,
-                    position: self.mouse_position,
-                },
-            },
-            DeviceEvent::MouseMotion { delta } => server::input_server::InputEvent::MouseMotion {
-                0: server::input_server::MouseMotion {
-                    delta: (delta.0 as f32, delta.1 as f32),
-                    position: self.mouse_position,
-                },
-            },
-            _ => server::input_server::InputEvent::Invalid,
-        };
+        let input_event = self.input_server.create_input_event(event);
 
         // Pass input events to nodes.
         self.singletons
@@ -329,10 +279,10 @@ impl App {
         let dt_in_secs = dt.as_secs_f32();
 
         self.singletons
-            .update(&self.queue, dt_in_secs, &self.render_server);
+            .update(&self.render_server.queue, dt_in_secs, &self.render_server);
 
         self.world.update(
-            &self.queue,
+            &self.render_server.queue,
             dt_in_secs,
             &self.render_server,
             Some(&self.singletons),
@@ -341,7 +291,7 @@ impl App {
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
         // First we need to get a frame to resource to.
-        let output_surface = self.surface.get_current_texture()?;
+        let output_surface = self.render_server.surface.get_current_texture()?;
 
         // Creates a TextureView with default settings.
         let view = output_surface
@@ -349,11 +299,12 @@ impl App {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         // Builds a command buffer that we can then send to the GPU.
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("main render encoder"),
-            });
+        let mut encoder =
+            self.render_server
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("main render encoder"),
+                });
 
         // The RenderPass has all the methods to do the actual drawing.
         {
@@ -394,7 +345,9 @@ impl App {
 
         // Finish the command buffer, and to submit it to the GPU's resource queue.
         // Submit will accept anything that implements IntoIter.
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.render_server
+            .queue
+            .submit(std::iter::once(encoder.finish()));
 
         // Present the [`SurfaceTexture`].
         output_surface.present();
@@ -433,10 +386,10 @@ fn main() {
     // Main loop.
     event_loop.run(move |event, _, control_flow| {
         match event {
-            // This handles input better.
+            // Device event.
             Event::DeviceEvent {
                 ref event,
-                .. // We're not using device_id currently
+                .. // We're not using device_id currently.
             } => {
                 app.input(event, &window);
             }
@@ -479,7 +432,7 @@ fn main() {
                         // Move origin to bottom left.
                         //let y_position = inner_size.height as f64 - position.y;
 
-                        app.mouse_position = ((position.x / window.scale_factor()) as f32,
+                        app.input_server.mouse_position = ((position.x / window.scale_factor()) as f32,
                                               (position.y / window.scale_factor()) as f32);
                     }
                     _ => {}

@@ -7,9 +7,9 @@ use wgpu::util::DeviceExt;
 pub struct Sprite2d {
     pub name: String,
 
-    pub position: cgmath::Vector2<f32>,
-    pub size: cgmath::Vector2<f32>,
-    pub scale: cgmath::Vector2<f32>,
+    pub position: Vector2<f32>,
+    pub size: Vector2<f32>,
+    pub scale: Vector2<f32>,
 
     pub texture: Option<Texture>,
     pub texture_bind_group: wgpu::BindGroup,
@@ -23,12 +23,9 @@ pub struct Sprite2d {
 }
 
 impl Sprite2d {
-    pub(crate) fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_server: &RenderServer,
-        texture: Texture,
-    ) -> Sprite2d {
+    pub(crate) fn new(render_server: &RenderServer, texture: Texture) -> Sprite2d {
+        let device = &render_server.device;
+
         let position = Vector2::new(0.0f32, 0.0);
         let size = Vector2::new(128.0f32, 128.0);
         let scale = Vector2::new(1.0f32, 1.0);
@@ -53,14 +50,19 @@ impl Sprite2d {
         }
     }
 
-    pub fn set_texture(&mut self, device: &wgpu::Device, render_server: &RenderServer, texture: Texture) {
+    pub fn set_texture(
+        &mut self,
+        device: &wgpu::Device,
+        render_server: &RenderServer,
+        texture: Texture,
+    ) {
         self.texture_bind_group = render_server.create_sprite2d_bind_group(&device, &texture);
         self.texture = Some(texture);
     }
 }
 
 impl AsNode for Sprite2d {
-    fn input(&mut self, input: InputEvent) {}
+    fn input(&mut self, input: &InputEvent) {}
 
     fn update(
         &mut self,
