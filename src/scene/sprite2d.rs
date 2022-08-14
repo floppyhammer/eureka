@@ -1,7 +1,7 @@
 use crate::resource::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons};
-use cgmath::Vector3;
+use cgmath::{Vector2, Vector3};
 use wgpu::util::DeviceExt;
 
 pub struct Sprite2d {
@@ -29,26 +29,13 @@ impl Sprite2d {
         render_server: &RenderServer,
         texture: Texture,
     ) -> Sprite2d {
-        let position = cgmath::Vector2::new(0.0 as f32, 0.0);
-        let size = cgmath::Vector2::new(128.0 as f32, 128.0);
-        let scale = cgmath::Vector2::new(1.0 as f32, 1.0);
+        let position = Vector2::new(0.0f32, 0.0);
+        let size = Vector2::new(128.0f32, 128.0);
+        let scale = Vector2::new(1.0f32, 1.0);
 
         let mesh = Mesh::default_2d(device);
 
-        let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &render_server.sprite_texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&(texture.view)),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                },
-            ],
-            label: None,
-        });
+        let texture_bind_group = render_server.create_sprite2d_bind_group(&device, &texture);
 
         let (camera_buffer, camera_bind_group) = render_server.create_camera2d_resources(device);
 
@@ -64,6 +51,11 @@ impl Sprite2d {
             centered: false,
             mesh,
         }
+    }
+
+    pub fn set_texture(&mut self, device: &wgpu::Device, render_server: &RenderServer, texture: Texture) {
+        self.texture_bind_group = render_server.create_sprite2d_bind_group(&device, &texture);
+        self.texture = Some(texture);
     }
 }
 

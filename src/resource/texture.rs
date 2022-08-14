@@ -170,6 +170,11 @@ impl Texture {
             sampler,
         }
     }
+
+    /// Set a new sampler for this texture.
+    pub fn set_sampler(&mut self, new_sampler: wgpu::Sampler) {
+        self.sampler = new_sampler;
+    }
 }
 
 pub struct CubemapTexture {

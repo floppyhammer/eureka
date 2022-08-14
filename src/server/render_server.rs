@@ -1,5 +1,5 @@
 use crate::scene::Camera2dUniform;
-use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Vertex};
+use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Vertex, Texture};
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
@@ -372,6 +372,23 @@ impl RenderServer {
         });
 
         (camera_buffer, camera_bind_group)
+    }
+
+    pub fn create_sprite2d_bind_group(&self, device: &wgpu::Device, texture: &Texture) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.sprite_texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&(texture.view)),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                },
+            ],
+            label: None,
+        })
     }
 }
 
