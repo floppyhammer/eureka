@@ -178,17 +178,17 @@ impl App {
         singletons.light = Some(light);
 
         // Model.
-        let obj_model = Box::new(
-            Model::load(&render_server, asset_dir.join("ferris/ferris3d_v1.0.obj")).unwrap(),
-        );
-        world.add_node(obj_model);
+        // let obj_model = Box::new(
+        //     Model::load(&render_server, asset_dir.join("ferris/ferris3d_v1.0.obj")).unwrap(),
+        // );
+        // world.add_node(obj_model);
 
         let ground_model = Box::new(
             Model::load(
                 &render_server,
                 asset_dir.join("granite_ground/granite_ground.obj"),
             )
-            .unwrap(),
+                .unwrap(),
         );
         world.add_node(ground_model);
 
@@ -200,7 +200,7 @@ impl App {
             &render_server.queue,
             asset_dir.join("happy-tree.png"),
         )
-        .unwrap();
+            .unwrap();
         let sprite = Box::new(Sprite2d::new(&render_server, sprite_tex));
         world.add_node(sprite);
         // ---------------------------------------------------
@@ -255,7 +255,7 @@ impl App {
     }
 
     /// Handle input events.
-    fn input(&mut self, event: &DeviceEvent, window: &Window) -> bool {
+    fn input(&mut self, event: &WindowEvent, window: &Window) -> bool {
         // Convert to our own input events.
         let input_event = self.input_server.create_input_event(event);
 
@@ -391,7 +391,7 @@ fn main() {
                 ref event,
                 .. // We're not using device_id currently.
             } => {
-                app.input(event, &window);
+                // We're not handling raw input data currently.
             }
             // Window event.
             Event::WindowEvent {
@@ -400,15 +400,7 @@ fn main() {
             } if window_id == window.id() => {
                 match event {
                     // Close window.
-                    WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
-                        input:
-                        KeyboardInput {
-                            state: ElementState::Pressed,
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            ..
-                        },
-                        ..
-                    } => *control_flow = ControlFlow::Exit,
+                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                     // Resize window.
                     WindowEvent::Resized(physical_size) => {
                         // See https://github.com/rust-windowing/winit/issues/2094.
@@ -426,16 +418,10 @@ fn main() {
 
                         println!("Scale factor changed, new window size is {:?}", new_inner_size);
                     }
-                    WindowEvent::CursorMoved { position, .. } => {
-                        //let inner_size = window.inner_size();
-
-                        // Move origin to bottom left.
-                        //let y_position = inner_size.height as f64 - position.y;
-
-                        app.input_server.mouse_position = ((position.x / window.scale_factor()) as f32,
-                                              (position.y / window.scale_factor()) as f32);
+                    _ => {
+                        // Other input events should be handled by the input server.
+                        app.input(event, &window);
                     }
-                    _ => {}
                 }
             }
             // Redraw request.

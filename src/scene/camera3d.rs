@@ -373,9 +373,9 @@ impl Camera3dController {
         }
     }
 
-    pub fn process_mouse_button(&mut self, button_id: u32, pressed: bool) {
+    pub fn process_mouse_button(&mut self, button: MouseButton, pressed: bool) {
         // If the right button is not pressed.
-        if button_id != 3 {
+        if button != MouseButton::Right {
             return;
         }
 

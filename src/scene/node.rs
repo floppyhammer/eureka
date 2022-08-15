@@ -1,5 +1,4 @@
 use crate::server::input_server::InputEvent;
-use crate::server::MouseButton;
 use crate::{Camera2d, InputServer, RenderServer, Singletons};
 use cgmath::*;
 
