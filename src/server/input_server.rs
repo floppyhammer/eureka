@@ -1,5 +1,5 @@
-use std::fmt::{Debug, Formatter};
 use cgmath::Point2;
+use std::fmt::{Debug, Formatter};
 use winit::dpi::PhysicalPosition;
 use winit::event::*;
 
@@ -57,20 +57,19 @@ impl InputServer {
         // Convert to our own input event.
         let input_event = match event {
             WindowEvent::KeyboardInput {
-                input: KeyboardInput {
-                    state,
-                    virtual_keycode: Some(key),
-                    ..
-                },
+                input:
+                    KeyboardInput {
+                        state,
+                        virtual_keycode: Some(key),
+                        ..
+                    },
                 ..
-            } => {
-                InputEvent::Key {
-                    0: Key {
-                        key: *key,
-                        pressed: *state == ElementState::Pressed,
-                    }
-                }
-            }
+            } => InputEvent::Key {
+                0: Key {
+                    key: *key,
+                    pressed: *state == ElementState::Pressed,
+                },
+            },
             WindowEvent::MouseWheel { delta, .. } => {
                 let scroll = match delta {
                     // I'm assuming a line is about 100 pixels.
@@ -87,11 +86,7 @@ impl InputServer {
                     },
                 }
             }
-            WindowEvent::MouseInput {
-                button,
-                state,
-                ..
-            } => InputEvent::MouseButton {
+            WindowEvent::MouseInput { button, state, .. } => InputEvent::MouseButton {
                 0: MouseButton {
                     button: *button,
                     pressed: *state == ElementState::Pressed,
@@ -100,23 +95,24 @@ impl InputServer {
                 },
             },
             WindowEvent::CursorMoved { position, .. } => {
-                let relative = (position.x as f32 - self.mouse_position.0,
-                                position.y as f32 - self.mouse_position.1);
+                let relative = (
+                    position.x as f32 - self.mouse_position.0,
+                    position.y as f32 - self.mouse_position.1,
+                );
 
                 //let inner_size = window.inner_size();
 
                 // Move origin to bottom left.
                 //let y_position = inner_size.height as f64 - position.y;
                 // window.scale_factor()
-                self.mouse_position = ((position.x) as f32,
-                                       (position.y) as f32);
+                self.mouse_position = ((position.x) as f32, (position.y) as f32);
 
                 InputEvent::MouseMotion {
                     0: MouseMotion {
                         delta: (relative.0 as f32, relative.1 as f32),
                         position: self.mouse_position,
                         consumed: false,
-                    }
+                    },
                 }
             }
             _ => InputEvent::Invalid,
