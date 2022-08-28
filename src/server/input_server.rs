@@ -42,6 +42,7 @@ pub struct MouseMotion {
 pub struct InputServer {
     pub(crate) mouse_position: (f32, f32),
     input_events: Vec<InputEvent>,
+    mouse_captured: bool,
 }
 
 impl InputServer {
@@ -49,7 +50,11 @@ impl InputServer {
         Self {
             mouse_position: (0.0f32, 0.0),
             input_events: Vec::new(),
+            mouse_captured: false,
         }
+    }
+
+    pub fn set_cursor_position() {
     }
 
     /// Handle input events.

@@ -18,7 +18,6 @@ use wgpu::util::DeviceExt;
 use wgpu::{SamplerBindingType, TextureView};
 
 // Do this before importing local crates.
-mod ecs;
 mod resource;
 mod scene;
 mod server;

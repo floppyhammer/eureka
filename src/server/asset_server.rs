@@ -15,8 +15,6 @@ impl AssetServer {
         // would be `HashMap<String, Box<dyn AsAsset>` in this example).
         let assets = HashMap::new();
 
-        Self {
-            assets,
-        }
+        Self { assets }
     }
 }

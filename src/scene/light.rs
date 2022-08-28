@@ -1,10 +1,11 @@
-use crate::resource::Mesh;
-use crate::scene::AsNode;
-use crate::{InputEvent, Model, RenderServer, Singletons, Sprite3d, Texture};
-use cgmath::prelude::*;
 use std::ops::Range;
 use std::path::Path;
 use wgpu::util::DeviceExt;
+use cgmath::prelude::*;
+
+use crate::resource::Mesh;
+use crate::scene::AsNode;
+use crate::{InputEvent, Model, RenderServer, Singletons, Sprite3d, Texture};
 
 pub struct Light {
     pub(crate) uniform: LightUniform,

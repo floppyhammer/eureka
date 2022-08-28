@@ -178,13 +178,25 @@ impl Camera3d {
 
             // When right button releases, we need to set mouse position back to where
             // it was before being set invisible.
-            if !self.controller.cursor_captured {
+            if self.controller.cursor_captured {
+                println!(
+                    "Cursor captured at: ({:}, {:})",
+                    self.controller.cursor_captured_position.x,
+                    self.controller.cursor_captured_position.y);
+
+            } else {
+                // Use PhysicalPosition, or use LogicalPosition divided by ScaleFactor.
                 window
-                    .set_cursor_position(Position::new(LogicalPosition::new(
+                    .set_cursor_position(Position::new(PhysicalPosition::new(
                         self.controller.cursor_captured_position.x,
                         self.controller.cursor_captured_position.y,
                     )))
                     .expect("Setting cursor position failed!");
+
+                println!(
+                    "Cursor released at: ({:}, {:})",
+                    self.controller.cursor_captured_position.x,
+                    self.controller.cursor_captured_position.y);
             }
         }
     }
