@@ -1,7 +1,8 @@
 use cgmath::Point2;
 use std::fmt::{Debug, Formatter};
-use winit::dpi::PhysicalPosition;
+use winit::dpi::{PhysicalPosition, Position};
 use winit::event::*;
+use winit::window::Window;
 
 #[derive(Debug)]
 pub enum InputEvent {
@@ -41,8 +42,9 @@ pub struct MouseMotion {
 
 pub struct InputServer {
     pub(crate) mouse_position: (f32, f32),
-    input_events: Vec<InputEvent>,
-    mouse_captured: bool,
+    pub(crate) input_events: Vec<InputEvent>,
+    cursor_captured: bool,
+    cursor_state_changed: bool,
 }
 
 impl InputServer {
@@ -50,24 +52,40 @@ impl InputServer {
         Self {
             mouse_position: (0.0f32, 0.0),
             input_events: Vec::new(),
-            mouse_captured: false,
+            cursor_captured: false,
+            cursor_state_changed: false,
         }
     }
 
-    pub fn set_cursor_position() {
+    /// Capture or release cursor.
+    pub fn set_cursor_capture(&mut self, capture: bool) {
+        self.cursor_captured = capture;
+
+        self.cursor_state_changed = true;
+    }
+
+    /// We should be able to update some states even no input event happens.
+    pub fn update(&mut self, window: &Window) {
+        if self.cursor_state_changed {
+            window.set_cursor_visible(!self.cursor_captured);
+
+            self.cursor_state_changed = false;
+        }
     }
 
     /// Handle input events.
-    pub fn create_input_event(&mut self, event: &WindowEvent) -> InputEvent {
+    pub fn prepare_input_event(&mut self, window: &Window, event: &WindowEvent) {
+        self.input_events.clear();
+
         // Convert to our own input event.
         let input_event = match event {
             WindowEvent::KeyboardInput {
                 input:
-                    KeyboardInput {
-                        state,
-                        virtual_keycode: Some(key),
-                        ..
-                    },
+                KeyboardInput {
+                    state,
+                    virtual_keycode: Some(key),
+                    ..
+                },
                 ..
             } => InputEvent::Key {
                 0: Key {
@@ -105,12 +123,22 @@ impl InputServer {
                     position.y as f32 - self.mouse_position.1,
                 );
 
-                //let inner_size = window.inner_size();
+                if self.cursor_captured {
+                    // Use PhysicalPosition, or use LogicalPosition divided by ScaleFactor.
+                    window
+                        .set_cursor_position(Position::new(PhysicalPosition::new(
+                            self.mouse_position.0,
+                            self.mouse_position.1,
+                        )))
+                        .expect("Setting cursor position failed!");
+                } else {
+                    //let inner_size = window.inner_size();
 
-                // Move origin to bottom left.
-                //let y_position = inner_size.height as f64 - position.y;
-                // window.scale_factor()
-                self.mouse_position = ((position.x) as f32, (position.y) as f32);
+                    // Move origin to bottom left.
+                    //let y_position = inner_size.height as f64 - position.y;
+                    // window.scale_factor()
+                    self.mouse_position = ((position.x) as f32, (position.y) as f32);
+                }
 
                 InputEvent::MouseMotion {
                     0: MouseMotion {
@@ -125,6 +153,6 @@ impl InputServer {
 
         println!("Input event: {:?}", input_event);
 
-        input_event
+        self.input_events.push(input_event);
     }
 }

@@ -256,20 +256,19 @@ impl App {
     /// Handle input events.
     fn input(&mut self, event: &WindowEvent, window: &Window) -> bool {
         // Convert to our own input events.
-        let input_event = self.input_server.create_input_event(event);
+        self.input_server.prepare_input_event(window, event);
 
         // Pass input events to nodes.
         self.singletons
             .camera3d
             .as_mut()
             .unwrap()
-            .input(input_event);
+            .input(&mut self.input_server);
 
         self.singletons
             .camera3d
             .as_mut()
-            .unwrap()
-            .when_capture_state_changed(window);
+            .unwrap();
 
         true
     }
@@ -428,6 +427,8 @@ fn main() {
                 let now = std::time::Instant::now();
                 let dt = now - last_render_time;
                 last_render_time = now;
+
+                app.input_server.update(&window);
 
                 app.update(dt);
 

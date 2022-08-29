@@ -1,6 +1,6 @@
 use crate::scene::AsNode;
 use crate::server::input_server::InputEvent;
-use crate::RenderServer;
+use crate::{InputServer, RenderServer};
 use cgmath::num_traits::clamp;
 use cgmath::*;
 use std::f32::consts::FRAC_PI_2;
@@ -172,58 +172,34 @@ impl Camera3d {
         self.projection.resize(new_width, new_height);
     }
 
-    pub fn when_capture_state_changed(&self, window: &Window) {
-        if self.controller.cursor_capture_state_changed {
-            window.set_cursor_visible(!self.controller.cursor_captured);
-
-            // When right button releases, we need to set mouse position back to where
-            // it was before being set invisible.
-            if self.controller.cursor_captured {
-                println!(
-                    "Cursor captured at: ({:}, {:})",
-                    self.controller.cursor_captured_position.x,
-                    self.controller.cursor_captured_position.y);
-
-            } else {
-                // Use PhysicalPosition, or use LogicalPosition divided by ScaleFactor.
-                window
-                    .set_cursor_position(Position::new(PhysicalPosition::new(
-                        self.controller.cursor_captured_position.x,
-                        self.controller.cursor_captured_position.y,
-                    )))
-                    .expect("Setting cursor position failed!");
-
-                println!(
-                    "Cursor released at: ({:}, {:})",
-                    self.controller.cursor_captured_position.x,
-                    self.controller.cursor_captured_position.y);
-            }
-        }
-    }
-
-    pub(crate) fn input(&mut self, input: InputEvent) {
+    pub(crate) fn input(&mut self, input_server: &mut InputServer) {
         self.controller.cursor_capture_state_changed = false;
 
-        match input {
-            InputEvent::MouseButton(event) => {
-                self.controller
-                    .process_mouse_button(event.button, event.pressed);
+        for input in &input_server.input_events {
+            match input {
+                InputEvent::MouseButton(event) => {
+                    self.controller.process_mouse_button(event.button, event.pressed);
+                }
+                InputEvent::MouseMotion(event) => {
+                    self.controller.process_mouse_motion(
+                        event.delta.0,
+                        event.delta.1,
+                        event.position.0,
+                        event.position.1,
+                    );
+                }
+                InputEvent::MouseScroll(event) => {
+                    self.controller.process_scroll(event.delta);
+                }
+                InputEvent::Key(event) => {
+                    self.controller.process_keyboard(event.key, event.pressed);
+                }
+                _ => {}
             }
-            InputEvent::MouseMotion(event) => {
-                self.controller.process_mouse_motion(
-                    event.delta.0,
-                    event.delta.1,
-                    event.position.0,
-                    event.position.1,
-                );
-            }
-            InputEvent::MouseScroll(event) => {
-                self.controller.process_scroll(event.delta);
-            }
-            InputEvent::Key(event) => {
-                self.controller.process_keyboard(event.key, event.pressed);
-            }
-            _ => {}
+        }
+
+        if self.controller.cursor_capture_state_changed {
+            input_server.set_cursor_capture(self.controller.cursor_captured);
         }
     }
 }
