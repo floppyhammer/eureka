@@ -21,6 +21,7 @@ use wgpu::{SamplerBindingType, TextureView};
 mod resource;
 mod scene;
 mod server;
+mod render;
 
 // Import local crates.
 use crate::resource::{CubemapTexture, Texture, Vertex};
@@ -32,6 +33,7 @@ use crate::scene::{
     Model, Projection, Sky, World,
 };
 use crate::server::render_server::RenderServer;
+use crate::render::gizmo::Gizmo;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
@@ -80,6 +82,7 @@ struct App {
     previous_frame_time: f32,
     world: World,
     singletons: Singletons,
+    gizmo: Gizmo,
 }
 
 impl App {
@@ -166,10 +169,10 @@ impl App {
         );
         singletons.camera2d = Some(camera2d);
 
-        let skybox_tex =
-            CubemapTexture::load(&render_server, asset_dir.join("skybox.png")).unwrap();
-        let sky = Box::new(Sky::new(&render_server, skybox_tex));
-        world.add_node(sky);
+        // let skybox_tex =
+        //     CubemapTexture::load(&render_server, asset_dir.join("skybox.png")).unwrap();
+        // let sky = Box::new(Sky::new(&render_server, skybox_tex));
+        // world.add_node(sky);
 
         // Light.
         let light = Light::new(&render_server, asset_dir.join("light.png"));
@@ -212,6 +215,7 @@ impl App {
             previous_frame_time: 0.0,
             world,
             singletons,
+            gizmo: Gizmo::new(),
         }
     }
 
@@ -332,6 +336,8 @@ impl App {
                     stencil_ops: None,
                 }),
             });
+
+            self.gizmo.draw(&mut render_pass, &self.render_server, &self.singletons);
 
             self.singletons
                 .draw(&mut render_pass, &self.render_server, &self.singletons);

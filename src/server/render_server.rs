@@ -14,6 +14,7 @@ pub struct RenderServer {
     pub sprite_pipeline: wgpu::RenderPipeline,
     pub sprite3d_pipeline: wgpu::RenderPipeline,
     pub skybox_pipeline: wgpu::RenderPipeline,
+    pub gizmo_pipeline: wgpu::RenderPipeline,
 
     pub sprite_texture_bind_group_layout: wgpu::BindGroupLayout,
     pub light_bind_group_layout: wgpu::BindGroupLayout,
@@ -344,6 +345,57 @@ impl RenderServer {
             )
         };
 
+        let gizmo_pipeline = {
+            let pipeline_layout = device.create_pipeline_layout(
+                &wgpu::PipelineLayoutDescriptor {
+                    label: Some("gizmo render pipeline layout"),
+                    bind_group_layouts: &[
+                        &camera3d_bind_group_layout,
+                    ],
+                    push_constant_ranges: &[],
+                });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("gizmo shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/gizmo.wgsl").into()),
+            };
+            let shader_module = device.create_shader_module(shader);
+
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("gizmo render pipeline"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader_module,
+                    entry_point: "vs_main_grid",
+                    buffers: &[],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader_module,
+                    entry_point: "fs_main_grid",
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: config.format,
+                        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleStrip,
+                    front_face: wgpu::FrontFace::Cw,
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+            })
+        };
+
         Self {
             surface,
             config,
@@ -354,6 +406,7 @@ impl RenderServer {
             sprite_pipeline,
             sprite3d_pipeline,
             skybox_pipeline,
+            gizmo_pipeline,
             sprite_texture_bind_group_layout,
             light_bind_group_layout,
             model_texture_bind_group_layout,
