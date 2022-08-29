@@ -346,14 +346,11 @@ impl RenderServer {
         };
 
         let gizmo_pipeline = {
-            let pipeline_layout = device.create_pipeline_layout(
-                &wgpu::PipelineLayoutDescriptor {
-                    label: Some("gizmo render pipeline layout"),
-                    bind_group_layouts: &[
-                        &camera3d_bind_group_layout,
-                    ],
-                    push_constant_ranges: &[],
-                });
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("gizmo render pipeline layout"),
+                bind_group_layouts: &[&camera3d_bind_group_layout],
+                push_constant_ranges: &[],
+            });
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("gizmo shader"),

@@ -18,12 +18,13 @@ use wgpu::util::DeviceExt;
 use wgpu::{SamplerBindingType, TextureView};
 
 // Do this before importing local crates.
+mod render;
 mod resource;
 mod scene;
 mod server;
-mod render;
 
 // Import local crates.
+use crate::render::gizmo::Gizmo;
 use crate::resource::{CubemapTexture, Texture, Vertex};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
@@ -33,7 +34,6 @@ use crate::scene::{
     Model, Projection, Sky, World,
 };
 use crate::server::render_server::RenderServer;
-use crate::render::gizmo::Gizmo;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
@@ -189,7 +189,7 @@ impl App {
                 &render_server,
                 asset_dir.join("granite_ground/granite_ground.obj"),
             )
-                .unwrap(),
+            .unwrap(),
         );
         world.add_node(ground_model);
 
@@ -201,7 +201,7 @@ impl App {
             &render_server.queue,
             asset_dir.join("happy-tree.png"),
         )
-            .unwrap();
+        .unwrap();
         let sprite = Box::new(Sprite2d::new(&render_server, sprite_tex));
         world.add_node(sprite);
         // ---------------------------------------------------
@@ -268,10 +268,7 @@ impl App {
             .unwrap()
             .input(&mut self.input_server);
 
-        self.singletons
-            .camera3d
-            .as_mut()
-            .unwrap();
+        self.singletons.camera3d.as_mut().unwrap();
 
         true
     }
@@ -337,7 +334,8 @@ impl App {
                 }),
             });
 
-            self.gizmo.draw(&mut render_pass, &self.render_server, &self.singletons);
+            self.gizmo
+                .draw(&mut render_pass, &self.render_server, &self.singletons);
 
             self.singletons
                 .draw(&mut render_pass, &self.render_server, &self.singletons);

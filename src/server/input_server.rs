@@ -81,11 +81,11 @@ impl InputServer {
         let input_event = match event {
             WindowEvent::KeyboardInput {
                 input:
-                KeyboardInput {
-                    state,
-                    virtual_keycode: Some(key),
-                    ..
-                },
+                    KeyboardInput {
+                        state,
+                        virtual_keycode: Some(key),
+                        ..
+                    },
                 ..
             } => InputEvent::Key {
                 0: Key {

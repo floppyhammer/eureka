@@ -20,9 +20,7 @@ impl Gizmo {
         render_pass.set_pipeline(&render_server.gizmo_pipeline);
 
         // Set camera group.
-        render_pass.set_bind_group(0,
-                                   &singletons.camera3d.as_ref().unwrap().bind_group,
-                                   &[]);
+        render_pass.set_bind_group(0, &singletons.camera3d.as_ref().unwrap().bind_group, &[]);
 
         render_pass.draw(0..4, 0..1);
     }

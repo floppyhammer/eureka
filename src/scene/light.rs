@@ -1,7 +1,7 @@
+use cgmath::prelude::*;
 use std::ops::Range;
 use std::path::Path;
 use wgpu::util::DeviceExt;
-use cgmath::prelude::*;
 
 use crate::resource::Mesh;
 use crate::scene::AsNode;

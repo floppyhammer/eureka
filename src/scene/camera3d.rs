@@ -177,7 +177,8 @@ impl Camera3d {
         for input in &input_server.input_events {
             match input {
                 InputEvent::MouseButton(event) => {
-                    self.controller.process_mouse_button(event.button, event.pressed);
+                    self.controller
+                        .process_mouse_button(event.button, event.pressed);
                 }
                 InputEvent::MouseMotion(event) => {
                     self.controller.process_mouse_motion(

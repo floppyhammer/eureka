@@ -85,21 +85,19 @@ fn grid(pos: vec3<f32>, scale: f32, axis: bool) -> vec4<f32> {
     let minimumx = min(derivative.x, 1.0);
     let alpha = 1.0 - min(grid_line, 1.0);
     var color = vec4<f32>(0.1) * alpha;
+
+    // If we should draw axes.
     if (axis) {
         let extra = 1.0 / scale;
-        // z axis
+
+        // Draw z axis.
         if (pos.x > -extra * minimumx && pos.x < extra * minimumx) {
-            color.x = 0.0;
-            color.y = 0.0;
             color.z = alpha;
-            //color.w = 1.0;
         }
-        // x axis
+
+        // Draw x axis.
         if (pos.z > -extra * minimumz && pos.z < extra * minimumz) {
             color.x = alpha;
-            color.y = 0.0;
-            color.z = 0.0;
-            //color.w = 1.0;
         }
     }
 
@@ -121,6 +119,10 @@ fn fs_main_grid(in: GridOutput) -> FragOut {
     let depth = clip.z / clip.w;
     let fading = 1.0 - near / depth;
 
-    let color = (grid(pos, 1.0, false) + grid(pos, 0.1, true)) * f32(t > 0.0);
+    let small_grid = grid(pos, 1.0, false);
+    let big_grid = grid(pos, 0.1, true);
+
+    let color = (small_grid + big_grid) * f32(t > 0.0);
+
     return FragOut(depth, color * fading);
 }
