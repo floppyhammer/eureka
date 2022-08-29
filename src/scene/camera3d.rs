@@ -1,6 +1,5 @@
 use crate::scene::AsNode;
-use crate::server::input_server::InputEvent;
-use crate::{InputServer, RenderServer};
+use crate::{InputEvent, InputServer, RenderServer};
 use cgmath::num_traits::clamp;
 use cgmath::*;
 use std::f32::consts::FRAC_PI_2;

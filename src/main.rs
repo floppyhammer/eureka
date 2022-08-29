@@ -83,10 +83,9 @@ struct App {
 }
 
 impl App {
-    // Create some of the wgpu types requires async code.
+    // Creating some of the wgpu types requires async code.
     async fn new(window: &Window) -> App {
         // The instance is a handle to our GPU.
-        // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
 
         // The surface is the part of the window that we draw to.
@@ -128,7 +127,7 @@ impl App {
         };
         surface.configure(&device, &config);
 
-        // Create our own render server.
+        // Create a render server.
         let mut render_server = RenderServer::new(surface, config, device, queue);
 
         // For depth test.

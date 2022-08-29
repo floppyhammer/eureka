@@ -31,8 +31,7 @@ impl RenderServer {
         device: wgpu::Device,
         queue: wgpu::Queue,
     ) -> Self {
-        // Create various bind group layouts.
-        // Bind group layouts are used to create bind groups.
+        // Create various bind group layouts, which are used to create bind groups.
         // ------------------------------------------------------------------
         let camera3d_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -46,7 +45,7 @@ impl RenderServer {
                     },
                     count: None,
                 }],
-                label: Some("camera bind group layout"),
+                label: Some("camera3d bind group layout"),
             });
 
         let camera2d_bind_group_layout =
