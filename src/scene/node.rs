@@ -1,6 +1,7 @@
 use crate::server::input_server::InputEvent;
 use crate::{Camera2d, InputServer, RenderServer, Singletons};
 use cgmath::*;
+use indextree::{Arena, NodeId};
 
 pub trait AsNode {
     fn input(&mut self, input: &InputEvent);
@@ -25,17 +26,25 @@ pub struct World {
     // This vector is of type Box<dyn AsNode>, which is a trait object;
     // it’s a stand-in for any type inside a Box that implements the AsNode trait.
     pub nodes: Vec<Box<dyn AsNode>>,
+
+    // Scene tree.
+    pub arena: Arena<u64>,
 }
 
 impl World {
     pub fn new() -> Self {
         let mut nodes: Vec<_> = Vec::new();
 
-        Self { nodes }
+        let mut arena = Arena::new();
+
+        Self { nodes, arena }
     }
 
-    pub fn add_node(&mut self, new_node: Box<dyn AsNode>) {
+    pub fn add_node(&mut self, new_node: Box<dyn AsNode>) -> NodeId {
+        let id = self.arena.new_node(self.nodes.len() as u64);
         self.nodes.push(new_node);
+
+        id
     }
 
     pub fn input(&mut self, input_event: &InputEvent) {
