@@ -53,7 +53,6 @@ struct GridOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) near: vec3<f32>,
     @location(1) far: vec3<f32>,
-    @location(2) uv: vec2<f32>,
 }
 
 fn unproject_point(x: f32, y: f32, z: f32) -> vec3<f32> {
@@ -72,12 +71,12 @@ fn vs_main_grid(@builtin(vertex_index) in_vertex_index: u32) -> GridOutput {
         vec4<f32>(u, v, 0.0, 1.0),
         unproject_point(u, v, 0.0),
         unproject_point(u, v, 1.0),
-        vec2<f32>(u, v),
     );
 }
 
 fn grid(pos: vec3<f32>, scale: f32, axis: bool) -> vec4<f32> {
-    let coord = pos.xz * scale; // use the scale variable to set the distance between the lines
+    // Use the scale variable to set the distance between the lines.
+    let coord = pos.xz * scale;
     let derivative = fwidth(coord);
     let grid = abs(fract(coord - 0.5) - 0.5) / derivative;
     let grid_line = min(grid.x, grid.y);
@@ -92,12 +91,16 @@ fn grid(pos: vec3<f32>, scale: f32, axis: bool) -> vec4<f32> {
 
         // Draw z axis.
         if (pos.x > -extra * minimumx && pos.x < extra * minimumx) {
+            color.x = 0.0;
+            color.y = 0.0;
             color.z = alpha;
         }
 
         // Draw x axis.
         if (pos.z > -extra * minimumz && pos.z < extra * minimumz) {
             color.x = alpha;
+            color.y = 0.0;
+            color.z = 0.0;
         }
     }
 
@@ -105,6 +108,7 @@ fn grid(pos: vec3<f32>, scale: f32, axis: bool) -> vec4<f32> {
 }
 
 struct FragOut {
+    // Depth write is disabled, although we can write it manually.
     @builtin(frag_depth) depth: f32,
     @location(0) color: vec4<f32>,
 }
@@ -119,10 +123,8 @@ fn fs_main_grid(in: GridOutput) -> FragOut {
     let depth = clip.z / clip.w;
     let fading = 1.0 - near / depth;
 
-    let small_grid = grid(pos, 1.0, false);
-    let big_grid = grid(pos, 0.1, true);
-
-    let color = (small_grid + big_grid) * f32(t > 0.0);
+    // Two grids, one with axes drawn.
+    let color = (grid(pos, 1.0, false) + grid(pos, 0.1, true)) * f32(t > 0.0);
 
     return FragOut(depth, color * fading);
 }

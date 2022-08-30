@@ -169,10 +169,10 @@ impl App {
         );
         singletons.camera2d = Some(camera2d);
 
-        // let skybox_tex =
-        //     CubemapTexture::load(&render_server, asset_dir.join("skybox.png")).unwrap();
-        // let sky = Box::new(Sky::new(&render_server, skybox_tex));
-        // world.add_node(sky);
+        let skybox_tex =
+            CubemapTexture::load(&render_server, asset_dir.join("skybox.png")).unwrap();
+        let sky = Box::new(Sky::new(&render_server, skybox_tex));
+        world.add_node(sky);
 
         // Light.
         let light = Light::new(&render_server, asset_dir.join("light.png"));
@@ -334,13 +334,13 @@ impl App {
                 }),
             });
 
-            self.gizmo
-                .draw(&mut render_pass, &self.render_server, &self.singletons);
-
             self.singletons
                 .draw(&mut render_pass, &self.render_server, &self.singletons);
 
             self.world
+                .draw(&mut render_pass, &self.render_server, &self.singletons);
+
+            self.gizmo
                 .draw(&mut render_pass, &self.render_server, &self.singletons);
         }
 
