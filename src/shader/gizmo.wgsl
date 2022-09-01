@@ -118,10 +118,11 @@ fn fs_main_grid(in: GridOutput) -> FragOut {
     let t = -in.near.y / (in.far.y - in.near.y);
     let pos = in.near + t * (in.far - in.near);
 
-    let near = 0.0005;
     let clip = camera.proj * camera.view * vec4<f32>(pos.xyz, 1.0);
     let depth = clip.z / clip.w;
-    let fading = 1.0 - near / depth;
+//    let near = 0.0005;
+//    let fading = 1.0 - near / depth;
+    let fading = 1.0 - t;
 
     // Two grids, one with axes drawn.
     let color = (grid(pos, 1.0, false) + grid(pos, 0.1, true)) * f32(t > 0.0);
