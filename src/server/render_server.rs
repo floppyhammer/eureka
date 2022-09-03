@@ -276,6 +276,7 @@ impl RenderServer {
                 source: wgpu::ShaderSource::Wgsl(include_str!("../shader/sprite3d.wgsl").into()),
             };
 
+            // FIXME(floppyhammer): Transparency
             create_render_pipeline(
                 &device,
                 &pipeline_layout,

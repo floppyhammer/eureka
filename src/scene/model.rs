@@ -152,7 +152,8 @@ impl Model {
                 Err(e) => {
                     log::warn!(
                         "Failed to load diffuse texture {:?}: {}",
-                        m.diffuse_texture, e
+                        m.diffuse_texture,
+                        e
                     );
                     texture::Texture::empty(device, queue, (4, 4))?
                 }
@@ -168,7 +169,8 @@ impl Model {
                 Err(e) => {
                     log::warn!(
                         "Failed to load normal texture {:?}: {}",
-                        m.normal_texture, e
+                        m.normal_texture,
+                        e
                     );
                     texture::Texture::empty(device, queue, (4, 4))?
                 }

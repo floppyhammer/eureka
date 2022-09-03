@@ -44,33 +44,6 @@ pub struct Singletons {
     pub light: Option<Light>,
 }
 
-impl Singletons {
-    pub fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
-        // Update the cameras.
-        self.camera3d.as_mut().unwrap().update(dt, &queue);
-        self.camera2d.as_mut().unwrap().update(dt, &queue);
-
-        // Update the light.
-        self.light
-            .as_mut()
-            .unwrap()
-            .update(dt, &queue, &render_server);
-    }
-
-    pub fn draw<'a, 'b: 'a>(
-        &'b self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
-        singletons: &'b Singletons,
-    ) {
-        self.light
-            .as_ref()
-            .unwrap()
-            .sprite
-            .draw(render_pass, &render_server, &self);
-    }
-}
-
 // For convenience we're going to pack all the fields into a struct,
 // and create some methods on that.
 struct App {
@@ -81,6 +54,113 @@ struct App {
     previous_frame_time: f32,
     world: World,
     singletons: Singletons,
+}
+
+fn main() {
+    let env = env_logger::Env::default()
+        .filter_or("EUREKA_LOG_LEVEL", "info")
+        .write_style_or("EUREKA_LOG_STYLE", "always");
+    env_logger::init_from_env(env);
+
+    let event_loop = EventLoop::new();
+
+    // Use cargo package name as the window title.
+    let title = env!("CARGO_PKG_NAME");
+
+    let window = WindowBuilder::new()
+        .with_title(title)
+        .with_inner_size(winit::dpi::PhysicalSize::new(
+            INITIAL_WINDOW_WIDTH,
+            INITIAL_WINDOW_HEIGHT,
+        ))
+        .build(&event_loop)
+        .unwrap();
+
+    // App::new uses async code, so we're going to wait for it to finish
+    let mut app = pollster::block_on(App::new(&window));
+
+    let start_time = std::time::Instant::now();
+
+    // Used to calculate frame delta.
+    let mut last_render_time = std::time::Instant::now();
+
+    let mut is_init = false;
+
+    // Main loop.
+    event_loop.run(move |event, _, control_flow| {
+        match event {
+            // Device event.
+            Event::DeviceEvent {
+                ref event,
+                .. // We're not using device_id currently.
+            } => {
+                // We're not handling raw input data currently.
+            }
+            // Window event.
+            Event::WindowEvent {
+                ref event,
+                window_id,
+            } if window_id == window.id() => {
+                match event {
+                    // Close window.
+                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    // Resize window.
+                    WindowEvent::Resized(physical_size) => {
+                        // See https://github.com/rust-windowing/winit/issues/2094.
+                        if is_init {
+                            return;
+                        }
+
+                        app.resize(*physical_size);
+
+                        log::info!("Window resized to {:?}", physical_size);
+                    }
+                    // Scale factor changed.
+                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                        app.resize(**new_inner_size);
+
+                        log::info!("Scale factor changed, new window size is {:?}", new_inner_size);
+                    }
+                    _ => {
+                        // Other input events should be handled by the input server.
+                        app.input(event, &window);
+                    }
+                }
+            }
+            // Redraw request.
+            Event::RedrawRequested(_) => {
+                let now = std::time::Instant::now();
+                let dt = now - last_render_time;
+                last_render_time = now;
+
+                app.input_server.update(&window);
+
+                app.update(dt);
+
+                match app.render(&window) {
+                    Ok(_) => {}
+                    // Reconfigure the surface if lost.
+                    Err(wgpu::SurfaceError::Lost) => app.resize(app.size),
+                    // The system is out of memory, we should probably quit.
+                    Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
+                    // All other errors (Outdated, Timeout) should be resolved by the next frame.
+                    Err(e) => eprintln!("App resource error: {:?}", e),
+                }
+            }
+            Event::MainEventsCleared => {
+                // RedrawRequested will only trigger once, unless we manually request it.
+                window.request_redraw();
+            }
+            Event::NewEvents(cause) => {
+                if cause == StartCause::Init {
+                    is_init = true;
+                } else {
+                    is_init = false;
+                }
+            }
+            _ => {}
+        }
+    });
 }
 
 impl App {
@@ -284,7 +364,7 @@ impl App {
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
-        // First we need to get a frame to resource to.
+        // First we need to get a frame to draw to.
         let output_surface = self.render_server.surface.get_current_texture()?;
 
         // Creates a TextureView with default settings.
@@ -337,122 +417,42 @@ impl App {
                 .draw(&mut render_pass, &self.render_server, &self.singletons);
         }
 
-        // Finish the command buffer, and to submit it to the GPU's resource queue.
-        // Submit will accept anything that implements IntoIter.
+        // Finish the command encoder to generate a command buffer,
+        // then submit it for execution.
         self.render_server
             .queue
             .submit(std::iter::once(encoder.finish()));
 
-        // Present the [`SurfaceTexture`].
+        // Present the swapchain surface.
         output_surface.present();
 
         Ok(())
     }
 }
 
-fn main() {
-    let env = env_logger::Env::default()
-        .filter_or("EUREKA_LOG_LEVEL", "info")
-        .write_style_or("EUREKA_LOG_STYLE", "always");
-    env_logger::init_from_env(env);
+impl Singletons {
+    pub fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
+        // Update the cameras.
+        self.camera3d.as_mut().unwrap().update(dt, &queue);
+        self.camera2d.as_mut().unwrap().update(dt, &queue);
 
-    let event_loop = EventLoop::new();
+        // Update the light.
+        self.light
+            .as_mut()
+            .unwrap()
+            .update(dt, &queue, &render_server);
+    }
 
-    // Use cargo package name as the window title.
-    let title = env!("CARGO_PKG_NAME");
-
-    let window = WindowBuilder::new()
-        .with_title(title)
-        .with_inner_size(winit::dpi::PhysicalSize::new(
-            INITIAL_WINDOW_WIDTH,
-            INITIAL_WINDOW_HEIGHT,
-        ))
-        .build(&event_loop)
-        .unwrap();
-
-    // App::new uses async code, so we're going to wait for it to finish
-    let mut app = pollster::block_on(App::new(&window));
-
-    let start_time = std::time::Instant::now();
-
-    // Used to calculate frame delta.
-    let mut last_render_time = std::time::Instant::now();
-
-    let mut is_init = false;
-
-    // Main loop.
-    event_loop.run(move |event, _, control_flow| {
-        match event {
-            // Device event.
-            Event::DeviceEvent {
-                ref event,
-                .. // We're not using device_id currently.
-            } => {
-                // We're not handling raw input data currently.
-            }
-            // Window event.
-            Event::WindowEvent {
-                ref event,
-                window_id,
-            } if window_id == window.id() => {
-                match event {
-                    // Close window.
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                    // Resize window.
-                    WindowEvent::Resized(physical_size) => {
-                        // See https://github.com/rust-windowing/winit/issues/2094.
-                        if is_init {
-                            return;
-                        }
-
-                        app.resize(*physical_size);
-
-                        log::info!("Window resized to {:?}", physical_size);
-                    }
-                    // Scale factor changed.
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        app.resize(**new_inner_size);
-
-                        log::info!("Scale factor changed, new window size is {:?}", new_inner_size);
-                    }
-                    _ => {
-                        // Other input events should be handled by the input server.
-                        app.input(event, &window);
-                    }
-                }
-            }
-            // Redraw request.
-            Event::RedrawRequested(_) => {
-                let now = std::time::Instant::now();
-                let dt = now - last_render_time;
-                last_render_time = now;
-
-                app.input_server.update(&window);
-
-                app.update(dt);
-
-                match app.render(&window) {
-                    Ok(_) => {}
-                    // Reconfigure the surface if lost.
-                    Err(wgpu::SurfaceError::Lost) => app.resize(app.size),
-                    // The system is out of memory, we should probably quit.
-                    Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                    // All other errors (Outdated, Timeout) should be resolved by the next frame.
-                    Err(e) => eprintln!("App resource error: {:?}", e),
-                }
-            }
-            Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually request it.
-                window.request_redraw();
-            }
-            Event::NewEvents(cause) => {
-                if cause == StartCause::Init {
-                    is_init = true;
-                } else {
-                    is_init = false;
-                }
-            }
-            _ => {}
-        }
-    });
+    pub fn draw<'a, 'b: 'a>(
+        &'b self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        render_server: &'b RenderServer,
+        singletons: &'b Singletons,
+    ) {
+        self.light
+            .as_ref()
+            .unwrap()
+            .sprite
+            .draw(render_pass, &render_server, &self);
+    }
 }
