@@ -1,5 +1,5 @@
 use crate::server::input_server::InputEvent;
-use crate::{Camera2d, InputServer, RenderServer, Singletons};
+use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
 use cgmath::*;
 use indextree::{Arena, NodeId};
 
@@ -29,6 +29,8 @@ pub struct World {
 
     // Scene tree.
     pub arena: Arena<u64>,
+
+    gizmo: Gizmo,
 }
 
 impl World {
@@ -37,7 +39,13 @@ impl World {
 
         let mut arena = Arena::new();
 
-        Self { nodes, arena }
+        let gizmo = Gizmo::new();
+
+        Self {
+            nodes,
+            arena,
+            gizmo,
+        }
     }
 
     pub fn add_node(&mut self, new_node: Box<dyn AsNode>) -> NodeId {
@@ -77,5 +85,7 @@ impl World {
         for node in self.nodes.iter() {
             node.draw(render_pass, render_server, singletons);
         }
+
+        self.gizmo.draw(render_pass, render_server, singletons);
     }
 }

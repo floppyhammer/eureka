@@ -82,7 +82,6 @@ struct App {
     previous_frame_time: f32,
     world: World,
     singletons: Singletons,
-    gizmo: Gizmo,
 }
 
 impl App {
@@ -133,7 +132,7 @@ impl App {
         // Create a render server.
         let mut render_server = RenderServer::new(surface, config, device, queue);
 
-        // For depth test.
+        // Depth texture for depth test.
         let depth_texture = Texture::create_depth_texture(
             &render_server.device,
             &render_server.config,
@@ -215,7 +214,6 @@ impl App {
             previous_frame_time: 0.0,
             world,
             singletons,
-            gizmo: Gizmo::new(),
         }
     }
 
@@ -338,9 +336,6 @@ impl App {
                 .draw(&mut render_pass, &self.render_server, &self.singletons);
 
             self.world
-                .draw(&mut render_pass, &self.render_server, &self.singletons);
-
-            self.gizmo
                 .draw(&mut render_pass, &self.render_server, &self.singletons);
         }
 
