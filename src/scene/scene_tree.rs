@@ -54,7 +54,8 @@ impl<T> Arena<T> {
             } else {
                 break;
             }
-            println!("Current node: {}", current.index);
+
+            log::info!("Current node: {}", current.index);
         }
     }
 }

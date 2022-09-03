@@ -355,7 +355,6 @@ impl Camera3dController {
             self.rotate_horizontal = mouse_dx;
             self.rotate_vertical = mouse_dy;
         } else {
-            //println!("Cursor position updated: {:.1}, {:.1}", mouse_x, mouse_y);
             self.cursor_captured_position.x = mouse_x;
             self.cursor_captured_position.y = mouse_y;
         }

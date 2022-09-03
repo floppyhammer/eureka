@@ -151,7 +151,7 @@ impl InputServer {
             _ => InputEvent::Invalid,
         };
 
-        println!("Input event: {:?}", input_event);
+        log::debug!("Input event: {:?}", input_event);
 
         self.input_events.push(input_event);
     }

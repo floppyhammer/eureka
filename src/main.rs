@@ -140,7 +140,7 @@ impl App {
 
         // Get the asset directory.
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
-        println!("Asset dir: {}", asset_dir.display());
+        log::info!("Asset dir: {}", asset_dir.display());
 
         let mut singletons = Singletons {
             camera2d: None,
@@ -351,7 +351,10 @@ impl App {
 }
 
 fn main() {
-    env_logger::init();
+    let env = env_logger::Env::default()
+        .filter_or("EUREKA_LOG_LEVEL", "info")
+        .write_style_or("EUREKA_LOG_STYLE", "always");
+    env_logger::init_from_env(env);
 
     let event_loop = EventLoop::new();
 
@@ -404,13 +407,13 @@ fn main() {
 
                         app.resize(*physical_size);
 
-                        println!("Window resized to {:?}", physical_size);
+                        log::info!("Window resized to {:?}", physical_size);
                     }
                     // Scale factor changed.
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         app.resize(**new_inner_size);
 
-                        println!("Scale factor changed, new window size is {:?}", new_inner_size);
+                        log::info!("Scale factor changed, new window size is {:?}", new_inner_size);
                     }
                     _ => {
                         // Other input events should be handled by the input server.

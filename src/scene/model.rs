@@ -150,7 +150,7 @@ impl Model {
             ) {
                 Ok(i) => i,
                 Err(e) => {
-                    println!(
+                    log::warn!(
                         "Failed to load diffuse texture {:?}: {}",
                         m.diffuse_texture, e
                     );
@@ -166,7 +166,7 @@ impl Model {
             ) {
                 Ok(i) => i,
                 Err(e) => {
-                    println!(
+                    log::warn!(
                         "Failed to load normal texture {:?}: {}",
                         m.normal_texture, e
                     );
