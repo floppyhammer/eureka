@@ -91,6 +91,7 @@ impl Camera3d {
 
     /// Get view matrix.
     pub fn calc_view_matrix(&self) -> Matrix4<f32> {
+        // Refer to https://learnopengl.com/Getting-started/Camera.
         Matrix4::look_to_rh(
             self.position,
             Vector3::new(

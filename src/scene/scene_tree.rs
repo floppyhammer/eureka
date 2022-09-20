@@ -19,6 +19,7 @@ pub struct NodeId {
 }
 
 impl<T> Arena<T> {
+    // Create a new node without hierarchy info.
     pub fn new_node(&mut self, data: T) -> NodeId {
         // Get the next free index.
         let next_index = self.nodes.len();
@@ -35,6 +36,25 @@ impl<T> Arena<T> {
 
         // Return the node identifier.
         NodeId { index: next_index }
+    }
+
+    // Add hierarchy info.
+    pub fn add_child(&mut self, parent: NodeId, new_node: NodeId) {
+        match self.nodes[parent.index].last_child {
+            // If parent has no child.
+            None => {
+                self.nodes[parent.index].first_child = Some(new_node);
+            }
+            // If parent has child.
+            Some(last_child) => {
+                // Make the parent's last child and the new node siblings.
+                self.nodes[last_child.index].next_sibling = Some(new_node);
+                self.nodes[new_node.index].previous_sibling = Some(last_child);
+            }
+        }
+
+        self.nodes[parent.index].last_child = Some(new_node);
+        self.nodes[new_node.index].parent = Some(parent);
     }
 
     pub fn traverse_children(&mut self, parent: NodeId) {
