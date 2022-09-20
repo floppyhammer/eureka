@@ -1,7 +1,7 @@
 use crate::server::input_server::InputEvent;
 use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
 use cgmath::*;
-use indextree::{Arena, NodeId};
+use indextree::{Arena, NodeId, Descendants, NodeEdge};
 
 pub trait AsNode {
     fn input(&mut self, input: &InputEvent);
@@ -29,6 +29,8 @@ pub struct World {
     // Scene tree.
     pub arena: Arena<Box<dyn AsNode>>,
 
+    root_node: Option<NodeId>,
+
     gizmo: Gizmo,
 }
 
@@ -40,13 +42,17 @@ impl World {
 
         Self {
             arena,
+            root_node: None,
             gizmo,
         }
     }
 
     pub fn add_node(&mut self, new_node: Box<dyn AsNode>) -> NodeId {
         let id = self.arena.new_node(new_node);
-        // self.nodes.push(new_node);
+
+        if self.arena.count() == 1 {
+            self.root_node = Some(id);
+        }
 
         id
     }
@@ -77,9 +83,18 @@ impl World {
         render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
-        // Draw nodes.
-        for node in self.arena.iter_mut() {
-            node.get_mut().draw(render_pass, render_server, singletons);
+        match self.root_node {
+            None => {}
+            Some(root) => {
+                let mut iter = root.traverse(&self.arena).filter_map(|ev| match ev {
+                    NodeEdge::Start(_) => None,
+                    NodeEdge::End(id) => Some(id),
+                });
+
+                for id in iter {
+                    self.arena.get(id).unwrap().get().draw(render_pass, render_server, singletons);
+                }
+            }
         }
 
         self.gizmo.draw(render_pass, render_server, singletons);
