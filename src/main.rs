@@ -7,15 +7,12 @@ use winit::{
     dpi::{LogicalPosition, PhysicalPosition, Position, Size},
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::Window,
-    window::WindowBuilder,
+    window::{Window, WindowBuilder},
 };
 
-use cgmath::prelude::*;
-use cgmath::{Point2, Vector2, Vector3};
+use cgmath::{prelude::*, Point2, Vector2, Vector3};
 
-use wgpu::util::DeviceExt;
-use wgpu::{SamplerBindingType, TextureView};
+use wgpu::{util::DeviceExt, SamplerBindingType, TextureView};
 
 // Do this before importing local crates.
 mod render;
