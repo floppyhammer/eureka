@@ -2,6 +2,7 @@ use crate::server::input_server::InputEvent;
 use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
 use cgmath::*;
 use indextree::{Arena, NodeId, Descendants, NodeEdge};
+use crate::scene::scene_tree::Node;
 
 pub trait AsNode {
     fn input(&mut self, input: &InputEvent);
@@ -47,11 +48,22 @@ impl World {
         }
     }
 
-    pub fn add_node(&mut self, new_node: Box<dyn AsNode>) -> NodeId {
+    pub fn add_node(&mut self, new_node: Box<dyn AsNode>, parent: Option<NodeId>) -> NodeId {
         let id = self.arena.new_node(new_node);
 
-        if self.arena.count() == 1 {
+        if self.root_node.is_none() {
             self.root_node = Some(id);
+        } else {
+            let parent = match parent {
+                None => {
+                    self.root_node.unwrap()
+                }
+                Some(p) => {
+                    p
+                }
+            };
+
+            parent.append(id, &mut self.arena);
         }
 
         id
@@ -84,12 +96,16 @@ impl World {
         singletons: &'b Singletons,
     ) {
         match self.root_node {
-            None => {}
+            None => {
+                log::warn!("No root node in the scene tree.");
+            }
             Some(root) => {
-                let mut iter = root.traverse(&self.arena).filter_map(|ev| match ev {
-                    NodeEdge::Start(_) => None,
-                    NodeEdge::End(id) => Some(id),
-                });
+                let iter = root
+                    .traverse(&self.arena)
+                    .filter_map(|ev| match ev {
+                        NodeEdge::Start(_) => None,
+                        NodeEdge::End(id) => Some(id),
+                    });
 
                 for id in iter {
                     self.arena.get(id).unwrap().get().draw(render_pass, render_server, singletons);

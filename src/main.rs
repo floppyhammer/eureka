@@ -247,7 +247,7 @@ impl App {
         let skybox_tex =
             CubemapTexture::load(&render_server, asset_dir.join("skybox.png")).unwrap();
         let sky = Box::new(Sky::new(&render_server, skybox_tex));
-        world.add_node(sky);
+        world.add_node(sky, None);
 
         // Light.
         let light = Light::new(&render_server, asset_dir.join("light.png"));
@@ -257,7 +257,7 @@ impl App {
         // let obj_model = Box::new(
         //     Model::load(&render_server, asset_dir.join("ferris/ferris3d_v1.0.obj")).unwrap(),
         // );
-        // world.add_node(obj_model);
+        // world.add_node(obj_model, None);
 
         let ground_model = Box::new(
             Model::load(
@@ -266,10 +266,10 @@ impl App {
             )
             .unwrap(),
         );
-        world.add_node(ground_model);
+        world.add_node(ground_model, None);
 
         let vec_sprite = Box::new(VectorSprite::new(&render_server));
-        world.add_node(vec_sprite);
+        world.add_node(vec_sprite, None);
 
         let sprite_tex = Texture::load(
             &render_server.device,
@@ -278,7 +278,7 @@ impl App {
         )
         .unwrap();
         let sprite = Box::new(Sprite2d::new(&render_server, sprite_tex));
-        world.add_node(sprite);
+        world.add_node(sprite, None);
         // ---------------------------------------------------
 
         Self {
