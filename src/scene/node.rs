@@ -2,7 +2,6 @@ use crate::server::input_server::InputEvent;
 use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
 use cgmath::*;
 use indextree::{Arena, NodeId, Descendants, NodeEdge};
-use crate::scene::scene_tree::Node;
 
 pub trait AsNode {
     fn input(&mut self, input: &InputEvent);
