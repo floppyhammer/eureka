@@ -91,15 +91,14 @@ impl Camera3d {
 
     /// Get view matrix.
     pub fn calc_view_matrix(&self) -> Matrix4<f32> {
+        let (sin_pitch, cos_pitch) = self.pitch.0.sin_cos();
+        let (sin_yaw, cos_yaw) = self.yaw.0.sin_cos();
+
         // Refer to https://learnopengl.com/Getting-started/Camera.
         Matrix4::look_to_rh(
             self.position,
-            Vector3::new(
-                self.yaw.0.cos() * self.pitch.0.cos(),
-                self.pitch.0.sin(),
-                self.yaw.0.sin() * self.pitch.0.cos(),
-            )
-            .normalize(),
+            Vector3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw)
+                .normalize(),
             Vector3::unit_y(),
         )
     }
