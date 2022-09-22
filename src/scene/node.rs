@@ -69,32 +69,39 @@ impl World {
     }
 
     pub fn input(&mut self, input_event: &InputEvent) {
-        // This must return `Some(_)` since the last item to be iterated
-        // by `.traverse(...)` should be `NodeEdge::End(root_id)`.
-        let mut next_id = self.root_node.unwrap()
-            .traverse(&self.arena)
-            .find_map(|edge| match edge {
-                NodeEdge::Start(_) => None,
-                NodeEdge::End(id) => Some(id),
-            });
-
-        while let Some(current_id) = next_id {
-            next_id = if current_id == self.root_node.unwrap() {
-                // This will be the last node to iterate.
-                None
-            } else if let Some(next_sib_id) = self.arena[current_id].next_sibling() {
-                next_sib_id
+        match self.root_node {
+            None => {
+                log::warn!("No root node in the scene tree.");
+            }
+            Some(root) => {
+                // This must return `Some(_)` since the last item to be iterated
+                // by `.traverse(...)` should be `NodeEdge::End(root_id)`.
+                let mut next_id = root
                     .traverse(&self.arena)
                     .find_map(|edge| match edge {
                         NodeEdge::Start(_) => None,
                         NodeEdge::End(id) => Some(id),
-                    })
-            } else {
-                // No more following siblings. Go to the parent node.
-                self.arena[current_id].parent()
-            };
+                    });
 
-            self.arena[current_id].get_mut().input(input_event);
+                while let Some(current_id) = next_id {
+                    next_id = if current_id == root {
+                        // This will be the last node to iterate.
+                        None
+                    } else if let Some(next_sib_id) = self.arena[current_id].next_sibling() {
+                        next_sib_id
+                            .traverse(&self.arena)
+                            .find_map(|edge| match edge {
+                                NodeEdge::Start(_) => None,
+                                NodeEdge::End(id) => Some(id),
+                            })
+                    } else {
+                        // No more following siblings. Go to the parent node.
+                        self.arena[current_id].parent()
+                    };
+
+                    self.arena[current_id].get_mut().input(input_event);
+                }
+            }
         }
     }
 
@@ -105,32 +112,39 @@ impl World {
         render_server: &RenderServer,
         singletons: Option<&Singletons>,
     ) {
-        // This must return `Some(_)` since the last item to be iterated
-        // by `.traverse(...)` should be `NodeEdge::End(root_id)`.
-        let mut next_id = self.root_node.unwrap()
-            .traverse(&self.arena)
-            .find_map(|edge| match edge {
-                NodeEdge::Start(_) => None,
-                NodeEdge::End(id) => Some(id),
-            });
-
-        while let Some(current_id) = next_id {
-            next_id = if current_id == self.root_node.unwrap() {
-                // This will be the last node to iterate.
-                None
-            } else if let Some(next_sib_id) = self.arena[current_id].next_sibling() {
-                next_sib_id
+        match self.root_node {
+            None => {
+                log::warn!("No root node in the scene tree.");
+            }
+            Some(root) => {
+                // This must return `Some(_)` since the last item to be iterated
+                // by `.traverse(...)` should be `NodeEdge::End(root_id)`.
+                let mut next_id = root
                     .traverse(&self.arena)
                     .find_map(|edge| match edge {
                         NodeEdge::Start(_) => None,
                         NodeEdge::End(id) => Some(id),
-                    })
-            } else {
-                // No more following siblings. Go to the parent node.
-                self.arena[current_id].parent()
-            };
+                    });
 
-            self.arena[current_id].get_mut().update(&queue, dt, &render_server, singletons);
+                while let Some(current_id) = next_id {
+                    next_id = if current_id == root {
+                        // This will be the last node to iterate.
+                        None
+                    } else if let Some(next_sib_id) = self.arena[current_id].next_sibling() {
+                        next_sib_id
+                            .traverse(&self.arena)
+                            .find_map(|edge| match edge {
+                                NodeEdge::Start(_) => None,
+                                NodeEdge::End(id) => Some(id),
+                            })
+                    } else {
+                        // No more following siblings. Go to the parent node.
+                        self.arena[current_id].parent()
+                    };
+
+                    self.arena[current_id].get_mut().update(&queue, dt, &render_server, singletons);
+                }
+            }
         }
     }
 
@@ -147,13 +161,13 @@ impl World {
             Some(root) => {
                 let iter = root
                     .traverse(&self.arena)
-                    .filter_map(|ev| match ev {
+                    .filter_map(|edge| match edge {
                         NodeEdge::Start(_) => None,
                         NodeEdge::End(id) => Some(id),
                     });
 
                 for id in iter {
-                    self.arena.get(id).unwrap().get().draw(render_pass, render_server, singletons);
+                    self.arena[id].get().draw(render_pass, render_server, singletons);
                 }
             }
         }
