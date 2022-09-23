@@ -47,6 +47,6 @@ impl Camera2d {
 
     pub fn when_view_size_changes(&mut self, new_width: u32, new_height: u32) {
         self.view_size.x = new_width;
-        self.view_size.x = new_height;
+        self.view_size.y = new_height;
     }
 }

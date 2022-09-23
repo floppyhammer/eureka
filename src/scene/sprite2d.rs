@@ -26,9 +26,9 @@ impl Sprite2d {
     pub(crate) fn new(render_server: &RenderServer, texture: Texture) -> Sprite2d {
         let device = &render_server.device;
 
-        let position = Vector2::new(0.0f32, 0.0);
-        let size = Vector2::new(128.0f32, 128.0);
-        let scale = Vector2::new(1.0f32, 1.0);
+        let position = Vector2::new(0.0_f32, 0.0);
+        let size = Vector2::new(128.0_f32, 128.0);
+        let scale = Vector2::new(1.0_f32, 1.0);
 
         let mesh = Mesh::default_2d(device);
 
@@ -95,7 +95,7 @@ impl AsNode for Sprite2d {
             cgmath::Matrix4::from_translation(Vector3::new(
                 (self.position.x / camera.view_size.x as f32) / camera.view_size.x as f32 * 2.0
                     - 1.0,
-                (self.position.y / camera.view_size.y as f32) / camera.view_size.x as f32 * 2.0
+                (self.position.y / camera.view_size.y as f32) / camera.view_size.y as f32 * 2.0
                     - 1.0,
                 0.0,
             ))
