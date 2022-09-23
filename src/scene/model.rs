@@ -9,7 +9,7 @@ use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
 
 use crate::resource::{material, mesh, texture};
-use crate::scene::AsNode;
+use crate::scene::{AsNode, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, Singletons};
 use material::Material3d;
 use mesh::{Mesh, Vertex3d};
@@ -417,6 +417,10 @@ impl Model {
 }
 
 impl AsNode for Model {
+    fn node_type(&self) -> NodeType {
+        NodeType::Model
+    }
+
     fn input(&mut self, input: &InputEvent) {}
 
     fn update(

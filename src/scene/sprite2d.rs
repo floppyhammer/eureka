@@ -1,5 +1,5 @@
 use crate::resource::{Material2d, Mesh, Texture};
-use crate::scene::{AsNode, Camera2dUniform};
+use crate::scene::{AsNode, Camera2dUniform, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons};
 use cgmath::{Vector2, Vector3};
 use wgpu::util::DeviceExt;
@@ -62,6 +62,10 @@ impl Sprite2d {
 }
 
 impl AsNode for Sprite2d {
+    fn node_type(&self) -> NodeType {
+        NodeType::Sprite2d
+    }
+
     fn input(&mut self, input: &InputEvent) {}
 
     fn update(
@@ -139,8 +143,8 @@ pub trait DrawSprite2d<'a> {
 }
 
 impl<'a, 'b> DrawSprite2d<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a, // This means 'b must outlive 'a.
+    where
+        'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,

@@ -1,6 +1,6 @@
 extern crate lyon;
 
-use crate::scene::{AsNode, Camera2dUniform};
+use crate::scene::{AsNode, Camera2dUniform, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, Singletons, Vertex};
 use cgmath::Vector3;
 use lyon::math::point;
@@ -116,6 +116,10 @@ impl VectorSprite {
 }
 
 impl AsNode for VectorSprite {
+    fn node_type(&self) -> NodeType {
+        NodeType::SpriteVector
+    }
+
     fn input(&mut self, input: &InputEvent) {}
 
     fn update(

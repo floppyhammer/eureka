@@ -3,7 +3,38 @@ use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
 use cgmath::*;
 use indextree::{Arena, NodeId, Descendants, NodeEdge};
 
+pub enum NodeType {
+    // 2D
+    Camera2d,
+    Sprite2d,
+    SpriteVector,
+
+    // 3D
+    Camera3d,
+    Sprite3d,
+    Model,
+    Sky,
+    Light,
+}
+
+impl std::fmt::Display for NodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            NodeType::Camera2d => write!(f, "Camera2d"),
+            NodeType::Sprite2d => write!(f, "Sprite2d"),
+            NodeType::SpriteVector => write!(f, "SpriteVector"),
+            NodeType::Camera3d => write!(f, "Camera3d"),
+            NodeType::Sprite3d => write!(f, "Sprite3d"),
+            NodeType::Model => write!(f, "Model"),
+            NodeType::Sky => write!(f, "Sky"),
+            NodeType::Light => write!(f, "Light"),
+        }
+    }
+}
+
 pub trait AsNode {
+    fn node_type(&self) -> NodeType;
+
     fn input(&mut self, input: &InputEvent);
 
     fn update(
@@ -47,6 +78,8 @@ impl World {
     }
 
     pub fn add_node(&mut self, new_node: Box<dyn AsNode>, parent: Option<NodeId>) -> NodeId {
+        log::info!("Added node: {}", new_node.node_type().to_string());
+
         let id = self.arena.new_node(new_node);
 
         if self.root_node.is_none() {

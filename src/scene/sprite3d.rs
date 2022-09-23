@@ -1,5 +1,5 @@
 use crate::resource::{Material2d, Mesh, Texture};
-use crate::scene::{AsNode, Camera2dUniform};
+use crate::scene::{AsNode, Camera2dUniform, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons, Zero};
 use cgmath::{InnerSpace, Rotation3, Vector3};
 use wgpu::util::DeviceExt;
@@ -123,6 +123,10 @@ pub enum BillboardMode {
 }
 
 impl AsNode for Sprite3d {
+    fn node_type(&self) -> NodeType {
+        NodeType::Sprite3d
+    }
+
     fn input(&mut self, input: &InputEvent) {}
 
     fn update(
