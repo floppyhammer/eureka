@@ -1,8 +1,14 @@
 use crate::resource::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons};
-use cgmath::{Vector2, Vector3};
+use cgmath::{Vector2, Vector3, Rect, Vector4};
 use wgpu::util::DeviceExt;
+
+struct SpriteSheet {
+    h_frames: u32,
+    v_frames: u32,
+    frame: u32,
+}
 
 pub struct Sprite2d {
     pub name: String,
@@ -10,6 +16,11 @@ pub struct Sprite2d {
     pub position: Vector2<f32>,
     pub size: Vector2<f32>,
     pub scale: Vector2<f32>,
+
+    // A portion of the texture to draw.
+    pub region: Vector4<f32>,
+
+    pub sprite_sheet: SpriteSheet,
 
     pub texture: Option<Texture>,
     pub texture_bind_group: wgpu::BindGroup,
@@ -30,6 +41,8 @@ impl Sprite2d {
         let size = Vector2::new(128.0_f32, 128.0);
         let scale = Vector2::new(1.0_f32, 1.0);
 
+        let region = Vector4::new(0.0_f32, 0.0, 1.0, 1.0);
+
         let mesh = Mesh::default_2d(device);
 
         let texture_bind_group = render_server.create_sprite2d_bind_group(&device, &texture);
@@ -41,6 +54,8 @@ impl Sprite2d {
             position,
             size,
             scale,
+            region,
+            sprite_sheet: SpriteSheet { h_frames: 0, v_frames: 0, frame: 0 },
             texture: Some(texture),
             texture_bind_group,
             camera_buffer,
