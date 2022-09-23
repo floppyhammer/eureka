@@ -120,7 +120,6 @@ impl AsNode for VectorSprite {
 
     fn update(
         &mut self,
-        queue: &wgpu::Queue,
         dt: f32,
         render_server: &RenderServer,
         singletons: Option<&Singletons>,
@@ -142,7 +141,7 @@ impl AsNode for VectorSprite {
         uniform.proj = (translation * scale).into();
 
         // Update camera buffer.
-        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+        render_server.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
     }
 
     fn draw<'a, 'b: 'a>(
@@ -207,8 +206,8 @@ pub trait DrawVector<'a> {
 }
 
 impl<'a, 'b> DrawVector<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a,
+    where
+        'b: 'a,
 {
     fn draw_path(
         &mut self,

@@ -65,7 +65,7 @@ impl Light {
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
 
         self.sprite.position = new_position;
-        self.sprite.update(&queue, dt, &render_server, None);
+        self.sprite.update(dt, &render_server, None);
     }
 
     pub fn draw<'a, 'b: 'a>(

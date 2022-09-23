@@ -66,7 +66,6 @@ impl AsNode for Sprite2d {
 
     fn update(
         &mut self,
-        queue: &wgpu::Queue,
         dt: f32,
         render_server: &RenderServer,
         singletons: Option<&Singletons>,
@@ -111,7 +110,7 @@ impl AsNode for Sprite2d {
         uniform.proj = (translation * scale).into();
 
         // Update camera buffer.
-        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+        render_server.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
     }
 
     fn draw<'a, 'b: 'a>(

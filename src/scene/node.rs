@@ -8,7 +8,6 @@ pub trait AsNode {
 
     fn update(
         &mut self,
-        queue: &wgpu::Queue,
         dt: f32,
         render_server: &RenderServer,
         singletons: Option<&Singletons>,
@@ -117,13 +116,12 @@ impl World {
 
     pub fn update(
         &mut self,
-        queue: &wgpu::Queue,
         dt: f32,
         render_server: &RenderServer,
         singletons: Option<&Singletons>,
     ) {
         for id in self.traverse() {
-            self.arena[id].get_mut().update(&queue, dt, &render_server, singletons);
+            self.arena[id].get_mut().update(dt, &render_server, singletons);
         }
     }
 

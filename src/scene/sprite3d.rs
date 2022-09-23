@@ -127,7 +127,6 @@ impl AsNode for Sprite3d {
 
     fn update(
         &mut self,
-        queue: &wgpu::Queue,
         dt: f32,
         render_server: &RenderServer,
         singletons: Option<&Singletons>,
@@ -145,7 +144,7 @@ impl AsNode for Sprite3d {
         };
 
         // Update buffer.
-        queue.write_buffer(
+        render_server.queue.write_buffer(
             &self.params_buffer,
             0,
             bytemuck::cast_slice(&[params_uniform]),
@@ -180,8 +179,8 @@ pub trait DrawSprite3d<'a> {
 }
 
 impl<'a, 'b> DrawSprite3d<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a, // This means 'b must outlive 'a.
+    where
+        'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,

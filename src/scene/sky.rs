@@ -67,7 +67,6 @@ impl AsNode for Sky {
 
     fn update(
         &mut self,
-        queue: &wgpu::Queue,
         dt: f32,
         render_server: &RenderServer,
         singletons: Option<&Singletons>,

@@ -353,7 +353,6 @@ impl App {
             .update(&self.render_server.queue, dt_in_secs, &self.render_server);
 
         self.world.update(
-            &self.render_server.queue,
             dt_in_secs,
             &self.render_server,
             Some(&self.singletons),
