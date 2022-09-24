@@ -25,8 +25,8 @@ struct VertexOutput {
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
 
-    let u = ((in_vertex_index << 1u) & 2u) - 1u;
-    let v = 1u - (in_vertex_index & 2u);
+    let u = ((in_vertex_index << 1u) & 2u) >> 1u; // [0, 1]
+    let v = ((in_vertex_index & 2u)) >> 1u; // [0, 1]
 
     let position = vec4<f32>(f32(u), f32(v), 0.0, 1.0);
 
@@ -42,10 +42,8 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: InstanceInput)
         0.0, 0.0, 1.0, 0.0,
         0.0, 0.0, 0.0, 1.0,
     );
-    translation[3][0] = (instance.position.x / params.camera_view_size.x - scaled_width * 0.5)
-                                                / params.camera_view_size.x * 2.0 - 1.0;
-    translation[3][1] = (instance.position.y / params.camera_view_size.y - scaled_height * 0.5)
-                                                / params.camera_view_size.y * 2.0 - 1.0;
+    translation[3][0] = (instance.position.x / params.camera_view_size.x) * 2.0 - 1.0;
+    translation[3][1] = (instance.position.y / params.camera_view_size.y) * 2.0 - 1.0;
 
     var scale = mat4x4<f32>(
         1.0, 0.0, 0.0, 0.0,

@@ -1,6 +1,6 @@
 use crate::render::vertex::VertexBuffer;
-use crate::{RenderServer, Texture};
-use cgmath::{Vector2, Vector4};
+use crate::{RenderServer, Singletons, Texture};
+use cgmath::{Point2, Vector2, Vector4};
 use wgpu::util::DeviceExt;
 use wgpu::Buffer;
 
@@ -32,11 +32,11 @@ pub(crate) struct AtlasParamsUniform {
 }
 
 impl AtlasParamsUniform {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(texture_size: Point2<u32>, camera_view_size: Point2<u32>) -> Self {
         use cgmath::SquareMatrix;
         Self {
-            camera_view_size: [0.0; 2],
-            texture_size: [0.0; 2],
+            camera_view_size: [camera_view_size.x as f32, camera_view_size.y as f32],
+            texture_size: [texture_size.x as f32, texture_size.y as f32],
         }
     }
 }
@@ -116,7 +116,7 @@ pub(crate) struct Atlas {
 
 impl Atlas {
     pub fn new(render_server: &RenderServer) -> Self {
-        let texture = Texture::empty(&render_server.device, &render_server.queue, (4, 4)).unwrap();
+        let texture = Texture::empty(&render_server.device, &render_server.queue, (16, 16)).unwrap();
 
         let texture_bind_group = render_server.create_sprite2d_bind_group(&texture);
 
@@ -134,6 +134,9 @@ impl Atlas {
     }
     pub(crate) fn set_instances(&mut self, instances: Vec<AtlasInstance>, render_server: &RenderServer) {
         self.instances = instances;
+        if self.instances.len() == 0 {
+            return;
+        }
 
         let instance_data = self.instances.iter().map(AtlasInstance::to_raw).collect::<Vec<_>>();
 
@@ -162,7 +165,15 @@ impl Atlas {
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
         render_server: &'b RenderServer,
+        singletons: &'b Singletons,
     ) {
+        let camera = singletons.camera2d.as_ref().unwrap();
+        let atlas_params = AtlasParamsUniform::new(self.texture.size,
+                                                   camera.view_size);
+        render_server
+            .queue
+            .write_buffer(&self.atlas_params_buffer, 0, bytemuck::cast_slice(&[atlas_params]));
+
         let instance_count = self.instances.len();
         if instance_count == 0 {
             return;

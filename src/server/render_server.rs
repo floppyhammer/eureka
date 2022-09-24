@@ -1,3 +1,5 @@
+use cgmath::Point2;
+use wgpu::PolygonMode::Point;
 use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::scene::Camera2dUniform;
@@ -378,7 +380,7 @@ impl RenderServer {
                     })],
                 }),
                 primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleStrip,
+                    topology: wgpu::PrimitiveTopology::TriangleStrip, // Has to be triangle strip.
                     front_face: wgpu::FrontFace::Cw,
                     cull_mode: None,
                     ..Default::default()
@@ -424,18 +426,41 @@ impl RenderServer {
                 label: Some("atlas shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("../shader/atlas.wgsl").into()),
             };
+            let shader_module = device.create_shader_module(shader);
 
-            create_render_pipeline(
-                &device,
-                &pipeline_layout,
-                config.format,
-                Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[AtlasInstanceRaw::desc()],
-                shader,
-                "atlas pipeline",
-                false,
-                Some(wgpu::Face::Back),
-            )
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("gizmo render pipeline"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader_module,
+                    entry_point: "vs_main",
+                    buffers: &[AtlasInstanceRaw::desc()],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader_module,
+                    entry_point: "fs_main",
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: config.format,
+                        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleStrip, // Has to be triangle strip.
+                    front_face: wgpu::FrontFace::Cw,
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: resource::texture::Texture::DEPTH_FORMAT,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+            })
         };
 
         Self {
@@ -508,7 +533,7 @@ impl RenderServer {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("atlas params uniform buffer"),
-                contents: bytemuck::cast_slice(&[AtlasParamsUniform::new()]),
+                contents: bytemuck::cast_slice(&[AtlasParamsUniform::new(Point2::new(0, 0), Point2::new(0, 0))]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
 

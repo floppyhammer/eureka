@@ -1,6 +1,7 @@
 use anyhow::*;
 use image::{DynamicImage::ImageRgba8, GenericImageView, ImageBuffer, Rgb};
 use std::path::Path;
+use cgmath::Point2;
 
 use crate::resource::{Material2d, Mesh};
 use crate::RenderServer;
@@ -15,6 +16,7 @@ pub struct Texture {
     pub view: wgpu::TextureView,
     // Defines how to sample the texture.
     pub sampler: wgpu::Sampler,
+    pub size: Point2<u32>,
 }
 
 impl Texture {
@@ -124,6 +126,7 @@ impl Texture {
             texture,
             view,
             sampler,
+            size: Point2::new(size.width, size.height),
         })
     }
 
@@ -173,6 +176,7 @@ impl Texture {
             texture,
             view,
             sampler,
+            size: Point2::new(size.width, size.height),
         }
     }
 
