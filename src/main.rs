@@ -10,7 +10,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use cgmath::{prelude::*, Point2, Vector2, Vector3};
+use cgmath::{prelude::*, Point2, Vector2, Vector3, Vector4};
 
 use wgpu::{util::DeviceExt, SamplerBindingType, TextureView};
 
@@ -22,6 +22,7 @@ mod server;
 
 // Import local crates.
 use crate::render::gizmo::Gizmo;
+use crate::render::atlas::{Atlas, AtlasInstance};
 use crate::resource::{CubemapTexture, Texture};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
@@ -51,6 +52,7 @@ struct App {
     previous_frame_time: f32,
     world: World,
     singletons: Singletons,
+    atlas: Atlas,
 }
 
 fn main() {
@@ -264,7 +266,7 @@ impl App {
                 &render_server,
                 asset_dir.join("granite_ground/granite_ground.obj"),
             )
-            .unwrap(),
+                .unwrap(),
         );
         world.add_node(ground_model, None);
 
@@ -276,10 +278,23 @@ impl App {
             &render_server.queue,
             asset_dir.join("happy-tree.png"),
         )
-        .unwrap();
+            .unwrap();
         let sprite = Box::new(Sprite2d::new(&render_server, sprite_tex));
         world.add_node(sprite, None);
         // ---------------------------------------------------
+
+        let mut atlas = Atlas::new(&render_server);
+
+        let mut instances = vec![];
+        for i in 0..10 {
+            let instance = AtlasInstance {
+                position: Vector2::new(i as f32 * 100.0, i as f32 * 100.0),
+                scale: Vector2::new(1.0, 1.0),
+                region: Vector4::new(1.0, 1.0, 1.0, 1.0),
+                color: Vector4::new(1.0, 1.0, 1.0, 1.0),
+            };
+            instances.push(instance);
+        }
 
         Self {
             size,
@@ -289,6 +304,7 @@ impl App {
             previous_frame_time: 0.0,
             world,
             singletons,
+            atlas,
         }
     }
 
@@ -408,6 +424,8 @@ impl App {
 
             self.world
                 .draw(&mut render_pass, &self.render_server, &self.singletons);
+
+            self.atlas.draw(&mut render_pass, &self.render_server);
         }
 
         // Finish the command encoder to generate a command buffer,

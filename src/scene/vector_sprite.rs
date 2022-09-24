@@ -1,6 +1,6 @@
 extern crate lyon;
 
-use crate::render::vertex::Vertex;
+use crate::render::vertex::VertexBuffer;
 use crate::scene::{AsNode, Camera2dUniform, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, Singletons};
 use cgmath::Vector3;
@@ -167,7 +167,7 @@ pub(crate) struct VectorVertex {
     pub(crate) color: [f32; 3],
 }
 
-impl Vertex for VectorVertex {
+impl VertexBuffer for VectorVertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<VectorVertex>() as wgpu::BufferAddress,

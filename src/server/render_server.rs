@@ -1,5 +1,5 @@
-use crate::render::blit::BlitInstance;
-use crate::render::vertex::{Vertex, Vertex2d, Vertex3d, VertexSky};
+use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
+use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::scene::Camera2dUniform;
 use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture};
 use wgpu::util::DeviceExt;
@@ -17,6 +17,7 @@ pub struct RenderServer {
     pub sprite3d_pipeline: wgpu::RenderPipeline,
     pub skybox_pipeline: wgpu::RenderPipeline,
     pub gizmo_pipeline: wgpu::RenderPipeline,
+    pub atlas_pipeline: wgpu::RenderPipeline,
 
     pub sprite_texture_bind_group_layout: wgpu::BindGroupLayout,
     pub light_bind_group_layout: wgpu::BindGroupLayout,
@@ -25,6 +26,7 @@ pub struct RenderServer {
     pub camera3d_bind_group_layout: wgpu::BindGroupLayout,
     pub skybox_texture_bind_group_layout: wgpu::BindGroupLayout,
     pub sprite_params_bind_group_layout: wgpu::BindGroupLayout,
+    pub atlas_params_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl RenderServer {
@@ -393,17 +395,63 @@ impl RenderServer {
             })
         };
 
+        let atlas_params_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("atlas params bind group layout"),
+            });
+
+        let atlas_pipeline = {
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("atlas render pipeline layout"),
+                bind_group_layouts: &[
+                    &atlas_params_bind_group_layout,
+                    &sprite_texture_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("atlas shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/atlas.wgsl").into()),
+            };
+
+            create_render_pipeline(
+                &device,
+                &pipeline_layout,
+                config.format,
+                Some(resource::texture::Texture::DEPTH_FORMAT),
+                &[AtlasInstanceRaw::desc()],
+                shader,
+                "atlas pipeline",
+                false,
+                Some(wgpu::Face::Back),
+            )
+        };
+
         Self {
             surface,
             config,
             device,
             queue,
+
             model_pipeline,
             vector_sprite_pipeline,
             sprite_pipeline,
             sprite3d_pipeline,
             skybox_pipeline,
             gizmo_pipeline,
+            atlas_pipeline,
+
             sprite_texture_bind_group_layout,
             light_bind_group_layout,
             model_texture_bind_group_layout,
@@ -411,6 +459,7 @@ impl RenderServer {
             camera3d_bind_group_layout,
             skybox_texture_bind_group_layout,
             sprite_params_bind_group_layout,
+            atlas_params_bind_group_layout,
         }
     }
 
@@ -437,12 +486,8 @@ impl RenderServer {
         (camera_buffer, camera_bind_group)
     }
 
-    pub fn create_sprite2d_bind_group(
-        &self,
-        device: &wgpu::Device,
-        texture: &Texture,
-    ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
+    pub fn create_sprite2d_bind_group(&self, texture: &Texture) -> wgpu::BindGroup {
+        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &self.sprite_texture_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -458,7 +503,26 @@ impl RenderServer {
         })
     }
 
-    pub fn blit_instances(&self, instances: Vec<BlitInstance>) {}
+    pub fn create_atlas_params_bind_group(&self) -> (wgpu::Buffer, wgpu::BindGroup) {
+        let buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("atlas params uniform buffer"),
+                contents: bytemuck::cast_slice(&[AtlasParamsUniform::new()]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.atlas_params_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+            label: Some("atlas params bind group"),
+        });
+
+        (buffer, bind_group)
+    }
 }
 
 /// Set up resource pipeline using the pipeline layout.

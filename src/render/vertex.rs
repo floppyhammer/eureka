@@ -1,4 +1,4 @@
-pub trait Vertex {
+pub trait VertexBuffer {
     /// Vertex buffer layout provided to a pipeline.
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
 }
@@ -15,7 +15,7 @@ pub struct Vertex3d {
     pub(crate) bi_tangent: [f32; 3],
 }
 
-impl Vertex for Vertex3d {
+impl VertexBuffer for Vertex3d {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex3d>() as wgpu::BufferAddress,
@@ -64,7 +64,7 @@ pub(crate) struct Vertex2d {
     pub(crate) color: [f32; 3],
 }
 
-impl Vertex for Vertex2d {
+impl VertexBuffer for Vertex2d {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex2d>() as wgpu::BufferAddress,
@@ -93,24 +93,25 @@ impl Vertex for Vertex2d {
     }
 }
 
-// Vertex data.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct VertexSky {
     pub(crate) position: [f32; 3],
 }
 
-impl Vertex for VertexSky {
+impl VertexBuffer for VertexSky {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<VertexSky>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[wgpu::VertexAttribute {
+            attributes: &[
                 // Position.
-                offset: 0,
-                shader_location: 0,
-                format: wgpu::VertexFormat::Float32x3,
-            }],
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
         }
     }
 }

@@ -45,7 +45,7 @@ impl Sprite2d {
 
         let mesh = Mesh::default_2d(device);
 
-        let texture_bind_group = render_server.create_sprite2d_bind_group(&device, &texture);
+        let texture_bind_group = render_server.create_sprite2d_bind_group(&texture);
 
         let (camera_buffer, camera_bind_group) = render_server.create_camera2d_resources(device);
 
@@ -75,7 +75,7 @@ impl Sprite2d {
         render_server: &RenderServer,
         texture: Texture,
     ) {
-        self.texture_bind_group = render_server.create_sprite2d_bind_group(&device, &texture);
+        self.texture_bind_group = render_server.create_sprite2d_bind_group(&texture);
         self.texture = Some(texture);
     }
 }
@@ -100,7 +100,7 @@ impl AsNode for Sprite2d {
                     * 2.0
                     - 1.0,
                 (self.position.y / camera.view_size.y as f32 - scaled_height * 0.5)
-                    / camera.view_size.x as f32
+                    / camera.view_size.y as f32
                     * 2.0
                     - 1.0,
                 0.0,
