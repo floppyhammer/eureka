@@ -1,10 +1,10 @@
 use crate::resource::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons};
-use cgmath::{Vector2, Vector3, Rect, Vector4};
+use cgmath::{Vector2, Vector3, Vector4};
 use wgpu::util::DeviceExt;
 
-struct SpriteSheet {
+pub struct SpriteSheet {
     h_frames: u32,
     v_frames: u32,
     frame: u32,
@@ -55,7 +55,11 @@ impl Sprite2d {
             size,
             scale,
             region,
-            sprite_sheet: SpriteSheet { h_frames: 0, v_frames: 0, frame: 0 },
+            sprite_sheet: SpriteSheet {
+                h_frames: 0,
+                v_frames: 0,
+                frame: 0,
+            },
             texture: Some(texture),
             texture_bind_group,
             camera_buffer,
@@ -83,12 +87,7 @@ impl AsNode for Sprite2d {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(
-        &mut self,
-        dt: f32,
-        render_server: &RenderServer,
-        singletons: Option<&Singletons>,
-    ) {
+    fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
         let camera = singletons.unwrap().camera2d.as_ref().unwrap();
 
         let scaled_width = self.scale.x * self.size.x;
@@ -129,7 +128,9 @@ impl AsNode for Sprite2d {
         uniform.proj = (translation * scale).into();
 
         // Update camera buffer.
-        render_server.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+        render_server
+            .queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
     }
 
     fn draw<'a, 'b: 'a>(
@@ -158,8 +159,8 @@ pub trait DrawSprite2d<'a> {
 }
 
 impl<'a, 'b> DrawSprite2d<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a, // This means 'b must outlive 'a.
+where
+    'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,

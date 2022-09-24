@@ -1,7 +1,8 @@
 extern crate lyon;
 
+use crate::render::vertex::Vertex;
 use crate::scene::{AsNode, Camera2dUniform, NodeType};
-use crate::{Camera2d, InputEvent, RenderServer, Singletons, Vertex};
+use crate::{Camera2d, InputEvent, RenderServer, Singletons};
 use cgmath::Vector3;
 use lyon::math::point;
 use lyon::path::Path;
@@ -122,12 +123,7 @@ impl AsNode for VectorSprite {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(
-        &mut self,
-        dt: f32,
-        render_server: &RenderServer,
-        singletons: Option<&Singletons>,
-    ) {
+    fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
         let camera = singletons.unwrap().camera2d.as_ref().unwrap();
 
         let translation = cgmath::Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0));
@@ -145,7 +141,9 @@ impl AsNode for VectorSprite {
         uniform.proj = (translation * scale).into();
 
         // Update camera buffer.
-        render_server.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+        render_server
+            .queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
     }
 
     fn draw<'a, 'b: 'a>(
@@ -175,14 +173,14 @@ impl Vertex for VectorVertex {
             array_stride: std::mem::size_of::<VectorVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
+                // Position.
                 wgpu::VertexAttribute {
-                    // Position.
                     offset: 0,
                     shader_location: 0,
                     format: wgpu::VertexFormat::Float32x2,
                 },
+                // Color.
                 wgpu::VertexAttribute {
-                    // Color.
                     offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x3,
@@ -210,8 +208,8 @@ pub trait DrawVector<'a> {
 }
 
 impl<'a, 'b> DrawVector<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
+where
+    'b: 'a,
 {
     fn draw_path(
         &mut self,

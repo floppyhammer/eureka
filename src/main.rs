@@ -22,7 +22,7 @@ mod server;
 
 // Import local crates.
 use crate::render::gizmo::Gizmo;
-use crate::resource::{CubemapTexture, Texture, Vertex};
+use crate::resource::{CubemapTexture, Texture};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
@@ -352,11 +352,8 @@ impl App {
         self.singletons
             .update(&self.render_server.queue, dt_in_secs, &self.render_server);
 
-        self.world.update(
-            dt_in_secs,
-            &self.render_server,
-            Some(&self.singletons),
-        );
+        self.world
+            .update(dt_in_secs, &self.render_server, Some(&self.singletons));
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {

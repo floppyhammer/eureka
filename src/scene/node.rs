@@ -1,7 +1,7 @@
 use crate::server::input_server::InputEvent;
 use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
 use cgmath::*;
-use indextree::{Arena, NodeId, Descendants, NodeEdge};
+use indextree::{Arena, Descendants, NodeEdge, NodeId};
 
 pub enum NodeType {
     // 2D
@@ -37,12 +37,7 @@ pub trait AsNode {
 
     fn input(&mut self, input: &InputEvent);
 
-    fn update(
-        &mut self,
-        dt: f32,
-        render_server: &RenderServer,
-        singletons: Option<&Singletons>,
-    );
+    fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>);
 
     fn draw<'a, 'b: 'a>(
         &'b self,
@@ -86,12 +81,8 @@ impl World {
             self.root_node = Some(id);
         } else {
             let parent = match parent {
-                None => {
-                    self.root_node.unwrap()
-                }
-                Some(p) => {
-                    p
-                }
+                None => self.root_node.unwrap(),
+                Some(p) => p,
             };
 
             parent.append(id, &mut self.arena);
@@ -110,12 +101,10 @@ impl World {
             Some(root) => {
                 // This must return `Some(_)` since the last item to be iterated
                 // by `.traverse(...)` should be `NodeEdge::End(root_id)`.
-                let mut next_id = root
-                    .traverse(&self.arena)
-                    .find_map(|edge| match edge {
-                        NodeEdge::Start(_) => None,
-                        NodeEdge::End(id) => Some(id),
-                    });
+                let mut next_id = root.traverse(&self.arena).find_map(|edge| match edge {
+                    NodeEdge::Start(_) => None,
+                    NodeEdge::End(id) => Some(id),
+                });
 
                 while let Some(current_id) = next_id {
                     next_id = if current_id == root {
@@ -154,7 +143,9 @@ impl World {
         singletons: Option<&Singletons>,
     ) {
         for id in self.traverse() {
-            self.arena[id].get_mut().update(dt, &render_server, singletons);
+            self.arena[id]
+                .get_mut()
+                .update(dt, &render_server, singletons);
         }
     }
 
@@ -169,15 +160,15 @@ impl World {
                 log::warn!("No root node in the scene tree.");
             }
             Some(root) => {
-                let iter = root
-                    .traverse(&self.arena)
-                    .filter_map(|edge| match edge {
-                        NodeEdge::Start(_) => None,
-                        NodeEdge::End(id) => Some(id),
-                    });
+                let iter = root.traverse(&self.arena).filter_map(|edge| match edge {
+                    NodeEdge::Start(_) => None,
+                    NodeEdge::End(id) => Some(id),
+                });
 
                 for id in iter {
-                    self.arena[id].get().draw(render_pass, render_server, singletons);
+                    self.arena[id]
+                        .get()
+                        .draw(render_pass, render_server, singletons);
                 }
             }
         }

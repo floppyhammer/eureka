@@ -1,5 +1,7 @@
+use crate::render::blit::BlitInstance;
+use crate::render::vertex::{Vertex, Vertex2d, Vertex3d, VertexSky};
 use crate::scene::Camera2dUniform;
-use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture, Vertex};
+use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture};
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
@@ -215,10 +217,7 @@ impl RenderServer {
                 &pipeline_layout,
                 config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[
-                    resource::mesh::Vertex3d::desc(),
-                    scene::model::InstanceRaw::desc(),
-                ],
+                &[Vertex3d::desc(), scene::model::InstanceRaw::desc()],
                 shader,
                 "model pipeline",
                 false,
@@ -249,7 +248,7 @@ impl RenderServer {
                 &pipeline_layout,
                 config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[resource::mesh::Vertex2d::desc()],
+                &[Vertex2d::desc()],
                 shader,
                 "sprite2d pipeline",
                 false,
@@ -282,7 +281,7 @@ impl RenderServer {
                 &pipeline_layout,
                 config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[resource::mesh::Vertex3d::desc()],
+                &[Vertex3d::desc()],
                 shader,
                 "sprite3d pipeline",
                 false,
@@ -338,7 +337,7 @@ impl RenderServer {
                 &pipeline_layout,
                 config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[resource::mesh::VertexSky::desc()],
+                &[VertexSky::desc()],
                 shader,
                 "skybox pipeline",
                 false,
@@ -458,6 +457,8 @@ impl RenderServer {
             label: None,
         })
     }
+
+    pub fn blit_instances(&self, instances: Vec<BlitInstance>) {}
 }
 
 /// Set up resource pipeline using the pipeline layout.

@@ -129,12 +129,7 @@ impl AsNode for Sprite3d {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(
-        &mut self,
-        dt: f32,
-        render_server: &RenderServer,
-        singletons: Option<&Singletons>,
-    ) {
+    fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
         let params_uniform = SpriteParamsUniform {
             model_matrix: cgmath::Matrix4::from_translation(self.position).into(),
             billboard_mode: if self.billboard_mode == BillboardMode::Spherical {
@@ -183,8 +178,8 @@ pub trait DrawSprite3d<'a> {
 }
 
 impl<'a, 'b> DrawSprite3d<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a, // This means 'b must outlive 'a.
+where
+    'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,

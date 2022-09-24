@@ -8,11 +8,12 @@ use std::path::Path;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
 
+use crate::render::vertex::Vertex3d;
 use crate::resource::{material, mesh, texture};
 use crate::scene::{AsNode, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, Singletons};
 use material::Material3d;
-use mesh::{Mesh, Vertex3d};
+use mesh::Mesh;
 
 pub struct Model {
     pub position: cgmath::Vector3<f32>,
@@ -423,13 +424,7 @@ impl AsNode for Model {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(
-        &mut self,
-        dt: f32,
-        render_server: &RenderServer,
-        singletons: Option<&Singletons>,
-    ) {
-    }
+    fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {}
 
     fn draw<'a, 'b: 'a>(
         &'b self,

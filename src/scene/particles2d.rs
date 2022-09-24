@@ -1,3 +1,4 @@
+use crate::render::blit::BlitInstance;
 use crate::Texture;
 
 pub struct Particles2d {
@@ -8,6 +9,8 @@ pub struct Particles2d {
 
     pub texture: Option<Texture>,
     pub texture_bind_group: wgpu::BindGroup,
+
+    instances: Vec<BlitInstance>,
 
     pub vertex_buffer: wgpu::Buffer,
     pub instance_buffer: wgpu::Buffer,
