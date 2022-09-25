@@ -8,6 +8,7 @@ pub enum NodeType {
     Camera2d,
     Sprite2d,
     SpriteVector,
+    Particles2d,
 
     // 3D
     Camera3d,
