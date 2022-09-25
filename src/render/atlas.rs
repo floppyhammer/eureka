@@ -132,6 +132,13 @@ impl Atlas {
             atlas_params_bind_group,
         }
     }
+
+    pub(crate) fn set_texture(&mut self, texture: Texture, render_server: &RenderServer) {
+        self.texture = texture;
+
+        self.texture_bind_group = render_server.create_sprite2d_bind_group(&self.texture);
+    }
+
     pub(crate) fn set_instances(&mut self, instances: Vec<AtlasInstance>, render_server: &RenderServer) {
         self.instances = instances;
         if self.instances.len() == 0 {

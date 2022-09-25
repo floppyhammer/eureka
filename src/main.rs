@@ -288,7 +288,7 @@ impl App {
         let mut instances = vec![];
         for i in 0..10 {
             let instance = AtlasInstance {
-                position: Vector2::new(i as f32 * 100.0, i as f32 * 100.0),
+                position: Vector2::new(i as f32 * 100.0 + 100.0, i as f32 * 100.0),
                 scale: Vector2::new(1.0, 1.0),
                 region: Vector4::new(0.0, 0.0, 1.0, 1.0),
                 color: Vector4::new(1.0, 1.0, 1.0, 1.0),
@@ -296,6 +296,11 @@ impl App {
             instances.push(instance);
         }
         atlas.set_instances(instances, &render_server);
+        atlas.set_texture(Texture::load(
+            &render_server.device,
+            &render_server.queue,
+            asset_dir.join("happy-tree.png"),
+        ).unwrap(), &render_server);
 
         Self {
             size,
