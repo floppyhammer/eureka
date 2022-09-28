@@ -24,6 +24,7 @@ impl std::fmt::Display for NodeType {
             NodeType::Camera2d => write!(f, "Camera2d"),
             NodeType::Sprite2d => write!(f, "Sprite2d"),
             NodeType::SpriteVector => write!(f, "SpriteVector"),
+            NodeType::Particles2d => write!(f, "Particles2d"),
             NodeType::Camera3d => write!(f, "Camera3d"),
             NodeType::Sprite3d => write!(f, "Sprite3d"),
             NodeType::Model => write!(f, "Model"),
