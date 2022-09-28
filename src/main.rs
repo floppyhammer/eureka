@@ -23,7 +23,7 @@ mod server;
 // Import local crates.
 use crate::render::gizmo::Gizmo;
 use crate::render::atlas::{Atlas, AtlasInstance};
-use crate::resource::{CubemapTexture, Texture};
+use crate::resource::{CubemapTexture, Texture, DynamicFont};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
@@ -220,6 +220,9 @@ impl App {
         // Get the asset directory.
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         log::info!("Asset dir: {}", asset_dir.display());
+
+        let font = DynamicFont::load(asset_dir.join("unifont-14.0.03.ttf"));
+        font.get_graphemes("🚀 你好 Hello नमस्ते् مرحبا".to_string());
 
         let mut singletons = Singletons {
             camera2d: None,
