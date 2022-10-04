@@ -286,8 +286,8 @@ impl App {
         world.add_node(sprite, None);
 
         let mut label = Box::new(Label::new(&render_server, &text_server));
-        label.position = Vector2::new(200.0, 200.0);
-        label.set_text(&render_server, &mut text_server, "🚀 你好 Hello नमस्ते् مرحبا".to_string());
+        label.position = Vector2::new(0.0, 200.0);
+        label.set_text(&render_server, &mut text_server, "你好，世界！ Hello, world!".to_string());
         world.add_node(label, None);
         // ---------------------------------------------------
 

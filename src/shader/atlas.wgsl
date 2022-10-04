@@ -48,8 +48,8 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: InstanceInput)
         0.0, 0.0, 1.0, 0.0,
         0.0, 0.0, 0.0, 1.0,
     );
-    scale[0][0] = instance.size.x / params.camera_view_size.x;
-    scale[1][1] = instance.size.y / params.camera_view_size.y;
+    scale[0][0] = instance.size.x * 2.0 / params.camera_view_size.x;
+    scale[1][1] = instance.size.y * 2.0 / params.camera_view_size.y;
 
     out.clip_position = translation * scale * position;
     out.tex_coords = vec2<f32>(u, v);
