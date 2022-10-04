@@ -1,5 +1,5 @@
 use anyhow::*;
-use image::{DynamicImage::ImageRgba8, GenericImageView, ImageBuffer, Rgb};
+use image::{DynamicImage, GenericImageView, ImageBuffer, Rgb};
 use std::path::Path;
 use cgmath::Point2;
 
@@ -17,6 +17,7 @@ pub struct Texture {
     // Defines how to sample the texture.
     pub sampler: wgpu::Sampler,
     pub size: Point2<u32>,
+    pub format: wgpu::TextureFormat,
 }
 
 impl Texture {
@@ -41,7 +42,7 @@ impl Texture {
             data.extend([222u8, 222, 222, 0]);
         }
 
-        let mut image = ImageRgba8(image::ImageBuffer::from_raw(size.0, size.1, data).unwrap());
+        let mut image = DynamicImage::ImageRgba8(image::ImageBuffer::from_raw(size.0, size.1, data).unwrap());
 
         Self::from_image(device, queue, &image, Some("Empty image"))
     }
@@ -51,6 +52,7 @@ impl Texture {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         bytes: &[u8],
+        format: wgpu::TextureFormat,
         label: &str,
         y_flip: bool,
     ) -> Result<Self> {
@@ -68,12 +70,9 @@ impl Texture {
     pub fn from_image(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        img: &image::DynamicImage,
+        img: &DynamicImage,
         label: Option<&str>,
     ) -> Result<Self> {
-        // Make a rgba8 copy.
-        let rgba = img.to_rgba8();
-
         // Image size.
         let dimensions = img.dimensions();
 
@@ -83,32 +82,83 @@ impl Texture {
             depth_or_array_layers: 1,
         };
 
+        let format = match img {
+            DynamicImage::ImageLuma8(_) => {
+                wgpu::TextureFormat::R8Unorm
+            }
+            DynamicImage::ImageRgb8(_) => {
+                wgpu::TextureFormat::Rgba8UnormSrgb
+            }
+            DynamicImage::ImageRgba8(_) => {
+                wgpu::TextureFormat::Rgba8UnormSrgb
+            }
+            _ => {
+                panic!("Unsupported image format!");
+            }
+        };
+
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label,
             size,
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         });
 
+        let img_copy_texture = wgpu::ImageCopyTexture {
+            aspect: wgpu::TextureAspect::All,
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+        };
+
         // Write image data to texture.
-        queue.write_texture(
-            wgpu::ImageCopyTexture {
-                aspect: wgpu::TextureAspect::All,
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            &rgba,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: std::num::NonZeroU32::new(4 * dimensions.0),
-                rows_per_image: std::num::NonZeroU32::new(dimensions.1),
-            },
-            size,
-        );
+        match img {
+            DynamicImage::ImageLuma8(gray) => {
+                queue.write_texture(
+                    img_copy_texture,
+                    &gray,
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: std::num::NonZeroU32::new(1 * dimensions.0),
+                        rows_per_image: std::num::NonZeroU32::new(dimensions.1),
+                    },
+                    size,
+                );
+            }
+            DynamicImage::ImageRgb8(_) => {
+                // Make a rgba8 copy.
+                let rgba = img.to_rgba8();
+
+                queue.write_texture(
+                    img_copy_texture,
+                    &rgba,
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: std::num::NonZeroU32::new(4 * dimensions.0),
+                        rows_per_image: std::num::NonZeroU32::new(dimensions.1),
+                    },
+                    size,
+                );
+            }
+            DynamicImage::ImageRgba8(rgba) => {
+                queue.write_texture(
+                    img_copy_texture,
+                    &rgba,
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: std::num::NonZeroU32::new(4 * dimensions.0),
+                        rows_per_image: std::num::NonZeroU32::new(dimensions.1),
+                    },
+                    size,
+                );
+            }
+            _ => {
+                panic!("Unsupported image format!");
+            }
+        };
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -126,6 +176,7 @@ impl Texture {
             texture,
             view,
             sampler,
+            format,
             size: Point2::new(size.width, size.height),
         })
     }
@@ -176,6 +227,7 @@ impl Texture {
             texture,
             view,
             sampler,
+            format: Self::DEPTH_FORMAT,
             size: Point2::new(size.width, size.height),
         }
     }
