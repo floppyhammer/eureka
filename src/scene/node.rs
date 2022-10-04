@@ -7,6 +7,7 @@ pub enum NodeType {
     // 2D
     Camera2d,
     Sprite2d,
+    Label,
     SpriteVector,
     Particles2d,
 
@@ -23,6 +24,7 @@ impl std::fmt::Display for NodeType {
         match self {
             NodeType::Camera2d => write!(f, "Camera2d"),
             NodeType::Sprite2d => write!(f, "Sprite2d"),
+            NodeType::Label => write!(f, "Label"),
             NodeType::SpriteVector => write!(f, "SpriteVector"),
             NodeType::Particles2d => write!(f, "Particles2d"),
             NodeType::Camera3d => write!(f, "Camera3d"),
@@ -163,8 +165,8 @@ impl World {
             }
             Some(root) => {
                 let iter = root.traverse(&self.arena).filter_map(|edge| match edge {
-                    NodeEdge::Start(_) => None,
-                    NodeEdge::End(id) => Some(id),
+                    NodeEdge::Start(id) => Some(id),
+                    NodeEdge::End(_) => None,
                 });
 
                 for id in iter {

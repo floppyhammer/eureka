@@ -8,7 +8,7 @@ use wgpu::Buffer;
 /// CPU data.
 pub struct AtlasInstance {
     pub(crate) position: Vector2<f32>,
-    pub(crate) scale: Vector2<f32>,
+    pub(crate) size: Vector2<f32>,
     pub(crate) region: Vector4<f32>,
     pub(crate) color: Vector4<f32>,
 }
@@ -18,7 +18,7 @@ pub struct AtlasInstance {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct AtlasInstanceRaw {
     position: [f32; 2],
-    scale: [f32; 2],
+    size: [f32; 2],
     region: [f32; 4],
     color: [f32; 4],
 }
@@ -45,7 +45,7 @@ impl AtlasInstance {
     fn to_raw(&self) -> AtlasInstanceRaw {
         AtlasInstanceRaw {
             position: [self.position.x, self.position.y],
-            scale: [1.0, 1.0],
+            size: [self.size.x, self.size.y],
             region: self.region.into(),
             color: [1.0, 1.0, 1.0, 1.0],
         }

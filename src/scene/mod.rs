@@ -16,5 +16,6 @@ pub use light::*;
 pub use model::*;
 pub use node::*;
 pub use sky::*;
+pub use label::*;
 
 pub use crate::server::input_server::*;

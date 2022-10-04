@@ -82,7 +82,7 @@ impl Sprite2d {
 
 impl AsNode for Sprite2d {
     fn node_type(&self) -> NodeType {
-        NodeType::Sprite2d
+        NodeType::Label
     }
 
     fn input(&mut self, input: &InputEvent) {}

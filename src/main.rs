@@ -29,9 +29,10 @@ use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::scene::{
     AsNode, Camera2d, Camera3d, Camera3dController, InputEvent, InputServer, Light, LightUniform,
-    Model, Projection, Sky, World,
+    Model, Projection, Sky, World, Label,
 };
 use crate::server::render_server::RenderServer;
+use crate::server::text_server::TextServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
@@ -48,6 +49,7 @@ struct App {
     size: winit::dpi::PhysicalSize<u32>,
     render_server: RenderServer,
     input_server: InputServer,
+    text_server: TextServer,
     depth_texture: Texture,
     previous_frame_time: f32,
     world: World,
@@ -221,14 +223,13 @@ impl App {
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         log::info!("Asset dir: {}", asset_dir.display());
 
-        let font = DynamicFont::load(asset_dir.join("unifont-14.0.03.ttf"));
-        font.get_graphemes("🚀 你好 Hello नमस्ते् مرحبا".to_string());
-
         let mut singletons = Singletons {
             camera2d: None,
             camera3d: None,
             light: None,
         };
+
+        let mut text_server = TextServer::new(asset_dir.join("unifont-14.0.03.ttf"));
 
         // Create nodes.
         // ---------------------------------------------------
@@ -279,20 +280,26 @@ impl App {
         let sprite_tex = Texture::load(
             &render_server.device,
             &render_server.queue,
-            asset_dir.join("happy-tree.png"),
-        )
+            asset_dir.join("happy-tree.png"))
             .unwrap();
         let sprite = Box::new(Sprite2d::new(&render_server, sprite_tex));
         world.add_node(sprite, None);
+
+        let mut label = Box::new(Label::new(&render_server, &text_server));
+        label.position = Vector2::new(200.0, 200.0);
+        label.set_text(&render_server, &mut text_server, "🚀 你好 Hello नमस्ते् مرحبا".to_string());
+        world.add_node(label, None);
         // ---------------------------------------------------
 
+        // Test ground.
+        // ---------------------------------------------------
         let mut atlas = Atlas::new(&render_server);
 
         let mut instances = vec![];
         for i in 0..10 {
             let instance = AtlasInstance {
                 position: Vector2::new(i as f32 * 100.0 + 100.0, i as f32 * 100.0),
-                scale: Vector2::new(1.0, 1.0),
+                size: Vector2::new(128.0, 128.0),
                 region: Vector4::new(0.0, 0.0, 1.0, 1.0),
                 color: Vector4::new(1.0, 1.0, 1.0, 1.0),
             };
@@ -304,11 +311,13 @@ impl App {
             &render_server.queue,
             asset_dir.join("happy-tree.png"),
         ).unwrap(), &render_server);
+        // ---------------------------------------------------
 
         Self {
             size,
             render_server,
             input_server: InputServer::new(),
+            text_server,
             depth_texture,
             previous_frame_time: 0.0,
             world,
@@ -428,11 +437,9 @@ impl App {
                 }),
             });
 
-            self.singletons
-                .draw(&mut render_pass, &self.render_server, &self.singletons);
+            self.singletons.draw(&mut render_pass, &self.render_server, &self.singletons);
 
-            self.world
-                .draw(&mut render_pass, &self.render_server, &self.singletons);
+            self.world.draw(&mut render_pass, &self.render_server, &self.singletons);
 
             self.atlas.draw(&mut render_pass, &self.render_server, &self.singletons);
         }
