@@ -5,6 +5,7 @@ use cgmath::*;
 use std::error::Error;
 use std::ops::Range;
 use std::path::Path;
+use std::time::Instant;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
 
@@ -122,6 +123,8 @@ impl InstanceRaw {
 impl Model {
     /// Load model from a wavefront file (.obj).
     pub fn load<P: AsRef<Path>>(render_server: &RenderServer, path: P) -> Result<Self> {
+        let now = Instant::now();
+
         let device = &render_server.device;
         let queue = &render_server.queue;
 
@@ -357,6 +360,9 @@ impl Model {
             contents: bytemuck::cast_slice(&instance_data),
             usage: wgpu::BufferUsages::VERTEX,
         });
+
+        let elapsed_time = now.elapsed();
+        log::info!("Loading model took {} milliseconds", elapsed_time.as_millis());
 
         Ok(Self {
             position,

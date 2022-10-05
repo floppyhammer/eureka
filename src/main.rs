@@ -229,7 +229,7 @@ impl App {
             light: None,
         };
 
-        let mut text_server = TextServer::new(asset_dir.join("unifont-14.0.03.ttf"));
+        let mut text_server = TextServer::new(asset_dir.join("fonts/OpenSans-Regular.ttf"));
 
         // Create nodes.
         // ---------------------------------------------------
@@ -251,7 +251,7 @@ impl App {
         singletons.camera2d = Some(camera2d);
 
         let skybox_tex =
-            CubemapTexture::load(&render_server, asset_dir.join("skybox.png")).unwrap();
+            CubemapTexture::load(&render_server, asset_dir.join("skybox.jpg")).unwrap();
         let sky = Box::new(Sky::new(&render_server, skybox_tex));
         world.add_node(sky, None);
 
@@ -265,14 +265,14 @@ impl App {
         // );
         // world.add_node(obj_model, None);
 
-        let ground_model = Box::new(
-            Model::load(
-                &render_server,
-                asset_dir.join("granite_ground/granite_ground.obj"),
-            )
-                .unwrap(),
-        );
-        world.add_node(ground_model, None);
+        // let ground_model = Box::new(
+        //     Model::load(
+        //         &render_server,
+        //         asset_dir.join("granite_ground/granite_ground.obj"),
+        //     )
+        //         .unwrap(),
+        // );
+        // world.add_node(ground_model, None);
 
         let vec_sprite = Box::new(VectorSprite::new(&render_server));
         world.add_node(vec_sprite, None);

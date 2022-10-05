@@ -5,6 +5,7 @@ use cgmath::*;
 use std::error::Error;
 use std::ops::Range;
 use std::path::Path;
+use std::time::Instant;
 use wgpu::util::DeviceExt;
 
 use crate::resource::CubemapTexture;
@@ -26,6 +27,8 @@ pub struct Sky {
 
 impl Sky {
     pub fn new(render_server: &RenderServer, texture: CubemapTexture) -> Self {
+        let now = Instant::now();
+
         let bind_group = render_server
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -52,6 +55,9 @@ impl Sky {
         let mesh = Mesh::default_skybox(&render_server.device);
 
         let rotation = cgmath::Quaternion::new(0.0, 0.0, 0.0, 0.0);
+
+        let elapsed_time = now.elapsed();
+        log::info!("Sky setup took {} milliseconds", elapsed_time.as_millis());
 
         Self {
             rotation,

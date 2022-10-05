@@ -1,6 +1,7 @@
 use anyhow::*;
 use image::{DynamicImage, GenericImageView, ImageBuffer, Rgb};
 use std::path::Path;
+use std::time::Instant;
 use cgmath::Point2;
 
 use crate::resource::{Material2d, Mesh};
@@ -249,13 +250,20 @@ pub struct CubemapTexture {
 
 impl CubemapTexture {
     pub fn load<P: AsRef<Path>>(render_server: &RenderServer, path: P) -> Result<Self> {
+        let now = Instant::now();
+
         // Needed to appease the borrow checker.
         let path_copy = path.as_ref().to_path_buf();
         let label = path_copy.to_str();
 
         let img = image::open(path).context("Invalid image path")?;
 
-        Self::from_image(&render_server.device, &render_server.queue, &img, label)
+        let texture = Self::from_image(&render_server.device, &render_server.queue, &img, label);
+
+        let elapsed_time = now.elapsed();
+        log::info!("Loading cubemap texture took {} milliseconds", elapsed_time.as_millis());
+
+        texture
     }
 
     /// Create texture from image.

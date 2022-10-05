@@ -1,3 +1,4 @@
+use std::time::Instant;
 use cgmath::Point2;
 use wgpu::PolygonMode::Point;
 use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
@@ -38,6 +39,8 @@ impl RenderServer {
         device: wgpu::Device,
         queue: wgpu::Queue,
     ) -> Self {
+        let now = Instant::now();
+
         // Create various bind group layouts, which are used to create bind groups.
         // ------------------------------------------------------------------
         let camera3d_bind_group_layout =
@@ -462,6 +465,9 @@ impl RenderServer {
                 multiview: None,
             })
         };
+
+        let elapsed_time = now.elapsed();
+        log::info!("Render server setup took {} milliseconds", elapsed_time.as_millis());
 
         Self {
             surface,

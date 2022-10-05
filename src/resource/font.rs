@@ -4,6 +4,7 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use std::time::Instant;
 use cgmath::{Point2, Vector4};
 use fontdue;
 use image::Luma;
@@ -41,14 +42,22 @@ pub(crate) struct DynamicFont {
 
 impl DynamicFont {
     pub(crate) fn load<P: AsRef<Path>>(path: P) -> Self {
+        let now = Instant::now();
+
         // Read the font data.
         let mut f = File::open(path.as_ref()).expect("No font file found!");
         let metadata = fs::metadata(path.as_ref()).expect("Unable to read font file metadata!");
         let mut buffer = vec![0; metadata.len() as usize];
         f.read(&mut buffer).expect("Font buffer overflow!");
 
+        let elapsed_time = now.elapsed();
+        log::info!("Loading font file took {} milliseconds", elapsed_time.as_millis());
+
         // Parse it into the font type.
         let font = fontdue::Font::from_bytes(buffer, fontdue::FontSettings::default()).unwrap();
+
+        let elapsed_time = now.elapsed();
+        log::info!("Creating fontdue font took {} milliseconds", elapsed_time.as_millis());
 
         Self {
             font,
@@ -63,9 +72,9 @@ impl DynamicFont {
     pub(crate) fn get_graphemes(&mut self, text: String) -> Vec<Grapheme> {
         let mut graphemes = vec![];
 
-        for g in text.graphemes(true) {
-            log::info!("Grapheme: {}", g);
-        }
+        // for g in text.graphemes(true) {
+        //     log::info!("Grapheme: {}", g);
+        // }
 
         for c in text.chars() {
             let key = c.to_string();
@@ -79,7 +88,7 @@ impl DynamicFont {
             // Rasterize and get the layout metrics for the character.
             let (metrics, bitmap) = self.font.rasterize(c, self.size as f32);
 
-            log::info!("Character: {} {:?}", c, metrics);
+            // log::info!("Character: {} {:?}", c, metrics);
 
             let buffer: &[u8] = &bitmap;
 
