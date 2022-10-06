@@ -1,7 +1,7 @@
 use cgmath::{Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use crate::{AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer, Texture};
-use crate::render::atlas::DrawAtlas;
+use crate::render::atlas::{AtlasMode, DrawAtlas};
 use crate::resource::FONT_ATLAS_SIZE;
 use crate::scene::NodeType;
 
@@ -23,11 +23,14 @@ impl Label {
         let position = Vector2::new(0.0_f32, 0.0);
         let size = Vector2::new(128.0_f32, 128.0);
 
+        let mut atlas = Atlas::new(&render_server);
+        atlas.set_mode(AtlasMode::Text);
+
         Self {
             text: "Text".to_string(),
             position,
             size,
-            atlas: Atlas::new(&render_server),
+            atlas,
         }
     }
 

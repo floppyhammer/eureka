@@ -1,8 +1,15 @@
 //////////////////////////////// Vertex shader ////////////////////////////////
 
+let MODE_FLAG_SPRITE : u32 = 1u;
+let MODE_FLAG_TEXT : u32 = 2u;
+
 struct AtlasParams {
     camera_view_size: vec2<f32>,
     texture_size: vec2<f32>,
+    mode_flag: u32,
+    pad0: u32,
+    pad1: u32,
+    pad2: u32,
 }
 
 @group(0) @binding(0)
@@ -68,5 +75,11 @@ var s_diffuse: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return in.color * textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    if (params.mode_flag & MODE_FLAG_SPRITE) > 0u {
+        return in.color * textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    } else if (params.mode_flag & MODE_FLAG_TEXT) > 0u {
+        return in.color * textureSample(t_diffuse, s_diffuse, in.tex_coords).r;
+    } else {
+        return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    }
 }

@@ -404,7 +404,7 @@ impl RenderServer {
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -432,7 +432,7 @@ impl RenderServer {
             let shader_module = device.create_shader_module(shader);
 
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("gizmo render pipeline"),
+                label: Some("atlas render pipeline"),
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader_module,
@@ -539,7 +539,7 @@ impl RenderServer {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("atlas params uniform buffer"),
-                contents: bytemuck::cast_slice(&[AtlasParamsUniform::new(Point2::new(0, 0), Point2::new(0, 0))]),
+                contents: bytemuck::cast_slice(&[AtlasParamsUniform::default()]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
 

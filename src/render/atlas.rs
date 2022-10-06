@@ -29,14 +29,40 @@ pub(crate) struct AtlasInstanceRaw {
 pub(crate) struct AtlasParamsUniform {
     camera_view_size: [f32; 2],
     texture_size: [f32; 2],
+    mode_flag: u32,
+    pad0: u32,
+    pad1: u32,
+    pad2: u32,
+}
+
+pub(crate) enum AtlasMode {
+    Sprite = 0x1,
+    Text = 0x2,
 }
 
 impl AtlasParamsUniform {
-    pub(crate) fn new(texture_size: Point2<u32>, camera_view_size: Point2<u32>) -> Self {
+    pub(crate) fn new(texture_size: Point2<u32>,
+                      camera_view_size: Point2<u32>,
+                      mode_flag: u32) -> Self {
         use cgmath::SquareMatrix;
         Self {
             camera_view_size: [camera_view_size.x as f32, camera_view_size.y as f32],
             texture_size: [texture_size.x as f32, texture_size.y as f32],
+            mode_flag,
+            pad0: 0,
+            pad1: 0,
+            pad2: 0,
+        }
+    }
+
+    pub(crate) fn default() -> Self {
+        Self {
+            camera_view_size: [0.0, 0.0],
+            texture_size: [0.0, 0.0],
+            mode_flag: 0,
+            pad0: 0,
+            pad1: 0,
+            pad2: 0,
         }
     }
 }
@@ -112,6 +138,7 @@ pub(crate) struct Atlas {
     texture_bind_group: wgpu::BindGroup,
     atlas_params_buffer: wgpu::Buffer,
     atlas_params_bind_group: wgpu::BindGroup,
+    mode: AtlasMode,
 }
 
 impl Atlas {
@@ -130,6 +157,7 @@ impl Atlas {
             texture_bind_group,
             atlas_params_buffer,
             atlas_params_bind_group,
+            mode: AtlasMode::Sprite,
         }
     }
 
@@ -137,6 +165,10 @@ impl Atlas {
         self.texture = texture;
 
         self.texture_bind_group = render_server.create_sprite2d_bind_group(&self.texture);
+    }
+
+    pub(crate) fn set_mode(&mut self, mode: AtlasMode) {
+        self.mode = mode;
     }
 
     pub(crate) fn set_instances(&mut self, instances: Vec<AtlasInstance>, render_server: &RenderServer) {
@@ -176,7 +208,8 @@ impl Atlas {
     ) {
         let camera = singletons.camera2d.as_ref().unwrap();
         let atlas_params = AtlasParamsUniform::new(self.texture.size,
-                                                   camera.view_size);
+                                                   camera.view_size,
+                                                   self.mode as u32);
         render_server
             .queue
             .write_buffer(&self.atlas_params_buffer, 0, bytemuck::cast_slice(&[atlas_params]));
