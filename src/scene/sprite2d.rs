@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::resource::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons};
@@ -85,6 +86,12 @@ impl AsNode for Sprite2d {
         NodeType::Label
     }
 
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn ready(&mut self) {}
+
     fn input(&mut self, input: &InputEvent) {}
 
     fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
@@ -159,8 +166,8 @@ pub trait DrawSprite2d<'a> {
 }
 
 impl<'a, 'b> DrawSprite2d<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a, // This means 'b must outlive 'a.
+    where
+        'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,

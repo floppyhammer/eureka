@@ -1,5 +1,6 @@
 extern crate lyon;
 
+use std::any::Any;
 use crate::render::vertex::VertexBuffer;
 use crate::scene::{AsNode, Camera2dUniform, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, Singletons};
@@ -120,6 +121,12 @@ impl AsNode for VectorSprite {
     fn node_type(&self) -> NodeType {
         NodeType::SpriteVector
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn ready(&mut self) {}
 
     fn input(&mut self, input: &InputEvent) {}
 

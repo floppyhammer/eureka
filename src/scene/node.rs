@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::server::input_server::InputEvent;
 use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
 use cgmath::*;
@@ -39,6 +40,11 @@ impl std::fmt::Display for NodeType {
 pub trait AsNode {
     fn node_type(&self) -> NodeType;
 
+    fn as_any(&self) -> &dyn Any;
+
+    /// Called when being added to the scene tree.
+    fn ready(&mut self);
+
     fn input(&mut self, input: &InputEvent);
 
     fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>);
@@ -76,8 +82,11 @@ impl World {
         }
     }
 
-    pub fn add_node(&mut self, new_node: Box<dyn AsNode>, parent: Option<NodeId>) -> NodeId {
+    pub fn add_node(&mut self, mut new_node: Box<dyn AsNode>, parent: Option<NodeId>) -> NodeId {
         log::info!("Added node: {}", new_node.node_type().to_string());
+
+        // FIXME: Should move this after adding node in the tree.
+        new_node.ready();
 
         let id = self.arena.new_node(new_node);
 

@@ -1,3 +1,4 @@
+use std::any::Any;
 use cgmath::{Vector3, Vector4};
 use crate::render::atlas::{AtlasInstance, DrawAtlas};
 use crate::{AsNode, Atlas, InputEvent, RenderServer, Singletons, Texture};
@@ -34,6 +35,12 @@ impl AsNode for Particles2d {
     fn node_type(&self) -> NodeType {
         NodeType::Particles2d
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn ready(&mut self) {}
 
     fn input(&mut self, input: &InputEvent) {}
 

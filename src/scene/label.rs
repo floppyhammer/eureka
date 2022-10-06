@@ -1,3 +1,4 @@
+use std::any::Any;
 use cgmath::{Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use crate::{AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer, Texture};
@@ -12,12 +13,15 @@ pub(crate) struct Label {
 
     pub(crate) size: Vector2<f32>,
 
+    text_is_dirty: bool,
+    layout_is_dirty: bool,
+
     /// To draw grapheme sprites.
     atlas: Atlas,
 }
 
 impl Label {
-    pub(crate) fn new(render_server: &RenderServer, text_server: &TextServer) -> Label {
+    pub(crate) fn new(render_server: &RenderServer, text_server: &mut TextServer) -> Label {
         let device = &render_server.device;
 
         let position = Vector2::new(0.0_f32, 0.0);
@@ -27,9 +31,11 @@ impl Label {
         atlas.set_mode(AtlasMode::Text);
 
         Self {
-            text: "Text".to_string(),
+            text: "Label".to_string(),
             position,
             size,
+            text_is_dirty: true,
+            layout_is_dirty: true,
             atlas,
         }
     }
@@ -73,8 +79,14 @@ impl Label {
 
 impl AsNode for Label {
     fn node_type(&self) -> NodeType {
-        NodeType::Sprite2d
+        NodeType::Label
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn ready(&mut self) {}
 
     fn input(&mut self, input: &InputEvent) {}
 

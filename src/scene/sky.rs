@@ -1,3 +1,4 @@
+use std::any::Any;
 use anyhow::Context;
 use anyhow::*;
 use cgmath::InnerSpace;
@@ -72,6 +73,12 @@ impl AsNode for Sky {
     fn node_type(&self) -> NodeType {
         NodeType::Sky
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn ready(&mut self) {}
 
     fn input(&mut self, input: &InputEvent) {}
 

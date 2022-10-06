@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::resource::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons, Zero};
@@ -126,6 +127,12 @@ impl AsNode for Sprite3d {
     fn node_type(&self) -> NodeType {
         NodeType::Sprite3d
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn ready(&mut self) {}
 
     fn input(&mut self, input: &InputEvent) {}
 
