@@ -31,6 +31,8 @@ indextree = "4.4.0"
 fontdue = "0.7.2"
 # For splitting grapheme clusters.
 unicode-segmentation = "1.10.0"
+# For ECS.
+bevy_ecs = "0.8.1"
 
 [build-dependencies]
 anyhow = "1.0"

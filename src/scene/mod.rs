@@ -9,6 +9,7 @@ pub(crate) mod sprite2d;
 pub(crate) mod sprite3d;
 pub(crate) mod vector_sprite;
 pub(crate) mod label;
+pub(crate) mod ecs_test;
 
 pub use camera2d::*;
 pub use camera3d::*;
