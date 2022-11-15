@@ -1,4 +1,5 @@
 use std::time::Instant;
+use bevy_ecs::system::Resource;
 use cgmath::Point2;
 use wgpu::PolygonMode::Point;
 use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
@@ -8,6 +9,7 @@ use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Text
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
+#[derive(Resource)]
 pub struct RenderServer {
     pub surface: wgpu::Surface,
     pub device: wgpu::Device,

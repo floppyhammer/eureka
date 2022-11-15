@@ -38,19 +38,19 @@ struct SpriteBundle {
     transform: CpTransform,
 }
 
-fn render_atlas(query: Query<(Entity, &CpAtlas, &CpTransform)>, render_server: Res<RenderServer>) {
-    for (entity, atlas, transform) in &query {
-        println!("Entity {:?} is at position: {:?}", entity, transform.position);
-
-        // render_pass.draw_atlas(
-        //     &render_server.atlas_pipeline,
-        //     &atlas.instance_buffer.unwrap(),
-        //     atlas.instances.len() as u32,
-        //     &atlas.texture_bind_group.unwrap(),
-        //     &atlas.atlas_params_bind_group.unwrap(),
-        // );
-    }
-}
+// fn render_atlas<'a>(query: Query<(Entity, &CpAtlas, &CpTransform)>, render_server: Res<RenderServer>, mut render_pass: ResMut<RenderPass<'a>>) {
+//     for (entity, atlas, transform) in &query {
+//         println!("Entity {:?} is at position: {:?}", entity, transform.position);
+//
+//         // render_pass.draw_atlas(
+//         //     &render_server.atlas_pipeline,
+//         //     &atlas.instance_buffer.unwrap(),
+//         //     atlas.instances.len() as u32,
+//         //     &atlas.texture_bind_group.unwrap(),
+//         //     &atlas.atlas_params_bind_group.unwrap(),
+//         // );
+//     }
+// }
 
 struct EcsController {
     world: World,
@@ -64,16 +64,16 @@ impl EcsController {
         world.insert_resource(render_server);
 
         // Spawn a new entity and insert the default PlayerBundle
-        world.spawn().insert_bundle(SpriteBundle::default());
+        world.spawn(SpriteBundle::default());
 
         // Create a new Schedule, which defines an execution strategy for Systems
         let mut schedule = Schedule::default();
 
         // Add a Stage to our schedule. Each Stage in a schedule runs all of its systems
         // before moving on to the next Stage.
-        schedule.add_stage("update", SystemStage::parallel()
-            .with_system(render_atlas),
-        );
+        // schedule.add_stage("update", SystemStage::parallel()
+        //     .with_system(render_atlas),
+        // );
 
         Self {
             world,

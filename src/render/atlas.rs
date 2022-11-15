@@ -35,7 +35,7 @@ pub(crate) struct AtlasParamsUniform {
     pad2: u32,
 }
 
-#[derive(Default)]
+#[derive(Default, Copy, Clone)]
 pub(crate) enum AtlasMode {
     #[default]
     Sprite = 0x1,
