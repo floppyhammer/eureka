@@ -1,8 +1,10 @@
 use std::any::Any;
+use std::mem;
 use crate::resource::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons, Zero};
 use cgmath::{InnerSpace, Rotation3, Vector3};
+use wgpu::BufferAddress;
 use wgpu::util::DeviceExt;
 
 #[repr(C)]
@@ -13,6 +15,18 @@ pub struct SpriteParamsUniform {
     pad0: f32,
     pad1: f32,
     pad2: f32,
+}
+
+impl SpriteParamsUniform {
+    fn default() -> Self {
+        Self {
+            model_matrix: [[0.0; 4]; 4],
+            billboard_mode: 0.0,
+            pad0: 0.0,
+            pad1: 0.0,
+            pad2: 0.0,
+        }
+    }
 }
 
 pub struct Sprite3d {
@@ -70,22 +84,11 @@ impl Sprite3d {
 
         // Create a buffer for the params.
         // ------------------------------------------
-        let params_uniform = SpriteParamsUniform {
-            model_matrix: cgmath::Matrix4::from_translation(position).into(),
-            billboard_mode: if billboard_mode == BillboardMode::Spherical {
-                1.0
-            } else {
-                0.0
-            },
-            pad0: 0.0,
-            pad1: 0.0,
-            pad2: 0.0,
-        };
-
-        let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("sprite params buffer"),
-            contents: bytemuck::cast_slice(&[params_uniform]),
+            size: mem::size_of::<SpriteParamsUniform>() as BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
 
         let params_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -96,9 +99,6 @@ impl Sprite3d {
             }],
             label: Some("sprite params bind group"),
         });
-
-        // Update buffer.
-        queue.write_buffer(&params_buffer, 0, bytemuck::cast_slice(&[params_uniform]));
         // ------------------------------------------
 
         Self {
@@ -109,7 +109,7 @@ impl Sprite3d {
             billboard_mode,
             texture: Some(texture),
             texture_bind_group,
-            params_uniform,
+            params_uniform: SpriteParamsUniform::default(),
             params_buffer,
             params_bind_group,
             mesh,
@@ -136,8 +136,8 @@ impl AsNode for Sprite3d {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
-        let params_uniform = SpriteParamsUniform {
+    fn update(&mut self, dt: f32, singletons: Option<&Singletons>) {
+        self.params_uniform = SpriteParamsUniform {
             model_matrix: cgmath::Matrix4::from_translation(self.position).into(),
             billboard_mode: if self.billboard_mode == BillboardMode::Spherical {
                 1.0
@@ -148,13 +148,6 @@ impl AsNode for Sprite3d {
             pad1: 0.0,
             pad2: 0.0,
         };
-
-        // Update buffer.
-        render_server.queue.write_buffer(
-            &self.params_buffer,
-            0,
-            bytemuck::cast_slice(&[params_uniform]),
-        );
     }
 
     fn draw<'a, 'b: 'a>(
@@ -163,6 +156,13 @@ impl AsNode for Sprite3d {
         render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
+        // Update buffer.
+        render_server.queue.write_buffer(
+            &self.params_buffer,
+            0,
+            bytemuck::cast_slice(&[self.params_uniform]),
+        );
+
         render_pass.draw_sprite(
             &render_server.sprite3d_pipeline,
             &self.mesh,
@@ -185,8 +185,8 @@ pub trait DrawSprite3d<'a> {
 }
 
 impl<'a, 'b> DrawSprite3d<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a, // This means 'b must outlive 'a.
+    where
+        'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,

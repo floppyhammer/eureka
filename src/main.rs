@@ -387,7 +387,7 @@ impl App {
             .update(&self.render_server.queue, dt_in_secs, &self.render_server);
 
         self.world
-            .update(dt_in_secs, &self.render_server, Some(&self.singletons));
+            .update(dt_in_secs, Some(&self.singletons));
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {

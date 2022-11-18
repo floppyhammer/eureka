@@ -10,6 +10,7 @@ pub(crate) mod sprite3d;
 pub(crate) mod vector_sprite;
 pub(crate) mod label;
 pub(crate) mod ecs_test;
+pub(crate) mod world;
 
 pub use camera2d::*;
 pub use camera3d::*;
@@ -18,5 +19,6 @@ pub use model::*;
 pub use node::*;
 pub use sky::*;
 pub use label::*;
+pub use world::*;
 
 pub use crate::server::input_server::*;

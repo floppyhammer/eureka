@@ -18,6 +18,7 @@ pub struct VectorSprite {
     pub size: cgmath::Vector2<f32>,
     pub scale: cgmath::Vector2<f32>,
 
+    camera_uniform: Camera2dUniform,
     pub camera_buffer: wgpu::Buffer,
     pub camera_bind_group: wgpu::BindGroup,
 
@@ -110,6 +111,7 @@ impl VectorSprite {
             position,
             size,
             scale,
+            camera_uniform: Camera2dUniform::new(),
             camera_buffer,
             camera_bind_group,
             mesh,
@@ -130,7 +132,7 @@ impl AsNode for VectorSprite {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
+    fn update(&mut self, dt: f32, singletons: Option<&Singletons>) {
         let camera = singletons.unwrap().camera2d.as_ref().unwrap();
 
         let translation = cgmath::Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0));
@@ -141,16 +143,9 @@ impl AsNode for VectorSprite {
             1.0,
         );
 
-        let mut uniform = Camera2dUniform::new();
-
         // Note the multiplication direction (left multiplication).
         // So, scale first, translation second.
-        uniform.proj = (translation * scale).into();
-
-        // Update camera buffer.
-        render_server
-            .queue
-            .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+        self.camera_uniform.proj = (translation * scale).into();
     }
 
     fn draw<'a, 'b: 'a>(
@@ -159,6 +154,11 @@ impl AsNode for VectorSprite {
         render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
+        // Update camera buffer.
+        render_server
+            .queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+
         render_pass.draw_path(
             &render_server.vector_sprite_pipeline,
             &self.mesh,
@@ -215,8 +215,8 @@ pub trait DrawVector<'a> {
 }
 
 impl<'a, 'b> DrawVector<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a,
+    where
+        'b: 'a,
 {
     fn draw_path(
         &mut self,

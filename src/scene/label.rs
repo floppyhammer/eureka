@@ -90,7 +90,7 @@ impl AsNode for Label {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
+    fn update(&mut self, dt: f32, singletons: Option<&Singletons>) {
         let camera = singletons.unwrap().camera2d.as_ref().unwrap();
     }
 

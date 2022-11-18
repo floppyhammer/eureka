@@ -433,12 +433,6 @@ impl AsNode for Model {
         self
     }
 
-    fn ready(&mut self) {}
-
-    fn input(&mut self, input: &InputEvent) {}
-
-    fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {}
-
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,

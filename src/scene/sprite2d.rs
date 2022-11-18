@@ -26,6 +26,7 @@ pub struct Sprite2d {
     pub texture: Option<Texture>,
     pub texture_bind_group: wgpu::BindGroup,
 
+    camera_uniform: Camera2dUniform,
     pub camera_buffer: wgpu::Buffer,
     pub camera_bind_group: wgpu::BindGroup,
 
@@ -63,6 +64,7 @@ impl Sprite2d {
             },
             texture: Some(texture),
             texture_bind_group,
+            camera_uniform: Camera2dUniform::new(),
             camera_buffer,
             camera_bind_group,
             centered: false,
@@ -94,7 +96,7 @@ impl AsNode for Sprite2d {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(&mut self, dt: f32, render_server: &RenderServer, singletons: Option<&Singletons>) {
+    fn update(&mut self, dt: f32, singletons: Option<&Singletons>) {
         let camera = singletons.unwrap().camera2d.as_ref().unwrap();
 
         let scaled_width = self.scale.x * self.size.x;
@@ -128,16 +130,9 @@ impl AsNode for Sprite2d {
             1.0,
         );
 
-        let mut uniform = Camera2dUniform::new();
-
         // Note the multiplication direction (left multiplication).
         // So, scale first, translation second.
-        uniform.proj = (translation * scale).into();
-
-        // Update camera buffer.
-        render_server
-            .queue
-            .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+        self.camera_uniform.proj = (translation * scale).into();
     }
 
     fn draw<'a, 'b: 'a>(
@@ -146,6 +141,11 @@ impl AsNode for Sprite2d {
         render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
+        // Update camera buffer.
+        render_server
+            .queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+
         render_pass.draw_sprite(
             &render_server.sprite_pipeline,
             &self.mesh,
