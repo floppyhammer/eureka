@@ -54,36 +54,33 @@ impl World {
     fn traverse(&self) -> Vec<NodeId> {
         let mut ids: Vec<NodeId> = vec![];
 
+        // Node depth in the tree.
+        let mut depths: Vec<i32> = vec![];
+        let mut current_depth = 0;
+
         match self.root_node {
             None => {
                 log::warn!("No root node in the scene tree.");
             }
             Some(root) => {
-                // This must return `Some(_)` since the last item to be iterated
-                // by `.traverse(...)` should be `NodeEdge::End(root_id)`.
-                let mut next_id = root.traverse(&self.arena).find_map(|edge| match edge {
-                    NodeEdge::Start(_) => None,
-                    NodeEdge::End(id) => Some(id),
+                let iter = root.traverse(&self.arena).filter_map(|edge| match edge {
+                    NodeEdge::Start(id) => {
+                        depths.push(current_depth);
+                        current_depth += 1;
+
+                        Some(id)
+                    }
+                    NodeEdge::End(_) => {
+                        current_depth -= 1;
+
+                        None
+                    }
                 });
 
-                while let Some(current_id) = next_id {
-                    next_id = if current_id == root {
-                        // This will be the last node to iterate.
-                        None
-                    } else if let Some(next_sib_id) = self.arena[current_id].next_sibling() {
-                        next_sib_id
-                            .traverse(&self.arena)
-                            .find_map(|edge| match edge {
-                                NodeEdge::Start(_) => None,
-                                NodeEdge::End(id) => Some(id),
-                            })
-                    } else {
-                        // No more following siblings. Go to the parent node.
-                        self.arena[current_id].parent()
-                    };
-
-                    ids.push(current_id);
-                }
+                // for id in iter {
+                //     ids.push(id);
+                // }
+                ids = iter.map(|id| id).collect();
             }
         }
 
@@ -91,8 +88,9 @@ impl World {
     }
 
     pub fn input(&mut self, input_event: &InputEvent) {
-        for id in self.traverse() {
-            self.arena[id].get_mut().input(input_event);
+        // Input events propagate reversely.
+        for id in self.traverse().iter().rev() {
+            self.arena[*id].get_mut().input(input_event);
         }
     }
 
@@ -114,22 +112,10 @@ impl World {
         render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
-        match self.root_node {
-            None => {
-                log::warn!("No root node in the scene tree.");
-            }
-            Some(root) => {
-                let iter = root.traverse(&self.arena).filter_map(|edge| match edge {
-                    NodeEdge::Start(id) => Some(id),
-                    NodeEdge::End(_) => None,
-                });
-
-                for id in iter {
-                    self.arena[id]
-                        .get()
-                        .draw(render_pass, render_server, singletons);
-                }
-            }
+        for id in self.traverse() {
+            self.arena[id]
+                .get()
+                .draw(render_pass, render_server, singletons);
         }
 
         self.gizmo.draw(render_pass, render_server, singletons);

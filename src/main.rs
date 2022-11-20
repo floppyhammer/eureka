@@ -275,7 +275,7 @@ impl App {
         // world.add_node(ground_model, None);
 
         let vec_sprite = Box::new(VectorSprite::new(&render_server));
-        world.add_node(vec_sprite, None);
+        let vec_sprite_id = world.add_node(vec_sprite, None);
 
         let sprite_tex = Texture::load(
             &render_server.device,
@@ -288,7 +288,7 @@ impl App {
         let mut label = Box::new(Label::new(&render_server, &mut text_server));
         label.position = Vector2::new(0.0, 200.0);
         label.set_text(&render_server, &mut text_server, "Label".to_string());
-        world.add_node(label, None);
+        world.add_node(label, Some(vec_sprite_id));
         // ---------------------------------------------------
 
         // Test ground.

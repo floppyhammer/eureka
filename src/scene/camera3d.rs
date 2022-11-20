@@ -3,7 +3,9 @@ use crate::{InputEvent, InputServer, RenderServer};
 use cgmath::num_traits::clamp;
 use cgmath::*;
 use std::f32::consts::FRAC_PI_2;
+use std::mem;
 use std::time::Duration;
+use wgpu::BufferAddress;
 use wgpu::util::DeviceExt;
 use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
 use winit::event::*;
@@ -58,13 +60,14 @@ impl Camera3d {
         let controller = Camera3dController::new(4.0, 0.4);
 
         // This will be used in the model shader.
-        let mut uniform = Camera3dUniform::new();
+        let mut uniform = Camera3dUniform::default();
 
         // Create a buffer for the camera uniform.
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("camera3d buffer"),
-            contents: bytemuck::cast_slice(&[uniform]),
+            size: mem::size_of::<Camera3dUniform>() as BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -267,7 +270,7 @@ pub struct Camera3dUniform {
 }
 
 impl Camera3dUniform {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn default() -> Self {
         use cgmath::SquareMatrix;
         Self {
             view_position: [0.0; 4],

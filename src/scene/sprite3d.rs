@@ -82,7 +82,7 @@ impl Sprite3d {
 
         let billboard_mode = BillboardMode::Spherical;
 
-        // Create a buffer for the params.
+        // Create a buffer for the parameters.
         // ------------------------------------------
         let params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("sprite params buffer"),
@@ -131,10 +131,6 @@ impl AsNode for Sprite3d {
     fn as_any(&self) -> &dyn Any {
         self
     }
-
-    fn ready(&mut self) {}
-
-    fn input(&mut self, input: &InputEvent) {}
 
     fn update(&mut self, dt: f32, singletons: Option<&Singletons>) {
         self.params_uniform = SpriteParamsUniform {
