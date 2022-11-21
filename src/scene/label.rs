@@ -4,7 +4,7 @@ use image::DynamicImage;
 use crate::{AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer, Texture};
 use crate::render::atlas::{AtlasMode, DrawAtlas};
 use crate::resource::FONT_ATLAS_SIZE;
-use crate::scene::NodeType;
+use crate::scene::{CameraInfo, InputServer, NodeType};
 
 pub(crate) struct Label {
     text: String,
@@ -56,11 +56,7 @@ impl AsNode for Label {
         self
     }
 
-    fn ready(&mut self) {}
-
-    fn input(&mut self, input: &InputEvent) {}
-
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+    fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         if self.text_is_dirty {
             let graphemes = singletons.text_server.font.get_graphemes(self.text.clone());
 
@@ -98,8 +94,9 @@ impl AsNode for Label {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
+        camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
-        self.atlas.draw(render_pass, singletons);
+        self.atlas.draw(render_pass, camera_info, singletons);
     }
 }

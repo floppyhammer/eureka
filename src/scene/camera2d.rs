@@ -1,4 +1,5 @@
-use crate::scene::AsNode;
+use std::any::Any;
+use crate::scene::{AsNode, NodeType};
 use crate::{InputEvent, RenderServer, Singletons};
 use cgmath::{Point2, Vector2, Vector3};
 use wgpu::util::DeviceExt;
@@ -43,10 +44,18 @@ impl Camera2d {
         }
     }
 
-    pub fn update(&mut self, dt: f32) {}
-
     pub fn when_view_size_changes(&mut self, new_width: u32, new_height: u32) {
         self.view_size.x = new_width;
         self.view_size.y = new_height;
+    }
+}
+
+impl AsNode for Camera2d {
+    fn node_type(&self) -> NodeType {
+        NodeType::Camera2d
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }

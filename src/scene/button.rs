@@ -4,7 +4,7 @@ use image::DynamicImage;
 use crate::{AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer, Texture};
 use crate::render::atlas::{AtlasMode, DrawAtlas};
 use crate::resource::FONT_ATLAS_SIZE;
-use crate::scene::{Label, NodeType};
+use crate::scene::{CameraInfo, InputServer, Label, NodeType};
 
 pub(crate) struct Button {
     label: Label,
@@ -45,17 +45,16 @@ impl AsNode for Button {
 
     fn ready(&mut self) {}
 
-    fn input(&mut self, input: &InputEvent) {}
-
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        self.label.update(dt, singletons);
+    fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
+        self.label.update(dt, camera_info, singletons);
     }
 
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
+        camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
-        self.label.draw(render_pass, singletons);
+        self.label.draw(render_pass, camera_info, singletons);
     }
 }

@@ -3,6 +3,7 @@ use crate::{RenderServer, Singletons, Texture};
 use cgmath::{Point2, Vector2, Vector4};
 use wgpu::util::DeviceExt;
 use wgpu::Buffer;
+use crate::scene::CameraInfo;
 
 /// To draw multiple textures with an instanced draw call.
 /// CPU data.
@@ -205,13 +206,13 @@ impl Atlas {
     pub(crate) fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
+        camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
         let render_server = &singletons.render_server;
 
-        let camera = singletons.camera2d.as_ref().unwrap();
         let atlas_params = AtlasParamsUniform::new(self.texture.size,
-                                                   camera.view_size,
+                                                   camera_info.view_size,
                                                    self.mode as u32);
         render_server
             .queue

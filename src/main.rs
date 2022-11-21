@@ -38,9 +38,6 @@ const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
 
 pub struct Singletons {
-    pub camera2d: Option<Camera2d>,
-    pub camera3d: Option<Camera3d>,
-    pub light: Option<Light>,
     pub render_server: RenderServer,
     pub input_server: InputServer,
     pub text_server: TextServer,
@@ -54,7 +51,6 @@ struct App {
     previous_frame_time: f32,
     world: World,
     singletons: Singletons,
-    atlas: Atlas,
 }
 
 fn main() {
@@ -235,12 +231,14 @@ impl App {
             cgmath::Deg(0.0),
             &render_server,
         );
+        world.add_node(Box::new(camera3d), None);
 
         let camera2d = Camera2d::new(
             Point2::new(0.0, 0.0),
             (size.width, size.height),
             &render_server,
         );
+        world.add_node(Box::new(camera2d), None);
 
         let skybox_tex =
             CubemapTexture::load(&render_server, asset_dir.join("skybox.jpg")).unwrap();
@@ -249,6 +247,7 @@ impl App {
 
         // Light.
         let light = Light::new(&render_server, asset_dir.join("light.png"));
+        world.add_node(Box::new(light), None);
 
         // Model.
         // let obj_model = Box::new(
@@ -284,30 +283,27 @@ impl App {
 
         // Test ground.
         // ---------------------------------------------------
-        let mut atlas = Atlas::new(&render_server);
-
-        let mut instances = vec![];
-        for i in 0..10 {
-            let instance = AtlasInstance {
-                position: Vector2::new(i as f32 * 100.0 + 100.0, i as f32 * 100.0),
-                size: Vector2::new(128.0, 128.0),
-                region: Vector4::new(0.0, 0.0, 1.0, 1.0),
-                color: Vector4::new(1.0, 1.0, 1.0, 1.0),
-            };
-            instances.push(instance);
-        }
-        atlas.set_instances(instances, &render_server);
-        atlas.set_texture(Texture::load(
-            &render_server.device,
-            &render_server.queue,
-            asset_dir.join("happy-tree.png"),
-        ).unwrap(), &render_server);
+        // let mut atlas = Atlas::new(&render_server);
+        //
+        // let mut instances = vec![];
+        // for i in 0..10 {
+        //     let instance = AtlasInstance {
+        //         position: Vector2::new(i as f32 * 100.0 + 100.0, i as f32 * 100.0),
+        //         size: Vector2::new(128.0, 128.0),
+        //         region: Vector4::new(0.0, 0.0, 1.0, 1.0),
+        //         color: Vector4::new(1.0, 1.0, 1.0, 1.0),
+        //     };
+        //     instances.push(instance);
+        // }
+        // atlas.set_instances(instances, &render_server);
+        // atlas.set_texture(Texture::load(
+        //     &render_server.device,
+        //     &render_server.queue,
+        //     asset_dir.join("happy-tree.png"),
+        // ).unwrap(), &render_server);
         // ---------------------------------------------------
 
         let mut singletons = Singletons {
-            camera2d: Some(camera2d),
-            camera3d: Some(camera3d),
-            light: Some(light),
             render_server,
             input_server: InputServer::new(),
             text_server,
@@ -319,7 +315,6 @@ impl App {
             previous_frame_time: 0.0,
             world,
             singletons,
-            atlas,
         }
     }
 
@@ -347,16 +342,7 @@ impl App {
                 "depth texture",
             );
 
-            self.singletons
-                .camera3d
-                .as_mut()
-                .unwrap()
-                .when_view_size_changes(new_size.width, new_size.height);
-            self.singletons
-                .camera2d
-                .as_mut()
-                .unwrap()
-                .when_view_size_changes(new_size.width, new_size.height);
+            self.world.when_view_size_changes(new_size.width, new_size.height)
         }
     }
 
@@ -365,33 +351,13 @@ impl App {
         // Convert to our own input events.
         self.singletons.input_server.prepare_input_event(window, event);
 
-        // Pass input events to nodes.
-        self.singletons
-            .camera3d
-            .as_mut()
-            .unwrap()
-            .input(&mut self.singletons.input_server);
-
-        self.singletons.camera3d.as_mut().unwrap();
+        self.world.input(&mut self.singletons.input_server);
 
         true
     }
 
     fn update(&mut self, dt: std::time::Duration) {
         let dt_in_secs = dt.as_secs_f32();
-
-        // Singletons update. Cannot wrap it as a member function due to self mutable borrow.
-        {
-            // Update the cameras.
-            self.singletons.camera3d.as_mut().unwrap().update(dt_in_secs, &mut self.singletons.render_server.queue);
-            self.singletons.camera2d.as_mut().unwrap().update(dt_in_secs);
-
-            // Update the light.
-            self.singletons.light
-                .as_mut()
-                .unwrap()
-                .update(dt_in_secs, &mut self.singletons.render_server.queue);
-        }
 
         self.world
             .update(dt_in_secs, &mut self.singletons);
@@ -444,18 +410,7 @@ impl App {
                 }),
             });
 
-            // Singletons draw. Cannot wrap it as a member function due to self mutable borrow.
-            {
-                self.singletons.light
-                    .as_ref()
-                    .unwrap()
-                    .sprite
-                    .draw(&mut render_pass, &self.singletons);
-            }
-
             self.world.draw(&mut render_pass, &self.singletons);
-
-            self.atlas.draw(&mut render_pass, &self.singletons);
         }
 
         // Finish the command encoder to generate a command buffer,

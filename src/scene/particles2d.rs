@@ -2,7 +2,7 @@ use std::any::Any;
 use cgmath::{Vector3, Vector4};
 use crate::render::atlas::{AtlasInstance, DrawAtlas};
 use crate::{AsNode, Atlas, InputEvent, RenderServer, Singletons, Texture};
-use crate::scene::NodeType;
+use crate::scene::{CameraInfo, NodeType};
 
 pub struct ParticleMaterial {
     velocity: Vector3<f32>,
@@ -16,7 +16,6 @@ pub struct Particles2d {
     lifetime: f32,
 
     atlas: Atlas,
-
 
 }
 
@@ -38,14 +37,5 @@ impl AsNode for Particles2d {
 
     fn as_any(&self) -> &dyn Any {
         self
-    }
-
-    fn draw<'a, 'b: 'a>(
-        &'b self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        singletons: &'b Singletons,
-    ) {
-        // render_pass.draw_atlas(
-        // );
     }
 }

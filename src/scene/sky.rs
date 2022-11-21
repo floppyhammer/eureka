@@ -11,7 +11,7 @@ use wgpu::util::DeviceExt;
 
 use crate::resource::CubemapTexture;
 use crate::resource::{material, mesh, texture};
-use crate::scene::{AsNode, NodeType};
+use crate::scene::{AsNode, CameraInfo, NodeType};
 use crate::{InputEvent, RenderServer, Singletons};
 use material::MaterialSky;
 use mesh::Mesh;
@@ -81,15 +81,21 @@ impl AsNode for Sky {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
+        camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
-        render_pass.set_pipeline(&singletons.render_server.skybox_pipeline);
+        match &camera_info.bind_group {
+            Some(b) => {
+                render_pass.set_pipeline(&singletons.render_server.skybox_pipeline);
 
-        render_pass.draw_skybox(
-            &self.mesh,
-            &self.material,
-            &singletons.camera3d.as_ref().unwrap().bind_group,
-        );
+                render_pass.draw_skybox(
+                    &self.mesh,
+                    &self.material,
+                    b,
+                );
+            }
+            None => {}
+        }
     }
 }
 
@@ -103,8 +109,8 @@ pub trait DrawSky<'a> {
 }
 
 impl<'a, 'b> DrawSky<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a,
+    where
+        'b: 'a,
 {
     fn draw_skybox(
         &mut self,

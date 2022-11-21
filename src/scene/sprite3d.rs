@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::mem;
 use crate::resource::{Material2d, Mesh, Texture};
-use crate::scene::{AsNode, Camera2dUniform, NodeType};
+use crate::scene::{AsNode, Camera2dUniform, CameraInfo, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons, Zero};
 use cgmath::{InnerSpace, Rotation3, Vector3};
 use wgpu::BufferAddress;
@@ -132,7 +132,7 @@ impl AsNode for Sprite3d {
         self
     }
 
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+    fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         self.params_uniform = SpriteParamsUniform {
             model_matrix: cgmath::Matrix4::from_translation(self.position).into(),
             billboard_mode: if self.billboard_mode == BillboardMode::Spherical {
@@ -149,6 +149,7 @@ impl AsNode for Sprite3d {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
+        camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
         // Update buffer.
@@ -158,13 +159,18 @@ impl AsNode for Sprite3d {
             bytemuck::cast_slice(&[self.params_uniform]),
         );
 
-        render_pass.draw_sprite(
-            &singletons.render_server.sprite3d_pipeline,
-            &self.mesh,
-            &self.texture_bind_group,
-            &singletons.camera3d.as_ref().unwrap().bind_group,
-            &self.params_bind_group,
-        );
+        match &camera_info.bind_group {
+            Some(b) => {
+                render_pass.draw_sprite(
+                    &singletons.render_server.sprite3d_pipeline,
+                    &self.mesh,
+                    &self.texture_bind_group,
+                    b,
+                    &self.params_bind_group,
+                );
+            }
+            None => {}
+        }
     }
 }
 

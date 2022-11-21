@@ -1,8 +1,10 @@
+use std::thread::current;
+use cgmath::Point2;
 use indextree::{Arena, Descendants, NodeEdge, NodeId};
 use crate::render::gizmo::Gizmo;
 use crate::resource::RenderServer;
-use crate::scene::AsNode;
-use crate::server::InputEvent;
+use crate::scene::{AsNode, Camera2d, CameraInfo, Camera3dUniform, NodeType, Camera3d};
+use crate::server::{InputEvent, InputServer};
 use crate::Singletons;
 
 pub struct World {
@@ -11,6 +13,12 @@ pub struct World {
     pub arena: Arena<Box<dyn AsNode>>,
 
     root_node: Option<NodeId>,
+
+    current_camera2d: Option<NodeId>,
+    current_camera3d: Option<NodeId>,
+    lights: Vec<NodeId>,
+
+    camera_info: CameraInfo,
 
     gizmo: Gizmo,
 }
@@ -24,7 +32,11 @@ impl World {
         Self {
             arena,
             root_node: None,
+            current_camera2d: None,
+            current_camera3d: None,
+            lights: vec![],
             gizmo,
+            camera_info: CameraInfo::default(),
         }
     }
 
@@ -34,7 +46,16 @@ impl World {
         // FIXME: Should move this after adding node in the tree.
         new_node.ready();
 
+        let node_type = new_node.node_type();
+
         let id = self.arena.new_node(new_node);
+
+        match node_type {
+            NodeType::Camera2d => { self.current_camera2d = Some(id); }
+            NodeType::Camera3d => { self.current_camera3d = Some(id); }
+            NodeType::Light => { self.lights.push(id); }
+            _ => {}
+        }
 
         if self.root_node.is_none() {
             self.root_node = Some(id);
@@ -87,10 +108,12 @@ impl World {
         ids
     }
 
-    pub fn input(&mut self, input_event: &InputEvent) {
-        // Input events propagate reversely.
-        for id in self.traverse().iter().rev() {
-            self.arena[*id].get_mut().input(input_event);
+    pub fn input(&mut self, input_server: &mut InputServer) {
+        for mut event in input_server.input_events.clone() {
+            // Input events propagate reversely.
+            for id in self.traverse().iter().rev() {
+                self.arena[*id].get_mut().input(&mut event, input_server);
+            }
         }
     }
 
@@ -99,10 +122,24 @@ impl World {
         dt: f32,
         singletons: &mut Singletons,
     ) {
+        match self.arena[self.current_camera2d.unwrap()].get().as_any().downcast_ref::<Camera2d>() {
+            Some(camera) => {
+                self.camera_info.view_size = camera.view_size;
+                self.camera_info.position = camera.position;
+            }
+            None => panic!("Camera isn't a Camera2d!"),
+        }
+        match self.arena[self.current_camera3d.unwrap()].get().as_any().downcast_ref::<Camera3d>() {
+            Some(camera) => {
+                self.camera_info.bind_group = Some(camera.bind_group.clone());
+            }
+            None => panic!("Camera isn't a Camera3d!"),
+        }
+
         for id in self.traverse() {
             self.arena[id]
                 .get_mut()
-                .update(dt, singletons);
+                .update(dt, &self.camera_info, singletons);
         }
     }
 
@@ -114,9 +151,24 @@ impl World {
         for id in self.traverse() {
             self.arena[id]
                 .get()
-                .draw(render_pass, singletons);
+                .draw(render_pass, &self.camera_info, singletons);
         }
 
-        self.gizmo.draw(render_pass, singletons);
+        self.gizmo.draw(render_pass, &self.camera_info, singletons);
+    }
+
+    pub fn when_view_size_changes(&mut self, new_width: u32, new_height: u32) {
+        // match self.arena[self.current_camera2d.unwrap()].get().as_any().downcast_mut::<Camera2d>() {
+        //     Some(camera) => {
+        //         camera.when_view_size_changes(new_width, new_height);
+        //     }
+        //     None => panic!("Camera isn't a Camera2d!"),
+        // }
+        // match &mut self.arena[self.current_camera3d.unwrap()].get().as_any().downcast_mut::<Camera3d>() {
+        //     Some(camera) => {
+        //         camera.when_view_size_changes(new_width, new_height);
+        //     }
+        //     None => panic!("Camera isn't a Camera3d!"),
+        // }
     }
 }

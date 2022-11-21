@@ -4,7 +4,7 @@ use winit::dpi::{PhysicalPosition, Position};
 use winit::event::*;
 use winit::window::Window;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum InputEvent {
     MouseButton(MouseButton),
     MouseMotion(MouseMotion),
@@ -13,13 +13,13 @@ pub enum InputEvent {
     Invalid,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Key {
     pub(crate) key: VirtualKeyCode,
     pub(crate) pressed: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct MouseButton {
     pub(crate) button: winit::event::MouseButton,
     pub(crate) pressed: bool,
@@ -27,13 +27,13 @@ pub struct MouseButton {
     consumed: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct MouseScroll {
     pub(crate) delta: f32,
     consumed: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct MouseMotion {
     pub(crate) delta: (f32, f32),
     pub(crate) position: (f32, f32),

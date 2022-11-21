@@ -1,9 +1,11 @@
-use crate::scene::AsNode;
+use std::any::Any;
+use crate::scene::{AsNode, NodeType};
 use crate::{InputEvent, InputServer, RenderServer, Singletons};
 use cgmath::num_traits::clamp;
 use cgmath::*;
 use std::f32::consts::FRAC_PI_2;
 use std::mem;
+use std::rc::Rc;
 use std::time::Duration;
 use wgpu::BufferAddress;
 use wgpu::util::DeviceExt;
@@ -36,7 +38,7 @@ pub struct Camera3d {
     // GPU data
     buffer: wgpu::Buffer,
 
-    pub(crate) bind_group: wgpu::BindGroup,
+    pub(crate) bind_group: Rc<wgpu::BindGroup>,
 }
 
 impl Camera3d {
@@ -88,7 +90,7 @@ impl Camera3d {
             controller,
             uniform,
             buffer,
-            bind_group,
+            bind_group: Rc::new(bind_group),
         }
     }
 
@@ -113,101 +115,8 @@ impl Camera3d {
         )
     }
 
-    pub fn update(&mut self, dt: f32, queue: &mut wgpu::Queue) {
-        // Update camera transform.
-        {
-            // Move forward/backward and left/right.
-            let (yaw_sin, yaw_cos) = self.yaw.0.sin_cos();
-            let (pitch_sin, pitch_cos) = self.pitch.0.sin_cos();
-            let forward =
-                Vector3::new(pitch_cos * yaw_cos, pitch_sin, pitch_cos * yaw_sin).normalize();
-            let right = Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
-            self.position += forward
-                * (self.controller.amount_forward - self.controller.amount_backward)
-                * self.controller.speed
-                * dt;
-            self.position += right
-                * (self.controller.amount_right - self.controller.amount_left)
-                * self.controller.speed
-                * dt;
-
-            // Adjust navigation speed by scrolling.
-            self.controller.speed += self.controller.scroll * 0.001;
-            self.controller.speed = clamp(self.controller.speed, 0.1, 10.0);
-            self.controller.scroll = 0.0;
-
-            // Move up/down. Since we don't use roll, we can just
-            // modify the y coordinate directly.
-            self.position.y += (self.controller.amount_up - self.controller.amount_down)
-                * self.controller.speed
-                * dt;
-
-            // Horizontal rotation.
-            self.yaw += Rad(self.controller.rotate_horizontal) * self.controller.sensitivity * dt;
-
-            // Vertical rotation.
-            self.pitch += Rad(-self.controller.rotate_vertical) * self.controller.sensitivity * dt;
-
-            // If process_mouse isn't called every frame, these values
-            // will not get set to zero, and the camera will rotate
-            // when moving in a non cardinal direction.
-            self.controller.rotate_horizontal = 0.0;
-            self.controller.rotate_vertical = 0.0;
-
-            // Keep the camera's angle from going too high/low.
-            if self.pitch < -Rad(SAFE_FRAC_PI_2) {
-                self.pitch = -Rad(SAFE_FRAC_PI_2);
-            } else if self.pitch > Rad(SAFE_FRAC_PI_2) {
-                self.pitch = Rad(SAFE_FRAC_PI_2);
-            }
-        }
-
-        // Update camera uniform and its buffer.
-        {
-            // We're using Vector4 because of the uniforms 16 byte spacing requirement.
-            self.uniform.view_position = self.position.to_homogeneous().into();
-            self.uniform.view = self.calc_view_matrix().into();
-            self.uniform.proj = self.projection.calc_matrix().into();
-
-            // Update camera buffer.
-            queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
-        }
-    }
-
     pub fn when_view_size_changes(&mut self, new_width: u32, new_height: u32) {
         self.projection.resize(new_width, new_height);
-    }
-
-    pub(crate) fn input(&mut self, input_server: &mut InputServer) {
-        self.controller.cursor_capture_state_changed = false;
-
-        for input in &input_server.input_events {
-            match input {
-                InputEvent::MouseButton(event) => {
-                    self.controller
-                        .process_mouse_button(event.button, event.pressed);
-                }
-                InputEvent::MouseMotion(event) => {
-                    self.controller.process_mouse_motion(
-                        event.delta.0,
-                        event.delta.1,
-                        event.position.0,
-                        event.position.1,
-                    );
-                }
-                InputEvent::MouseScroll(event) => {
-                    self.controller.process_scroll(event.delta);
-                }
-                InputEvent::Key(event) => {
-                    self.controller.process_keyboard(event.key, event.pressed);
-                }
-                _ => {}
-            }
-        }
-
-        if self.controller.cursor_capture_state_changed {
-            input_server.set_cursor_capture(self.controller.cursor_captured);
-        }
     }
 }
 
@@ -252,6 +161,24 @@ impl ModelUniform {
         use cgmath::SquareMatrix;
         Self {
             model: cgmath::Matrix4::identity().into(),
+        }
+    }
+}
+
+pub struct CameraInfo {
+    pub position: Point2<f32>,
+
+    pub view_size: Point2<u32>,
+
+    pub bind_group: Option<Rc<wgpu::BindGroup>>,
+}
+
+impl CameraInfo {
+    pub(crate) fn default() -> Self {
+        Self {
+            position: Point2::new(0.0, 0.0),
+            view_size: Point2::new(0, 0),
+            bind_group: None,
         }
     }
 }
@@ -384,5 +311,108 @@ impl Camera3dController {
 
     pub fn process_scroll(&mut self, delta: f32) {
         self.scroll = delta;
+    }
+}
+
+impl AsNode for Camera3d {
+    fn node_type(&self) -> NodeType {
+        NodeType::Camera3d
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn input(&mut self, input_event: &mut InputEvent, input_server: &mut InputServer) {
+        self.controller.cursor_capture_state_changed = false;
+
+        match input_event {
+            InputEvent::MouseButton(event) => {
+                self.controller
+                    .process_mouse_button(event.button, event.pressed);
+            }
+            InputEvent::MouseMotion(event) => {
+                self.controller.process_mouse_motion(
+                    event.delta.0,
+                    event.delta.1,
+                    event.position.0,
+                    event.position.1,
+                );
+            }
+            InputEvent::MouseScroll(event) => {
+                self.controller.process_scroll(event.delta);
+            }
+            InputEvent::Key(event) => {
+                self.controller.process_keyboard(event.key, event.pressed);
+            }
+            _ => {}
+        }
+
+        if self.controller.cursor_capture_state_changed {
+            input_server.set_cursor_capture(self.controller.cursor_captured);
+        }
+    }
+
+    fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
+        let queue = &mut singletons.render_server.queue;
+
+        // Update camera transform.
+        {
+            // Move forward/backward and left/right.
+            let (yaw_sin, yaw_cos) = self.yaw.0.sin_cos();
+            let (pitch_sin, pitch_cos) = self.pitch.0.sin_cos();
+            let forward =
+                Vector3::new(pitch_cos * yaw_cos, pitch_sin, pitch_cos * yaw_sin).normalize();
+            let right = Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
+            self.position += forward
+                * (self.controller.amount_forward - self.controller.amount_backward)
+                * self.controller.speed
+                * dt;
+            self.position += right
+                * (self.controller.amount_right - self.controller.amount_left)
+                * self.controller.speed
+                * dt;
+
+            // Adjust navigation speed by scrolling.
+            self.controller.speed += self.controller.scroll * 0.001;
+            self.controller.speed = clamp(self.controller.speed, 0.1, 10.0);
+            self.controller.scroll = 0.0;
+
+            // Move up/down. Since we don't use roll, we can just
+            // modify the y coordinate directly.
+            self.position.y += (self.controller.amount_up - self.controller.amount_down)
+                * self.controller.speed
+                * dt;
+
+            // Horizontal rotation.
+            self.yaw += Rad(self.controller.rotate_horizontal) * self.controller.sensitivity * dt;
+
+            // Vertical rotation.
+            self.pitch += Rad(-self.controller.rotate_vertical) * self.controller.sensitivity * dt;
+
+            // If process_mouse isn't called every frame, these values
+            // will not get set to zero, and the camera will rotate
+            // when moving in a non cardinal direction.
+            self.controller.rotate_horizontal = 0.0;
+            self.controller.rotate_vertical = 0.0;
+
+            // Keep the camera's angle from going too high/low.
+            if self.pitch < -Rad(SAFE_FRAC_PI_2) {
+                self.pitch = -Rad(SAFE_FRAC_PI_2);
+            } else if self.pitch > Rad(SAFE_FRAC_PI_2) {
+                self.pitch = Rad(SAFE_FRAC_PI_2);
+            }
+        }
+
+        // Update camera uniform and its buffer.
+        {
+            // We're using Vector4 because of the uniforms 16 byte spacing requirement.
+            self.uniform.view_position = self.position.to_homogeneous().into();
+            self.uniform.view = self.calc_view_matrix().into();
+            self.uniform.proj = self.projection.calc_matrix().into();
+
+            // Update camera buffer.
+            queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
+        }
     }
 }

@@ -12,7 +12,7 @@ use wgpu::util::DeviceExt;
 
 use crate::render::vertex::Vertex3d;
 use crate::resource::{material, mesh, texture};
-use crate::scene::{AsNode, NodeType};
+use crate::scene::{AsNode, CameraInfo, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, Singletons};
 use material::Material3d;
 use mesh::Mesh;
@@ -436,19 +436,20 @@ impl AsNode for Model {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
+        camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
-        render_pass.set_pipeline(&singletons.render_server.model_pipeline);
-
-        // Set vertex buffer for InstanceInput.
-        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-
-        render_pass.draw_model_instanced(
-            &self,
-            0..self.instances.len() as u32,
-            &singletons.camera3d.as_ref().unwrap().bind_group,
-            &singletons.light.as_ref().unwrap().bind_group,
-        );
+        // render_pass.set_pipeline(&singletons.render_server.model_pipeline);
+        //
+        // // Set vertex buffer for InstanceInput.
+        // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        //
+        // render_pass.draw_model_instanced(
+        //     &self,
+        //     0..self.instances.len() as u32,
+        //     &camera_info.bind_group,
+        //     &camera_info.bind_group,
+        // );
     }
 }
 
@@ -488,8 +489,8 @@ pub trait DrawModel<'a> {
 
 /// Rendering a mesh.
 impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a,
+    where
+        'b: 'a,
 {
     fn draw_mesh(
         &mut self,

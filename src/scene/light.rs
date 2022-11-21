@@ -1,10 +1,11 @@
+use std::any::Any;
 use cgmath::prelude::*;
 use std::ops::Range;
 use std::path::Path;
 use wgpu::util::DeviceExt;
 
 use crate::resource::Mesh;
-use crate::scene::AsNode;
+use crate::scene::{AsNode, CameraInfo, NodeType};
 use crate::{InputEvent, Model, RenderServer, Singletons, Sprite3d, Texture};
 
 pub struct Light {
@@ -52,29 +53,6 @@ impl Light {
             sprite: sprite3d,
         }
     }
-
-    pub fn update(&mut self, dt: f32, queue: &mut wgpu::Queue) {
-        let old_position: cgmath::Vector3<_> = self.uniform.position.into();
-        let new_position =
-            cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt))
-                * old_position;
-
-        self.uniform.position = new_position.into();
-
-        // Update buffer.
-        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
-
-        self.sprite.position = new_position;
-        // self.sprite.update(dt, singletons);
-    }
-
-    pub fn draw<'a, 'b: 'a>(
-        &'b self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        singletons: &'b Singletons,
-    ) {
-        self.sprite.draw(render_pass, singletons);
-    }
 }
 
 #[repr(C)]
@@ -86,4 +64,40 @@ pub(crate) struct LightUniform {
     pub(crate) color: [f32; 3],
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
     pub(crate) _padding2: u32,
+}
+
+impl AsNode for Light {
+    fn node_type(&self) -> NodeType {
+        NodeType::Light
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
+        let queue = &mut singletons.render_server.queue;
+
+        let old_position: cgmath::Vector3<_> = self.uniform.position.into();
+        let new_position =
+            cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt))
+                * old_position;
+
+        self.uniform.position = new_position.into();
+
+        // Update buffer.
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
+
+        self.sprite.position = new_position;
+        self.sprite.update(dt, camera_info, singletons);
+    }
+
+    fn draw<'a, 'b: 'a>(
+        &'b self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        camera_info: &'b CameraInfo,
+        singletons: &'b Singletons,
+    ) {
+        self.sprite.draw(render_pass, camera_info, singletons);
+    }
 }

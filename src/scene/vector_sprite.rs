@@ -2,7 +2,7 @@ extern crate lyon;
 
 use std::any::Any;
 use crate::render::vertex::VertexBuffer;
-use crate::scene::{AsNode, Camera2dUniform, NodeType};
+use crate::scene::{AsNode, Camera2dUniform, Camera3dUniform, CameraInfo, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, Singletons};
 use cgmath::Vector3;
 use lyon::math::point;
@@ -130,16 +130,12 @@ impl AsNode for VectorSprite {
 
     fn ready(&mut self) {}
 
-    fn input(&mut self, input: &InputEvent) {}
-
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        let camera = singletons.camera2d.as_ref().unwrap();
-
+    fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         let translation = cgmath::Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0));
 
         let scale = cgmath::Matrix4::from_nonuniform_scale(
-            1.0 / camera.view_size.x as f32,
-            1.0 / camera.view_size.y as f32,
+            1.0 / camera_info.view_size.x as f32,
+            1.0 / camera_info.view_size.y as f32,
             1.0,
         );
 
@@ -151,6 +147,7 @@ impl AsNode for VectorSprite {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
+        camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
         // Update camera buffer.

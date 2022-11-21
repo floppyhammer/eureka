@@ -1,6 +1,6 @@
 use std::any::Any;
 use crate::resource::{Material2d, Mesh, Texture};
-use crate::scene::{AsNode, Camera2dUniform, NodeType};
+use crate::scene::{AsNode, Camera2dUniform, CameraInfo, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons};
 use cgmath::{Vector2, Vector3, Vector4};
 use wgpu::util::DeviceExt;
@@ -94,39 +94,37 @@ impl AsNode for Sprite2d {
 
     fn ready(&mut self) {}
 
-    fn input(&mut self, input: &InputEvent) {}
-
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        let camera = singletons.camera2d.as_ref().unwrap();
-
+    fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         let scaled_width = self.scale.x * self.size.x;
         let scaled_height = self.scale.y * self.size.y;
 
+        let view_size = camera_info.view_size;
+
         let translation = if self.centered {
             cgmath::Matrix4::from_translation(Vector3::new(
-                (self.position.x / camera.view_size.x as f32 - scaled_width * 0.5)
-                    / camera.view_size.x as f32
+                (self.position.x / view_size.x as f32 - scaled_width * 0.5)
+                    / view_size.x as f32
                     * 2.0
                     - 1.0,
-                (self.position.y / camera.view_size.y as f32 - scaled_height * 0.5)
-                    / camera.view_size.y as f32
+                (self.position.y / view_size.y as f32 - scaled_height * 0.5)
+                    / view_size.y as f32
                     * 2.0
                     - 1.0,
                 0.0,
             ))
         } else {
             cgmath::Matrix4::from_translation(Vector3::new(
-                (self.position.x / camera.view_size.x as f32) / camera.view_size.x as f32 * 2.0
+                (self.position.x / view_size.x as f32) / view_size.x as f32 * 2.0
                     - 1.0,
-                (self.position.y / camera.view_size.y as f32) / camera.view_size.y as f32 * 2.0
+                (self.position.y / view_size.y as f32) / view_size.y as f32 * 2.0
                     - 1.0,
                 0.0,
             ))
         };
 
         let scale = cgmath::Matrix4::from_nonuniform_scale(
-            scaled_width / camera.view_size.x as f32,
-            scaled_height / camera.view_size.y as f32,
+            scaled_width / camera_info.view_size.x as f32,
+            scaled_height / camera_info.view_size.y as f32,
             1.0,
         );
 
@@ -138,6 +136,7 @@ impl AsNode for Sprite2d {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
+        camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
         // Update camera buffer.
