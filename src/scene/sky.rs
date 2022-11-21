@@ -81,10 +81,9 @@ impl AsNode for Sky {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
-        render_pass.set_pipeline(&render_server.skybox_pipeline);
+        render_pass.set_pipeline(&singletons.render_server.skybox_pipeline);
 
         render_pass.draw_skybox(
             &self.mesh,

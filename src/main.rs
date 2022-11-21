@@ -41,15 +41,15 @@ pub struct Singletons {
     pub camera2d: Option<Camera2d>,
     pub camera3d: Option<Camera3d>,
     pub light: Option<Light>,
+    pub render_server: RenderServer,
+    pub input_server: InputServer,
+    pub text_server: TextServer,
 }
 
 // For convenience we're going to pack all the fields into a struct,
 // and create some methods on that.
 struct App {
     size: winit::dpi::PhysicalSize<u32>,
-    render_server: RenderServer,
-    input_server: InputServer,
-    text_server: TextServer,
     depth_texture: Texture,
     previous_frame_time: f32,
     world: World,
@@ -134,7 +134,7 @@ fn main() {
                 let dt = now - last_render_time;
                 last_render_time = now;
 
-                app.input_server.update(&window);
+                app.singletons.input_server.update(&window);
 
                 app.update(dt);
 
@@ -223,12 +223,6 @@ impl App {
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         log::info!("Asset dir: {}", asset_dir.display());
 
-        let mut singletons = Singletons {
-            camera2d: None,
-            camera3d: None,
-            light: None,
-        };
-
         let mut text_server = TextServer::new(asset_dir.join("fonts/OpenSans-Regular.ttf"));
 
         // Create nodes.
@@ -241,14 +235,12 @@ impl App {
             cgmath::Deg(0.0),
             &render_server,
         );
-        singletons.camera3d = Some(camera3d);
 
         let camera2d = Camera2d::new(
             Point2::new(0.0, 0.0),
             (size.width, size.height),
             &render_server,
         );
-        singletons.camera2d = Some(camera2d);
 
         let skybox_tex =
             CubemapTexture::load(&render_server, asset_dir.join("skybox.jpg")).unwrap();
@@ -257,7 +249,6 @@ impl App {
 
         // Light.
         let light = Light::new(&render_server, asset_dir.join("light.png"));
-        singletons.light = Some(light);
 
         // Model.
         // let obj_model = Box::new(
@@ -285,9 +276,9 @@ impl App {
         let sprite = Box::new(Sprite2d::new(&render_server, sprite_tex));
         world.add_node(sprite, None);
 
-        let mut label = Box::new(Label::new(&render_server, &mut text_server));
+        let mut label = Box::new(Label::new(&render_server));
         label.position = Vector2::new(0.0, 200.0);
-        label.set_text(&render_server, &mut text_server, "Label".to_string());
+        label.set_text("Label".to_string());
         world.add_node(label, Some(vec_sprite_id));
         // ---------------------------------------------------
 
@@ -313,11 +304,17 @@ impl App {
         ).unwrap(), &render_server);
         // ---------------------------------------------------
 
-        Self {
-            size,
+        let mut singletons = Singletons {
+            camera2d: Some(camera2d),
+            camera3d: Some(camera3d),
+            light: Some(light),
             render_server,
             input_server: InputServer::new(),
             text_server,
+        };
+
+        Self {
+            size,
             depth_texture,
             previous_frame_time: 0.0,
             world,
@@ -335,19 +332,19 @@ impl App {
         // Reconfigure the surface everytime the window's size changes.
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
-            self.render_server.config.width = new_size.width;
-            self.render_server.config.height = new_size.height;
-            self.render_server
+            self.singletons.render_server.config.width = new_size.width;
+            self.singletons.render_server.config.height = new_size.height;
+            self.singletons.render_server
                 .surface
-                .configure(&self.render_server.device, &self.render_server.config);
+                .configure(&self.singletons.render_server.device, &self.singletons.render_server.config);
 
             // Create a new depth_texture and depth_texture_view.
             // Make sure you update the depth_texture after you update config.
             // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
             self.depth_texture = Texture::create_depth_texture(
-                &self.render_server.device,
-                &self.render_server.config,
-                "depth_texture",
+                &self.singletons.render_server.device,
+                &self.singletons.render_server.config,
+                "depth texture",
             );
 
             self.singletons
@@ -366,14 +363,14 @@ impl App {
     /// Handle input events.
     fn input(&mut self, event: &WindowEvent, window: &Window) -> bool {
         // Convert to our own input events.
-        self.input_server.prepare_input_event(window, event);
+        self.singletons.input_server.prepare_input_event(window, event);
 
         // Pass input events to nodes.
         self.singletons
             .camera3d
             .as_mut()
             .unwrap()
-            .input(&mut self.input_server);
+            .input(&mut self.singletons.input_server);
 
         self.singletons.camera3d.as_mut().unwrap();
 
@@ -383,16 +380,26 @@ impl App {
     fn update(&mut self, dt: std::time::Duration) {
         let dt_in_secs = dt.as_secs_f32();
 
-        self.singletons
-            .update(&self.render_server.queue, dt_in_secs, &self.render_server);
+        // Singletons update. Cannot wrap it as a member function due to self mutable borrow.
+        {
+            // Update the cameras.
+            self.singletons.camera3d.as_mut().unwrap().update(dt_in_secs, &mut self.singletons.render_server.queue);
+            self.singletons.camera2d.as_mut().unwrap().update(dt_in_secs);
+
+            // Update the light.
+            self.singletons.light
+                .as_mut()
+                .unwrap()
+                .update(dt_in_secs, &mut self.singletons.render_server.queue);
+        }
 
         self.world
-            .update(dt_in_secs, Some(&self.singletons));
+            .update(dt_in_secs, &mut self.singletons);
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
         // First we need to get a frame to draw to.
-        let output_surface = self.render_server.surface.get_current_texture()?;
+        let output_surface = self.singletons.render_server.surface.get_current_texture()?;
 
         // Creates a TextureView with default settings.
         let view = output_surface
@@ -401,7 +408,7 @@ impl App {
 
         // Builds a command buffer that we can then send to the GPU.
         let mut encoder =
-            self.render_server
+            self.singletons.render_server
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("main render encoder"),
@@ -437,16 +444,23 @@ impl App {
                 }),
             });
 
-            self.singletons.draw(&mut render_pass, &self.render_server, &self.singletons);
+            // Singletons draw. Cannot wrap it as a member function due to self mutable borrow.
+            {
+                self.singletons.light
+                    .as_ref()
+                    .unwrap()
+                    .sprite
+                    .draw(&mut render_pass, &self.singletons);
+            }
 
-            self.world.draw(&mut render_pass, &self.render_server, &self.singletons);
+            self.world.draw(&mut render_pass, &self.singletons);
 
-            self.atlas.draw(&mut render_pass, &self.render_server, &self.singletons);
+            self.atlas.draw(&mut render_pass, &self.singletons);
         }
 
         // Finish the command encoder to generate a command buffer,
         // then submit it for execution.
-        self.render_server
+        self.singletons.render_server
             .queue
             .submit(std::iter::once(encoder.finish()));
 
@@ -454,32 +468,5 @@ impl App {
         output_surface.present();
 
         Ok(())
-    }
-}
-
-impl Singletons {
-    pub fn update(&mut self, queue: &wgpu::Queue, dt: f32, render_server: &RenderServer) {
-        // Update the cameras.
-        self.camera3d.as_mut().unwrap().update(dt, &queue);
-        self.camera2d.as_mut().unwrap().update(dt, &queue);
-
-        // Update the light.
-        self.light
-            .as_mut()
-            .unwrap()
-            .update(dt, &queue, &render_server);
-    }
-
-    pub fn draw<'a, 'b: 'a>(
-        &'b self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
-        singletons: &'b Singletons,
-    ) {
-        self.light
-            .as_ref()
-            .unwrap()
-            .sprite
-            .draw(render_pass, &render_server, &self);
     }
 }

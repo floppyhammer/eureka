@@ -436,10 +436,9 @@ impl AsNode for Model {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
-        render_pass.set_pipeline(&render_server.model_pipeline);
+        render_pass.set_pipeline(&singletons.render_server.model_pipeline);
 
         // Set vertex buffer for InstanceInput.
         render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));

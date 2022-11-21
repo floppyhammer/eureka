@@ -1,5 +1,5 @@
 use crate::scene::AsNode;
-use crate::{InputEvent, RenderServer};
+use crate::{InputEvent, RenderServer, Singletons};
 use cgmath::{Point2, Vector2, Vector3};
 use wgpu::util::DeviceExt;
 
@@ -43,7 +43,7 @@ impl Camera2d {
         }
     }
 
-    pub fn update(&mut self, dt: f32, queue: &wgpu::Queue) {}
+    pub fn update(&mut self, dt: f32) {}
 
     pub fn when_view_size_changes(&mut self, new_width: u32, new_height: u32) {
         self.view_size.x = new_width;

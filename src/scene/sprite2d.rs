@@ -96,8 +96,8 @@ impl AsNode for Sprite2d {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(&mut self, dt: f32, singletons: Option<&Singletons>) {
-        let camera = singletons.unwrap().camera2d.as_ref().unwrap();
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+        let camera = singletons.camera2d.as_ref().unwrap();
 
         let scaled_width = self.scale.x * self.size.x;
         let scaled_height = self.scale.y * self.size.y;
@@ -138,16 +138,15 @@ impl AsNode for Sprite2d {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
         // Update camera buffer.
-        render_server
+        singletons.render_server
             .queue
             .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
         render_pass.draw_sprite(
-            &render_server.sprite_pipeline,
+            &singletons.render_server.sprite_pipeline,
             &self.mesh,
             &self.texture_bind_group,
             &self.camera_bind_group,

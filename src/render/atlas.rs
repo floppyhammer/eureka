@@ -205,9 +205,10 @@ impl Atlas {
     pub(crate) fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
+        let render_server = &singletons.render_server;
+
         let camera = singletons.camera2d.as_ref().unwrap();
         let atlas_params = AtlasParamsUniform::new(self.texture.size,
                                                    camera.view_size,

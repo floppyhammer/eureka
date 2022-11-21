@@ -97,7 +97,7 @@ impl World {
     pub fn update(
         &mut self,
         dt: f32,
-        singletons: Option<&Singletons>,
+        singletons: &mut Singletons,
     ) {
         for id in self.traverse() {
             self.arena[id]
@@ -109,15 +109,14 @@ impl World {
     pub fn draw<'a, 'b: 'a>(
         &'b mut self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
         for id in self.traverse() {
             self.arena[id]
                 .get()
-                .draw(render_pass, render_server, singletons);
+                .draw(render_pass, singletons);
         }
 
-        self.gizmo.draw(render_pass, render_server, singletons);
+        self.gizmo.draw(render_pass, singletons);
     }
 }

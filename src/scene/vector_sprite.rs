@@ -121,7 +121,7 @@ impl VectorSprite {
 
 impl AsNode for VectorSprite {
     fn node_type(&self) -> NodeType {
-        NodeType::SpriteVector
+        NodeType::SpriteV
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -132,8 +132,8 @@ impl AsNode for VectorSprite {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(&mut self, dt: f32, singletons: Option<&Singletons>) {
-        let camera = singletons.unwrap().camera2d.as_ref().unwrap();
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+        let camera = singletons.camera2d.as_ref().unwrap();
 
         let translation = cgmath::Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0));
 
@@ -151,16 +151,15 @@ impl AsNode for VectorSprite {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
         // Update camera buffer.
-        render_server
+        singletons.render_server
             .queue
             .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
         render_pass.draw_path(
-            &render_server.vector_sprite_pipeline,
+            &singletons.render_server.vector_sprite_pipeline,
             &self.mesh,
             &self.camera_bind_group,
         );

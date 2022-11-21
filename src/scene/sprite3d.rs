@@ -132,7 +132,7 @@ impl AsNode for Sprite3d {
         self
     }
 
-    fn update(&mut self, dt: f32, singletons: Option<&Singletons>) {
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         self.params_uniform = SpriteParamsUniform {
             model_matrix: cgmath::Matrix4::from_translation(self.position).into(),
             billboard_mode: if self.billboard_mode == BillboardMode::Spherical {
@@ -149,18 +149,17 @@ impl AsNode for Sprite3d {
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
         // Update buffer.
-        render_server.queue.write_buffer(
+        singletons.render_server.queue.write_buffer(
             &self.params_buffer,
             0,
             bytemuck::cast_slice(&[self.params_uniform]),
         );
 
         render_pass.draw_sprite(
-            &render_server.sprite3d_pipeline,
+            &singletons.render_server.sprite3d_pipeline,
             &self.mesh,
             &self.texture_bind_group,
             &singletons.camera3d.as_ref().unwrap().bind_group,

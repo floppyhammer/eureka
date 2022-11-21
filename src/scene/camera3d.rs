@@ -1,5 +1,5 @@
 use crate::scene::AsNode;
-use crate::{InputEvent, InputServer, RenderServer};
+use crate::{InputEvent, InputServer, RenderServer, Singletons};
 use cgmath::num_traits::clamp;
 use cgmath::*;
 use std::f32::consts::FRAC_PI_2;
@@ -113,7 +113,7 @@ impl Camera3d {
         )
     }
 
-    pub fn update(&mut self, dt: f32, queue: &wgpu::Queue) {
+    pub fn update(&mut self, dt: f32, queue: &mut wgpu::Queue) {
         // Update camera transform.
         {
             // Move forward/backward and left/right.

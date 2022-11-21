@@ -53,7 +53,7 @@ impl Light {
         }
     }
 
-    pub fn update(&mut self, dt: f32, queue: &wgpu::Queue, render_server: &RenderServer) {
+    pub fn update(&mut self, dt: f32, queue: &mut wgpu::Queue) {
         let old_position: cgmath::Vector3<_> = self.uniform.position.into();
         let new_position =
             cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt))
@@ -65,16 +65,15 @@ impl Light {
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
 
         self.sprite.position = new_position;
-        self.sprite.update(dt, None);
+        // self.sprite.update(dt, singletons);
     }
 
     pub fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
-        self.sprite.draw(render_pass, render_server, singletons);
+        self.sprite.draw(render_pass, singletons);
     }
 }
 

@@ -21,9 +21,7 @@ pub(crate) struct Label {
 }
 
 impl Label {
-    pub(crate) fn new(render_server: &RenderServer, text_server: &mut TextServer) -> Label {
-        let device = &render_server.device;
-
+    pub(crate) fn new(render_server: &RenderServer) -> Label {
         let position = Vector2::new(0.0_f32, 0.0);
         let size = Vector2::new(128.0_f32, 128.0);
 
@@ -42,38 +40,10 @@ impl Label {
 
     pub fn set_text(
         &mut self,
-        render_server: &RenderServer,
-        text_server: &mut TextServer,
         text: String,
     ) {
-        let graphemes = text_server.font.get_graphemes(text);
-
-        // Set font atlas.
-        self.atlas.set_texture(Texture::from_image(
-            &render_server.device,
-            &render_server.queue,
-            &DynamicImage::ImageLuma8(text_server.font.atlas_image.clone()),
-            None,
-        ).unwrap(), &render_server);
-
-        let mut instances = vec![];
-        let mut layout_pos = Point2::new(self.position.x, self.position.y);
-
-        for g in graphemes {
-            let instance = AtlasInstance {
-                position: Vector2::new(layout_pos.x, layout_pos.y),
-                size: Vector2::new((g.layout.z - g.layout.x) as f32, (g.layout.w - g.layout.y) as f32),
-                region: Vector4::new(g.region.x as f32 / FONT_ATLAS_SIZE as f32,
-                                     g.region.y as f32 / FONT_ATLAS_SIZE as f32,
-                                     g.region.z as f32 / FONT_ATLAS_SIZE as f32,
-                                     g.region.w as f32 / FONT_ATLAS_SIZE as f32),
-                color: Vector4::new(1.0, 1.0, 1.0, 1.0),
-            };
-            instances.push(instance);
-            layout_pos.x += g.layout.z as f32 - g.layout.x as f32;
-        }
-
-        self.atlas.set_instances(instances, &render_server);
+        self.text = text;
+        self.text_is_dirty = true;
     }
 }
 
@@ -90,16 +60,46 @@ impl AsNode for Label {
 
     fn input(&mut self, input: &InputEvent) {}
 
-    fn update(&mut self, dt: f32, singletons: Option<&Singletons>) {
-        let camera = singletons.unwrap().camera2d.as_ref().unwrap();
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+        if self.text_is_dirty {
+            let graphemes = singletons.text_server.font.get_graphemes(self.text.clone());
+
+            // Set font atlas.
+            self.atlas.set_texture(Texture::from_image(
+                &singletons.render_server.device,
+                &singletons.render_server.queue,
+                &DynamicImage::ImageLuma8(singletons.text_server.font.atlas_image.clone()),
+                None,
+            ).unwrap(), &singletons.render_server);
+
+            let mut instances = vec![];
+            let mut layout_pos = Point2::new(self.position.x, self.position.y);
+
+            for g in graphemes {
+                let instance = AtlasInstance {
+                    position: Vector2::new(layout_pos.x, layout_pos.y),
+                    size: Vector2::new((g.layout.z - g.layout.x) as f32, (g.layout.w - g.layout.y) as f32),
+                    region: Vector4::new(g.region.x as f32 / FONT_ATLAS_SIZE as f32,
+                                         g.region.y as f32 / FONT_ATLAS_SIZE as f32,
+                                         g.region.z as f32 / FONT_ATLAS_SIZE as f32,
+                                         g.region.w as f32 / FONT_ATLAS_SIZE as f32),
+                    color: Vector4::new(1.0, 1.0, 1.0, 1.0),
+                };
+                instances.push(instance);
+                layout_pos.x += g.layout.z as f32 - g.layout.x as f32;
+            }
+
+            self.atlas.set_instances(instances, &singletons.render_server);
+
+            self.text_is_dirty = false;
+        }
     }
 
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
-        self.atlas.draw(render_pass, render_server, singletons);
+        self.atlas.draw(render_pass, singletons);
     }
 }

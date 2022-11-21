@@ -3,7 +3,7 @@ use std::time::Instant;
 use winit::event::VirtualKeyCode::P;
 use crate::DynamicFont;
 
-pub(crate) struct TextServer {
+pub struct TextServer {
     pub(crate) font: DynamicFont,
 }
 

@@ -7,8 +7,9 @@ pub enum NodeType {
     // 2D
     Camera2d,
     Sprite2d,
+    SpriteV,
     Label,
-    SpriteVector,
+    Button,
     Particles2d,
 
     // 3D
@@ -24,8 +25,9 @@ impl std::fmt::Display for NodeType {
         match self {
             NodeType::Camera2d => write!(f, "Camera2d"),
             NodeType::Sprite2d => write!(f, "Sprite2d"),
+            NodeType::SpriteV => write!(f, "SpriteV"),
             NodeType::Label => write!(f, "Label"),
-            NodeType::SpriteVector => write!(f, "SpriteVector"),
+            NodeType::Button => write!(f, "Button"),
             NodeType::Particles2d => write!(f, "Particles2d"),
             NodeType::Camera3d => write!(f, "Camera3d"),
             NodeType::Sprite3d => write!(f, "Sprite3d"),
@@ -52,14 +54,13 @@ pub trait AsNode {
         // Default implementation
     }
 
-    fn update(&mut self, dt: f32, singletons: Option<&Singletons>) {
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         // Default implementation
     }
 
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        render_server: &'b RenderServer,
         singletons: &'b Singletons,
     ) {
         // Default implementation
