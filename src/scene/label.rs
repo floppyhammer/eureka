@@ -2,6 +2,7 @@ use std::any::Any;
 use cgmath::{Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use crate::{AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer, Texture};
+use crate::math::transform::Transform2d;
 use crate::render::atlas::{AtlasMode, DrawAtlas};
 use crate::resource::FONT_ATLAS_SIZE;
 use crate::scene::{CameraInfo, InputServer, NodeType};
@@ -9,7 +10,7 @@ use crate::scene::{CameraInfo, InputServer, NodeType};
 pub(crate) struct Label {
     text: String,
 
-    pub(crate) position: Vector2<f32>,
+    pub(crate) transform: Transform2d,
 
     pub(crate) size: Vector2<f32>,
 
@@ -22,7 +23,6 @@ pub(crate) struct Label {
 
 impl Label {
     pub(crate) fn new(render_server: &RenderServer) -> Label {
-        let position = Vector2::new(0.0_f32, 0.0);
         let size = Vector2::new(128.0_f32, 128.0);
 
         let mut atlas = Atlas::new(&render_server);
@@ -30,7 +30,7 @@ impl Label {
 
         Self {
             text: "Label".to_string(),
-            position,
+            transform: Transform2d::default(),
             size,
             text_is_dirty: true,
             layout_is_dirty: true,
@@ -69,7 +69,7 @@ impl AsNode for Label {
             ).unwrap(), &singletons.render_server);
 
             let mut instances = vec![];
-            let mut layout_pos = Point2::new(self.position.x, self.position.y);
+            let mut layout_pos = self.transform.position;
 
             for g in graphemes {
                 let instance = AtlasInstance {

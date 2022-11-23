@@ -263,7 +263,7 @@ impl<'a, 'b> DrawAtlas<'b> for wgpu::RenderPass<'a>
     ) {
         self.set_pipeline(&pipeline);
 
-        // Set vertex buffer for VertexInput.
+        // Set instance vertex buffer.
         self.set_vertex_buffer(0, instance_buffer.slice(..));
 
         // Set bind groups.

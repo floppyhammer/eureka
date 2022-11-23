@@ -9,18 +9,20 @@ use lyon::math::point;
 use lyon::path::Path;
 use lyon::tessellation::*;
 use wgpu::util::DeviceExt;
+use crate::math::transform::Transform2d;
 
 pub struct VectorSprite {
     pub path: Path,
     geometry: VertexBuffers<MyVertex, u16>,
 
-    pub position: cgmath::Vector2<f32>,
+    pub transform: Transform2d,
     pub size: cgmath::Vector2<f32>,
-    pub scale: cgmath::Vector2<f32>,
 
     camera_uniform: Camera2dUniform,
     pub camera_buffer: wgpu::Buffer,
     pub camera_bind_group: wgpu::BindGroup,
+
+    need_to_rebuild: bool,
 
     pub(crate) mesh: VectorMesh,
 }
@@ -108,13 +110,13 @@ impl VectorSprite {
         Self {
             path,
             geometry,
-            position,
+            transform: Transform2d::default(),
             size,
-            scale,
-            camera_uniform: Camera2dUniform::new(),
+            camera_uniform: Camera2dUniform::default(),
             camera_buffer,
             camera_bind_group,
             mesh,
+            need_to_rebuild: false,
         }
     }
 }

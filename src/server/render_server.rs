@@ -1,3 +1,4 @@
+use std::mem;
 use std::time::Instant;
 use bevy_ecs::system::Resource;
 use cgmath::Point2;
@@ -7,7 +8,7 @@ use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::scene::Camera2dUniform;
 use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture};
 use wgpu::util::DeviceExt;
-use wgpu::TextureFormat;
+use wgpu::{BufferAddress, TextureFormat};
 
 #[derive(Resource)]
 pub struct RenderServer {
@@ -501,10 +502,11 @@ impl RenderServer {
         device: &wgpu::Device,
     ) -> (wgpu::Buffer, wgpu::BindGroup) {
         // Create a buffer for the camera uniform.
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("camera2d buffer"),
-            contents: bytemuck::cast_slice(&[Camera2dUniform::new()]),
+            size: mem::size_of::<Camera2dUniform>() as BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
 
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -539,10 +541,11 @@ impl RenderServer {
     pub fn create_atlas_params_bind_group(&self) -> (wgpu::Buffer, wgpu::BindGroup) {
         let buffer = self
             .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            .create_buffer(&wgpu::BufferDescriptor {
                 label: Some("atlas params uniform buffer"),
-                contents: bytemuck::cast_slice(&[AtlasParamsUniform::default()]),
+                size: mem::size_of::<AtlasParamsUniform>() as BufferAddress,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
             });
 
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {

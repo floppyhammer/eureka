@@ -17,7 +17,7 @@ use material::MaterialSky;
 use mesh::Mesh;
 
 pub struct Sky {
-    pub rotation: cgmath::Quaternion<f32>,
+    pub rotation: Quaternion<f32>,
 
     pub mesh: Mesh,
 

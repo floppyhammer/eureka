@@ -2,6 +2,7 @@ pub(crate) mod material;
 pub(crate) mod mesh;
 pub(crate) mod texture;
 pub(crate) mod font;
+mod style_box;
 
 pub use material::*;
 pub use mesh::*;

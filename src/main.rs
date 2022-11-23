@@ -19,6 +19,7 @@ mod render;
 mod resource;
 mod scene;
 mod server;
+mod math;
 
 // Import local crates.
 use crate::render::gizmo::Gizmo;
@@ -233,11 +234,7 @@ impl App {
         );
         world.add_node(Box::new(camera3d), None);
 
-        let camera2d = Camera2d::new(
-            Point2::new(0.0, 0.0),
-            (size.width, size.height),
-            &render_server,
-        );
+        let camera2d = Camera2d::new((size.width, size.height));
         world.add_node(Box::new(camera2d), None);
 
         let skybox_tex =
@@ -276,7 +273,7 @@ impl App {
         world.add_node(sprite, None);
 
         let mut label = Box::new(Label::new(&render_server));
-        label.position = Vector2::new(0.0, 200.0);
+        label.transform.position = Point2::new(0.0, 200.0);
         label.set_text("Label".to_string());
         world.add_node(label, Some(vec_sprite_id));
         // ---------------------------------------------------
@@ -342,7 +339,7 @@ impl App {
                 "depth texture",
             );
 
-            self.world.when_view_size_changes(new_size.width, new_size.height)
+            self.world.when_view_size_changes(Point2::new(new_size.width, new_size.height))
         }
     }
 

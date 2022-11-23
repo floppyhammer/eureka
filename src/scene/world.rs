@@ -125,7 +125,7 @@ impl World {
         match self.arena[self.current_camera2d.unwrap()].get().as_any().downcast_ref::<Camera2d>() {
             Some(camera) => {
                 self.camera_info.view_size = camera.view_size;
-                self.camera_info.position = camera.position;
+                self.camera_info.position = camera.transform.position;
             }
             None => panic!("Camera isn't a Camera2d!"),
         }
@@ -157,7 +157,7 @@ impl World {
         self.gizmo.draw(render_pass, &self.camera_info, singletons);
     }
 
-    pub fn when_view_size_changes(&mut self, new_width: u32, new_height: u32) {
+    pub fn when_view_size_changes(&mut self, new_size: Point2<u32>) {
         // match self.arena[self.current_camera2d.unwrap()].get().as_any().downcast_mut::<Camera2d>() {
         //     Some(camera) => {
         //         camera.when_view_size_changes(new_width, new_height);

@@ -4,6 +4,7 @@ use crate::scene::{AsNode, Camera2dUniform, CameraInfo, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons};
 use cgmath::{Vector2, Vector3, Vector4};
 use wgpu::util::DeviceExt;
+use crate::math::transform::Transform2d;
 
 pub struct SpriteSheet {
     h_frames: u32,
@@ -14,9 +15,8 @@ pub struct SpriteSheet {
 pub struct Sprite2d {
     pub name: String,
 
-    pub position: Vector2<f32>,
+    transform: Transform2d,
     pub size: Vector2<f32>,
-    pub scale: Vector2<f32>,
 
     // A portion of the texture to draw.
     pub region: Vector4<f32>,
@@ -39,9 +39,7 @@ impl Sprite2d {
     pub(crate) fn new(render_server: &RenderServer, texture: Texture) -> Sprite2d {
         let device = &render_server.device;
 
-        let position = Vector2::new(0.0_f32, 0.0);
         let size = Vector2::new(128.0_f32, 128.0);
-        let scale = Vector2::new(1.0_f32, 1.0);
 
         let region = Vector4::new(0.0_f32, 0.0, 1.0, 1.0);
 
@@ -53,9 +51,8 @@ impl Sprite2d {
 
         Self {
             name: "".to_string(),
-            position,
+            transform: Transform2d::default(),
             size,
-            scale,
             region,
             sprite_sheet: SpriteSheet {
                 h_frames: 0,
@@ -64,7 +61,7 @@ impl Sprite2d {
             },
             texture: Some(texture),
             texture_bind_group,
-            camera_uniform: Camera2dUniform::new(),
+            camera_uniform: Camera2dUniform::default(),
             camera_buffer,
             camera_bind_group,
             centered: false,
@@ -95,18 +92,18 @@ impl AsNode for Sprite2d {
     fn ready(&mut self) {}
 
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
-        let scaled_width = self.scale.x * self.size.x;
-        let scaled_height = self.scale.y * self.size.y;
+        let scaled_width = self.transform.scale.x * self.size.x;
+        let scaled_height = self.transform.scale.y * self.size.y;
 
         let view_size = camera_info.view_size;
 
         let translation = if self.centered {
             cgmath::Matrix4::from_translation(Vector3::new(
-                (self.position.x / view_size.x as f32 - scaled_width * 0.5)
+                (self.transform.position.x / view_size.x as f32 - scaled_width * 0.5)
                     / view_size.x as f32
                     * 2.0
                     - 1.0,
-                (self.position.y / view_size.y as f32 - scaled_height * 0.5)
+                (self.transform.position.y / view_size.y as f32 - scaled_height * 0.5)
                     / view_size.y as f32
                     * 2.0
                     - 1.0,
@@ -114,9 +111,9 @@ impl AsNode for Sprite2d {
             ))
         } else {
             cgmath::Matrix4::from_translation(Vector3::new(
-                (self.position.x / view_size.x as f32) / view_size.x as f32 * 2.0
+                (self.transform.position.x / view_size.x as f32) / view_size.x as f32 * 2.0
                     - 1.0,
-                (self.position.y / view_size.y as f32) / view_size.y as f32 * 2.0
+                (self.transform.position.y / view_size.y as f32) / view_size.y as f32 * 2.0
                     - 1.0,
                 0.0,
             ))

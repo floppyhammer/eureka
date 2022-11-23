@@ -1,17 +1,25 @@
 use std::any::Any;
 use cgmath::{Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
+use lyon::geom::Transform;
 use crate::{AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer, Texture};
+use crate::math::transform::Transform2d;
 use crate::render::atlas::{AtlasMode, DrawAtlas};
 use crate::resource::FONT_ATLAS_SIZE;
 use crate::scene::{CameraInfo, InputServer, Label, NodeType};
+use crate::scene::vector_sprite::VectorSprite;
 
 pub(crate) struct Button {
     label: Label,
 
-    pub(crate) position: Vector2<f32>,
+    transform: Transform2d,
 
     pub(crate) size: Vector2<f32>,
+
+    hovered: bool,
+    pressed: bool,
+
+    sprite_v: VectorSprite,
 }
 
 impl Button {
@@ -21,8 +29,11 @@ impl Button {
 
         Self {
             label: Label::new(render_server),
-            position,
+            transform: Transform2d::default(),
             size,
+            hovered: false,
+            pressed: false,
+            sprite_v: VectorSprite::new(render_server),
         }
     }
 
