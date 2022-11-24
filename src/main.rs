@@ -274,7 +274,7 @@ impl App {
 
         let mut label = Box::new(Label::new(&render_server));
         label.transform.position = Point2::new(0.0, 200.0);
-        label.set_text("Label".to_string());
+        label.set_text("This is a label!".to_string());
         world.add_node(label, Some(vec_sprite_id));
         // ---------------------------------------------------
 

@@ -14,9 +14,9 @@ use unicode_segmentation::UnicodeSegmentation;
 pub(crate) struct Grapheme {
     /// This can also be used as an unique ID in the font atlas image.
     pub(crate) text: String,
-    /// Rect box w.r.t. baseline.
+    /// Local rect w.r.t. baseline.
     pub(crate) layout: Vector4<i32>,
-    /// Outlines' bbox.
+    /// Local bbox w.r.t. baseline.
     pub(crate) bounds: Vector4<f32>,
     /// Region in the font atlas.
     pub(crate) region: Vector4<u32>,
@@ -28,7 +28,7 @@ pub(crate) struct DynamicFont {
     font: fontdue::Font,
 
     /// Font size.
-    size: u32,
+    pub size: u32,
 
     /// Contains all the existing graphemes' bitmaps.
     pub(crate) atlas_image: image::GrayImage,

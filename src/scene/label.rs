@@ -61,6 +61,7 @@ impl AsNode for Label {
             let graphemes = singletons.text_server.font.get_graphemes(self.text.clone());
 
             // Set font atlas.
+            // TODO: let font manage the atlas so we don't need to recreate it everytime text changes.
             self.atlas.set_texture(Texture::from_image(
                 &singletons.render_server.device,
                 &singletons.render_server.queue,
@@ -72,8 +73,10 @@ impl AsNode for Label {
             let mut layout_pos = self.transform.position;
 
             for g in graphemes {
+                let baseline_height = g.layout.y as f32;
+
                 let instance = AtlasInstance {
-                    position: Vector2::new(layout_pos.x, layout_pos.y),
+                    position: Vector2::new(layout_pos.x, layout_pos.y + baseline_height),
                     size: Vector2::new((g.layout.z - g.layout.x) as f32, (g.layout.w - g.layout.y) as f32),
                     region: Vector4::new(g.region.x as f32 / FONT_ATLAS_SIZE as f32,
                                          g.region.y as f32 / FONT_ATLAS_SIZE as f32,
@@ -82,7 +85,13 @@ impl AsNode for Label {
                     color: Vector4::new(1.0, 1.0, 1.0, 1.0),
                 };
                 instances.push(instance);
-                layout_pos.x += g.layout.z as f32 - g.layout.x as f32;
+
+                // Update next grapheme's position.
+                if g.text == " " {
+                    layout_pos.x += singletons.text_server.font.size as f32 * 0.333;
+                } else {
+                    layout_pos.x += g.layout.z as f32 - g.layout.x as f32 + 1.0;
+                }
             }
 
             self.atlas.set_instances(instances, &singletons.render_server);
