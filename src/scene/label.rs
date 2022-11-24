@@ -17,6 +17,8 @@ pub(crate) struct Label {
     text_is_dirty: bool,
     layout_is_dirty: bool,
 
+    single_line: bool,
+
     /// To draw grapheme sprites.
     atlas: Atlas,
 }
@@ -25,7 +27,7 @@ impl Label {
     pub(crate) fn new(render_server: &RenderServer) -> Label {
         let size = Vector2::new(128.0_f32, 128.0);
 
-        let mut atlas = Atlas::new(&render_server);
+        let mut atlas = Atlas::new(&render_server, Point2::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE));
         atlas.set_mode(AtlasMode::Text);
 
         Self {
@@ -34,6 +36,7 @@ impl Label {
             size,
             text_is_dirty: true,
             layout_is_dirty: true,
+            single_line: false,
             atlas,
         }
     }
@@ -60,15 +63,7 @@ impl AsNode for Label {
         if self.text_is_dirty {
             let graphemes = singletons.text_server.font.get_graphemes(self.text.clone());
 
-            // Set font atlas.
-            // TODO: let font manage the atlas so we don't need to recreate it everytime text changes.
-            self.atlas.set_texture(Texture::from_image(
-                &singletons.render_server.device,
-                &singletons.render_server.queue,
-                &DynamicImage::ImageLuma8(singletons.text_server.font.atlas_image.clone()),
-                None,
-            ).unwrap(), &singletons.render_server);
-
+            // Update atlas data.
             let mut instances = vec![];
             let mut layout_pos = self.transform.position;
 
@@ -106,6 +101,6 @@ impl AsNode for Label {
         camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
-        self.atlas.draw(render_pass, camera_info, singletons);
+        self.atlas.draw(&singletons.text_server.font.atlas_bind_group, render_pass, camera_info, singletons);
     }
 }

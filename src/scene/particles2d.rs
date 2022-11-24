@@ -1,5 +1,5 @@
 use std::any::Any;
-use cgmath::{Vector3, Vector4};
+use cgmath::{Point2, Vector3, Vector4};
 use crate::render::atlas::{AtlasInstance, DrawAtlas};
 use crate::{AsNode, Atlas, InputEvent, RenderServer, Singletons, Texture};
 use crate::scene::{CameraInfo, NodeType};
@@ -16,7 +16,6 @@ pub struct Particles2d {
     lifetime: f32,
 
     atlas: Atlas,
-
 }
 
 impl Particles2d {
@@ -25,7 +24,7 @@ impl Particles2d {
             emitting: true,
             amount: 8,
             lifetime: 1.0,
-            atlas: Atlas::new(render_server),
+            atlas: Atlas::new(render_server, Point2::new(0, 0)),
         }
     }
 }

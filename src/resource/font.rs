@@ -7,8 +7,9 @@ use std::path::Path;
 use std::time::Instant;
 use cgmath::{Point2, Vector4};
 use fontdue;
-use image::Luma;
+use image::{DynamicImage, Luma};
 use unicode_segmentation::UnicodeSegmentation;
+use crate::resource::{RenderServer, Texture};
 
 #[derive(Clone)]
 pub(crate) struct Grapheme {
@@ -27,13 +28,20 @@ pub(crate) const FONT_ATLAS_SIZE: u32 = 2096;
 pub(crate) struct DynamicFont {
     font: fontdue::Font,
 
-    /// Font size.
+    /// Font size in pixel.
     pub size: u32,
 
-    /// Contains all the existing graphemes' bitmaps.
-    pub(crate) atlas_image: image::GrayImage,
+    /// Contains all cached graphemes' bitmaps.
+    atlas_image: DynamicImage,
 
-    /// Where should we put the nex grapheme in the atlas.
+    /// GPU texture.
+    atlas_texture: Texture,
+    pub(crate) atlas_bind_group: wgpu::BindGroup,
+
+    /// Atlas has been changed, the GPU texture needs to be updated.
+    need_upload: bool,
+
+    /// Where should we put the next grapheme in the atlas.
     next_grapheme_position: Point2<u32>,
     max_height_of_current_row: u32,
 
@@ -41,7 +49,7 @@ pub(crate) struct DynamicFont {
 }
 
 impl DynamicFont {
-    pub(crate) fn load<P: AsRef<Path>>(path: P) -> Self {
+    pub(crate) fn load<P: AsRef<Path>>(path: P, render_server: &RenderServer) -> Self {
         let now = Instant::now();
 
         // Read the font data.
@@ -59,13 +67,66 @@ impl DynamicFont {
         let elapsed_time = now.elapsed();
         log::info!("Creating fontdue font took {} milliseconds", elapsed_time.as_millis());
 
+        let atlas_image = DynamicImage::ImageLuma8(image::GrayImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE));
+
+        let atlas_texture = Texture::from_image(
+            &render_server.device,
+            &render_server.queue,
+            &atlas_image,
+            "default font atlas".into(),
+        ).unwrap();
+
+        let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
+
         Self {
             font,
             size: 24,
-            atlas_image: image::GrayImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE),
+            atlas_image,
+            atlas_texture,
+            atlas_bind_group,
+            need_upload: false,
             next_grapheme_position: Point2::new(0, 0),
             max_height_of_current_row: 0,
             grapheme_cache: HashMap::new(),
+        }
+    }
+
+    /// Upload atlas data to the atlas texture.
+    pub(crate) fn upload(&mut self, render_server: &RenderServer) {
+        if self.need_upload {
+            self.need_upload = false;
+
+            let queue = &render_server.queue;
+
+            // TODO: do not copy the whole atlas but only the changed portion.
+            let img_copy_texture = wgpu::ImageCopyTexture {
+                aspect: wgpu::TextureAspect::All,
+                texture: &self.atlas_texture.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            };
+
+            let size = wgpu::Extent3d {
+                width: FONT_ATLAS_SIZE,
+                height: FONT_ATLAS_SIZE,
+                depth_or_array_layers: 1,
+            };
+
+            match &self.atlas_image {
+                DynamicImage::ImageLuma8(gray) => {
+                    queue.write_texture(
+                        img_copy_texture,
+                        &gray,
+                        wgpu::ImageDataLayout {
+                            offset: 0,
+                            bytes_per_row: std::num::NonZeroU32::new(FONT_ATLAS_SIZE),
+                            rows_per_image: std::num::NonZeroU32::new(FONT_ATLAS_SIZE),
+                        },
+                        size,
+                    );
+                }
+                _ => {}
+            }
         }
     }
 
@@ -116,9 +177,16 @@ impl DynamicFont {
                         let x = self.next_grapheme_position.x + col as u32;
                         let y = self.next_grapheme_position.y + row as u32;
 
-                        self.atlas_image.put_pixel(x,
-                                                   y,
-                                                   Luma([buffer[row * metrics.width + col]]));
+                        match &mut self.atlas_image {
+                            DynamicImage::ImageLuma8(img) => {
+                                img.put_pixel(x,
+                                              y,
+                                              Luma([buffer[row * metrics.width + col]]));
+                            }
+                            _ => {
+                                panic!()
+                            }
+                        }
                     }
                 }
 
@@ -146,6 +214,7 @@ impl DynamicFont {
             };
 
             self.grapheme_cache.insert(key, grapheme.clone());
+            self.need_upload = true;
 
             graphemes.push(grapheme);
         }

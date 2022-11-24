@@ -220,7 +220,7 @@ impl App {
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         log::info!("Asset dir: {}", asset_dir.display());
 
-        let mut text_server = TextServer::new(asset_dir.join("fonts/OpenSans-Regular.ttf"));
+        let mut text_server = TextServer::new(asset_dir.join("fonts/OpenSans-Regular.ttf"), &render_server);
 
         // Create nodes.
         // ---------------------------------------------------
@@ -406,6 +406,9 @@ impl App {
                     stencil_ops: None,
                 }),
             });
+
+            // Update server GPU resources.
+            self.singletons.text_server.update_gpu(&self.singletons.render_server);
 
             self.world.draw(&mut render_pass, &self.singletons);
         }

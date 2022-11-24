@@ -2,7 +2,6 @@ use crate::render::vertex::VertexBuffer;
 use crate::{RenderServer, Singletons, Texture};
 use cgmath::{Point2, Vector2, Vector4};
 use wgpu::util::DeviceExt;
-use wgpu::Buffer;
 use crate::scene::CameraInfo;
 
 /// CPU data for drawing multiple sprites with an instanced draw call.
@@ -115,24 +114,25 @@ impl VertexBuffer for AtlasInstanceRaw {
     }
 }
 
+/// An atlas doesn't own any texture resource, so we can have multiple atlases
+/// using the same texture.
 pub(crate) struct Atlas {
     pub(crate) instances: Vec<AtlasInstance>,
     instance_buffer: Option<wgpu::Buffer>,
 
-    texture: Texture,
-    texture_bind_group: wgpu::BindGroup,
-
     atlas_params_buffer: wgpu::Buffer,
     atlas_params_bind_group: wgpu::BindGroup,
+
+    size: Point2<u32>,
 
     mode: AtlasMode,
 }
 
 impl Atlas {
-    pub fn new(render_server: &RenderServer) -> Self {
-        let texture = Texture::empty(&render_server.device, &render_server.queue, (16, 16)).unwrap();
-
-        let texture_bind_group = render_server.create_sprite2d_bind_group(&texture);
+    pub fn new(render_server: &RenderServer, size: Point2<u32>) -> Self {
+        // let texture = Texture::empty(&render_server.device, &render_server.queue, (16, 16)).unwrap();
+        //
+        // let texture_bind_group = render_server.create_sprite2d_bind_group(&texture);
 
         let (atlas_params_buffer, atlas_params_bind_group) =
             render_server.create_atlas_params_bind_group();
@@ -140,19 +140,20 @@ impl Atlas {
         Self {
             instances: vec![],
             instance_buffer: None,
-            texture,
-            texture_bind_group,
+            // texture,
+            // texture_bind_group,
             atlas_params_buffer,
             atlas_params_bind_group,
+            size,
             mode: AtlasMode::Sprite,
         }
     }
 
-    pub(crate) fn set_texture(&mut self, texture: Texture, render_server: &RenderServer) {
-        self.texture = texture;
-
-        self.texture_bind_group = render_server.create_sprite2d_bind_group(&self.texture);
-    }
+    // pub(crate) fn set_texture(&mut self, texture: Texture, render_server: &RenderServer) {
+    //     self.texture = texture;
+    //
+    //     self.texture_bind_group = render_server.create_sprite2d_bind_group(&self.texture);
+    // }
 
     pub(crate) fn set_mode(&mut self, mode: AtlasMode) {
         self.mode = mode;
@@ -197,15 +198,17 @@ impl Atlas {
         }
     }
 
+    /// Draw using the given texture.
     pub(crate) fn draw<'a, 'b: 'a>(
         &'b self,
+        texture_bind_group: &'b wgpu::BindGroup,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
         let render_server = &singletons.render_server;
 
-        let atlas_params = AtlasParamsUniform::new(self.texture.size,
+        let atlas_params = AtlasParamsUniform::new(self.size,
                                                    camera_info.view_size,
                                                    self.mode as u32);
         render_server
@@ -224,7 +227,7 @@ impl Atlas {
                     &render_server.atlas_pipeline,
                     buffer,
                     instance_count,
-                    &self.texture_bind_group,
+                    &texture_bind_group,
                     &self.atlas_params_bind_group,
                 );
             }
