@@ -5,8 +5,7 @@ use wgpu::util::DeviceExt;
 use wgpu::Buffer;
 use crate::scene::CameraInfo;
 
-/// To draw multiple textures with an instanced draw call.
-/// CPU data.
+/// CPU data for drawing multiple sprites with an instanced draw call.
 pub struct AtlasInstance {
     pub(crate) position: Vector2<f32>,
     pub(crate) size: Vector2<f32>,
@@ -25,7 +24,6 @@ pub(crate) struct AtlasInstanceRaw {
 }
 
 #[repr(C)]
-// This is so we can store this in a buffer.
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct AtlasParamsUniform {
     camera_view_size: [f32; 2],
@@ -43,6 +41,7 @@ pub(crate) enum AtlasMode {
     Text = 0x2,
 }
 
+/// Parameters for atlas drawing control.
 impl AtlasParamsUniform {
     pub(crate) fn new(texture_size: Point2<u32>,
                       camera_view_size: Point2<u32>,
@@ -73,29 +72,11 @@ impl AtlasParamsUniform {
 impl AtlasInstance {
     fn to_raw(&self) -> AtlasInstanceRaw {
         AtlasInstanceRaw {
-            position: [self.position.x, self.position.y],
-            size: [self.size.x, self.size.y],
+            position: self.position.into(),
+            size: self.size.into(),
             region: self.region.into(),
-            color: [1.0, 1.0, 1.0, 1.0],
+            color: self.color.into(),
         }
-    }
-
-    fn create_instance_buffer(
-        device: &wgpu::Device,
-        instances: Vec<AtlasInstance>,
-    ) -> wgpu::Buffer {
-        let instance_data = instances
-            .iter()
-            .map(AtlasInstance::to_raw)
-            .collect::<Vec<_>>();
-
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("atlas instance buffer"),
-            contents: bytemuck::cast_slice(&instance_data),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        instance_buffer
     }
 }
 
@@ -137,10 +118,13 @@ impl VertexBuffer for AtlasInstanceRaw {
 pub(crate) struct Atlas {
     pub(crate) instances: Vec<AtlasInstance>,
     instance_buffer: Option<wgpu::Buffer>,
+
     texture: Texture,
     texture_bind_group: wgpu::BindGroup,
+
     atlas_params_buffer: wgpu::Buffer,
     atlas_params_bind_group: wgpu::BindGroup,
+
     mode: AtlasMode,
 }
 
@@ -175,31 +159,41 @@ impl Atlas {
     }
 
     pub(crate) fn set_instances(&mut self, instances: Vec<AtlasInstance>, render_server: &RenderServer) {
-        self.instances = instances;
-        if self.instances.len() == 0 {
+        let old_instance_count = self.instances.len();
+        let new_instance_count = instances.len();
+
+        if new_instance_count == 0 {
             return;
         }
 
+        self.instances = instances;
+
+        // Raw data.
         let instance_data = self.instances.iter().map(AtlasInstance::to_raw).collect::<Vec<_>>();
 
+        let mut need_allocate = false;
+
         match &self.instance_buffer {
-            // Allocate a new buffer.
             None => {
-                self.instance_buffer = Some(render_server
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("atlas instance buffer"),
-                        contents: bytemuck::cast_slice(&instance_data),
-                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                    }));
+                need_allocate = true;
             }
-            // Update data.
-            // FIXME: Should handle instance buffer size change.
             Some(buffer) => {
-                render_server
-                    .queue
-                    .write_buffer(buffer, 0, bytemuck::cast_slice(&instance_data));
+                if new_instance_count <= old_instance_count {
+                    render_server.queue.write_buffer(buffer, 0, bytemuck::cast_slice(&instance_data));
+                } else {
+                    need_allocate = true;
+                }
             }
+        }
+
+        if need_allocate {
+            self.instance_buffer = Some(render_server
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("atlas instance buffer"),
+                    contents: bytemuck::cast_slice(&instance_data),
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                }));
         }
     }
 
@@ -218,7 +212,7 @@ impl Atlas {
             .queue
             .write_buffer(&self.atlas_params_buffer, 0, bytemuck::cast_slice(&[atlas_params]));
 
-        let instance_count = self.instances.len();
+        let instance_count = self.instances.len() as u32;
         if instance_count == 0 {
             return;
         }
@@ -229,7 +223,7 @@ impl Atlas {
                 render_pass.draw_atlas(
                     &render_server.atlas_pipeline,
                     buffer,
-                    self.instances.len() as u32,
+                    instance_count,
                     &self.texture_bind_group,
                     &self.atlas_params_bind_group,
                 );
