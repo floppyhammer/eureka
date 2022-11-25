@@ -115,8 +115,8 @@ impl Camera3d {
         )
     }
 
-    pub fn when_view_size_changes(&mut self, new_width: u32, new_height: u32) {
-        self.projection.resize(new_width, new_height);
+    pub fn when_view_size_changes(&mut self, new_size: Point2<u32>) {
+        self.projection.resize(new_size);
     }
 }
 
@@ -138,8 +138,8 @@ impl Projection {
         }
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.aspect = width as f32 / height as f32;
+    pub fn resize(&mut self, new_size: Point2<u32>) {
+        self.aspect = new_size.x as f32 / new_size.y as f32;
     }
 
     /// Get projection matrix.

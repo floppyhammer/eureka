@@ -117,9 +117,12 @@ impl World {
         }
     }
 
+    /// Get a reference to a node by its ID.
     pub fn get_node<T: 'static>(&self, id: NodeId) -> Option<&T> {
+        // Get the pointer to the node.
         let node_ptr = self.arena[id].get();
 
+        // Downcast it to the original type.
         match node_ptr.as_any().downcast_ref::<T>() {
             Some(node_ptr) => {
                 Some(node_ptr)
@@ -128,9 +131,12 @@ impl World {
         }
     }
 
+    /// Get a mutable reference to a node by its ID.
     pub fn get_node_mut<T: 'static>(&mut self, id: NodeId) -> Option<&mut T> {
+        // Get the pointer to the node.
         let node_ptr = self.arena[id].get_mut();
 
+        // Downcast it to the original type.
         match node_ptr.as_any_mut().downcast_mut::<T>() {
             Some(node_ptr) => {
                 Some(node_ptr)
@@ -144,18 +150,16 @@ impl World {
         dt: f32,
         singletons: &mut Singletons,
     ) {
-        match self.arena[self.current_camera2d.unwrap()].get().as_any().downcast_ref::<Camera2d>() {
-            Some(camera) => {
-                self.camera_info.view_size = camera.view_size;
-                self.camera_info.position = camera.transform.position;
-            }
-            None => panic!("Camera isn't a Camera2d!"),
+        // Get camera info.
+        if let Some(camera2d) = self.get_node::<Camera2d>(self.current_camera2d.unwrap()) {
+            let view_size = camera2d.view_size;
+
+            self.camera_info.position = camera2d.transform.position;
+            self.camera_info.view_size = view_size;
         }
-        match self.arena[self.current_camera3d.unwrap()].get().as_any().downcast_ref::<Camera3d>() {
-            Some(camera) => {
-                self.camera_info.bind_group = Some(camera.bind_group.clone());
-            }
-            None => panic!("Camera isn't a Camera3d!"),
+
+        if let Some(camera3d) = self.get_node::<Camera3d>(self.current_camera3d.unwrap()) {
+            self.camera_info.bind_group = Some(camera3d.bind_group.clone());
         }
 
         for id in self.traverse() {
@@ -180,17 +184,7 @@ impl World {
     }
 
     pub fn when_view_size_changes(&mut self, new_size: Point2<u32>) {
-        // match self.arena[self.current_camera2d.unwrap()].get().as_any().downcast_mut::<Camera2d>() {
-        //     Some(camera) => {
-        //         camera.when_view_size_changes(new_width, new_height);
-        //     }
-        //     None => panic!("Camera isn't a Camera2d!"),
-        // }
-        // match &mut self.arena[self.current_camera3d.unwrap()].get().as_any().downcast_mut::<Camera3d>() {
-        //     Some(camera) => {
-        //         camera.when_view_size_changes(new_width, new_height);
-        //     }
-        //     None => panic!("Camera isn't a Camera3d!"),
-        // }
+        self.get_node_mut::<Camera2d>(self.current_camera2d.unwrap()).unwrap().when_view_size_changes(new_size);
+        self.get_node_mut::<Camera3d>(self.current_camera3d.unwrap()).unwrap().when_view_size_changes(new_size);
     }
 }
