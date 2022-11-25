@@ -366,17 +366,9 @@ impl App {
 
         self.singletons.core_server.tick();
 
-        let label = self.world.arena[self.fps_label_id].get_mut();
+        self.world.get_node_mut::<Label>(self.fps_label_id).unwrap().set_text(format!("FPS: {}", self.singletons.core_server.get_fps() as i32));
 
-        match label.as_any_mut().downcast_mut::<Label>() {
-            Some(label) => {
-                label.set_text(format!("FPS: {}", self.singletons.core_server.get_fps() as i32));
-            }
-            None => panic!("Node isn't a Label!"),
-        }
-
-        self.world
-            .update(dt_in_secs, &mut self.singletons);
+        self.world.update(dt_in_secs, &mut self.singletons);
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {

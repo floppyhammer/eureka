@@ -117,7 +117,27 @@ impl World {
         }
     }
 
-    pub fn get_node(&self) {}
+    pub fn get_node<T: 'static>(&self, id: NodeId) -> Option<&T> {
+        let node_ptr = self.arena[id].get();
+
+        match node_ptr.as_any().downcast_ref::<T>() {
+            Some(node_ptr) => {
+                Some(node_ptr)
+            }
+            None => None,
+        }
+    }
+
+    pub fn get_node_mut<T: 'static>(&mut self, id: NodeId) -> Option<&mut T> {
+        let node_ptr = self.arena[id].get_mut();
+
+        match node_ptr.as_any_mut().downcast_mut::<T>() {
+            Some(node_ptr) => {
+                Some(node_ptr)
+            }
+            None => None,
+        }
+    }
 
     pub fn update(
         &mut self,
