@@ -132,6 +132,8 @@ impl AsNode for Sprite3d {
         self
     }
 
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         self.params_uniform = SpriteParamsUniform {
             model_matrix: cgmath::Matrix4::from_translation(self.position).into(),

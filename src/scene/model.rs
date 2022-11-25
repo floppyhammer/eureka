@@ -433,6 +433,8 @@ impl AsNode for Model {
         self
     }
 
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+
     fn draw<'a, 'b: 'a>(
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,

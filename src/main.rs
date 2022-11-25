@@ -11,6 +11,7 @@ use winit::{
 };
 
 use cgmath::{prelude::*, Point2, Vector2, Vector3, Vector4};
+use indextree::NodeId;
 
 use wgpu::{util::DeviceExt, SamplerBindingType, TextureView};
 
@@ -34,11 +35,13 @@ use crate::scene::{
 };
 use crate::server::render_server::RenderServer;
 use crate::server::text_server::TextServer;
+use crate::server::{core_server, CoreServer};
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
 
 pub struct Singletons {
+    pub core_server: CoreServer,
     pub render_server: RenderServer,
     pub input_server: InputServer,
     pub text_server: TextServer,
@@ -52,6 +55,7 @@ struct App {
     previous_frame_time: f32,
     world: World,
     singletons: Singletons,
+    fps_label_id: NodeId,
 }
 
 fn main() {
@@ -209,6 +213,8 @@ impl App {
         // Create a render server.
         let mut render_server = RenderServer::new(surface, config, device, queue);
 
+        let mut core_server = CoreServer::new();
+
         // Depth texture for depth test.
         let depth_texture = Texture::create_depth_texture(
             &render_server.device,
@@ -275,7 +281,7 @@ impl App {
         let mut label = Box::new(Label::new(&render_server));
         label.transform.position = Point2::new(0.0, 200.0);
         label.set_text("This is a label!".to_string());
-        world.add_node(label, Some(vec_sprite_id));
+        let fps_label_id = world.add_node(label, Some(vec_sprite_id));
         // ---------------------------------------------------
 
         // Test ground.
@@ -301,6 +307,7 @@ impl App {
         // ---------------------------------------------------
 
         let mut singletons = Singletons {
+            core_server,
             render_server,
             input_server: InputServer::new(),
             text_server,
@@ -312,6 +319,7 @@ impl App {
             previous_frame_time: 0.0,
             world,
             singletons,
+            fps_label_id,
         }
     }
 
@@ -355,6 +363,17 @@ impl App {
 
     fn update(&mut self, dt: std::time::Duration) {
         let dt_in_secs = dt.as_secs_f32();
+
+        self.singletons.core_server.tick();
+
+        let label = self.world.arena[self.fps_label_id].get_mut();
+
+        match label.as_any_mut().downcast_mut::<Label>() {
+            Some(label) => {
+                label.set_text(format!("FPS: {}", self.singletons.core_server.get_fps() as i32));
+            }
+            None => panic!("Node isn't a Label!"),
+        }
 
         self.world
             .update(dt_in_secs, &mut self.singletons);

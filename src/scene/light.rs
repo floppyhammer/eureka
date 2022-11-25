@@ -75,6 +75,8 @@ impl AsNode for Light {
         self
     }
 
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         let queue = &mut singletons.render_server.queue;
 

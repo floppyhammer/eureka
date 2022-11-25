@@ -40,9 +40,14 @@ impl std::fmt::Display for NodeType {
 }
 
 pub trait AsNode {
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+
     fn node_type(&self) -> NodeType;
 
-    fn as_any(&self) -> &dyn Any;
+    // TODO: add node retrieval by path.
+    // fn get_name(&self) -> String;
 
     /// Called when being added to the scene tree.
     fn ready(&mut self) {

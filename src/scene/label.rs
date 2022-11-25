@@ -59,6 +59,8 @@ impl AsNode for Label {
         self
     }
 
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         if self.text_is_dirty {
             let graphemes = singletons.text_server.font.get_graphemes(self.text.clone());

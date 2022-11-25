@@ -117,6 +117,8 @@ impl World {
         }
     }
 
+    pub fn get_node(&self) {}
+
     pub fn update(
         &mut self,
         dt: f32,

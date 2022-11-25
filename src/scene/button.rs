@@ -54,6 +54,8 @@ impl AsNode for Button {
         self
     }
 
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+
     fn ready(&mut self) {}
 
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {

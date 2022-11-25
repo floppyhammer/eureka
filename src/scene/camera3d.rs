@@ -323,6 +323,8 @@ impl AsNode for Camera3d {
         self
     }
 
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+
     fn input(&mut self, input_event: &mut InputEvent, input_server: &mut InputServer) {
         self.controller.cursor_capture_state_changed = false;
 
