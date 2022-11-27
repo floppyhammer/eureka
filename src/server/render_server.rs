@@ -4,7 +4,7 @@ use bevy_ecs::system::Resource;
 use cgmath::Point2;
 use wgpu::PolygonMode::Point;
 use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
-use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
+use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::scene::Camera2dUniform;
 use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture};
 use wgpu::util::DeviceExt;
@@ -319,7 +319,7 @@ impl RenderServer {
                 &pipeline_layout,
                 config.format,
                 Some(resource::texture::Texture::DEPTH_FORMAT),
-                &[scene::vector_sprite::VectorVertex::desc()],
+                &[VectorVertex::desc()],
                 shader,
                 "vector sprite pipeline",
                 false,
