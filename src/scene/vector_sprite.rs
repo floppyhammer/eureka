@@ -13,7 +13,7 @@ use crate::math::transform::Transform2d;
 
 pub struct VectorSprite {
     pub path: Path,
-    geometry: VertexBuffers<MyVertex, u16>,
+    geometry: VertexBuffers<VectorVertex, u32>,
 
     pub transform: Transform2d,
     pub size: cgmath::Vector2<f32>,
@@ -25,12 +25,6 @@ pub struct VectorSprite {
     need_to_rebuild: bool,
 
     pub(crate) mesh: VectorMesh,
-}
-
-// Let's use our own custom vertex type instead of the default one.
-#[derive(Copy, Clone, Debug)]
-struct MyVertex {
-    position: [f32; 2],
 }
 
 impl VectorSprite {
@@ -48,7 +42,7 @@ impl VectorSprite {
         let path = builder.build();
 
         // Will contain the result of the tessellation.
-        let mut geometry: VertexBuffers<MyVertex, u16> = VertexBuffers::new();
+        let mut geometry: VertexBuffers<VectorVertex, u32> = VertexBuffers::new();
         let mut tessellator = FillTessellator::new();
         {
             // Compute the tessellation.
@@ -56,8 +50,9 @@ impl VectorSprite {
                 .tessellate_path(
                     &path,
                     &FillOptions::default(),
-                    &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| MyVertex {
+                    &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| VectorVertex {
                         position: vertex.position().to_array(),
+                        color: [1.0, 1.0, 1.0],
                     }),
                 )
                 .unwrap();
@@ -69,28 +64,15 @@ impl VectorSprite {
             geometry.indices.len()
         );
 
-        let mut vertices = Vec::new();
-        for v in &geometry.vertices {
-            vertices.push(VectorVertex {
-                position: [v.position[0], v.position[1]],
-                color: [1.0, 1.0, 1.0],
-            });
-        }
-
-        let mut indices = Vec::new();
-        for i in &geometry.indices {
-            indices.push(*i as i32);
-        }
-
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("vertex buffer for vector sprite")),
-            contents: bytemuck::cast_slice(&vertices),
+            contents: bytemuck::cast_slice(&geometry.vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
 
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("index buffer for vector sprite")),
-            contents: bytemuck::cast_slice(&indices),
+            contents: bytemuck::cast_slice(&geometry.indices),
             usage: wgpu::BufferUsages::INDEX,
         });
 
@@ -104,7 +86,7 @@ impl VectorSprite {
             name: "".to_string(),
             vertex_buffer,
             index_buffer,
-            index_count: indices.len() as u32,
+            index_count: geometry.indices.len() as u32,
         };
 
         Self {
