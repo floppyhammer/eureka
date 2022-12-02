@@ -258,15 +258,6 @@ impl App {
         // );
         // world.add_node(obj_model, None);
 
-        // let ground_model = Box::new(
-        //     Model::load(
-        //         &render_server,
-        //         asset_dir.join("granite_ground/granite_ground.obj"),
-        //     )
-        //         .unwrap(),
-        // );
-        // world.add_node(ground_model, None);
-
         let vec_sprite = Box::new(VectorSprite::new(&render_server));
         let vec_sprite_id = world.add_node(vec_sprite, None);
 
@@ -306,7 +297,7 @@ impl App {
         // ).unwrap(), &render_server);
         // ---------------------------------------------------
 
-        let mut singletons = Singletons {
+        let singletons = Singletons {
             core_server,
             render_server,
             input_server: InputServer::new(),
