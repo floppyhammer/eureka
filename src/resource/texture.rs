@@ -1,8 +1,8 @@
 use anyhow::*;
+use cgmath::Point2;
 use image::{DynamicImage, GenericImageView, ImageBuffer, Rgb};
 use std::path::Path;
 use std::time::Instant;
-use cgmath::Point2;
 
 use crate::resource::{Material2d, Mesh};
 use crate::RenderServer;
@@ -43,7 +43,8 @@ impl Texture {
             data.extend([222u8, 222, 222, 0]);
         }
 
-        let mut image = DynamicImage::ImageRgba8(image::ImageBuffer::from_raw(size.0, size.1, data).unwrap());
+        let mut image =
+            DynamicImage::ImageRgba8(image::ImageBuffer::from_raw(size.0, size.1, data).unwrap());
 
         Self::from_image(device, queue, &image, Some("empty image"))
     }
@@ -239,7 +240,10 @@ impl CubemapTexture {
         let texture = Self::from_image(&render_server.device, &render_server.queue, &img, label);
 
         let elapsed_time = now.elapsed();
-        log::info!("Loading cubemap texture took {} milliseconds", elapsed_time.as_millis());
+        log::info!(
+            "Loading cubemap texture took {} milliseconds",
+            elapsed_time.as_millis()
+        );
 
         texture
     }

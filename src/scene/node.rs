@@ -1,8 +1,8 @@
-use std::any::Any;
+use crate::scene::{Camera3dUniform, CameraInfo};
 use crate::server::input_server::InputEvent;
 use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
 use cgmath::*;
-use crate::scene::{Camera3dUniform, CameraInfo};
+use std::any::Any;
 
 pub enum NodeType {
     // 2D

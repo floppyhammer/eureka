@@ -1,11 +1,11 @@
-use std::thread::current;
-use cgmath::Point2;
-use indextree::{Arena, Descendants, NodeEdge, NodeId};
 use crate::render::gizmo::Gizmo;
 use crate::resource::RenderServer;
-use crate::scene::{AsNode, Camera2d, CameraInfo, Camera3dUniform, NodeType, Camera3d};
+use crate::scene::{AsNode, Camera2d, Camera3d, Camera3dUniform, CameraInfo, NodeType};
 use crate::server::{InputEvent, InputServer};
 use crate::Singletons;
+use cgmath::Point2;
+use indextree::{Arena, Descendants, NodeEdge, NodeId};
+use std::thread::current;
 
 pub struct World {
     // Type Box<dyn AsNode> is a trait object;
@@ -51,9 +51,15 @@ impl World {
         let id = self.arena.new_node(new_node);
 
         match node_type {
-            NodeType::Camera2d => { self.current_camera2d = Some(id); }
-            NodeType::Camera3d => { self.current_camera3d = Some(id); }
-            NodeType::Light => { self.lights.push(id); }
+            NodeType::Camera2d => {
+                self.current_camera2d = Some(id);
+            }
+            NodeType::Camera3d => {
+                self.current_camera3d = Some(id);
+            }
+            NodeType::Light => {
+                self.lights.push(id);
+            }
             _ => {}
         }
 
@@ -124,9 +130,7 @@ impl World {
 
         // Downcast it to the original type.
         match node_ptr.as_any().downcast_ref::<T>() {
-            Some(node_ptr) => {
-                Some(node_ptr)
-            }
+            Some(node_ptr) => Some(node_ptr),
             None => None,
         }
     }
@@ -138,18 +142,12 @@ impl World {
 
         // Downcast it to the original type.
         match node_ptr.as_any_mut().downcast_mut::<T>() {
-            Some(node_ptr) => {
-                Some(node_ptr)
-            }
+            Some(node_ptr) => Some(node_ptr),
             None => None,
         }
     }
 
-    pub fn update(
-        &mut self,
-        dt: f32,
-        singletons: &mut Singletons,
-    ) {
+    pub fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         // Get camera info.
         if let Some(camera2d) = self.get_node::<Camera2d>(self.current_camera2d.unwrap()) {
             let view_size = camera2d.view_size;
@@ -184,7 +182,11 @@ impl World {
     }
 
     pub fn when_view_size_changes(&mut self, new_size: Point2<u32>) {
-        self.get_node_mut::<Camera2d>(self.current_camera2d.unwrap()).unwrap().when_view_size_changes(new_size);
-        self.get_node_mut::<Camera3d>(self.current_camera3d.unwrap()).unwrap().when_view_size_changes(new_size);
+        self.get_node_mut::<Camera2d>(self.current_camera2d.unwrap())
+            .unwrap()
+            .when_view_size_changes(new_size);
+        self.get_node_mut::<Camera3d>(self.current_camera3d.unwrap())
+            .unwrap()
+            .when_view_size_changes(new_size);
     }
 }

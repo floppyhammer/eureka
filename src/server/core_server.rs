@@ -49,9 +49,7 @@ impl CoreServer {
 
     pub fn get_elapsed(&self) -> f64 {
         match self.startup_time.elapsed() {
-            Ok(elapsed) => {
-                elapsed.as_secs_f64()
-            }
+            Ok(elapsed) => elapsed.as_secs_f64(),
             Err(e) => {
                 println!("Error: {e:?}");
                 0.0

@@ -1,13 +1,13 @@
-use std::mem;
-use std::time::Instant;
-use bevy_ecs::system::Resource;
-use cgmath::Point2;
-use wgpu::PolygonMode::Point;
 use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
 use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::scene::Camera2dUniform;
 use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture};
+use bevy_ecs::system::Resource;
+use cgmath::Point2;
+use std::mem;
+use std::time::Instant;
 use wgpu::util::DeviceExt;
+use wgpu::PolygonMode::Point;
 use wgpu::{BufferAddress, TextureFormat};
 
 #[derive(Resource)]
@@ -184,7 +184,7 @@ impl RenderServer {
                         count: None,
                     },
                 ],
-                label: Some("sprite texture bind group layout"),
+                label: Some("skybox texture bind group layout"),
             });
 
         let sprite_params_bind_group_layout =
@@ -470,7 +470,10 @@ impl RenderServer {
         };
 
         let elapsed_time = now.elapsed();
-        log::info!("Render server setup took {} milliseconds", elapsed_time.as_millis());
+        log::info!(
+            "Render server setup took {} milliseconds",
+            elapsed_time.as_millis()
+        );
 
         Self {
             surface,
@@ -539,14 +542,12 @@ impl RenderServer {
     }
 
     pub fn create_atlas_params_bind_group(&self) -> (wgpu::Buffer, wgpu::BindGroup) {
-        let buffer = self
-            .device
-            .create_buffer(&wgpu::BufferDescriptor {
-                label: Some("atlas params uniform buffer"),
-                size: mem::size_of::<AtlasParamsUniform>() as BufferAddress,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("atlas params uniform buffer"),
+            size: mem::size_of::<AtlasParamsUniform>() as BufferAddress,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &self.atlas_params_bind_group_layout,

@@ -1,8 +1,8 @@
+use crate::resource::{RenderServer, Texture};
+use crate::DynamicFont;
 use std::path::Path;
 use std::time::Instant;
 use winit::event::VirtualKeyCode::P;
-use crate::DynamicFont;
-use crate::resource::{RenderServer, Texture};
 
 pub struct TextServer {
     pub(crate) font: DynamicFont,
@@ -15,11 +15,12 @@ impl TextServer {
         let mut font = DynamicFont::load(font_path, render_server);
 
         let elapsed_time = now.elapsed();
-        log::info!("Text server setup took {} milliseconds", elapsed_time.as_millis());
+        log::info!(
+            "Text server setup took {} milliseconds",
+            elapsed_time.as_millis()
+        );
 
-        Self {
-            font,
-        }
+        Self { font }
     }
 
     pub(crate) fn update_gpu(&mut self, render_server: &RenderServer) {

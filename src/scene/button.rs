@@ -1,13 +1,16 @@
-use std::any::Any;
-use cgmath::{Point2, Vector2, Vector3, Vector4};
-use image::DynamicImage;
-use lyon::geom::Transform;
-use crate::{AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer, Texture};
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{AtlasMode, DrawAtlas};
 use crate::resource::FONT_ATLAS_SIZE;
-use crate::scene::{CameraInfo, InputServer, Label, NodeType};
 use crate::scene::vector_sprite::VectorSprite;
+use crate::scene::{CameraInfo, InputServer, Label, NodeType};
+use crate::{
+    AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer,
+    Texture,
+};
+use cgmath::{Point2, Vector2, Vector3, Vector4};
+use image::DynamicImage;
+use lyon::geom::Transform;
+use std::any::Any;
 
 pub(crate) struct Button {
     label: Label,
@@ -37,10 +40,7 @@ impl Button {
         }
     }
 
-    pub fn set_text(
-        &mut self,
-        text: String,
-    ) {
+    pub fn set_text(&mut self, text: String) {
         self.label.set_text(text);
     }
 }
@@ -54,7 +54,9 @@ impl AsNode for Button {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 
     fn ready(&mut self) {}
 

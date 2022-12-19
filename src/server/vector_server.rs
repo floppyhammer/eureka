@@ -1,9 +1,9 @@
+use crate::render::vertex::{VectorVertex, VertexBuffer};
+use crate::resource::RenderServer;
 use lyon::math::point;
 use lyon::path::Path;
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers};
 use wgpu::util::DeviceExt;
-use crate::render::vertex::{VectorVertex, VertexBuffer};
-use crate::resource::RenderServer;
 
 pub struct VectorMesh {
     // Mesh name for debugging reason.
@@ -17,7 +17,6 @@ pub struct VectorMesh {
 pub struct VectorTexture {
     pub size: (f32, f32),
     // pub paths: Vec<Path>,
-
     /// CPU mesh.
     geometry: VertexBuffers<VectorVertex, u32>,
     /// GPU mesh.

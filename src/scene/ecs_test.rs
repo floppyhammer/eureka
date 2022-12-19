@@ -1,8 +1,8 @@
+use crate::render::atlas::{AtlasMode, DrawAtlas};
+use crate::{AtlasInstance, RenderServer, Texture};
 use bevy_ecs::prelude::*;
 use cgmath::{Quaternion, Vector2, Vector3, Vector4};
 use wgpu::RenderPass;
-use crate::{AtlasInstance, RenderServer, Texture};
-use crate::render::atlas::{AtlasMode, DrawAtlas};
 
 #[derive(Component)]
 struct CpTransform {
@@ -75,10 +75,7 @@ impl EcsController {
         //     .with_system(render_atlas),
         // );
 
-        Self {
-            world,
-            schedule,
-        }
+        Self { world, schedule }
     }
 
     fn run(&mut self, render_pass: RenderPass) {

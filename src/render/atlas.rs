@@ -1,8 +1,8 @@
 use crate::render::vertex::VertexBuffer;
+use crate::scene::CameraInfo;
 use crate::{RenderServer, Singletons, Texture};
 use cgmath::{Point2, Vector2, Vector4};
 use wgpu::util::DeviceExt;
-use crate::scene::CameraInfo;
 
 /// CPU data for drawing multiple sprites with an instanced draw call.
 pub struct AtlasInstance {
@@ -42,9 +42,11 @@ pub(crate) enum AtlasMode {
 
 /// Parameters for atlas drawing control.
 impl AtlasParamsUniform {
-    pub(crate) fn new(texture_size: Point2<u32>,
-                      camera_view_size: Point2<u32>,
-                      mode_flag: u32) -> Self {
+    pub(crate) fn new(
+        texture_size: Point2<u32>,
+        camera_view_size: Point2<u32>,
+        mode_flag: u32,
+    ) -> Self {
         use cgmath::SquareMatrix;
         Self {
             camera_view_size: [camera_view_size.x as f32, camera_view_size.y as f32],
@@ -159,7 +161,11 @@ impl Atlas {
         self.mode = mode;
     }
 
-    pub(crate) fn set_instances(&mut self, instances: Vec<AtlasInstance>, render_server: &RenderServer) {
+    pub(crate) fn set_instances(
+        &mut self,
+        instances: Vec<AtlasInstance>,
+        render_server: &RenderServer,
+    ) {
         let old_instance_count = self.instances.len();
         let new_instance_count = instances.len();
 
@@ -170,7 +176,11 @@ impl Atlas {
         self.instances = instances;
 
         // Raw data.
-        let instance_data = self.instances.iter().map(AtlasInstance::to_raw).collect::<Vec<_>>();
+        let instance_data = self
+            .instances
+            .iter()
+            .map(AtlasInstance::to_raw)
+            .collect::<Vec<_>>();
 
         let mut need_allocate = false;
 
@@ -180,7 +190,11 @@ impl Atlas {
             }
             Some(buffer) => {
                 if new_instance_count <= old_instance_count {
-                    render_server.queue.write_buffer(buffer, 0, bytemuck::cast_slice(&instance_data));
+                    render_server.queue.write_buffer(
+                        buffer,
+                        0,
+                        bytemuck::cast_slice(&instance_data),
+                    );
                 } else {
                     need_allocate = true;
                 }
@@ -188,13 +202,13 @@ impl Atlas {
         }
 
         if need_allocate {
-            self.instance_buffer = Some(render_server
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            self.instance_buffer = Some(render_server.device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
                     label: Some("atlas instance buffer"),
                     contents: bytemuck::cast_slice(&instance_data),
                     usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                }));
+                },
+            ));
         }
     }
 
@@ -208,12 +222,13 @@ impl Atlas {
     ) {
         let render_server = &singletons.render_server;
 
-        let atlas_params = AtlasParamsUniform::new(self.size,
-                                                   camera_info.view_size,
-                                                   self.mode as u32);
-        render_server
-            .queue
-            .write_buffer(&self.atlas_params_buffer, 0, bytemuck::cast_slice(&[atlas_params]));
+        let atlas_params =
+            AtlasParamsUniform::new(self.size, camera_info.view_size, self.mode as u32);
+        render_server.queue.write_buffer(
+            &self.atlas_params_buffer,
+            0,
+            bytemuck::cast_slice(&[atlas_params]),
+        );
 
         let instance_count = self.instances.len() as u32;
         if instance_count == 0 {
@@ -247,8 +262,8 @@ pub trait DrawAtlas<'a> {
 }
 
 impl<'a, 'b> DrawAtlas<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a, // This means 'b must outlive 'a.
+where
+    'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_atlas(
         &mut self,

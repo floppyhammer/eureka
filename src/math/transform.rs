@@ -1,4 +1,4 @@
-use cgmath::{Vector2, Vector3, Quaternion, Point2, Point3};
+use cgmath::{Point2, Point3, Quaternion, Vector2, Vector3};
 
 pub struct Transform2d {
     pub position: Point2<f32>,

@@ -1,3 +1,7 @@
+use crate::resource::{RenderServer, Texture};
+use cgmath::{Point2, Vector4};
+use fontdue;
+use image::{DynamicImage, Luma};
 use std::cmp::max;
 use std::collections::HashMap;
 use std::fs;
@@ -5,11 +9,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::time::Instant;
-use cgmath::{Point2, Vector4};
-use fontdue;
-use image::{DynamicImage, Luma};
 use unicode_segmentation::UnicodeSegmentation;
-use crate::resource::{RenderServer, Texture};
 
 #[derive(Clone)]
 pub(crate) struct Grapheme {
@@ -59,22 +59,30 @@ impl DynamicFont {
         f.read(&mut buffer).expect("Font buffer overflow!");
 
         let elapsed_time = now.elapsed();
-        log::info!("Loading font file took {} milliseconds", elapsed_time.as_millis());
+        log::info!(
+            "Loading font file took {} milliseconds",
+            elapsed_time.as_millis()
+        );
 
         // Parse it into the font type.
         let font = fontdue::Font::from_bytes(buffer, fontdue::FontSettings::default()).unwrap();
 
         let elapsed_time = now.elapsed();
-        log::info!("Creating fontdue font took {} milliseconds", elapsed_time.as_millis());
+        log::info!(
+            "Creating fontdue font took {} milliseconds",
+            elapsed_time.as_millis()
+        );
 
-        let atlas_image = DynamicImage::ImageLuma8(image::GrayImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE));
+        let atlas_image =
+            DynamicImage::ImageLuma8(image::GrayImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE));
 
         let atlas_texture = Texture::from_image(
             &render_server.device,
             &render_server.queue,
             &atlas_image,
             "default font atlas".into(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 
@@ -179,9 +187,7 @@ impl DynamicFont {
 
                         match &mut self.atlas_image {
                             DynamicImage::ImageLuma8(img) => {
-                                img.put_pixel(x,
-                                              y,
-                                              Luma([buffer[row * metrics.width + col]]));
+                                img.put_pixel(x, y, Luma([buffer[row * metrics.width + col]]));
                             }
                             _ => {
                                 panic!()
@@ -190,26 +196,33 @@ impl DynamicFont {
                     }
                 }
 
-                region = Vector4::new(self.next_grapheme_position.x,
-                                      self.next_grapheme_position.y,
-                                      self.next_grapheme_position.x + metrics.width as u32,
-                                      self.next_grapheme_position.y + metrics.height as u32);
+                region = Vector4::new(
+                    self.next_grapheme_position.x,
+                    self.next_grapheme_position.y,
+                    self.next_grapheme_position.x + metrics.width as u32,
+                    self.next_grapheme_position.y + metrics.height as u32,
+                );
 
                 self.next_grapheme_position.x += metrics.width as u32;
 
-                self.max_height_of_current_row = max(self.max_height_of_current_row, metrics.height as u32);
+                self.max_height_of_current_row =
+                    max(self.max_height_of_current_row, metrics.height as u32);
             }
 
             let grapheme = Grapheme {
                 text: c.to_string(),
-                layout: Vector4::new(metrics.xmin,
-                                     metrics.ymin,
-                                     metrics.xmin + metrics.width as i32,
-                                     metrics.ymin + metrics.height as i32),
-                bounds: Vector4::new(metrics.bounds.xmin,
-                                     metrics.bounds.ymin,
-                                     metrics.bounds.xmin + metrics.bounds.width,
-                                     metrics.bounds.ymin + metrics.bounds.height),
+                layout: Vector4::new(
+                    metrics.xmin,
+                    metrics.ymin,
+                    metrics.xmin + metrics.width as i32,
+                    metrics.ymin + metrics.height as i32,
+                ),
+                bounds: Vector4::new(
+                    metrics.bounds.xmin,
+                    metrics.bounds.ymin,
+                    metrics.bounds.xmin + metrics.bounds.width,
+                    metrics.bounds.ymin + metrics.bounds.height,
+                ),
                 region,
             };
 

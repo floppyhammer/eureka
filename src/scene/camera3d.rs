@@ -1,14 +1,14 @@
-use std::any::Any;
 use crate::scene::{AsNode, NodeType};
 use crate::{InputEvent, InputServer, RenderServer, Singletons};
 use cgmath::num_traits::clamp;
 use cgmath::*;
+use std::any::Any;
 use std::f32::consts::FRAC_PI_2;
 use std::mem;
 use std::rc::Rc;
 use std::time::Duration;
-use wgpu::BufferAddress;
 use wgpu::util::DeviceExt;
+use wgpu::BufferAddress;
 use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
 use winit::event::*;
 use winit::window::Window;
@@ -323,7 +323,9 @@ impl AsNode for Camera3d {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 
     fn input(&mut self, input_event: &mut InputEvent, input_server: &mut InputServer) {
         self.controller.cursor_capture_state_changed = false;

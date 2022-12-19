@@ -1,9 +1,9 @@
-use std::any::Any;
+use crate::math::transform::Transform2d;
 use crate::scene::{AsNode, NodeType};
 use crate::{InputEvent, RenderServer, Singletons};
 use cgmath::{Point2, Vector2, Vector3};
+use std::any::Any;
 use wgpu::util::DeviceExt;
-use crate::math::transform::Transform2d;
 
 // We need this for Rust to store our data correctly for the shaders.
 #[repr(C)]
@@ -52,5 +52,7 @@ impl AsNode for Camera2d {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }

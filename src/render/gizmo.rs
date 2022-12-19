@@ -1,5 +1,5 @@
-use crate::{RenderServer, Singletons};
 use crate::scene::CameraInfo;
+use crate::{RenderServer, Singletons};
 
 pub(crate) struct Gizmo {
     pub(crate) color: [f32; 3],

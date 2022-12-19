@@ -1,11 +1,11 @@
-use std::any::Any;
-use std::mem;
 use crate::resource::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform, CameraInfo, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons, Zero};
 use cgmath::{InnerSpace, Rotation3, Vector3};
-use wgpu::BufferAddress;
+use std::any::Any;
+use std::mem;
 use wgpu::util::DeviceExt;
+use wgpu::BufferAddress;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -132,7 +132,9 @@ impl AsNode for Sprite3d {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         self.params_uniform = SpriteParamsUniform {
@@ -188,8 +190,8 @@ pub trait DrawSprite3d<'a> {
 }
 
 impl<'a, 'b> DrawSprite3d<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a, // This means 'b must outlive 'a.
+where
+    'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,

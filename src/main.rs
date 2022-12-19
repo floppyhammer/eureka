@@ -16,22 +16,22 @@ use indextree::NodeId;
 use wgpu::{util::DeviceExt, SamplerBindingType, TextureView};
 
 // Do this before importing local crates.
+mod math;
 mod render;
 mod resource;
 mod scene;
 mod server;
-mod math;
 
 // Import local crates.
-use crate::render::gizmo::Gizmo;
 use crate::render::atlas::{Atlas, AtlasInstance};
-use crate::resource::{CubemapTexture, Texture, DynamicFont};
+use crate::render::gizmo::Gizmo;
+use crate::resource::{CubemapTexture, DynamicFont, Texture};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::scene::{
-    AsNode, Camera2d, Camera3d, Camera3dController, InputEvent, InputServer, Light, LightUniform,
-    Model, Projection, Sky, World, Label,
+    AsNode, Camera2d, Camera3d, Camera3dController, InputEvent, InputServer, Label, Light,
+    LightUniform, Model, Projection, Sky, World,
 };
 use crate::server::render_server::RenderServer;
 use crate::server::text_server::TextServer;
@@ -226,7 +226,8 @@ impl App {
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         log::info!("Asset dir: {}", asset_dir.display());
 
-        let mut text_server = TextServer::new(asset_dir.join("fonts/OpenSans-Regular.ttf"), &render_server);
+        let mut text_server =
+            TextServer::new(asset_dir.join("fonts/OpenSans-Regular.ttf"), &render_server);
 
         // Create nodes.
         // ---------------------------------------------------
@@ -264,8 +265,9 @@ impl App {
         let sprite_tex = Texture::load(
             &render_server.device,
             &render_server.queue,
-            asset_dir.join("happy-tree.png"))
-            .unwrap();
+            asset_dir.join("happy-tree.png"),
+        )
+        .unwrap();
         let sprite = Box::new(Sprite2d::new(&render_server, sprite_tex));
         world.add_node(sprite, None);
 
@@ -325,9 +327,10 @@ impl App {
             self.size = new_size;
             self.singletons.render_server.config.width = new_size.width;
             self.singletons.render_server.config.height = new_size.height;
-            self.singletons.render_server
-                .surface
-                .configure(&self.singletons.render_server.device, &self.singletons.render_server.config);
+            self.singletons.render_server.surface.configure(
+                &self.singletons.render_server.device,
+                &self.singletons.render_server.config,
+            );
 
             // Create a new depth_texture and depth_texture_view.
             // Make sure you update the depth_texture after you update config.
@@ -338,14 +341,17 @@ impl App {
                 "depth texture",
             );
 
-            self.world.when_view_size_changes(Point2::new(new_size.width, new_size.height))
+            self.world
+                .when_view_size_changes(Point2::new(new_size.width, new_size.height))
         }
     }
 
     /// Handle input events.
     fn input(&mut self, event: &WindowEvent, window: &Window) -> bool {
         // Convert to our own input events.
-        self.singletons.input_server.prepare_input_event(window, event);
+        self.singletons
+            .input_server
+            .prepare_input_event(window, event);
 
         self.world.input(&mut self.singletons.input_server);
 
@@ -357,14 +363,24 @@ impl App {
 
         self.singletons.core_server.tick();
 
-        self.world.get_node_mut::<Label>(self.fps_label_id).unwrap().set_text(format!("FPS: {}", self.singletons.core_server.get_fps() as i32));
+        self.world
+            .get_node_mut::<Label>(self.fps_label_id)
+            .unwrap()
+            .set_text(format!(
+                "FPS: {}",
+                self.singletons.core_server.get_fps() as i32
+            ));
 
         self.world.update(dt_in_secs, &mut self.singletons);
     }
 
     fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
         // First we need to get a frame to draw to.
-        let output_surface = self.singletons.render_server.surface.get_current_texture()?;
+        let output_surface = self
+            .singletons
+            .render_server
+            .surface
+            .get_current_texture()?;
 
         // Creates a TextureView with default settings.
         let view = output_surface
@@ -372,12 +388,11 @@ impl App {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         // Builds a command buffer that we can then send to the GPU.
-        let mut encoder =
-            self.singletons.render_server
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("main render encoder"),
-                });
+        let mut encoder = self.singletons.render_server.device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor {
+                label: Some("main render encoder"),
+            },
+        );
 
         // The RenderPass has all the methods to do the actual drawing.
         {
@@ -410,14 +425,17 @@ impl App {
             });
 
             // Update server GPU resources.
-            self.singletons.text_server.update_gpu(&self.singletons.render_server);
+            self.singletons
+                .text_server
+                .update_gpu(&self.singletons.render_server);
 
             self.world.draw(&mut render_pass, &self.singletons);
         }
 
         // Finish the command encoder to generate a command buffer,
         // then submit it for execution.
-        self.singletons.render_server
+        self.singletons
+            .render_server
             .queue
             .submit(std::iter::once(encoder.finish()));
 

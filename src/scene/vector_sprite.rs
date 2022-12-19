@@ -2,15 +2,15 @@ extern crate lyon;
 
 use std::any::Any;
 
+use crate::math::transform::Transform2d;
 use crate::scene::{AsNode, Camera2dUniform, Camera3dUniform, CameraInfo, NodeType};
+use crate::server::{VectorMesh, VectorTexture};
 use crate::{Camera2d, InputEvent, RenderServer, Singletons};
 use cgmath::Vector3;
 use lyon::math::point;
 use lyon::path::Path;
 use lyon::tessellation::*;
 use wgpu::util::DeviceExt;
-use crate::math::transform::Transform2d;
-use crate::server::{VectorMesh, VectorTexture};
 
 pub struct VectorSprite {
     pub transform: Transform2d,
@@ -57,7 +57,9 @@ impl AsNode for VectorSprite {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 
     fn ready(&mut self) {}
 
@@ -82,9 +84,11 @@ impl AsNode for VectorSprite {
         singletons: &'b Singletons,
     ) {
         // Update camera buffer.
-        singletons.render_server
-            .queue
-            .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+        singletons.render_server.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
 
         render_pass.draw_path(
             &singletons.render_server.vector_sprite_pipeline,
@@ -104,8 +108,8 @@ pub trait DrawVector<'a> {
 }
 
 impl<'a, 'b> DrawVector<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
+where
+    'b: 'a,
 {
     fn draw_path(
         &mut self,

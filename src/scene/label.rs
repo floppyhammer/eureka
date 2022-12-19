@@ -1,11 +1,14 @@
-use std::any::Any;
-use cgmath::{Point2, Vector2, Vector3, Vector4};
-use image::DynamicImage;
-use crate::{AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer, Texture};
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{AtlasMode, DrawAtlas};
 use crate::resource::FONT_ATLAS_SIZE;
 use crate::scene::{CameraInfo, InputServer, NodeType};
+use crate::{
+    AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer,
+    Texture,
+};
+use cgmath::{Point2, Vector2, Vector3, Vector4};
+use image::DynamicImage;
+use std::any::Any;
 
 pub(crate) struct Label {
     text: String,
@@ -27,7 +30,10 @@ impl Label {
     pub(crate) fn new(render_server: &RenderServer) -> Label {
         let size = Vector2::new(128.0_f32, 128.0);
 
-        let mut atlas = Atlas::new(&render_server, Point2::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE));
+        let mut atlas = Atlas::new(
+            &render_server,
+            Point2::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE),
+        );
         atlas.set_mode(AtlasMode::Text);
 
         Self {
@@ -41,10 +47,7 @@ impl Label {
         }
     }
 
-    pub fn set_text(
-        &mut self,
-        text: String,
-    ) {
+    pub fn set_text(&mut self, text: String) {
         self.text = text;
         self.text_is_dirty = true;
     }
@@ -59,7 +62,9 @@ impl AsNode for Label {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         if self.text_is_dirty {
@@ -74,11 +79,16 @@ impl AsNode for Label {
 
                 let instance = AtlasInstance {
                     position: Vector2::new(layout_pos.x, layout_pos.y + baseline_height),
-                    size: Vector2::new((g.layout.z - g.layout.x) as f32, (g.layout.w - g.layout.y) as f32),
-                    region: Vector4::new(g.region.x as f32 / FONT_ATLAS_SIZE as f32,
-                                         g.region.y as f32 / FONT_ATLAS_SIZE as f32,
-                                         g.region.z as f32 / FONT_ATLAS_SIZE as f32,
-                                         g.region.w as f32 / FONT_ATLAS_SIZE as f32),
+                    size: Vector2::new(
+                        (g.layout.z - g.layout.x) as f32,
+                        (g.layout.w - g.layout.y) as f32,
+                    ),
+                    region: Vector4::new(
+                        g.region.x as f32 / FONT_ATLAS_SIZE as f32,
+                        g.region.y as f32 / FONT_ATLAS_SIZE as f32,
+                        g.region.z as f32 / FONT_ATLAS_SIZE as f32,
+                        g.region.w as f32 / FONT_ATLAS_SIZE as f32,
+                    ),
                     color: Vector4::new(1.0, 1.0, 1.0, 1.0),
                 };
                 instances.push(instance);
@@ -91,7 +101,8 @@ impl AsNode for Label {
                 }
             }
 
-            self.atlas.set_instances(instances, &singletons.render_server);
+            self.atlas
+                .set_instances(instances, &singletons.render_server);
 
             self.text_is_dirty = false;
         }
@@ -103,6 +114,11 @@ impl AsNode for Label {
         camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
-        self.atlas.draw(&singletons.text_server.font.atlas_bind_group, render_pass, camera_info, singletons);
+        self.atlas.draw(
+            &singletons.text_server.font.atlas_bind_group,
+            render_pass,
+            camera_info,
+            singletons,
+        );
     }
 }

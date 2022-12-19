@@ -1,10 +1,10 @@
-use std::any::Any;
+use crate::math::transform::Transform2d;
 use crate::resource::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform, CameraInfo, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons};
 use cgmath::{Vector2, Vector3, Vector4};
+use std::any::Any;
 use wgpu::util::DeviceExt;
-use crate::math::transform::Transform2d;
 
 pub struct SpriteSheet {
     h_frames: u32,
@@ -89,7 +89,9 @@ impl AsNode for Sprite2d {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 
     fn ready(&mut self) {}
 
@@ -113,10 +115,8 @@ impl AsNode for Sprite2d {
             ))
         } else {
             cgmath::Matrix4::from_translation(Vector3::new(
-                (self.transform.position.x / view_size.x as f32) / view_size.x as f32 * 2.0
-                    - 1.0,
-                (self.transform.position.y / view_size.y as f32) / view_size.y as f32 * 2.0
-                    - 1.0,
+                (self.transform.position.x / view_size.x as f32) / view_size.x as f32 * 2.0 - 1.0,
+                (self.transform.position.y / view_size.y as f32) / view_size.y as f32 * 2.0 - 1.0,
                 0.0,
             ))
         };
@@ -139,9 +139,11 @@ impl AsNode for Sprite2d {
         singletons: &'b Singletons,
     ) {
         // Update camera buffer.
-        singletons.render_server
-            .queue
-            .write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+        singletons.render_server.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
 
         render_pass.draw_sprite(
             &singletons.render_server.sprite_pipeline,
@@ -163,8 +165,8 @@ pub trait DrawSprite2d<'a> {
 }
 
 impl<'a, 'b> DrawSprite2d<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a, // This means 'b must outlive 'a.
+where
+    'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,

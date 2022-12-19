@@ -1,8 +1,8 @@
-use std::any::Any;
-use cgmath::{Point2, Vector3, Vector4};
 use crate::render::atlas::{AtlasInstance, DrawAtlas};
-use crate::{AsNode, Atlas, InputEvent, RenderServer, Singletons, Texture};
 use crate::scene::{CameraInfo, NodeType};
+use crate::{AsNode, Atlas, InputEvent, RenderServer, Singletons, Texture};
+use cgmath::{Point2, Vector3, Vector4};
+use std::any::Any;
 
 pub struct ParticleMaterial {
     velocity: Vector3<f32>,
@@ -38,5 +38,7 @@ impl AsNode for Particles2d {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }

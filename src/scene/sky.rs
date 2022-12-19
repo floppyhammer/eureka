@@ -1,8 +1,8 @@
-use std::any::Any;
 use anyhow::Context;
 use anyhow::*;
 use cgmath::InnerSpace;
 use cgmath::*;
+use std::any::Any;
 use std::error::Error;
 use std::ops::Range;
 use std::path::Path;
@@ -78,7 +78,9 @@ impl AsNode for Sky {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 
     fn draw<'a, 'b: 'a>(
         &'b self,
@@ -90,11 +92,7 @@ impl AsNode for Sky {
             Some(b) => {
                 render_pass.set_pipeline(&singletons.render_server.skybox_pipeline);
 
-                render_pass.draw_skybox(
-                    &self.mesh,
-                    &self.material,
-                    b,
-                );
+                render_pass.draw_skybox(&self.mesh, &self.material, b);
             }
             None => {}
         }
@@ -111,8 +109,8 @@ pub trait DrawSky<'a> {
 }
 
 impl<'a, 'b> DrawSky<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
+where
+    'b: 'a,
 {
     fn draw_skybox(
         &mut self,

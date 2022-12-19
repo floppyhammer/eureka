@@ -1,8 +1,8 @@
-use std::any::Any;
 use anyhow::Context;
 use anyhow::*;
 use cgmath::InnerSpace;
 use cgmath::*;
+use std::any::Any;
 use std::error::Error;
 use std::ops::Range;
 use std::path::Path;
@@ -363,7 +363,10 @@ impl Model {
         });
 
         let elapsed_time = now.elapsed();
-        log::info!("Loading model took {} milliseconds", elapsed_time.as_millis());
+        log::info!(
+            "Loading model took {} milliseconds",
+            elapsed_time.as_millis()
+        );
 
         Ok(Self {
             position,
@@ -433,7 +436,9 @@ impl AsNode for Model {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 
     fn draw<'a, 'b: 'a>(
         &'b self,
@@ -491,8 +496,8 @@ pub trait DrawModel<'a> {
 
 /// Rendering a mesh.
 impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
+where
+    'b: 'a,
 {
     fn draw_mesh(
         &mut self,
