@@ -278,7 +278,7 @@ impl App {
 
         let mut label_i18n = Box::new(Label::new(&render_server));
         label_i18n.transform.position = Point2::new(0.0, 400.0);
-        label_i18n.set_text("Hello٠١٢مرحبا你好".to_string());
+        label_i18n.set_text("Hello٠١٢مرحبا你 好".to_string());
         world.add_node(label_i18n, Some(vec_sprite_id));
         // ---------------------------------------------------
 

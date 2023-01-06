@@ -1,5 +1,5 @@
 use crate::resource::{RenderServer, Texture};
-use cgmath::{Point2, Vector4};
+use cgmath::{Point2, Vector2, Vector4};
 use fontdue;
 use image::{DynamicImage, Luma};
 use std::cmp::max;
@@ -25,6 +25,7 @@ pub(crate) struct Glyph {
     pub(crate) layout: Vector4<i32>,
     /// Local bbox w.r.t. baseline.
     pub(crate) bounds: Vector4<f32>,
+    pub(crate) x_adv: f32,
     /// Region in the font atlas.
     pub(crate) region: Vector4<u32>,
 }
@@ -103,7 +104,7 @@ impl DynamicFont {
 
         Self {
             font,
-            size: 24,
+            size: 32,
             atlas_image,
             atlas_texture,
             atlas_bind_group,
@@ -155,21 +156,23 @@ impl DynamicFont {
     }
 
     pub(crate) fn get_glyphs(&mut self, text: &str) -> Vec<Glyph> {
-        let mut glyphs = vec![];
-
-        // for g in text.glyphs(true) {
-        //     log::info!("glyph: {}", g);
+        // // Debug
+        // for g in text.graphemes(true) {
+        //     log::info!("Grapheme: {}", g);
+        // }
+        //
+        // // Debug
+        // for c in text.chars() {
+        //     log::info!("Character: {}", c);
         // }
 
         let mut face = rustybuzz::Face::from_slice(&self.font_data, 0).unwrap();
-
-        face.set_points_per_em(Some(32.0));
 
         let bidi_info = BidiInfo::new(text, None);
 
         // for para in &bidi_info.paragraphs {
         //     let line = para.range.clone();
-        //     bidi_info.reorder_line(para, line);
+        //     let reordered_text = bidi_info.reorder_line(para, line);
         // }
 
         let mut runs = vec!();
@@ -202,6 +205,8 @@ impl DynamicFont {
             });
         }
 
+        let mut glyphs = vec![];
+
         for run in runs {
             let mut buffer = rustybuzz::UnicodeBuffer::new();
             buffer.push_str(&text[run.range]);
@@ -232,7 +237,10 @@ impl DynamicFont {
 
             let glyph_count = glyph_buffer.len();
 
-            for info in glyph_buffer.glyph_infos() {
+            for i in 0..glyph_buffer.glyph_infos().len() {
+                let info = &glyph_buffer.glyph_infos()[i];
+                let pos = &glyph_buffer.glyph_positions()[i];
+
                 // Get glyph index (specific to a font).
                 let index = info.glyph_id as u16;
 
@@ -244,8 +252,6 @@ impl DynamicFont {
 
                 // Rasterize and get the layout metrics for the character.
                 let (metrics, bitmap) = self.font.rasterize_indexed(index, self.size as f32);
-
-                // log::info!("Character: {} {:?}", c, metrics);
 
                 let buffer: &[u8] = &bitmap;
 
@@ -312,6 +318,7 @@ impl DynamicFont {
                         metrics.bounds.xmin + metrics.bounds.width,
                         metrics.bounds.ymin + metrics.bounds.height,
                     ),
+                    x_adv: (pos.x_advance as f32 / self.size as f32).round(),
                     region,
                 };
 

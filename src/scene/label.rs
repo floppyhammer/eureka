@@ -94,11 +94,7 @@ impl AsNode for Label {
                 instances.push(instance);
 
                 // Update next glyph's position.
-                if g.text == " " {
-                    layout_pos.x += singletons.text_server.font.size as f32 * 0.333;
-                } else {
-                    layout_pos.x += g.layout.z as f32 - g.layout.x as f32 + 1.0;
-                }
+                layout_pos.x += g.x_adv as f32;
             }
 
             self.atlas
