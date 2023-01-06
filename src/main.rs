@@ -267,7 +267,7 @@ impl App {
             &render_server.queue,
             asset_dir.join("happy-tree.png"),
         )
-        .unwrap();
+            .unwrap();
         let sprite = Box::new(Sprite2d::new(&render_server, sprite_tex));
         world.add_node(sprite, None);
 
@@ -275,6 +275,11 @@ impl App {
         label.transform.position = Point2::new(0.0, 200.0);
         label.set_text("This is a label!".to_string());
         let fps_label_id = world.add_node(label, Some(vec_sprite_id));
+
+        let mut label_i18n = Box::new(Label::new(&render_server));
+        label_i18n.transform.position = Point2::new(0.0, 400.0);
+        label_i18n.set_text("مرحبا".to_string());
+        world.add_node(label_i18n, Some(vec_sprite_id));
         // ---------------------------------------------------
 
         // Test ground.

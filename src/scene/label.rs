@@ -22,7 +22,7 @@ pub(crate) struct Label {
 
     single_line: bool,
 
-    /// To draw grapheme sprites.
+    /// To draw glyph sprites.
     atlas: Atlas,
 }
 
@@ -68,13 +68,13 @@ impl AsNode for Label {
 
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         if self.text_is_dirty {
-            let graphemes = singletons.text_server.font.get_graphemes(self.text.clone());
+            let glyphs = singletons.text_server.font.get_glyphs(self.text.clone());
 
             // Update atlas data.
             let mut instances = vec![];
             let mut layout_pos = self.transform.position;
 
-            for g in graphemes {
+            for g in glyphs {
                 let baseline_height = g.layout.y as f32;
 
                 let instance = AtlasInstance {
@@ -93,7 +93,7 @@ impl AsNode for Label {
                 };
                 instances.push(instance);
 
-                // Update next grapheme's position.
+                // Update next glyph's position.
                 if g.text == " " {
                     layout_pos.x += singletons.text_server.font.size as f32 * 0.333;
                 } else {

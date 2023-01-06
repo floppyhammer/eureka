@@ -8,12 +8,16 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use std::str::FromStr;
 use std::time::Instant;
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Clone)]
-pub(crate) struct Grapheme {
-    /// This can also be used as an unique ID in the font atlas image.
+pub(crate) struct Glyph {
+    /// Unique ID specific to a font.
+    pub(crate) index: u16,
+    /// This cannot be used as an unique ID in the font atlas image due to ligature.
+    /// For example, ر in مر and ر in م ر obviously have different glyphs.
     pub(crate) text: String,
     /// Local rect w.r.t. baseline.
     pub(crate) layout: Vector4<i32>,
@@ -31,7 +35,7 @@ pub(crate) struct DynamicFont {
     /// Font size in pixel.
     pub size: u32,
 
-    /// Contains all cached graphemes' bitmaps.
+    /// Contains all cached glyphs' bitmaps.
     atlas_image: DynamicImage,
 
     /// GPU texture.
@@ -41,11 +45,13 @@ pub(crate) struct DynamicFont {
     /// Atlas has been changed, the GPU texture needs to be updated.
     need_upload: bool,
 
-    /// Where should we put the next grapheme in the atlas.
-    next_grapheme_position: Point2<u32>,
+    /// Where should we put the next glyph in the atlas.
+    next_glyph_position: Point2<u32>,
     max_height_of_current_row: u32,
 
-    grapheme_cache: HashMap<String, Grapheme>,
+    glyph_cache: HashMap<u16, Glyph>,
+
+    font_data: Vec<u8>,
 }
 
 impl DynamicFont {
@@ -57,6 +63,8 @@ impl DynamicFont {
         let metadata = fs::metadata(path.as_ref()).expect("Unable to read font file metadata!");
         let mut buffer = vec![0; metadata.len() as usize];
         f.read(&mut buffer).expect("Font buffer overflow!");
+
+        let font_data = buffer.clone();
 
         let elapsed_time = now.elapsed();
         log::info!(
@@ -82,7 +90,7 @@ impl DynamicFont {
             &atlas_image,
             "default font atlas".into(),
         )
-        .unwrap();
+            .unwrap();
 
         let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 
@@ -93,9 +101,10 @@ impl DynamicFont {
             atlas_texture,
             atlas_bind_group,
             need_upload: false,
-            next_grapheme_position: Point2::new(0, 0),
+            next_glyph_position: Point2::new(0, 0),
             max_height_of_current_row: 0,
-            grapheme_cache: HashMap::new(),
+            glyph_cache: HashMap::new(),
+            font_data,
         }
     }
 
@@ -138,24 +147,43 @@ impl DynamicFont {
         }
     }
 
-    pub(crate) fn get_graphemes(&mut self, text: String) -> Vec<Grapheme> {
-        let mut graphemes = vec![];
+    pub(crate) fn get_glyphs(&mut self, text: String) -> Vec<Glyph> {
+        let mut glyphs = vec![];
 
-        // for g in text.graphemes(true) {
-        //     log::info!("Grapheme: {}", g);
+        // for g in text.glyphs(true) {
+        //     log::info!("glyph: {}", g);
         // }
 
-        for c in text.chars() {
-            let key = c.to_string();
+        let mut face = rustybuzz::Face::from_slice(&self.font_data, 0).unwrap();
 
-            // Try find the grapheme in the cache.
-            if let Some(g) = self.grapheme_cache.get(&key) {
-                graphemes.push(g.clone());
+        face.set_points_per_em(Some(32.0));
+
+        let mut buffer = rustybuzz::UnicodeBuffer::new();
+        buffer.push_str(&text);
+
+        // FIXME: no effect. But the same snippet works in C++.
+        // buffer.set_direction(rustybuzz::Direction::RightToLeft);
+        // buffer.set_language(rustybuzz::Language::from_str("ar").unwrap());
+        // buffer.set_script(rustybuzz::script::ARABIC);
+
+        let codepoint_count = buffer.len();
+
+        let glyph_buffer = rustybuzz::shape(&face, &[], buffer);
+
+        let glyph_count = glyph_buffer.len();
+
+        for info in glyph_buffer.glyph_infos() {
+            // Get glyph index (specific to a font).
+            let index = info.glyph_id as u16;
+
+            // Try find the glyph in the cache.
+            if let Some(g) = self.glyph_cache.get(&index) {
+                glyphs.push(g.clone());
                 continue;
             }
 
             // Rasterize and get the layout metrics for the character.
-            let (metrics, bitmap) = self.font.rasterize(c, self.size as f32);
+            let (metrics, bitmap) = self.font.rasterize_indexed(index, self.size as f32);
 
             // log::info!("Character: {} {:?}", c, metrics);
 
@@ -174,16 +202,16 @@ impl DynamicFont {
             let region;
             {
                 // Advance atlas row if necessary.
-                if self.next_grapheme_position.x + metrics.width as u32 > FONT_ATLAS_SIZE {
-                    self.next_grapheme_position.x = 0;
-                    self.next_grapheme_position.y += self.max_height_of_current_row;
+                if self.next_glyph_position.x + metrics.width as u32 > FONT_ATLAS_SIZE {
+                    self.next_glyph_position.x = 0;
+                    self.next_glyph_position.y += self.max_height_of_current_row;
                     self.max_height_of_current_row = 0;
                 }
 
                 for col in 0..metrics.width {
                     for row in 0..metrics.height {
-                        let x = self.next_grapheme_position.x + col as u32;
-                        let y = self.next_grapheme_position.y + row as u32;
+                        let x = self.next_glyph_position.x + col as u32;
+                        let y = self.next_glyph_position.y + row as u32;
 
                         match &mut self.atlas_image {
                             DynamicImage::ImageLuma8(img) => {
@@ -197,20 +225,21 @@ impl DynamicFont {
                 }
 
                 region = Vector4::new(
-                    self.next_grapheme_position.x,
-                    self.next_grapheme_position.y,
-                    self.next_grapheme_position.x + metrics.width as u32,
-                    self.next_grapheme_position.y + metrics.height as u32,
+                    self.next_glyph_position.x,
+                    self.next_glyph_position.y,
+                    self.next_glyph_position.x + metrics.width as u32,
+                    self.next_glyph_position.y + metrics.height as u32,
                 );
 
-                self.next_grapheme_position.x += metrics.width as u32;
+                self.next_glyph_position.x += metrics.width as u32;
 
                 self.max_height_of_current_row =
                     max(self.max_height_of_current_row, metrics.height as u32);
             }
 
-            let grapheme = Grapheme {
-                text: c.to_string(),
+            let glyph = Glyph {
+                index,
+                text: "".to_string(), // TODO
                 layout: Vector4::new(
                     metrics.xmin,
                     metrics.ymin,
@@ -226,14 +255,14 @@ impl DynamicFont {
                 region,
             };
 
-            self.grapheme_cache.insert(key, grapheme.clone());
+            self.glyph_cache.insert(index, glyph.clone());
             self.need_upload = true;
 
-            graphemes.push(grapheme);
+            glyphs.push(glyph);
         }
 
         // self.atlas_image.save("debug_output/font_atlas.png").expect("Failed to save font atlas as file!");
 
-        graphemes
+        glyphs
     }
 }
