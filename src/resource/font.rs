@@ -243,6 +243,7 @@ impl DynamicFont {
 
                 // Get glyph index (specific to a font).
                 let index = info.glyph_id as u16;
+                // log::info!("Glyph index: {}", index);
 
                 // Try find the glyph in the cache.
                 if let Some(g) = self.glyph_cache.get(&index) {
