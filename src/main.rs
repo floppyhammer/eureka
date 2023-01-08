@@ -227,7 +227,7 @@ impl App {
         log::info!("Asset dir: {}", asset_dir.display());
 
         let mut text_server =
-            TextServer::new(asset_dir.join("fonts/HONORSansArabicUI-B.ttf"), &render_server);
+            TextServer::new(asset_dir.join("fonts/Arial Unicode MS Font.ttf"), &render_server);
 
         // Create nodes.
         // ---------------------------------------------------
