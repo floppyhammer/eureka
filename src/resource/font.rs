@@ -340,7 +340,9 @@ impl DynamicFont {
     }
 
     /// Uses allsorts for shaping.
-    pub(crate) fn get_glyphs_v2(&mut self, text: &str) -> Vec<Glyph> {
+    /// Returned glyphs are text context independent.
+    /// Returned glyph lines are text context dependent.
+    pub(crate) fn get_glyphs_v2(&mut self, text: &str) -> (Vec<Glyph>, Vec<Range<usize>>) {
         use allsorts::binary::read::ReadScope;
         use allsorts::font::{Font, MatchingPresentation};
         use allsorts::font_data::FontData;
@@ -363,13 +365,16 @@ impl DynamicFont {
         let provider = font_file.table_provider(0).unwrap();
         let mut font = Font::new(Box::new(provider)).unwrap().unwrap();
 
-        let hhea_table = &font.hhea_table;
+        let head = font.head_table()
+            .expect("Unable to parse head table.")
+            .expect("Font lacks a head table.");
 
-        let units_per_em = hhea_table.ascender;
+        let units_per_em = head.units_per_em;
 
         let bidi_info = BidiInfo::new(text, None);
 
         let mut glyphs = vec![];
+        let mut glyph_lines = vec![];
 
         for para in &bidi_info.paragraphs {
             let line = para.range.clone();
@@ -379,6 +384,8 @@ impl DynamicFont {
             println!("Reordered line text: {}", reordered_text);
 
             let (_, level_runs) = bidi_info.visual_runs(para, line.clone());
+
+            let glyph_count = glyphs.len();
 
             for run in level_runs.iter() {
                 println!("Run text: {}", &text[run.clone()]);
@@ -427,6 +434,8 @@ impl DynamicFont {
                     //     position.y_offset,
                     //     info
                     // );
+
+                    // TODO: don't add glyph for line breaks.
 
                     // Get glyph index (specific to a font).
                     let index = info.glyph.glyph_index;
@@ -526,10 +535,12 @@ impl DynamicFont {
                     glyphs.append(&mut run_glyphs);
                 }
             }
+
+            glyph_lines.push(Range { start: glyph_count, end: glyphs.len() });
         }
 
         // self.atlas_image.save("debug_output/font_atlas.png").expect("Failed to save font atlas as file!");
 
-        glyphs
+        (glyphs, glyph_lines)
     }
 }

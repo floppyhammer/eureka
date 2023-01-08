@@ -277,8 +277,19 @@ impl App {
         let fps_label_id = world.add_node(label, Some(vec_sprite_id));
 
         let mut label_i18n = Box::new(Label::new(&render_server));
-        label_i18n.transform.position = Point2::new(0.0, 400.0);
-        label_i18n.set_text("Hello٠١٢مرحبا你 好".to_string());
+        label_i18n.transform.position = Point2::new(0.0, 600.0);
+        let mut text = "Hello٠١٢مرحبا你 好\n".to_string();
+        text += "مرحبا حبالا لمح٠رٍُُِرٍُُِ ABC 123\n"; // Arabic
+        text += " িীিিীি শহরের ৎ্যৎ্যৎ্য বাঙালী123\n"; // Bengali
+        text += "นี้ ทั้ง ประเทศไทย123\n"; // Thai
+        text += "123فارسی\n"; // Persian
+        text += "Türkiye123\n"; // Turkish
+        text += "हिन्दी123\n"; // Hindi
+        text += "हngười Việt123\n"; // Vietnamese
+        text += "עִבְרִית\n"; // Hebrew
+        text += "ہیلو دنیا\n"; // Urdu
+        label_i18n.set_text(text);
+
         world.add_node(label_i18n, Some(vec_sprite_id));
         // ---------------------------------------------------
 
