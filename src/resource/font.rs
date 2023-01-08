@@ -363,6 +363,10 @@ impl DynamicFont {
         let provider = font_file.table_provider(0).unwrap();
         let mut font = Font::new(Box::new(provider)).unwrap().unwrap();
 
+        let hhea_table = &font.hhea_table;
+
+        let units_per_em = hhea_table.ascender;
+
         let bidi_info = BidiInfo::new(text, None);
 
         let mut glyphs = vec![];
@@ -502,7 +506,7 @@ impl DynamicFont {
                             metrics.bounds.xmin + metrics.bounds.width,
                             metrics.bounds.ymin + metrics.bounds.height,
                         ),
-                        x_adv: (position.hori_advance as f32 / self.size as f32).round() as i32,
+                        x_adv: (position.hori_advance as f32 * self.size as f32 / units_per_em as f32).round() as i32,
                         region,
                     };
 
