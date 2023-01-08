@@ -323,7 +323,7 @@ impl DynamicFont {
                         metrics.bounds.xmin + metrics.bounds.width,
                         metrics.bounds.ymin + metrics.bounds.height,
                     ),
-                    x_adv: pos.x_advance / self.size as i32,
+                    x_adv: (pos.x_advance as f32 / self.size as f32).round() as i32,
                     region,
                 };
 
@@ -371,61 +371,35 @@ impl DynamicFont {
             let line = para.range.clone();
             println!("Line text: {}", &text[line.clone()]);
 
-            let reordered_text = bidi_info.reorder_line(para, line);
+            let reordered_text = bidi_info.reorder_line(para, line.clone());
             println!("Reordered line text: {}", reordered_text);
 
-            let mut runs = vec!();
-            let mut last_char_class = None;
-            let mut last_char_level = None;
-            let mut char_index = 0;
-            let mut run_start_index = 0;
+            let (_, level_runs) = bidi_info.visual_runs(para, line.clone());
 
-            for (class, level) in bidi_info.original_classes.iter().zip(&bidi_info.levels) {
-                if let Some(c) = last_char_class {
-                    if c != *class {
-                        runs.push(TextRun {
-                            range: Range { start: run_start_index, end: char_index },
-                            class: c,
-                            level: last_char_level.unwrap(),
-                        });
-                        run_start_index = char_index;
-                    }
-                }
+            for run in level_runs.iter() {
+                println!("Run text: {}", &text[run.clone()]);
 
-                last_char_class = Some(class.clone());
-                last_char_level = Some(level.clone());
-                char_index += 1;
-            }
-
-            // Last run.
-            if let Some(c) = last_char_class {
-                runs.push(TextRun {
-                    range: Range { start: run_start_index, end: char_index },
-                    class: c,
-                    level: last_char_level.unwrap(),
-                });
-            }
-
-            // TODO: reorder runs.
-
-            for run in runs {
-                println!("Run text: {}", &text[run.range.clone()]);
+                let level = bidi_info.levels[run.start];
 
                 let mut run_glyphs = vec![];
 
-                let (script, dir) = match run.class {
-                    BidiClass::AL => { // Right-to-Left Arabic
-                        (tag::ARAB, TextDirection::RightToLeft)
-                    }
+                let script = match bidi_info.original_classes[run.start] {
+                    BidiClass::AL |  // Right-to-Left Arabic
                     BidiClass::AN => { // Arabic Number
-                        (tag::ARAB, TextDirection::LeftToRight)
+                        tag::ARAB
                     }
                     _ => {
-                        (tag::LATN, TextDirection::LeftToRight)
+                        tag::LATN
                     }
                 };
 
-                let raw_glyphs = font.map_glyphs(&text[run.range.clone()], script, MatchingPresentation::NotRequired);
+                let dir = if level.is_rtl() {
+                    TextDirection::LeftToRight
+                } else {
+                    TextDirection::RightToLeft
+                };
+
+                let raw_glyphs = font.map_glyphs(&text[run.clone()], script, MatchingPresentation::NotRequired);
 
                 let infos = font
                     .shape(
@@ -528,7 +502,7 @@ impl DynamicFont {
                             metrics.bounds.xmin + metrics.bounds.width,
                             metrics.bounds.ymin + metrics.bounds.height,
                         ),
-                        x_adv: position.hori_advance / self.size as i32,
+                        x_adv: (position.hori_advance as f32 / self.size as f32).round() as i32,
                         region,
                     };
 
@@ -540,7 +514,7 @@ impl DynamicFont {
 
                 println!("Run glyph count: {}", run_glyphs.len());
 
-                if run.level.is_rtl() {
+                if level.is_rtl() {
                     for g in run_glyphs.iter().rev() {
                         glyphs.push(g.clone());
                     }
