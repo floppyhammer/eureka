@@ -31,6 +31,7 @@ indextree = "4.4.0"
 fontdue = "0.7.2"
 # Text shaping.
 rustybuzz = "0.6.0"
+allsorts = "0.13.0"
 # Text bidi.
 unicode-bidi = "0.3.8"
 # For splitting grapheme clusters.

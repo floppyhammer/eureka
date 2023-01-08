@@ -227,7 +227,7 @@ impl App {
         log::info!("Asset dir: {}", asset_dir.display());
 
         let mut text_server =
-            TextServer::new(asset_dir.join("fonts/unifont-15.0.01.ttf"), &render_server);
+            TextServer::new(asset_dir.join("fonts/HONORSansArabicUI-B.ttf"), &render_server);
 
         // Create nodes.
         // ---------------------------------------------------
@@ -368,13 +368,13 @@ impl App {
 
         self.singletons.core_server.tick();
 
-        self.world
-            .get_node_mut::<Label>(self.fps_label_id)
-            .unwrap()
-            .set_text(format!(
-                "FPS: {}",
-                self.singletons.core_server.get_fps() as i32
-            ));
+        // self.world
+        //     .get_node_mut::<Label>(self.fps_label_id)
+        //     .unwrap()
+        //     .set_text(format!(
+        //         "FPS: {}",
+        //         self.singletons.core_server.get_fps() as i32
+        //     ));
 
         self.world.update(dt_in_secs, &mut self.singletons);
     }

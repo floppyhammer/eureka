@@ -12,7 +12,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::time::Instant;
 use unicode_segmentation::UnicodeSegmentation;
-use unicode_bidi::{BidiClass, BidiInfo};
+use unicode_bidi::{BidiClass, BidiInfo, Level};
 
 #[derive(Clone)]
 pub(crate) struct Glyph {
@@ -25,7 +25,7 @@ pub(crate) struct Glyph {
     pub(crate) layout: Vector4<i32>,
     /// Local bbox w.r.t. baseline.
     pub(crate) bounds: Vector4<f32>,
-    pub(crate) x_adv: f32,
+    pub(crate) x_adv: i32,
     /// Region in the font atlas.
     pub(crate) region: Vector4<u32>,
 }
@@ -60,6 +60,7 @@ pub(crate) struct DynamicFont {
 struct TextRun {
     range: Range<usize>,
     class: BidiClass,
+    level: Level,
 }
 
 impl DynamicFont {
@@ -155,6 +156,7 @@ impl DynamicFont {
         }
     }
 
+    /// Uses rustybuzz for shaping.
     pub(crate) fn get_glyphs(&mut self, text: &str) -> Vec<Glyph> {
         // // Debug
         // for g in text.graphemes(true) {
@@ -177,23 +179,24 @@ impl DynamicFont {
 
         let mut runs = vec!();
         let mut last_char_class = None;
+        let mut last_char_level = None;
         let mut char_index = 0;
         let mut run_start_index = 0;
 
-        for class in &bidi_info.original_classes {
+        for (class, level) in bidi_info.original_classes.iter().zip(&bidi_info.levels) {
             if let Some(c) = last_char_class {
                 if c != *class {
                     runs.push(TextRun {
                         range: Range { start: run_start_index, end: char_index },
                         class: c,
+                        level: last_char_level.unwrap(),
                     });
                     run_start_index = char_index;
                 }
-            } else {
-                last_char_class = Some(class.clone());
             }
 
             last_char_class = Some(class.clone());
+            last_char_level = Some(level.clone());
             char_index += 1;
         }
 
@@ -202,6 +205,7 @@ impl DynamicFont {
             runs.push(TextRun {
                 range: Range { start: run_start_index, end: char_index },
                 class: c,
+                level: last_char_level.unwrap(),
             });
         }
 
@@ -319,7 +323,7 @@ impl DynamicFont {
                         metrics.bounds.xmin + metrics.bounds.width,
                         metrics.bounds.ymin + metrics.bounds.height,
                     ),
-                    x_adv: (pos.x_advance as f32 / self.size as f32).round(),
+                    x_adv: pos.x_advance / self.size as i32,
                     region,
                 };
 
@@ -327,6 +331,222 @@ impl DynamicFont {
                 self.need_upload = true;
 
                 glyphs.push(glyph);
+            }
+        }
+
+        // self.atlas_image.save("debug_output/font_atlas.png").expect("Failed to save font atlas as file!");
+
+        glyphs
+    }
+
+    /// Uses allsorts for shaping.
+    pub(crate) fn get_glyphs_v2(&mut self, text: &str) -> Vec<Glyph> {
+        use allsorts::binary::read::ReadScope;
+        use allsorts::font::{Font, MatchingPresentation};
+        use allsorts::font_data::FontData;
+        use allsorts::glyph_position::{GlyphLayout, TextDirection};
+        use allsorts::gsub::{FeatureMask, Features};
+        use allsorts::tag;
+
+        // // Debug
+        // for g in text.graphemes(true) {
+        //     log::info!("Grapheme: {}", g);
+        // }
+        //
+        // // Debug
+        // for c in text.chars() {
+        //     log::info!("Character: {}", c);
+        // }
+
+        let scope = ReadScope::new(&self.font_data);
+        let font_file = scope.read::<FontData<'_>>().unwrap();
+        let provider = font_file.table_provider(0).unwrap();
+        let mut font = Font::new(Box::new(provider)).unwrap().unwrap();
+
+        let bidi_info = BidiInfo::new(text, None);
+
+        let mut glyphs = vec![];
+
+        for para in &bidi_info.paragraphs {
+            let line = para.range.clone();
+            println!("Line text: {}", &text[line.clone()]);
+
+            let reordered_text = bidi_info.reorder_line(para, line);
+            println!("Reordered line text: {}", reordered_text);
+
+            let mut runs = vec!();
+            let mut last_char_class = None;
+            let mut last_char_level = None;
+            let mut char_index = 0;
+            let mut run_start_index = 0;
+
+            for (class, level) in bidi_info.original_classes.iter().zip(&bidi_info.levels) {
+                if let Some(c) = last_char_class {
+                    if c != *class {
+                        runs.push(TextRun {
+                            range: Range { start: run_start_index, end: char_index },
+                            class: c,
+                            level: last_char_level.unwrap(),
+                        });
+                        run_start_index = char_index;
+                    }
+                }
+
+                last_char_class = Some(class.clone());
+                last_char_level = Some(level.clone());
+                char_index += 1;
+            }
+
+            // Last run.
+            if let Some(c) = last_char_class {
+                runs.push(TextRun {
+                    range: Range { start: run_start_index, end: char_index },
+                    class: c,
+                    level: last_char_level.unwrap(),
+                });
+            }
+
+            // TODO: reorder runs.
+
+            for run in runs {
+                println!("Run text: {}", &text[run.range.clone()]);
+
+                let mut run_glyphs = vec![];
+
+                let (script, dir) = match run.class {
+                    BidiClass::AL => { // Right-to-Left Arabic
+                        (tag::ARAB, TextDirection::RightToLeft)
+                    }
+                    BidiClass::AN => { // Arabic Number
+                        (tag::ARAB, TextDirection::LeftToRight)
+                    }
+                    _ => {
+                        (tag::LATN, TextDirection::LeftToRight)
+                    }
+                };
+
+                let raw_glyphs = font.map_glyphs(&text[run.range.clone()], script, MatchingPresentation::NotRequired);
+
+                let infos = font
+                    .shape(
+                        raw_glyphs,
+                        script,
+                        None,
+                        &Features::Mask(FeatureMask::default()),
+                        true,
+                    )
+                    .map_err(|(err, _infos)| err).unwrap();
+
+                let mut layout = GlyphLayout::new(&mut font, &infos, dir, false);
+                let positions = layout.glyph_positions().unwrap();
+
+                for (info, position) in infos.iter().zip(&positions) {
+                    // println!(
+                    //     "{},{} ({}, {}) {:#?}",
+                    //     position.hori_advance,
+                    //     position.vert_advance,
+                    //     position.x_offset,
+                    //     position.y_offset,
+                    //     info
+                    // );
+
+                    // Get glyph index (specific to a font).
+                    let index = info.glyph.glyph_index;
+                    // log::info!("Glyph index: {}", index);
+
+                    // Try find the glyph in the cache.
+                    if let Some(g) = self.glyph_cache.get(&index) {
+                        run_glyphs.push(g.clone());
+                        continue;
+                    }
+
+                    // Rasterize and get the layout metrics for the character.
+                    let (metrics, bitmap) = self.font.rasterize_indexed(index, self.size as f32);
+
+                    let buffer: &[u8] = &bitmap;
+
+                    // For debugging.
+                    // if metrics.width * metrics.height > 0 {
+                    //     image::save_buffer(&Path::new(&(format!("debug_output/{}.png", c.to_string()))),
+                    //                        buffer,
+                    //                        metrics.width as u32,
+                    //                        metrics.height as u32,
+                    //                        image::ColorType::L8).unwrap();
+                    // }
+
+                    // Add to the atlas.
+                    let region;
+                    {
+                        // Advance atlas row if necessary.
+                        if self.next_glyph_position.x + metrics.width as u32 > FONT_ATLAS_SIZE {
+                            self.next_glyph_position.x = 0;
+                            self.next_glyph_position.y += self.max_height_of_current_row;
+                            self.max_height_of_current_row = 0;
+                        }
+
+                        for col in 0..metrics.width {
+                            for row in 0..metrics.height {
+                                let x = self.next_glyph_position.x + col as u32;
+                                let y = self.next_glyph_position.y + row as u32;
+
+                                match &mut self.atlas_image {
+                                    DynamicImage::ImageLuma8(img) => {
+                                        img.put_pixel(x, y, Luma([buffer[row * metrics.width + col]]));
+                                    }
+                                    _ => {
+                                        panic!()
+                                    }
+                                }
+                            }
+                        }
+
+                        region = Vector4::new(
+                            self.next_glyph_position.x,
+                            self.next_glyph_position.y,
+                            self.next_glyph_position.x + metrics.width as u32,
+                            self.next_glyph_position.y + metrics.height as u32,
+                        );
+
+                        self.next_glyph_position.x += metrics.width as u32;
+
+                        self.max_height_of_current_row =
+                            max(self.max_height_of_current_row, metrics.height as u32);
+                    }
+
+                    let glyph = Glyph {
+                        index,
+                        text: info.glyph.unicodes.to_string(),
+                        layout: Vector4::new(
+                            metrics.xmin,
+                            metrics.ymin,
+                            metrics.xmin + metrics.width as i32,
+                            metrics.ymin + metrics.height as i32,
+                        ),
+                        bounds: Vector4::new(
+                            metrics.bounds.xmin,
+                            metrics.bounds.ymin,
+                            metrics.bounds.xmin + metrics.bounds.width,
+                            metrics.bounds.ymin + metrics.bounds.height,
+                        ),
+                        x_adv: position.hori_advance / self.size as i32,
+                        region,
+                    };
+
+                    self.glyph_cache.insert(index, glyph.clone());
+                    self.need_upload = true;
+
+                    run_glyphs.push(glyph);
+                }
+
+                println!("Run glyph count: {}", run_glyphs.len());
+
+                if run.level.is_rtl() {
+                    for g in run_glyphs.iter().rev() {
+                        glyphs.push(g.clone());
+                    }
+                } else {
+                    glyphs.append(&mut run_glyphs);
+                }
             }
         }
 
