@@ -157,7 +157,7 @@ impl DynamicFont {
     }
 
     /// Uses rustybuzz for shaping.
-    pub(crate) fn get_glyphs(&mut self, text: &str) -> Vec<Glyph> {
+    pub(crate) fn get_glyphs(&mut self, text: &str) -> (Vec<Glyph>, Vec<Range<usize>>) {
         // // Debug
         // for g in text.graphemes(true) {
         //     log::info!("Grapheme: {}", g);
@@ -170,173 +170,162 @@ impl DynamicFont {
 
         let mut face = rustybuzz::Face::from_slice(&self.font_data, 0).unwrap();
 
+        let units_per_em = face.units_per_em();
+
         let bidi_info = BidiInfo::new(text, None);
 
-        // for para in &bidi_info.paragraphs {
-        //     let line = para.range.clone();
-        //     let reordered_text = bidi_info.reorder_line(para, line);
-        // }
-
-        let mut runs = vec!();
-        let mut last_char_class = None;
-        let mut last_char_level = None;
-        let mut char_index = 0;
-        let mut run_start_index = 0;
-
-        for (class, level) in bidi_info.original_classes.iter().zip(&bidi_info.levels) {
-            if let Some(c) = last_char_class {
-                if c != *class {
-                    runs.push(TextRun {
-                        range: Range { start: run_start_index, end: char_index },
-                        class: c,
-                        level: last_char_level.unwrap(),
-                    });
-                    run_start_index = char_index;
-                }
-            }
-
-            last_char_class = Some(class.clone());
-            last_char_level = Some(level.clone());
-            char_index += 1;
-        }
-
-        // Last run.
-        if let Some(c) = last_char_class {
-            runs.push(TextRun {
-                range: Range { start: run_start_index, end: char_index },
-                class: c,
-                level: last_char_level.unwrap(),
-            });
-        }
-
         let mut glyphs = vec![];
+        let mut glyph_lines = vec![];
 
-        for run in runs {
-            let mut buffer = rustybuzz::UnicodeBuffer::new();
-            buffer.push_str(&text[run.range]);
+        for para in &bidi_info.paragraphs {
+            let line = para.range.clone();
+            println!("Line text: {}", &text[line.clone()]);
 
-            match run.class {
-                BidiClass::AL => { // Right-to-Left Arabic
-                    // FIXME: no effect for unifont (other fonts are good).
-                    // But the same snippet works in C++ for unifont.
-                    buffer.set_direction(rustybuzz::Direction::RightToLeft);
-                    buffer.set_language(rustybuzz::Language::from_str("ar").unwrap());
-                    buffer.set_script(rustybuzz::script::ARABIC);
-                }
-                BidiClass::AN => { // Arabic Number
-                    buffer.set_direction(rustybuzz::Direction::LeftToRight);
-                    buffer.set_language(rustybuzz::Language::from_str("ar").unwrap());
-                    buffer.set_script(rustybuzz::script::ARABIC);
-                }
-                _ => {
-                    buffer.set_direction(rustybuzz::Direction::LeftToRight);
-                    buffer.set_language(rustybuzz::Language::from_str("en").unwrap());
-                    buffer.set_script(rustybuzz::script::LATIN);
-                }
-            }
+            let reordered_text = bidi_info.reorder_line(para, line.clone());
+            println!("Reordered line text: {}", reordered_text);
 
-            let codepoint_count = buffer.len();
+            let (_, level_runs) = bidi_info.visual_runs(para, line.clone());
 
-            let glyph_buffer = rustybuzz::shape(&face, &[], buffer);
+            let glyph_count = glyphs.len();
 
-            let glyph_count = glyph_buffer.len();
+            for run in level_runs.iter() {
+                println!("Run text: {}", &text[run.clone()]);
 
-            for i in 0..glyph_buffer.glyph_infos().len() {
-                let info = &glyph_buffer.glyph_infos()[i];
-                let pos = &glyph_buffer.glyph_positions()[i];
+                // Byte levels should be the same in a run.
+                let level = bidi_info.levels[run.start];
 
-                // Get glyph index (specific to a font).
-                let index = info.glyph_id as u16;
-                // log::info!("Glyph index: {}", index);
+                // Glyphs in the current run.
+                let mut run_glyphs = vec![];
 
-                // Try find the glyph in the cache.
-                if let Some(g) = self.glyph_cache.get(&index) {
-                    glyphs.push(g.clone());
-                    continue;
-                }
+                let script = match bidi_info.original_classes[run.start] {
+                    BidiClass::AL |  // Right-to-Left Arabic
+                    BidiClass::AN => { // Arabic Number
+                        rustybuzz::script::ARABIC
+                    }
+                    BidiClass::R => {
+                        rustybuzz::script::HEBREW
+                    }
+                    _ => {
+                        rustybuzz::script::LATIN
+                    }
+                };
 
-                // Rasterize and get the layout metrics for the character.
-                let (metrics, bitmap) = self.font.rasterize_indexed(index, self.size as f32);
+                let dir = if level.is_rtl() {
+                    rustybuzz::Direction::RightToLeft
+                } else {
+                    rustybuzz::Direction::LeftToRight
+                };
 
-                let buffer: &[u8] = &bitmap;
+                let mut buffer = rustybuzz::UnicodeBuffer::new();
+                buffer.push_str(&text[run.clone()]);
 
-                // For debugging.
-                // if metrics.width * metrics.height > 0 {
-                //     image::save_buffer(&Path::new(&(format!("debug_output/{}.png", c.to_string()))),
-                //                        buffer,
-                //                        metrics.width as u32,
-                //                        metrics.height as u32,
-                //                        image::ColorType::L8).unwrap();
-                // }
+                buffer.set_direction(dir);
+                buffer.set_script(script);
 
-                // Add to the atlas.
-                let region;
-                {
-                    // Advance atlas row if necessary.
-                    if self.next_glyph_position.x + metrics.width as u32 > FONT_ATLAS_SIZE {
-                        self.next_glyph_position.x = 0;
-                        self.next_glyph_position.y += self.max_height_of_current_row;
-                        self.max_height_of_current_row = 0;
+                let codepoint_count = buffer.len();
+
+                let glyph_buffer = rustybuzz::shape(&face, &[], buffer);
+
+                let glyph_count = glyph_buffer.len();
+
+                for (info, pos) in glyph_buffer.glyph_infos().iter().zip(glyph_buffer.glyph_positions()) {
+                    // Get glyph index (specific to a font).
+                    let index = info.glyph_id as u16;
+                    // log::info!("Glyph index: {}", index);
+
+                    // Try find the glyph in the cache.
+                    if let Some(g) = self.glyph_cache.get(&index) {
+                        run_glyphs.push(g.clone());
+                        continue;
                     }
 
-                    for col in 0..metrics.width {
-                        for row in 0..metrics.height {
-                            let x = self.next_glyph_position.x + col as u32;
-                            let y = self.next_glyph_position.y + row as u32;
+                    // Rasterize and get the layout metrics for the character.
+                    let (metrics, bitmap) = self.font.rasterize_indexed(index, self.size as f32);
 
-                            match &mut self.atlas_image {
-                                DynamicImage::ImageLuma8(img) => {
-                                    img.put_pixel(x, y, Luma([buffer[row * metrics.width + col]]));
-                                }
-                                _ => {
-                                    panic!()
+                    let buffer: &[u8] = &bitmap;
+
+                    // For debugging.
+                    // if metrics.width * metrics.height > 0 {
+                    //     image::save_buffer(&Path::new(&(format!("debug_output/{}.png", c.to_string()))),
+                    //                        buffer,
+                    //                        metrics.width as u32,
+                    //                        metrics.height as u32,
+                    //                        image::ColorType::L8).unwrap();
+                    // }
+
+                    // Add to the atlas.
+                    let region;
+                    {
+                        // Advance atlas row if necessary.
+                        if self.next_glyph_position.x + metrics.width as u32 > FONT_ATLAS_SIZE {
+                            self.next_glyph_position.x = 0;
+                            self.next_glyph_position.y += self.max_height_of_current_row;
+                            self.max_height_of_current_row = 0;
+                        }
+
+                        for col in 0..metrics.width {
+                            for row in 0..metrics.height {
+                                let x = self.next_glyph_position.x + col as u32;
+                                let y = self.next_glyph_position.y + row as u32;
+
+                                match &mut self.atlas_image {
+                                    DynamicImage::ImageLuma8(img) => {
+                                        img.put_pixel(x, y, Luma([buffer[row * metrics.width + col]]));
+                                    }
+                                    _ => {
+                                        panic!()
+                                    }
                                 }
                             }
                         }
+
+                        region = Vector4::new(
+                            self.next_glyph_position.x,
+                            self.next_glyph_position.y,
+                            self.next_glyph_position.x + metrics.width as u32,
+                            self.next_glyph_position.y + metrics.height as u32,
+                        );
+
+                        self.next_glyph_position.x += metrics.width as u32;
+
+                        self.max_height_of_current_row =
+                            max(self.max_height_of_current_row, metrics.height as u32);
                     }
 
-                    region = Vector4::new(
-                        self.next_glyph_position.x,
-                        self.next_glyph_position.y,
-                        self.next_glyph_position.x + metrics.width as u32,
-                        self.next_glyph_position.y + metrics.height as u32,
-                    );
+                    let glyph = Glyph {
+                        index,
+                        text: "".to_string(), // TODO
+                        layout: Vector4::new(
+                            metrics.xmin,
+                            metrics.ymin,
+                            metrics.xmin + metrics.width as i32,
+                            metrics.ymin + metrics.height as i32,
+                        ),
+                        bounds: Vector4::new(
+                            metrics.bounds.xmin,
+                            metrics.bounds.ymin,
+                            metrics.bounds.xmin + metrics.bounds.width,
+                            metrics.bounds.ymin + metrics.bounds.height,
+                        ),
+                        x_adv: (pos.x_advance as f32 * self.size as f32 / units_per_em as f32).round() as i32,
+                        region,
+                    };
 
-                    self.next_glyph_position.x += metrics.width as u32;
+                    self.glyph_cache.insert(index, glyph.clone());
+                    self.need_upload = true;
 
-                    self.max_height_of_current_row =
-                        max(self.max_height_of_current_row, metrics.height as u32);
+                    run_glyphs.push(glyph);
                 }
 
-                let glyph = Glyph {
-                    index,
-                    text: "".to_string(), // TODO
-                    layout: Vector4::new(
-                        metrics.xmin,
-                        metrics.ymin,
-                        metrics.xmin + metrics.width as i32,
-                        metrics.ymin + metrics.height as i32,
-                    ),
-                    bounds: Vector4::new(
-                        metrics.bounds.xmin,
-                        metrics.bounds.ymin,
-                        metrics.bounds.xmin + metrics.bounds.width,
-                        metrics.bounds.ymin + metrics.bounds.height,
-                    ),
-                    x_adv: (pos.x_advance as f32 / self.size as f32).round() as i32,
-                    region,
-                };
-
-                self.glyph_cache.insert(index, glyph.clone());
-                self.need_upload = true;
-
-                glyphs.push(glyph);
+                glyphs.append(&mut run_glyphs);
             }
+
+            glyph_lines.push(Range { start: glyph_count, end: glyphs.len() });
         }
 
         // self.atlas_image.save("debug_output/font_atlas.png").expect("Failed to save font atlas as file!");
 
-        glyphs
+        (glyphs, glyph_lines)
     }
 
     /// Uses allsorts for shaping.

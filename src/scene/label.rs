@@ -68,7 +68,7 @@ impl AsNode for Label {
 
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         if self.text_is_dirty {
-            let (glyphs, lines) = singletons.text_server.font.get_glyphs_v2(self.text.as_str());
+            let (glyphs, lines) = singletons.text_server.font.get_glyphs(self.text.as_str());
 
             // Update atlas data.
             let mut instances = vec![];
