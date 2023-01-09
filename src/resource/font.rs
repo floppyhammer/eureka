@@ -117,6 +117,11 @@ impl DynamicFont {
         }
     }
 
+    pub(crate) fn get_ascent(&mut self) -> f32 {
+        let metrics = self.font.horizontal_line_metrics(self.size as f32).unwrap();
+        return metrics.ascent;
+    }
+
     /// Upload atlas data to the atlas texture.
     pub(crate) fn upload(&mut self, render_server: &RenderServer) {
         if self.need_upload {
@@ -189,26 +194,45 @@ impl DynamicFont {
             let glyph_count = glyphs.len();
 
             for run in level_runs.iter() {
-                println!("Run text: {}", &text[run.clone()]);
+                // We need to modify run range later.
+                let mut run = run.clone();
 
-                // Byte levels should be the same in a run.
-                let level = bidi_info.levels[run.start];
+                // Skip paragraph separator.
+                if bidi_info.original_classes[run.end - 1] == BidiClass::B {
+                    run.end -= 1;
+                }
+
+                let run_text = &text[run.clone()];
+                println!("Run text: {}", run_text);
 
                 // Glyphs in the current run.
                 let mut run_glyphs = vec![];
 
-                let script = match bidi_info.original_classes[run.start] {
-                    BidiClass::AL |  // Right-to-Left Arabic
-                    BidiClass::AN => { // Arabic Number
-                        rustybuzz::script::ARABIC
-                    }
-                    BidiClass::R => {
-                        rustybuzz::script::HEBREW
-                    }
-                    _ => {
-                        rustybuzz::script::LATIN
-                    }
-                };
+                let lang_info = whatlang::detect(run_text);
+
+                let script;
+                if let Some(lang_info) = lang_info {
+                    script = match lang_info.script() {
+                        whatlang::Script::Arabic => {
+                            rustybuzz::script::ARABIC
+                        }
+                        whatlang::Script::Hebrew => {
+                            rustybuzz::script::HEBREW
+                        }
+                        whatlang::Script::Bengali => {
+                            rustybuzz::script::BENGALI
+                        }
+                        _ => {
+                            rustybuzz::script::LATIN
+                        }
+                    };
+                } else {
+                    script = rustybuzz::script::LATIN;
+                }
+
+                // Levels should be the same in a run.
+                // This is not the case for classes though.
+                let level = bidi_info.levels[run.start];
 
                 let dir = if level.is_rtl() {
                     rustybuzz::Direction::RightToLeft
@@ -217,7 +241,7 @@ impl DynamicFont {
                 };
 
                 let mut buffer = rustybuzz::UnicodeBuffer::new();
-                buffer.push_str(&text[run.clone()]);
+                buffer.push_str(run_text);
 
                 buffer.set_direction(dir);
                 buffer.set_script(script);
@@ -377,21 +401,44 @@ impl DynamicFont {
             let glyph_count = glyphs.len();
 
             for run in level_runs.iter() {
-                println!("Run text: {}", &text[run.clone()]);
+                // We need to modify run range later.
+                let mut run = run.clone();
 
-                let level = bidi_info.levels[run.start];
+                // Skip paragraph separator.
+                if bidi_info.original_classes[run.end - 1] == BidiClass::B {
+                    run.end -= 1;
+                }
+
+                let run_text = &text[run.clone()];
+                println!("Run text: {}", run_text);
 
                 let mut run_glyphs = vec![];
 
-                let script = match bidi_info.original_classes[run.start] {
-                    BidiClass::AL |  // Right-to-Left Arabic
-                    BidiClass::AN => { // Arabic Number
-                        tag::ARAB
-                    }
-                    _ => {
-                        tag::LATN
-                    }
-                };
+                let lang_info = whatlang::detect(run_text);
+
+                let script;
+                if let Some(lang_info) = lang_info {
+                    script = match lang_info.script() {
+                        whatlang::Script::Arabic => {
+                            tag::ARAB
+                        }
+                        whatlang::Script::Hebrew => {
+                            tag::BASE
+                        }
+                        whatlang::Script::Bengali => {
+                            tag::BENG
+                        }
+                        _ => {
+                            tag::LATN
+                        }
+                    };
+                } else {
+                    script = tag::LATN;
+                }
+
+                // Levels should be the same in a run.
+                // This is not the case for classes though.
+                let level = bidi_info.levels[run.start];
 
                 let dir = if level.is_rtl() {
                     TextDirection::LeftToRight
@@ -399,7 +446,7 @@ impl DynamicFont {
                     TextDirection::RightToLeft
                 };
 
-                let raw_glyphs = font.map_glyphs(&text[run.clone()], script, MatchingPresentation::NotRequired);
+                let raw_glyphs = font.map_glyphs(run_text, script, MatchingPresentation::NotRequired);
 
                 let infos = font
                     .shape(

@@ -24,6 +24,9 @@ pub(crate) struct Label {
 
     /// To draw glyph sprites.
     atlas: Atlas,
+
+    leading: f32,
+    tracking: f32,
 }
 
 impl Label {
@@ -44,6 +47,8 @@ impl Label {
             layout_is_dirty: true,
             single_line: false,
             atlas,
+            leading: 20.0,
+            tracking: 0.0,
         }
     }
 
@@ -68,11 +73,13 @@ impl AsNode for Label {
 
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         if self.text_is_dirty {
-            let (glyphs, lines) = singletons.text_server.font.get_glyphs(self.text.as_str());
+            let (glyphs, lines) = singletons.text_server.font.get_glyphs_v2(self.text.as_str());
+
+            let ascent = singletons.text_server.font.get_ascent();
 
             // Update atlas data.
             let mut instances = vec![];
-            let origin = self.transform.position;
+            let origin = self.transform.position - Point2::new(0.0, ascent);
 
             let mut layout_pos = Point2::new(0.0, 0.0);
 
@@ -83,7 +90,7 @@ impl AsNode for Label {
                     let baseline_height = g.layout.y as f32;
 
                     let instance = AtlasInstance {
-                        position: Vector2::new(layout_pos.x, layout_pos.y + baseline_height) + origin.to_vec(),
+                        position: Vector2::new(layout_pos.x + g.layout.x as f32, layout_pos.y + baseline_height) + origin,
                         size: Vector2::new(
                             (g.layout.z - g.layout.x) as f32,
                             (g.layout.w - g.layout.y) as f32,
@@ -103,7 +110,7 @@ impl AsNode for Label {
                 }
 
                 layout_pos.x = 0.0;
-                layout_pos.y -= singletons.text_server.font.size as f32;
+                layout_pos.y -= singletons.text_server.font.size as f32 + self.leading;
             }
 
             self.atlas.set_instances(instances, &singletons.render_server);
