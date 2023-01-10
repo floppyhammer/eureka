@@ -73,7 +73,7 @@ impl AsNode for Label {
 
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         if self.text_is_dirty {
-            let (glyphs, lines) = singletons.text_server.font.get_glyphs_v2(self.text.as_str());
+            let (glyphs, lines) = singletons.text_server.font.get_glyphs(self.text.as_str());
 
             let ascent = singletons.text_server.font.get_ascent();
 
@@ -87,13 +87,10 @@ impl AsNode for Label {
                 for i in line {
                     let g = &glyphs[i];
 
-                    let baseline_height = g.layout.y as f32;
-
                     let instance = AtlasInstance {
-                        position: Vector2::new(layout_pos.x + g.layout.x as f32, layout_pos.y + baseline_height) + origin,
-                        size: Vector2::new(
-                            (g.layout.z - g.layout.x) as f32,
-                            (g.layout.w - g.layout.y) as f32,
+                        position: Vector2::new(layout_pos.x + g.offset.x as f32, layout_pos.y + g.offset.y as f32) + origin,
+                        size: Vector2::new(g.bitmap_size.x as f32,
+                                           g.bitmap_size.y as f32,
                         ),
                         region: Vector4::new(
                             g.region.x as f32 / FONT_ATLAS_SIZE as f32,

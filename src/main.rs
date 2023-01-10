@@ -278,15 +278,17 @@ impl App {
 
         let mut label_i18n = Box::new(Label::new(&render_server));
         label_i18n.transform.position = Point2::new(0.0, size.height as f32);
-        let mut text = "ABCDEFG Hello٠١٢مرحبا你 好\n".to_string();
-        text += "مرحبا حبالا لمح٠رٍُُِرٍُُِ ABC 123\n"; // Arabic
-        text += " িীিিীি শহরের ৎ্যৎ্যৎ্য বাঙালী123\n"; // Bengali
-        text += "นี้ ทั้ง ประเทศไทย123\n"; // Thai
-        text += "123فارسی\n"; // Persian
-        text += "Türkiye123\n"; // Turkish
-        text += "हिन्दी123\n"; // Hindi
-        text += "हngười Việt123\n"; // Vietnamese
-        text += "עִבְרִית\n"; // Hebrew
+        let mut text = "".to_string();
+        text += "你好世界！\n"; // Chinese
+        text += "こんにちは世界！\n"; // Japanese
+        text += "مرحبا بالعالم!\n"; // Arabic
+        text += "ওহে বিশ্ব!\n"; // Bengali
+        text += "สวัสดีชาวโลก!\n"; // Thai
+        text += "سلام دنیا!\n"; // Persian
+        text += "नमस्ते दुनिया!\n"; // Hindi
+        text += "Chào thế giới!\n"; // Vietnamese
+        text += "שלום עולם!\n"; // Hebrew
+        text += "ABCDEFG Hello٠١٢مرحبا你好\n"; // Mixed languages.
         label_i18n.set_text(text);
 
         world.add_node(label_i18n, Some(vec_sprite_id));
