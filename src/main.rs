@@ -283,7 +283,7 @@ impl App {
         let mut text = "".to_string();
         text += "你好世界！\n"; // Chinese
         text += "こんにちは世界！\n"; // Japanese
-        text += "مرحبا بالعالم!"; // Arabic
+        text += "مرحبا بالعالم!\n"; // Arabic
         text += "ওহে বিশ্ব!\n"; // Bengali
         text += "สวัสดีชาวโลก!\n"; // Thai
         text += "سلام دنیا!\n"; // Persian

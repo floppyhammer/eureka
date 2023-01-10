@@ -17,11 +17,10 @@ use unicode_segmentation::UnicodeSegmentation;
 #[derive(Clone)]
 pub(crate) struct Glyph {
     /// Unique ID specific to a font.
-    pub(crate) index: u16,
-    /// This cannot be used as an unique ID in the font atlas image due to ligature.
-    /// For example, ر in مر and ر in م ر obviously have different glyphs.
-    pub(crate) text: String,
     ///
+    /// Codepoint cannot be used as an unique ID in the font atlas image due to ligature.
+    /// For example, ر in مر and ر in م ر obviously have different glyphs.
+    pub(crate) index: u16,
     pub(crate) offset: Vector2<i32>,
     pub(crate) bitmap_size: Vector2<i32>,
     /// Local bbox w.r.t. baseline.
@@ -327,7 +326,6 @@ impl DynamicFont {
 
                     let glyph = Glyph {
                         index,
-                        text: "".to_string(), // TODO
                         offset: Vector2::new(metrics.xmin, metrics.ymin),
                         bitmap_size: Vector2::new(metrics.width as i32, metrics.height as i32),
                         bounds: Vector4::new(
@@ -518,7 +516,6 @@ impl DynamicFont {
 
                     let glyph = Glyph {
                         index,
-                        text: info.glyph.unicodes.to_string(),
                         offset: Vector2::new(metrics.xmin, metrics.ymin),
                         bitmap_size: Vector2::new(metrics.width as i32, metrics.height as i32),
                         bounds: Vector4::new(
