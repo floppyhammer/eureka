@@ -226,8 +226,10 @@ impl App {
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         log::info!("Asset dir: {}", asset_dir.display());
 
-        let mut text_server =
-            TextServer::new(asset_dir.join("fonts/Arial Unicode MS Font.ttf"), &render_server);
+        let mut text_server = TextServer::new(
+            asset_dir.join("fonts/Arial Unicode MS Font.ttf"),
+            &render_server,
+        );
 
         // Create nodes.
         // ---------------------------------------------------
@@ -267,7 +269,7 @@ impl App {
             &render_server.queue,
             asset_dir.join("happy-tree.png"),
         )
-            .unwrap();
+        .unwrap();
         let sprite = Box::new(Sprite2d::new(&render_server, sprite_tex));
         world.add_node(sprite, None);
 
@@ -281,14 +283,14 @@ impl App {
         let mut text = "".to_string();
         text += "你好世界！\n"; // Chinese
         text += "こんにちは世界！\n"; // Japanese
-        text += "مرحبا بالعالم!\n"; // Arabic
+        text += "مرحبا بالعالم!"; // Arabic
         text += "ওহে বিশ্ব!\n"; // Bengali
         text += "สวัสดีชาวโลก!\n"; // Thai
         text += "سلام دنیا!\n"; // Persian
         text += "नमस्ते दुनिया!\n"; // Hindi
         text += "Chào thế giới!\n"; // Vietnamese
         text += "שלום עולם!\n"; // Hebrew
-        text += "ABCDEFG Hello٠١٢مرحبا你好\n"; // Mixed languages.
+        text += "ABCDEFG Hello!٠١٢مرحبا!你好\n"; // Mixed languages.
         label_i18n.set_text(text);
 
         world.add_node(label_i18n, Some(vec_sprite_id));

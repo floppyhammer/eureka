@@ -88,10 +88,11 @@ impl AsNode for Label {
                     let g = &glyphs[i];
 
                     let instance = AtlasInstance {
-                        position: Vector2::new(layout_pos.x + g.offset.x as f32, layout_pos.y + g.offset.y as f32) + origin,
-                        size: Vector2::new(g.bitmap_size.x as f32,
-                                           g.bitmap_size.y as f32,
-                        ),
+                        position: Vector2::new(
+                            layout_pos.x + g.offset.x as f32,
+                            layout_pos.y + g.offset.y as f32,
+                        ) + origin,
+                        size: Vector2::new(g.bitmap_size.x as f32, g.bitmap_size.y as f32),
                         region: Vector4::new(
                             g.region.x as f32 / FONT_ATLAS_SIZE as f32,
                             g.region.y as f32 / FONT_ATLAS_SIZE as f32,
@@ -110,7 +111,8 @@ impl AsNode for Label {
                 layout_pos.y -= singletons.text_server.font.size as f32 + self.leading;
             }
 
-            self.atlas.set_instances(instances, &singletons.render_server);
+            self.atlas
+                .set_instances(instances, &singletons.render_server);
 
             self.text_is_dirty = false;
         }
