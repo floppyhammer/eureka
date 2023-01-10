@@ -261,6 +261,7 @@ impl DynamicFont {
                 {
                     // Get glyph index (specific to a font).
                     let index = info.glyph_id as u16;
+                    println!("Glyph index: {}", index);
 
                     // Try find the glyph in the cache.
                     if let Some(g) = self.glyph_cache.get(&index) {
@@ -354,7 +355,7 @@ impl DynamicFont {
             });
         }
 
-        // self.atlas_image.save("debug_output/font_atlas.png").expect("Failed to save font atlas as file!");
+        // self.atlas_image.save("font_atlas.png").expect("Failed to save font atlas as file!");
 
         (glyphs, glyph_lines)
     }
@@ -362,6 +363,7 @@ impl DynamicFont {
     /// Uses allsorts for shaping.
     /// Returned glyphs are text context independent.
     /// Returned glyph lines are text context dependent.
+    // FIXME: allsorts has issues with Bengali.
     pub(crate) fn get_glyphs_v2(&mut self, text: &str) -> (Vec<Glyph>, Vec<Range<usize>>) {
         use allsorts::binary::read::ReadScope;
         use allsorts::font::{Font, MatchingPresentation};
@@ -375,12 +377,12 @@ impl DynamicFont {
         let provider = font_file.table_provider(0).unwrap();
         let mut font = Font::new(Box::new(provider)).unwrap().unwrap();
 
-        let head = font
+        let head_table = font
             .head_table()
             .expect("Unable to parse head table.")
             .expect("Font lacks a head table.");
 
-        let units_per_em = head.units_per_em;
+        let units_per_em = head_table.units_per_em;
 
         let bidi_info = BidiInfo::new(text, None);
 
@@ -459,6 +461,7 @@ impl DynamicFont {
                 for (info, position) in infos.iter().zip(&positions) {
                     // Get glyph index (specific to a font).
                     let index = info.glyph.glyph_index;
+                    println!("Glyph index: {}", index);
 
                     // Try find the glyph in the cache.
                     if let Some(g) = self.glyph_cache.get(&index) {
@@ -552,6 +555,8 @@ impl DynamicFont {
                 end: glyphs.len(),
             });
         }
+
+        // self.atlas_image.save("font_atlas.png").expect("Failed to save font atlas as file!");
 
         (glyphs, glyph_lines)
     }
