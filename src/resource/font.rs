@@ -2,7 +2,7 @@ use crate::resource::{RenderServer, Texture};
 use cgmath::{Point2, Vector2, Vector4};
 use fontdue;
 use image::{DynamicImage, Luma};
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -21,6 +21,7 @@ pub(crate) struct Glyph {
     /// Codepoint cannot be used as an unique ID in the font atlas image due to ligature.
     /// For example, ر in مر and ر in م ر obviously have different glyphs.
     pub(crate) index: u16,
+    text: String,
     pub(crate) offset: Vector2<i32>,
     pub(crate) bitmap_size: Vector2<i32>,
     /// Local bbox w.r.t. baseline.
@@ -99,7 +100,7 @@ impl DynamicFont {
             &atlas_image,
             "default font atlas".into(),
         )
-        .unwrap();
+            .unwrap();
 
         let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 
@@ -253,12 +254,31 @@ impl DynamicFont {
 
                 let glyph_count = glyph_buffer.len();
 
+                // let run_clusters = run_text.bytes().collect::<Vec<u8>>();
+                // let glyph_text = run_text[info.cluster as usize].to_string();
+
+                // Collect clusters first.
+                let mut run_clusters = vec![];
+                for i in 0..glyph_buffer.glyph_infos().len() {
+                    let info = glyph_buffer.glyph_infos()[i];
+                    run_clusters.push(info.cluster as usize);
+                }
+
+                if level.is_rtl() {
+                    run_clusters.insert(0, run_text.len());
+                } else {
+                    run_clusters.push(run_text.len());
+                }
+
                 // Handle run glyphs.
-                for (info, pos) in glyph_buffer
-                    .glyph_infos()
-                    .iter()
-                    .zip(glyph_buffer.glyph_positions())
-                {
+                for i in 0..glyph_buffer.glyph_infos().len() {
+                    let info = glyph_buffer.glyph_infos()[i];
+                    let pos = glyph_buffer.glyph_positions()[i];
+                    let cluster_range = Range {
+                        start: min(run_clusters[i], run_clusters[i + 1]),
+                        end: max(run_clusters[i], run_clusters[i + 1]),
+                    };
+
                     // Get glyph index (specific to a font).
                     let index = info.glyph_id as u16;
                     println!("Glyph index: {}", index);
@@ -325,8 +345,12 @@ impl DynamicFont {
                             max(self.max_height_of_current_row, metrics.height as u32);
                     }
 
+                    let run_chars = run_text.bytes().collect::<Vec<u8>>();
+                    let glyph_text = run_chars[info.cluster as usize].to_string();
+
                     let glyph = Glyph {
                         index,
+                        text: run_text[cluster_range.clone()].to_string(),
                         offset: Vector2::new(metrics.xmin, metrics.ymin),
                         bitmap_size: Vector2::new(metrics.width as i32, metrics.height as i32),
                         bounds: Vector4::new(
@@ -342,6 +366,8 @@ impl DynamicFont {
 
                     self.glyph_cache.insert(index, glyph.clone());
                     self.need_upload = true;
+
+                    println!("Glyph text: {}", glyph.text);
 
                     run_glyphs.push(glyph);
                 }
@@ -519,6 +545,7 @@ impl DynamicFont {
 
                     let glyph = Glyph {
                         index,
+                        text: "".to_string(),
                         offset: Vector2::new(metrics.xmin, metrics.ymin),
                         bitmap_size: Vector2::new(metrics.width as i32, metrics.height as i32),
                         bounds: Vector4::new(
