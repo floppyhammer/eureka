@@ -76,7 +76,7 @@ impl AsNode for Label {
             let (glyphs, lines) = singletons
                 .text_server
                 .font
-                .get_glyphs(self.text.as_str());
+                .get_glyphs_v2(self.text.as_str());
 
             let ascent = singletons.text_server.font.get_ascent();
 

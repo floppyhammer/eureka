@@ -100,7 +100,7 @@ impl DynamicFont {
             &atlas_image,
             "default font atlas".into(),
         )
-            .unwrap();
+        .unwrap();
 
         let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 
@@ -545,7 +545,7 @@ impl DynamicFont {
 
                     let glyph = Glyph {
                         index,
-                        text: "".to_string(),
+                        text: info.glyph.unicodes.iter().collect(),
                         offset: Vector2::new(metrics.xmin, metrics.ymin),
                         bitmap_size: Vector2::new(metrics.width as i32, metrics.height as i32),
                         bounds: Vector4::new(
@@ -562,6 +562,8 @@ impl DynamicFont {
 
                     self.glyph_cache.insert(index, glyph.clone());
                     self.need_upload = true;
+
+                    println!("Glyph text: {}", glyph.text);
 
                     run_glyphs.push(glyph);
                 }
