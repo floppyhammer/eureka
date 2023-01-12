@@ -381,7 +381,7 @@ impl DynamicFont {
             });
         }
 
-        // self.atlas_image.save("font_atlas.png").expect("Failed to save font atlas as file!");
+        self.atlas_image.save("font_atlas.png").expect("Failed to save font atlas as file!");
 
         (glyphs, glyph_lines)
     }
@@ -585,7 +585,7 @@ impl DynamicFont {
             });
         }
 
-        // self.atlas_image.save("font_atlas.png").expect("Failed to save font atlas as file!");
+        self.atlas_image.save("font_atlas.png").expect("Failed to save font atlas as file!");
 
         (glyphs, glyph_lines)
     }
