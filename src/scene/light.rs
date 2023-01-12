@@ -4,7 +4,7 @@ use std::ops::Range;
 use std::path::Path;
 use wgpu::util::DeviceExt;
 
-use crate::resource::Mesh;
+use crate::resources::Mesh;
 use crate::scene::{AsNode, CameraInfo, NodeType};
 use crate::{InputEvent, Model, RenderServer, Singletons, Sprite3d, Texture};
 

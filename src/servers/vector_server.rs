@@ -1,5 +1,5 @@
 use crate::render::vertex::{VectorVertex, VertexBuffer};
-use crate::resource::RenderServer;
+use crate::resources::RenderServer;
 use lyon::math::point;
 use lyon::path::Path;
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers};

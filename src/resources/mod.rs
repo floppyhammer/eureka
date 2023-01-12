@@ -9,4 +9,4 @@ pub use material::*;
 pub use mesh::*;
 pub use texture::*;
 
-pub use crate::server::render_server::*;
+pub use crate::servers::render_server::*;

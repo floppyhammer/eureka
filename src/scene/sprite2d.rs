@@ -1,5 +1,5 @@
 use crate::math::transform::Transform2d;
-use crate::resource::{Material2d, Mesh, Texture};
+use crate::resources::{Material2d, Mesh, Texture};
 use crate::scene::{AsNode, Camera2dUniform, CameraInfo, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons};
 use cgmath::{Vector2, Vector3, Vector4};

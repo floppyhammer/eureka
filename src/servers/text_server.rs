@@ -1,4 +1,4 @@
-use crate::resource::{RenderServer, Texture};
+use crate::resources::{RenderServer, Texture};
 use crate::DynamicFont;
 use std::path::Path;
 use std::time::Instant;

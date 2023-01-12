@@ -18,14 +18,14 @@ use wgpu::{util::DeviceExt, SamplerBindingType, TextureView};
 // Do this before importing local crates.
 mod math;
 mod render;
-mod resource;
+mod resources;
 mod scene;
-mod server;
+mod servers;
 
 // Import local crates.
 use crate::render::atlas::{Atlas, AtlasInstance};
 use crate::render::gizmo::Gizmo;
-use crate::resource::{CubemapTexture, DynamicFont, Texture};
+use crate::resources::{CubemapTexture, DynamicFont, Texture};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
@@ -33,9 +33,9 @@ use crate::scene::{
     AsNode, Camera2d, Camera3d, Camera3dController, InputEvent, InputServer, Label, Light,
     LightUniform, Model, Projection, Sky, World,
 };
-use crate::server::render_server::RenderServer;
-use crate::server::text_server::TextServer;
-use crate::server::{core_server, CoreServer};
+use crate::servers::render_server::RenderServer;
+use crate::servers::text_server::TextServer;
+use crate::servers::{core_server, CoreServer};
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;

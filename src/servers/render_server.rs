@@ -1,7 +1,7 @@
 use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
 use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::scene::Camera2dUniform;
-use crate::{resource, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture};
+use crate::{resources, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture};
 use bevy_ecs::system::Resource;
 use cgmath::Point2;
 use std::mem;
@@ -219,14 +219,14 @@ impl RenderServer {
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("model shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/model.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/model.wgsl").into()),
             };
 
             create_render_pipeline(
                 &device,
                 &pipeline_layout,
                 config.format,
-                Some(resource::texture::Texture::DEPTH_FORMAT),
+                Some(resources::texture::Texture::DEPTH_FORMAT),
                 &[Vertex3d::desc(), scene::model::InstanceRaw::desc()],
                 shader,
                 "model pipeline",
@@ -250,14 +250,14 @@ impl RenderServer {
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("sprite2d shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/blit.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/blit.wgsl").into()),
             };
 
             create_render_pipeline(
                 &device,
                 &pipeline_layout,
                 config.format,
-                Some(resource::texture::Texture::DEPTH_FORMAT),
+                Some(resources::texture::Texture::DEPTH_FORMAT),
                 &[Vertex2d::desc()],
                 shader,
                 "sprite2d pipeline",
@@ -282,7 +282,7 @@ impl RenderServer {
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("sprite3d shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/sprite3d.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/sprite3d.wgsl").into()),
             };
 
             // FIXME(floppyhammer): Transparency
@@ -290,7 +290,7 @@ impl RenderServer {
                 &device,
                 &pipeline_layout,
                 config.format,
-                Some(resource::texture::Texture::DEPTH_FORMAT),
+                Some(resources::texture::Texture::DEPTH_FORMAT),
                 &[Vertex3d::desc()],
                 shader,
                 "sprite3d pipeline",
@@ -311,14 +311,14 @@ impl RenderServer {
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("vector sprite shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/vector.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/vector.wgsl").into()),
             };
 
             create_render_pipeline(
                 &device,
                 &pipeline_layout,
                 config.format,
-                Some(resource::texture::Texture::DEPTH_FORMAT),
+                Some(resources::texture::Texture::DEPTH_FORMAT),
                 &[VectorVertex::desc()],
                 shader,
                 "vector sprite pipeline",
@@ -339,14 +339,14 @@ impl RenderServer {
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("skybox shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/skybox.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/skybox.wgsl").into()),
             };
 
             create_render_pipeline(
                 &device,
                 &pipeline_layout,
                 config.format,
-                Some(resource::texture::Texture::DEPTH_FORMAT),
+                Some(resources::texture::Texture::DEPTH_FORMAT),
                 &[VertexSky::desc()],
                 shader,
                 "skybox pipeline",
@@ -364,7 +364,7 @@ impl RenderServer {
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("gizmo shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/gizmo.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/gizmo.wgsl").into()),
             };
             let shader_module = device.create_shader_module(shader);
 
@@ -392,7 +392,7 @@ impl RenderServer {
                     ..Default::default()
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
-                    format: resource::texture::Texture::DEPTH_FORMAT,
+                    format: resources::texture::Texture::DEPTH_FORMAT,
                     depth_write_enabled: false,
                     depth_compare: wgpu::CompareFunction::Less,
                     stencil: wgpu::StencilState::default(),
@@ -430,7 +430,7 @@ impl RenderServer {
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("atlas shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shader/atlas.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/atlas.wgsl").into()),
             };
             let shader_module = device.create_shader_module(shader);
 
@@ -458,7 +458,7 @@ impl RenderServer {
                     ..Default::default()
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
-                    format: resource::texture::Texture::DEPTH_FORMAT,
+                    format: resources::texture::Texture::DEPTH_FORMAT,
                     depth_write_enabled: false,
                     depth_compare: wgpu::CompareFunction::Less,
                     stencil: wgpu::StencilState::default(),

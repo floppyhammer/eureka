@@ -4,7 +4,7 @@ use std::any::Any;
 
 use crate::math::transform::Transform2d;
 use crate::scene::{AsNode, Camera2dUniform, Camera3dUniform, CameraInfo, NodeType};
-use crate::server::{VectorMesh, VectorTexture};
+use crate::servers::{VectorMesh, VectorTexture};
 use crate::{Camera2d, InputEvent, RenderServer, Singletons};
 use cgmath::Vector3;
 use lyon::math::point;

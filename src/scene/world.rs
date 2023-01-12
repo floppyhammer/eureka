@@ -1,7 +1,7 @@
 use crate::render::gizmo::Gizmo;
-use crate::resource::RenderServer;
+use crate::resources::RenderServer;
 use crate::scene::{AsNode, Camera2d, Camera3d, Camera3dUniform, CameraInfo, NodeType};
-use crate::server::{InputEvent, InputServer};
+use crate::servers::{InputEvent, InputServer};
 use crate::Singletons;
 use cgmath::Point2;
 use indextree::{Arena, Descendants, NodeEdge, NodeId};

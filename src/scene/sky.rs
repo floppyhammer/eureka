@@ -9,8 +9,8 @@ use std::path::Path;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 
-use crate::resource::CubemapTexture;
-use crate::resource::{material, mesh, texture};
+use crate::resources::CubemapTexture;
+use crate::resources::{material, mesh, texture};
 use crate::scene::{AsNode, CameraInfo, NodeType};
 use crate::{InputEvent, RenderServer, Singletons};
 use material::MaterialSky;

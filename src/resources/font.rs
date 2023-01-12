@@ -1,4 +1,4 @@
-use crate::resource::{RenderServer, Texture};
+use crate::resources::{RenderServer, Texture};
 use cgmath::{Point2, Vector2, Vector4};
 use fontdue;
 use image::{DynamicImage, Luma};

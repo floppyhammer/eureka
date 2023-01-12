@@ -1,6 +1,6 @@
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{AtlasMode, DrawAtlas};
-use crate::resource::FONT_ATLAS_SIZE;
+use crate::resources::FONT_ATLAS_SIZE;
 use crate::scene::vector_sprite::VectorSprite;
 use crate::scene::{CameraInfo, InputServer, Label, NodeType};
 use crate::{

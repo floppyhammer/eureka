@@ -23,4 +23,4 @@ pub use node::*;
 pub use sky::*;
 pub use world::*;
 
-pub use crate::server::input_server::*;
+pub use crate::servers::input_server::*;
