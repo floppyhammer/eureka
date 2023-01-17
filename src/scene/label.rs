@@ -1,3 +1,4 @@
+use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{AtlasMode, DrawAtlas};
 use crate::resources::FONT_ATLAS_SIZE;
@@ -73,10 +74,7 @@ impl AsNode for Label {
 
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
         if self.text_is_dirty {
-            let (glyphs, lines) = singletons
-                .text_server
-                .font
-                .get_glyphs_v2(self.text.as_str());
+            let (glyphs, lines) = singletons.text_server.font.get_glyphs(self.text.as_str());
 
             let ascent = singletons.text_server.font.get_ascent();
 
@@ -96,12 +94,7 @@ impl AsNode for Label {
                             layout_pos.y + g.offset.y as f32,
                         ) + origin,
                         size: Vector2::new(g.bitmap_size.x as f32, g.bitmap_size.y as f32),
-                        region: Vector4::new(
-                            g.region.x as f32 / FONT_ATLAS_SIZE as f32,
-                            g.region.y as f32 / FONT_ATLAS_SIZE as f32,
-                            g.region.z as f32 / FONT_ATLAS_SIZE as f32,
-                            g.region.w as f32 / FONT_ATLAS_SIZE as f32,
-                        ),
+                        region: rect_to_vector4(g.region.to_f32()) / FONT_ATLAS_SIZE as f32,
                         color: Vector4::new(1.0, 1.0, 1.0, 1.0),
                     };
                     instances.push(instance);

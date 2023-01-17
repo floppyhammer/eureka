@@ -382,13 +382,13 @@ impl App {
 
         self.singletons.core_server.tick();
 
-        // self.world
-        //     .get_node_mut::<Label>(self.fps_label_id)
-        //     .unwrap()
-        //     .set_text(format!(
-        //         "FPS: {}",
-        //         self.singletons.core_server.get_fps() as i32
-        //     ));
+        self.world
+            .get_node_mut::<Label>(self.fps_label_id)
+            .unwrap()
+            .set_text(format!(
+                "FPS: {}",
+                self.singletons.core_server.get_fps() as i32
+            ));
 
         self.world.update(dt_in_secs, &mut self.singletons);
     }
