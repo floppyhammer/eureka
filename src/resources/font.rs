@@ -376,7 +376,11 @@ impl DynamicFont {
                     };
 
                     self.glyph_cache.insert(index, glyph.clone());
-                    log::info!("New glyph added to font cache: {} - {}", glyph.index, glyph.text);
+                    log::info!(
+                        "New glyph added to font cache: {} - {}",
+                        glyph.index,
+                        glyph.text
+                    );
 
                     match self.updated_atlas_region {
                         Some(r) => {

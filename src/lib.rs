@@ -36,7 +36,7 @@ use crate::scene::{
 };
 use crate::servers::render_server::RenderServer;
 use crate::servers::text_server::TextServer;
-use crate::servers::{AssetServer, core_server, CoreServer};
+use crate::servers::{core_server, AssetServer, CoreServer};
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
@@ -49,13 +49,10 @@ pub struct Singletons {
     pub asset_server: AssetServer,
 }
 
-// For convenience we're going to pack all the fields into a struct,
-// and create some methods on that.
 pub struct App {
     window: Window,
     window_size: winit::dpi::PhysicalSize<u32>,
     depth_texture: Texture,
-    previous_frame_time: f32,
     world: World,
     pub singletons: Singletons,
     is_init: bool,
@@ -71,10 +68,8 @@ impl App {
         // Use cargo package name as the window title.
         let title = env!("CARGO_PKG_NAME");
 
-        let window_size = winit::dpi::PhysicalSize::new(
-            INITIAL_WINDOW_WIDTH,
-            INITIAL_WINDOW_HEIGHT,
-        );
+        let window_size =
+            winit::dpi::PhysicalSize::new(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
 
         let window = WindowBuilder::new()
             .with_title(title)
@@ -82,7 +77,7 @@ impl App {
             .build(&event_loop)
             .unwrap();
 
-        // App::new uses async code, so we're going to wait for it to finish
+        // App::init_render uses async code, so we're going to wait for it to finish.
         let mut render_server = pollster::block_on(App::init_render(&window));
 
         let mut core_server = CoreServer::new();
@@ -97,70 +92,13 @@ impl App {
         let asset_server = AssetServer::new();
 
         let mut text_server = TextServer::new(
-            asset_server.asset_dir.join("fonts/Arial Unicode MS Font.ttf"),
+            asset_server
+                .asset_dir
+                .join("fonts/Arial Unicode MS Font.ttf"),
             &render_server,
         );
+
         let mut world = World::new(Point2::new(window_size.width, window_size.height));
-        // // Create nodes.
-        // // ---------------------------------------------------
-        //
-        //
-        // let camera3d = Camera3d::new(
-        //     (0.0, 0.0, 0.0),
-        //     cgmath::Deg(-90.0),
-        //     cgmath::Deg(0.0),
-        //     &render_server,
-        // );
-        // world.add_node(Box::new(camera3d), None);
-        //
-        // let camera2d = Camera2d::new((size.width, size.height));
-        // world.add_node(Box::new(camera2d), None);
-        //
-        // let skybox_tex =
-        //     CubemapTexture::load(&render_server, asset_dir.join("skybox.jpg")).unwrap();
-        // let sky = Box::new(Sky::new(&render_server, skybox_tex));
-        // world.add_node(sky, None);
-        //
-        // // Light.
-        // let light = Light::new(&render_server, asset_dir.join("light.png"));
-        // world.add_node(Box::new(light), None);
-        //
-        // // Model.
-        // // let obj_model = Box::new(
-        // //     Model::load(&render_server, asset_dir.join("ferris/ferris3d_v1.0.obj")).unwrap(),
-        // // );
-        // // world.add_node(obj_model, None);
-        //
-
-        //
-        // let mut label = Box::new(Label::new(&render_server));
-        // label.transform.position = Point2::new(0.0, 200.0);
-        // label.set_text("This is a label!".to_string());
-        // let fps_label_id = world.add_node(label, Some(vec_sprite_id));
-
-        // ---------------------------------------------------
-
-        // Test ground.
-        // ---------------------------------------------------
-        // let mut atlas = Atlas::new(&render_server);
-        //
-        // let mut instances = vec![];
-        // for i in 0..10 {
-        //     let instance = AtlasInstance {
-        //         position: Vector2::new(i as f32 * 100.0 + 100.0, i as f32 * 100.0),
-        //         size: Vector2::new(128.0, 128.0),
-        //         region: Vector4::new(0.0, 0.0, 1.0, 1.0),
-        //         color: Vector4::new(1.0, 1.0, 1.0, 1.0),
-        //     };
-        //     instances.push(instance);
-        // }
-        // atlas.set_instances(instances, &render_server);
-        // atlas.set_texture(Texture::load(
-        //     &render_server.device,
-        //     &render_server.queue,
-        //     asset_dir.join("happy-tree.png"),
-        // ).unwrap(), &render_server);
-        // ---------------------------------------------------
 
         let singletons = Singletons {
             core_server,
@@ -174,7 +112,6 @@ impl App {
             window,
             window_size,
             depth_texture,
-            previous_frame_time: 0.0,
             world,
             singletons,
             is_init: false,
@@ -359,7 +296,10 @@ impl App {
         //         self.singletons.core_server.get_fps() as i32
         //     ));
 
-        self.world.update(self.singletons.core_server.get_delta() as f32, &mut self.singletons);
+        self.world.update(
+            self.singletons.core_server.get_delta() as f32,
+            &mut self.singletons,
+        );
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {

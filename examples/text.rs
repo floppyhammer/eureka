@@ -1,8 +1,8 @@
 use cgmath::Point2;
-use winit::event_loop::EventLoop;
-use eureka::App;
-use eureka::scene::Camera2d;
 use eureka::scene::label::Label;
+use eureka::scene::Camera2d;
+use eureka::App;
+use winit::event_loop::EventLoop;
 
 fn main() {
     let mut event_loop = EventLoop::new();

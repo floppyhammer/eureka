@@ -21,7 +21,7 @@ pub use light::*;
 pub use model::*;
 pub use node::*;
 pub use sky::*;
-pub use world::*;
 pub use vector_sprite::*;
+pub use world::*;
 
 pub use crate::servers::input_server::*;

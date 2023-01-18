@@ -1,8 +1,8 @@
 use cgmath::Point2;
-use winit::event_loop::EventLoop;
-use eureka::App;
 use eureka::resources::CubemapTexture;
 use eureka::scene::{Camera3d, Light, Model, Sky};
+use eureka::App;
+use winit::event_loop::EventLoop;
 
 fn main() {
     let mut event_loop = EventLoop::new();
@@ -17,18 +17,31 @@ fn main() {
     );
     app.add_node(Box::new(camera3d), None);
 
-    let skybox_tex =
-        CubemapTexture::load(&app.singletons.render_server, &app.singletons.asset_server.asset_dir.join("skybox.jpg")).unwrap();
+    let skybox_tex = CubemapTexture::load(
+        &app.singletons.render_server,
+        &app.singletons.asset_server.asset_dir.join("skybox.jpg"),
+    )
+    .unwrap();
     let sky = Box::new(Sky::new(&app.singletons.render_server, skybox_tex));
     app.add_node(sky, None);
 
     // Light.
-    let light = Light::new(&app.singletons.render_server, &app.singletons.asset_server.asset_dir.join("light.png"));
+    let light = Light::new(
+        &app.singletons.render_server,
+        &app.singletons.asset_server.asset_dir.join("light.png"),
+    );
     app.add_node(Box::new(light), None);
 
     // Model.
     let obj_model = Box::new(
-        Model::load(&app.singletons.render_server, &app.singletons.asset_server.asset_dir.join("ferris/ferris3d_v1.0.obj")).unwrap(),
+        Model::load(
+            &app.singletons.render_server,
+            &app.singletons
+                .asset_server
+                .asset_dir
+                .join("ferris/ferris3d_v1.0.obj"),
+        )
+        .unwrap(),
     );
     app.add_node(obj_model, None);
 
