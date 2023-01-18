@@ -31,10 +31,10 @@ pub struct Camera2d {
 }
 
 impl Camera2d {
-    pub fn new(view_size: (u32, u32)) -> Self {
+    pub fn new() -> Self {
         Self {
             transform: Transform2d::default(),
-            view_size: Point2::new(view_size.0, view_size.1),
+            view_size: Point2::new(0, 0),
         }
     }
 

@@ -11,10 +11,10 @@ use cgmath::{EuclideanSpace, Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use std::any::Any;
 
-pub(crate) struct Label {
+pub struct Label {
     text: String,
 
-    pub(crate) transform: Transform2d,
+    pub transform: Transform2d,
 
     pub(crate) size: Vector2<f32>,
 
@@ -31,7 +31,7 @@ pub(crate) struct Label {
 }
 
 impl Label {
-    pub(crate) fn new(render_server: &RenderServer) -> Label {
+    pub fn new(render_server: &RenderServer) -> Label {
         let size = Vector2::new(128.0_f32, 128.0);
 
         let mut atlas = Atlas::new(

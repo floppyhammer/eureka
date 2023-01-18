@@ -45,3 +45,15 @@ bevy_ecs = "0.9"
 anyhow = "1.0"
 fs_extra = "1.2"
 glob = "0.3"
+
+[[example]]
+name = "2d"
+path = "examples/2d.rs"
+
+[[example]]
+name = "3d"
+path = "examples/3d.rs"
+
+[[example]]
+name = "text"
+path = "examples/text.rs"

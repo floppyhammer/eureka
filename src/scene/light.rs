@@ -16,7 +16,7 @@ pub struct Light {
 }
 
 impl Light {
-    pub(crate) fn new<P: AsRef<Path>>(render_server: &RenderServer, icon_path: P) -> Self {
+    pub fn new<P: AsRef<Path>>(render_server: &RenderServer, icon_path: P) -> Self {
         let device = &render_server.device;
         let queue = &render_server.queue;
 

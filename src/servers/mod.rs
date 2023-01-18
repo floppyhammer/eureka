@@ -8,3 +8,4 @@ pub(crate) mod vector_server;
 pub use core_server::*;
 pub use input_server::*;
 pub use vector_server::*;
+pub use asset_server::*;

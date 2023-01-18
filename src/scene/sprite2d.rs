@@ -36,7 +36,7 @@ pub struct Sprite2d {
 }
 
 impl Sprite2d {
-    pub(crate) fn new(render_server: &RenderServer, texture: Texture) -> Sprite2d {
+    pub fn new(render_server: &RenderServer, texture: Texture) -> Sprite2d {
         let device = &render_server.device;
 
         let size = Vector2::new(128.0_f32, 128.0);

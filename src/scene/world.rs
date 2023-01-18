@@ -21,10 +21,12 @@ pub struct World {
     camera_info: CameraInfo,
 
     gizmo: Gizmo,
+
+    view_size: Point2<u32>,
 }
 
 impl World {
-    pub fn new() -> Self {
+    pub fn new(view_size: Point2<u32>) -> Self {
         let mut arena = Arena::new();
 
         let gizmo = Gizmo::new();
@@ -37,6 +39,7 @@ impl World {
             lights: vec![],
             gizmo,
             camera_info: CameraInfo::default(),
+            view_size,
         }
     }
 
@@ -148,16 +151,18 @@ impl World {
     }
 
     pub fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        // Get camera info.
-        if let Some(camera2d) = self.get_node::<Camera2d>(self.current_camera2d.unwrap()) {
-            let view_size = camera2d.view_size;
-
-            self.camera_info.position = camera2d.transform.position;
-            self.camera_info.view_size = view_size;
+        if let Some(node_id) = self.current_camera2d {
+            // Get camera info.
+            if let Some(camera2d) = self.get_node::<Camera2d>(node_id) {
+                self.camera_info.position = camera2d.transform.position;
+                self.camera_info.view_size = self.view_size;
+            }
         }
 
-        if let Some(camera3d) = self.get_node::<Camera3d>(self.current_camera3d.unwrap()) {
-            self.camera_info.bind_group = Some(camera3d.bind_group.clone());
+        if let Some(node_id) = self.current_camera3d {
+            if let Some(camera3d) = self.get_node::<Camera3d>(node_id) {
+                self.camera_info.bind_group = Some(camera3d.bind_group.clone());
+            }
         }
 
         for id in self.traverse() {
@@ -182,11 +187,18 @@ impl World {
     }
 
     pub fn when_view_size_changes(&mut self, new_size: Point2<u32>) {
-        self.get_node_mut::<Camera2d>(self.current_camera2d.unwrap())
-            .unwrap()
-            .when_view_size_changes(new_size);
-        self.get_node_mut::<Camera3d>(self.current_camera3d.unwrap())
-            .unwrap()
-            .when_view_size_changes(new_size);
+        self.view_size = new_size;
+
+        if let Some(node_id) = self.current_camera2d {
+            self.get_node_mut::<Camera2d>(node_id)
+                .unwrap()
+                .when_view_size_changes(new_size);
+        }
+
+        if let Some(node_id) = self.current_camera3d {
+            self.get_node_mut::<Camera3d>(node_id)
+                .unwrap()
+                .when_view_size_changes(new_size);
+        }
     }
 }
