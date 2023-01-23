@@ -16,7 +16,7 @@ pub struct VectorSprite {
     pub transform: Transform2d,
     pub size: cgmath::Vector2<f32>,
 
-    texture: VectorTexture,
+    texture: Option<VectorTexture>,
 
     camera_uniform: Camera2dUniform,
     pub camera_buffer: wgpu::Buffer,
@@ -33,18 +33,19 @@ impl VectorSprite {
 
         let size = cgmath::Vector2::new(128.0 as f32, 128.0);
 
-        let mut texture = VectorTexture::default();
-        texture.prepare_gpu_resources(render_server);
-
         Self {
             transform: Transform2d::default(),
             size,
-            texture,
+            texture: None,
             camera_uniform: Camera2dUniform::default(),
             camera_buffer,
             camera_bind_group,
             need_to_rebuild: false,
         }
+    }
+
+    pub fn set_texture(&mut self, texture: VectorTexture) {
+        self.texture = Some(texture);
     }
 }
 
@@ -83,18 +84,20 @@ impl AsNode for VectorSprite {
         camera_info: &'b CameraInfo,
         singletons: &'b Singletons,
     ) {
-        // Update camera buffer.
-        singletons.render_server.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::cast_slice(&[self.camera_uniform]),
-        );
+        if let Some(tex) = &self.texture {
+            // Update camera buffer.
+            singletons.render_server.queue.write_buffer(
+                &self.camera_buffer,
+                0,
+                bytemuck::cast_slice(&[self.camera_uniform]),
+            );
 
-        render_pass.draw_path(
-            &singletons.render_server.vector_sprite_pipeline,
-            &self.texture.mesh.as_ref().unwrap(),
-            &self.camera_bind_group,
-        );
+            render_pass.draw_path(
+                &singletons.render_server.vector_sprite_pipeline,
+                &tex.mesh.as_ref().unwrap(),
+                &self.camera_bind_group,
+            );
+        }
     }
 }
 
@@ -108,8 +111,8 @@ pub trait DrawVector<'a> {
 }
 
 impl<'a, 'b> DrawVector<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a,
+    where
+        'b: 'a,
 {
     fn draw_path(
         &mut self,

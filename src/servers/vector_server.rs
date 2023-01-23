@@ -1,7 +1,11 @@
+use std::fs;
+use lyon::geom::Point;
 use crate::render::vertex::{VectorVertex, VertexBuffer};
 use crate::resources::RenderServer;
 use lyon::math::point;
+use lyon::path::builder::Build;
 use lyon::path::Path;
+use lyon::path::path::Builder;
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers};
 use wgpu::util::DeviceExt;
 
@@ -21,51 +25,71 @@ pub struct VectorTexture {
     geometry: VertexBuffers<VectorVertex, u32>,
     /// GPU mesh.
     pub(crate) mesh: Option<VectorMesh>,
+    builder: Builder,
 }
 
 impl VectorTexture {
     /// Load from a SVG file.
-    fn load_from_file() {}
+    pub fn from_file<P: AsRef<std::path::Path>>(path: P, render_server: &RenderServer) -> Self {
+        let data = fs::read(path).expect("No SVG file found!");
 
-    pub(crate) fn default() -> Self {
-        // Build a Path.
+        let tree: usvg::Tree = usvg::Tree::from_data(&data, &usvg::Options::default()).unwrap();
+
+        let mut tex = VectorTexture::new((tree.size.width() as f32, tree.size.height() as f32));
+
+        let root = &tree.root;
+
+        for kid in root.children() {
+            process_node(&kid, &mut tex.builder);
+        }
+
+        tex.build();
+
+        tex.prepare_gpu_resources(render_server);
+
+        tex
+    }
+
+    pub(crate) fn new(size: (f32, f32)) -> Self {
+        // // Build a Path.
         let mut builder = Path::builder();
-        builder.begin(point(256.0, 256.0));
-        builder.line_to(point(128.0, 256.0));
-        builder.line_to(point(256.0, 128.0));
-        //builder.quadratic_bezier_to(point(200.0, 0.0), point(200.0, 100.0));
-        //builder.cubic_bezier_to(point(100.0, 100.0), point(0.0, 100.0), point(0.0, 0.0));
-        builder.end(true);
+
+        let mut geometry: VertexBuffers<VectorVertex, u32> = VertexBuffers::new();
+
+        Self {
+            size,
+            geometry,
+            mesh: None,
+            builder,
+        }
+    }
+
+    pub(crate) fn build(&mut self) {
+        let mut builder = std::mem::replace(&mut self.builder, Path::builder());
+
         let path = builder.build();
 
         // Will contain the result of the tessellation.
-        let mut geometry: VertexBuffers<VectorVertex, u32> = VertexBuffers::new();
         let mut tessellator = FillTessellator::new();
-        {
-            // Compute the tessellation.
-            tessellator
-                .tessellate_path(
-                    &path,
-                    &FillOptions::default(),
-                    &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| VectorVertex {
-                        position: vertex.position().to_array(),
-                        color: [1.0, 1.0, 1.0],
-                    }),
-                )
-                .unwrap();
-        }
+
+        // Compute the tessellation.
+        tessellator
+            .tessellate_path(
+                &path,
+                &FillOptions::default(),
+                &mut BuffersBuilder::new(&mut self.geometry, |vertex: FillVertex| VectorVertex {
+                    position: vertex.position().to_array(),
+                    color: [1.0, 1.0, 1.0],
+                }),
+            )
+            .unwrap();
+
         // The tessellated geometry is ready to be uploaded to the GPU.
         log::info!(
             "Vector sprite info: {} vertices, {} indices",
-            geometry.vertices.len(),
-            geometry.indices.len()
+            self.geometry.vertices.len(),
+            self.geometry.indices.len()
         );
-
-        Self {
-            size: (256.0, 256.0),
-            geometry,
-            mesh: None,
-        }
     }
 
     pub(crate) fn prepare_gpu_resources(&mut self, render_server: &RenderServer) {
@@ -89,6 +113,57 @@ impl VectorTexture {
             index_buffer,
             index_count: self.geometry.indices.len() as u32,
         });
+    }
+}
+
+fn process_node(node: &usvg::Node, builder: &mut Builder) {
+    match *node.borrow() {
+        // usvg::NodeKind::Group(_) => {
+        //     for kid in node.children() {
+        //         process_node(&kid, builder)
+        //     }
+        // }
+        usvg::NodeKind::Path(ref path) => {
+            let mut subpath_ended = false;
+
+            for segment in path.data.segments() {
+                match segment {
+                    usvg::PathSegment::MoveTo { x, y } => {
+                        builder.begin(point(x as f32, y as f32));
+                    }
+                    usvg::PathSegment::LineTo { x, y } => {
+                        builder.line_to(point(x as f32, y as f32));
+                    }
+                    usvg::PathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
+                        builder.cubic_bezier_to(point(x1 as f32, y1 as f32), point(x2 as f32, y2 as f32), point(x as f32, y as f32));
+                    }
+                    usvg::PathSegment::ClosePath => {
+                        builder.close();
+                        subpath_ended = true;
+                    }
+                }
+            }
+
+            if !subpath_ended {
+                builder.end(false);
+            }
+
+            if let Some(ref fill) = path.fill {
+                // set_color(&fill.paint);
+                println!("    paint.setStyle(SkPaint::kFill_Style);");
+                println!("    canvas->drawPath(path, paint);");
+            }
+
+            if let Some(ref stroke) = path.stroke {
+                // set_color(&stroke.paint);
+                println!("    paint.setStrokeWidth({});", stroke.width);
+                println!("    paint.setStyle(SkPaint::kStroke_Style);");
+                println!("    canvas->drawPath(path, paint);");
+            }
+
+            println!("    path.reset();");
+        }
+        _ => {}
     }
 }
 

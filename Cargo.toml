@@ -40,6 +40,8 @@ unicode-bidi = "0.3.8"
 unicode-segmentation = "1.10.0"
 # For ECS.
 bevy_ecs = "0.9"
+# SVG parsing.
+usvg = "0.28.0"
 
 [build-dependencies]
 anyhow = "1.0"
