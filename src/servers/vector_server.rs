@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::fs;
 use lyon::geom::Point;
 use crate::render::vertex::{VectorVertex, VertexBuffer};
@@ -6,7 +7,8 @@ use lyon::math::point;
 use lyon::path::builder::Build;
 use lyon::path::Path;
 use lyon::path::path::Builder;
-use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers};
+use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, StrokeOptions, StrokeTessellator, StrokeVertex, VertexBuffers};
+use usvg::Paint;
 use wgpu::util::DeviceExt;
 
 pub struct VectorMesh {
@@ -23,6 +25,9 @@ pub struct VectorTexture {
     // pub paths: Vec<Path>,
     /// CPU mesh.
     geometry: VertexBuffers<VectorVertex, u32>,
+    vertices: Vec<VectorVertex>,
+    indices: Vec<u32>,
+    max_index: u32,
     /// GPU mesh.
     pub(crate) mesh: Option<VectorMesh>,
     builder: Builder,
@@ -40,10 +45,10 @@ impl VectorTexture {
         let root = &tree.root;
 
         for kid in root.children() {
-            process_node(&kid, &mut tex.builder);
+            tex.process_node(&kid);
         }
 
-        tex.build();
+        // tex.build();
 
         tex.prepare_gpu_resources(render_server);
 
@@ -59,6 +64,9 @@ impl VectorTexture {
         Self {
             size,
             geometry,
+            vertices: vec![],
+            indices: vec![],
+            max_index: 0,
             mesh: None,
             builder,
         }
@@ -97,13 +105,13 @@ impl VectorTexture {
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("vertex buffer for vector sprite")),
-            contents: bytemuck::cast_slice(&self.geometry.vertices),
+            contents: bytemuck::cast_slice(&self.vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
 
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("index buffer for vector sprite")),
-            contents: bytemuck::cast_slice(&self.geometry.indices),
+            contents: bytemuck::cast_slice(&self.indices),
             usage: wgpu::BufferUsages::INDEX,
         });
 
@@ -111,61 +119,110 @@ impl VectorTexture {
             name: "".to_string(),
             vertex_buffer,
             index_buffer,
-            index_count: self.geometry.indices.len() as u32,
+            index_count: self.indices.len() as u32,
         });
     }
-}
 
-fn process_node(node: &usvg::Node, builder: &mut Builder) {
-    match *node.borrow() {
-        // usvg::NodeKind::Group(_) => {
-        //     for kid in node.children() {
-        //         process_node(&kid, builder)
-        //     }
-        // }
-        usvg::NodeKind::Path(ref path) => {
-            let mut subpath_ended = false;
+    fn process_node(&mut self, node: &usvg::Node) {
+        match *node.borrow() {
+            // usvg::NodeKind::Group(_) => {
+            //     for kid in node.children() {
+            //         process_node(&kid, builder)
+            //     }
+            // }
+            usvg::NodeKind::Path(ref path) => {
+                let mut builder = Path::builder();
 
-            for segment in path.data.segments() {
-                match segment {
-                    usvg::PathSegment::MoveTo { x, y } => {
-                        builder.begin(point(x as f32, y as f32));
-                    }
-                    usvg::PathSegment::LineTo { x, y } => {
-                        builder.line_to(point(x as f32, y as f32));
-                    }
-                    usvg::PathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
-                        builder.cubic_bezier_to(point(x1 as f32, y1 as f32), point(x2 as f32, y2 as f32), point(x as f32, y as f32));
-                    }
-                    usvg::PathSegment::ClosePath => {
-                        builder.close();
-                        subpath_ended = true;
+                let mut subpath_ended = false;
+
+                for segment in path.data.segments() {
+                    match segment {
+                        usvg::PathSegment::MoveTo { x, y } => {
+                            builder.begin(point(x as f32, y as f32));
+                        }
+                        usvg::PathSegment::LineTo { x, y } => {
+                            builder.line_to(point(x as f32, y as f32));
+                        }
+                        usvg::PathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
+                            builder.cubic_bezier_to(point(x1 as f32, y1 as f32), point(x2 as f32, y2 as f32), point(x as f32, y as f32));
+                        }
+                        usvg::PathSegment::ClosePath => {
+                            builder.close();
+                            subpath_ended = true;
+                        }
                     }
                 }
-            }
 
-            if !subpath_ended {
-                builder.end(false);
-            }
+                if !subpath_ended {
+                    builder.end(false);
+                }
 
-            if let Some(ref fill) = path.fill {
-                // set_color(&fill.paint);
-                println!("    paint.setStyle(SkPaint::kFill_Style);");
-                println!("    canvas->drawPath(path, paint);");
-            }
+                let lyon_path = builder.build();
 
-            if let Some(ref stroke) = path.stroke {
-                // set_color(&stroke.paint);
-                println!("    paint.setStrokeWidth({});", stroke.width);
-                println!("    paint.setStyle(SkPaint::kStroke_Style);");
-                println!("    canvas->drawPath(path, paint);");
-            }
+                let mut geometry: VertexBuffers<VectorVertex, u32> = VertexBuffers::new();
 
-            println!("    path.reset();");
+                if let Some(ref fill) = path.fill {
+                    // Will contain the result of the tessellation.
+                    let mut tessellator = FillTessellator::new();
+
+                    match fill.paint {
+                        Paint::Color(color) => {
+                            // Compute the tessellation.
+                            let result = tessellator
+                                .tessellate_path(
+                                    &lyon_path,
+                                    &FillOptions::default(),
+                                    &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| VectorVertex {
+                                        position: vertex.position().to_array(),
+                                        color: [color.red as f32 / 255.0, color.green as f32 / 255.0, color.blue as f32 / 255.0],
+                                    }),
+                                );
+                            assert!(result.is_ok());
+                        }
+                        Paint::LinearGradient(_) => {}
+                        Paint::RadialGradient(_) => {}
+                        Paint::Pattern(_) => {}
+                    }
+                }
+
+                if let Some(ref stroke) = path.stroke {
+                    // Create the tessellator.
+                    let mut tessellator = StrokeTessellator::new();
+
+                    match stroke.paint {
+                        Paint::Color(color) => {
+                            // Compute the tessellation.
+                            let result = tessellator.tessellate_path(
+                                &lyon_path,
+                                &StrokeOptions::default().with_line_width(stroke.width.get() as f32),
+                                &mut BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| VectorVertex {
+                                    position: vertex.position().to_array(),
+                                    color: [color.red as f32 / 255.0, color.green as f32 / 255.0, color.blue as f32 / 255.0],
+                                }),
+                            );
+                            assert!(result.is_ok());
+                        }
+                        Paint::LinearGradient(_) => {}
+                        Paint::RadialGradient(_) => {}
+                        Paint::Pattern(_) => {}
+                    }
+                }
+
+                let vertex_count = geometry.vertices.len();
+
+                self.vertices.extend(geometry.vertices);
+
+                for index in geometry.indices {
+                    self.indices.push(index + self.max_index);
+                }
+
+                self.max_index += vertex_count as u32;
+            }
+            _ => {}
         }
-        _ => {}
     }
 }
+
 
 pub struct VectorServer {}
 
