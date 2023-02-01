@@ -1,13 +1,16 @@
-use std::cmp::max;
-use std::fs;
-use lyon::geom::Point;
 use crate::render::vertex::{VectorVertex, VertexBuffer};
 use crate::resources::RenderServer;
+use lyon::geom::Point;
 use lyon::math::point;
 use lyon::path::builder::Build;
-use lyon::path::Path;
 use lyon::path::path::Builder;
-use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, StrokeOptions, StrokeTessellator, StrokeVertex, VertexBuffers};
+use lyon::path::Path;
+use lyon::tessellation::{
+    BuffersBuilder, FillOptions, FillTessellator, FillVertex, StrokeOptions, StrokeTessellator,
+    StrokeVertex, VertexBuffers,
+};
+use std::cmp::max;
+use std::fs;
 use usvg::Paint;
 use wgpu::util::DeviceExt;
 
@@ -143,8 +146,19 @@ impl VectorTexture {
                         usvg::PathSegment::LineTo { x, y } => {
                             builder.line_to(point(x as f32, y as f32));
                         }
-                        usvg::PathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
-                            builder.cubic_bezier_to(point(x1 as f32, y1 as f32), point(x2 as f32, y2 as f32), point(x as f32, y as f32));
+                        usvg::PathSegment::CurveTo {
+                            x1,
+                            y1,
+                            x2,
+                            y2,
+                            x,
+                            y,
+                        } => {
+                            builder.cubic_bezier_to(
+                                point(x1 as f32, y1 as f32),
+                                point(x2 as f32, y2 as f32),
+                                point(x as f32, y as f32),
+                            );
                         }
                         usvg::PathSegment::ClosePath => {
                             builder.close();
@@ -168,15 +182,20 @@ impl VectorTexture {
                     match fill.paint {
                         Paint::Color(color) => {
                             // Compute the tessellation.
-                            let result = tessellator
-                                .tessellate_path(
-                                    &lyon_path,
-                                    &FillOptions::default(),
-                                    &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| VectorVertex {
+                            let result = tessellator.tessellate_path(
+                                &lyon_path,
+                                &FillOptions::default(),
+                                &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
+                                    VectorVertex {
                                         position: vertex.position().to_array(),
-                                        color: [color.red as f32 / 255.0, color.green as f32 / 255.0, color.blue as f32 / 255.0],
-                                    }),
-                                );
+                                        color: [
+                                            color.red as f32 / 255.0,
+                                            color.green as f32 / 255.0,
+                                            color.blue as f32 / 255.0,
+                                        ],
+                                    }
+                                }),
+                            );
                             assert!(result.is_ok());
                         }
                         Paint::LinearGradient(_) => {}
@@ -194,10 +213,17 @@ impl VectorTexture {
                             // Compute the tessellation.
                             let result = tessellator.tessellate_path(
                                 &lyon_path,
-                                &StrokeOptions::default().with_line_width(stroke.width.get() as f32),
-                                &mut BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| VectorVertex {
-                                    position: vertex.position().to_array(),
-                                    color: [color.red as f32 / 255.0, color.green as f32 / 255.0, color.blue as f32 / 255.0],
+                                &StrokeOptions::default()
+                                    .with_line_width(stroke.width.get() as f32),
+                                &mut BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| {
+                                    VectorVertex {
+                                        position: vertex.position().to_array(),
+                                        color: [
+                                            color.red as f32 / 255.0,
+                                            color.green as f32 / 255.0,
+                                            color.blue as f32 / 255.0,
+                                        ],
+                                    }
                                 }),
                             );
                             assert!(result.is_ok());
@@ -222,7 +248,6 @@ impl VectorTexture {
         }
     }
 }
-
 
 pub struct VectorServer {}
 

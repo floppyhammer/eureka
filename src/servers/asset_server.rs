@@ -1,9 +1,15 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+pub enum AssetType {
+    Image,
+    Font,
+    Mesh,
+}
+
 pub trait AsAsset {
-    /// The returned unique ID will be used as hashmap key.
-    fn get_unique_id(&self);
+    /// The returned ID will be used as the hashing key.
+    fn get_unique_id(&self) -> String;
 }
 
 pub struct AssetServer {
@@ -22,5 +28,9 @@ impl AssetServer {
         log::info!("Asset dir: {}", asset_dir.display());
 
         Self { assets, asset_dir }
+    }
+
+    pub fn get_asset(&mut self, id: String) -> Option<&Box<dyn AsAsset>> {
+        self.assets.get(&id)
     }
 }

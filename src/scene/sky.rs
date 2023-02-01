@@ -9,7 +9,7 @@ use std::path::Path;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 
-use crate::resources::CubemapTexture;
+use crate::resources::CubeTexture;
 use crate::resources::{material, mesh, texture};
 use crate::scene::{AsNode, CameraInfo, NodeType};
 use crate::{InputEvent, RenderServer, Singletons};
@@ -27,7 +27,7 @@ pub struct Sky {
 }
 
 impl Sky {
-    pub fn new(render_server: &RenderServer, texture: CubemapTexture) -> Self {
+    pub fn new(render_server: &RenderServer, texture: CubeTexture) -> Self {
         let now = Instant::now();
 
         let bind_group = render_server

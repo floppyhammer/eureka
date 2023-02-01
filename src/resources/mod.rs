@@ -1,6 +1,7 @@
 pub(crate) mod font;
 pub(crate) mod material;
 pub(crate) mod mesh;
+pub(crate) mod resource_manager;
 mod style_box;
 pub(crate) mod texture;
 

@@ -13,10 +13,13 @@ use winit::{
 use cgmath::{prelude::*, Point2, Vector2, Vector3, Vector4};
 use indextree::NodeId;
 
+use crate::core::engine::Engine;
 use wgpu::{util::DeviceExt, SamplerBindingType, TextureView};
+use winit::event::VirtualKeyCode::E;
 use winit::platform::run_return::EventLoopExtRunReturn;
 
 // Do this before importing local crates.
+pub mod core;
 pub mod math;
 pub mod render;
 pub mod resources;
@@ -26,7 +29,7 @@ pub mod servers;
 // Import local crates.
 use crate::render::atlas::{Atlas, AtlasInstance};
 use crate::render::gizmo::Gizmo;
-use crate::resources::{CubemapTexture, DynamicFont, Texture};
+use crate::resources::{CubeTexture, DynamicFont, Texture};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
@@ -36,13 +39,13 @@ use crate::scene::{
 };
 use crate::servers::render_server::RenderServer;
 use crate::servers::text_server::TextServer;
-use crate::servers::{core_server, AssetServer, CoreServer};
+use crate::servers::AssetServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
 
 pub struct Singletons {
-    pub core_server: CoreServer,
+    pub engine: Engine,
     pub render_server: RenderServer,
     pub input_server: InputServer,
     pub text_server: TextServer,
@@ -80,7 +83,7 @@ impl App {
         // App::init_render uses async code, so we're going to wait for it to finish.
         let mut render_server = pollster::block_on(App::init_render(&window));
 
-        let mut core_server = CoreServer::new();
+        let mut engine = Engine::new();
 
         // Depth texture for depth test.
         let depth_texture = Texture::create_depth_texture(
@@ -101,7 +104,7 @@ impl App {
         let mut world = World::new(Point2::new(window_size.width, window_size.height));
 
         let singletons = Singletons {
-            core_server,
+            engine,
             render_server,
             input_server: InputServer::new(),
             text_server,
@@ -286,7 +289,7 @@ impl App {
     }
 
     fn update(&mut self) {
-        self.singletons.core_server.tick();
+        self.singletons.engine.tick();
 
         // self.world
         //     .get_node_mut::<Label>(self.fps_label_id)
@@ -297,7 +300,7 @@ impl App {
         //     ));
 
         self.world.update(
-            self.singletons.core_server.get_delta() as f32,
+            self.singletons.engine.get_delta() as f32,
             &mut self.singletons,
         );
     }

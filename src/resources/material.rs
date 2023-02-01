@@ -1,7 +1,7 @@
 use crate::resources::texture;
 
 pub struct Material2d {
-    // Material name for debugging reason.
+    // Material name for debugging reason. Not unique.
     pub name: String,
     pub texture: texture::Texture,
     // Bind group for the texture.
@@ -19,7 +19,6 @@ pub struct Material3d {
 
 pub struct MaterialSky {
     pub name: String,
-    pub texture: texture::CubemapTexture,
-    // Bind group for the texture.
+    pub texture: texture::CubeTexture,
     pub bind_group: wgpu::BindGroup,
 }

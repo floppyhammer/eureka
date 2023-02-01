@@ -3,7 +3,7 @@ use wgpu::util::DeviceExt;
 
 /// Shared by 2D/3D meshes.
 pub struct Mesh {
-    // Mesh name for debugging reason.
+    // Mesh name for debugging reason. Not unique.
     pub name: String,
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,

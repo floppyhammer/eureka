@@ -1,5 +1,5 @@
 use cgmath::Point2;
-use eureka::resources::CubemapTexture;
+use eureka::resources::CubeTexture;
 use eureka::scene::{Camera3d, Light, Model, Sky};
 use eureka::App;
 use winit::event_loop::EventLoop;
@@ -17,7 +17,7 @@ fn main() {
     );
     app.add_node(Box::new(camera3d), None);
 
-    let skybox_tex = CubemapTexture::load(
+    let skybox_tex = CubeTexture::load(
         &app.singletons.render_server,
         &app.singletons.asset_server.asset_dir.join("skybox.jpg"),
     )

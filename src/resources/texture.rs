@@ -218,7 +218,7 @@ impl Texture {
     }
 }
 
-pub struct CubemapTexture {
+pub struct CubeTexture {
     // Actual data.
     pub texture: wgpu::Texture,
     // Thin wrapper over texture.
@@ -227,7 +227,7 @@ pub struct CubemapTexture {
     pub sampler: wgpu::Sampler,
 }
 
-impl CubemapTexture {
+impl CubeTexture {
     pub fn load<P: AsRef<Path>>(render_server: &RenderServer, path: P) -> Result<Self> {
         let now = Instant::now();
 
