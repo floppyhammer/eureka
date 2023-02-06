@@ -166,7 +166,7 @@ impl ModelUniform {
 }
 
 pub struct CameraInfo {
-    pub position: Point2<f32>,
+    pub position: Vector2<f32>,
 
     pub view_size: Point2<u32>,
 
@@ -176,7 +176,7 @@ pub struct CameraInfo {
 impl CameraInfo {
     pub(crate) fn default() -> Self {
         Self {
-            position: Point2::new(0.0, 0.0),
+            position: Vector2::new(0.0, 0.0),
             view_size: Point2::new(0, 0),
             bind_group: None,
         }

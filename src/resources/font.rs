@@ -17,6 +17,7 @@ use std::time::Instant;
 use unicode_bidi::{BidiClass, BidiInfo, Level};
 use unicode_segmentation::UnicodeSegmentation;
 
+/// Only scripts in this enum are supported.
 #[derive(Clone)]
 enum Script {
     // Emojis, symbols, etc.
@@ -137,7 +138,7 @@ impl DynamicFont {
             &atlas_image,
             "default font atlas".into(),
         )
-            .unwrap();
+        .unwrap();
 
         let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 

@@ -1,4 +1,4 @@
-use cgmath::Point2;
+use cgmath::{Point2, Vector2};
 use eureka::scene::label::Label;
 use eureka::scene::Camera2d;
 use eureka::App;
@@ -12,7 +12,7 @@ fn main() {
     app.add_node(Box::new(Camera2d::new()), None);
 
     let mut label_i18n = Box::new(Label::new(&app.singletons.render_server));
-    label_i18n.transform.position = Point2::new(0.0, 600.0);
+    label_i18n.transform.position = Vector2::new(0.0, 600.0);
     let mut text = "".to_string();
     text += "🌤你好世界！\n"; // Chinese
     text += "こんにちは世界！\n"; // Japanese
