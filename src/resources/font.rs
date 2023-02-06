@@ -18,17 +18,44 @@ use unicode_bidi::{BidiClass, BidiInfo, Level};
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Clone)]
+enum Script {
+    // Emojis, symbols, etc.
+    Common,
+    // English, Vietnamese, etc.
+    Latin,
+    // Chinese, kanjis.
+    Han,
+    Hiragana,
+    Katakana,
+    // Korean alphabet.
+    Hangul,
+    Arabic,
+    Bengali,
+    Thai,
+    Devanagari,
+}
+
+#[derive(Clone)]
+pub(crate) struct UnicodeCharacter {
+    // Char in Rust takes 4 bytes. It represents a Unicode scalar value.
+    codepoint: char,
+    script: rustybuzz::Script,
+}
+
+/// A glyph may consist of multiple unicode characters (i.e. ligatures).
+/// Possible scenarios (currently):
+/// 1. One glyph <=> 1 character.
+/// 2. One glyph <=> multiple characters.
+#[derive(Clone)]
 pub(crate) struct Glyph {
     /// Unique ID specific to a font.
     ///
     /// Codepoint cannot be used as an unique key in the font atlas image due to ligature.
     /// For example, ر in مر and ر in م ر obviously have different glyphs.
     pub(crate) index: u16,
-    /// Text of this glyph. There are 3 possible scenarios.
-    /// (1) 1 glyph -> n characters.
-    /// (2) n glyphs -> 1 character.
-    /// (3) m glyphs -> n characters
+    /// Text of this glyph. For debugging reason.
     text: String,
+    unicode_characters: Vec<UnicodeCharacter>,
     /// Glyph's baseline origin in its bitmap.
     pub(crate) offset: Vector2<i32>,
     pub(crate) bitmap_size: Vector2<i32>,
@@ -110,7 +137,7 @@ impl DynamicFont {
             &atlas_image,
             "default font atlas".into(),
         )
-        .unwrap();
+            .unwrap();
 
         let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 
@@ -186,15 +213,15 @@ impl DynamicFont {
 
     /// Uses rustybuzz for shaping.
     pub(crate) fn get_glyphs(&mut self, text: &str) -> (Vec<Glyph>, Vec<Range<usize>>) {
-        // // Debug
-        // for g in text.graphemes(true) {
-        //     println!("Grapheme: {}", g);
-        // }
-        //
-        // // Debug
-        // for c in text.chars() {
-        //     println!("Character: {}", c);
-        // }
+        // Debug
+        for g in text.graphemes(true) {
+            println!("Grapheme: {}", g);
+        }
+
+        // Debug
+        for c in text.chars() {
+            println!("Character: {}", c);
+        }
 
         let mut face = rustybuzz::Face::from_slice(&self.raw_font_data, 0).unwrap();
 
@@ -368,12 +395,21 @@ impl DynamicFont {
                             max(self.max_height_of_current_row, metrics.height as u32);
                     }
 
-                    let run_chars = run_text.bytes().collect::<Vec<u8>>();
-                    let glyph_text = run_chars[info.cluster as usize].to_string();
+                    let run_bytes = run_text.bytes().collect::<Vec<u8>>();
+                    let glyph_text = run_text[cluster_range.clone()].to_string();
+
+                    let mut unicode_characters = vec![];
+                    for c in glyph_text.chars() {
+                        unicode_characters.push(UnicodeCharacter {
+                            codepoint: c,
+                            script,
+                        })
+                    }
 
                     let glyph = Glyph {
                         index,
-                        text: run_text[cluster_range.clone()].to_string(),
+                        text: glyph_text,
+                        unicode_characters,
                         offset: Vector2::new(metrics.xmin, metrics.ymin),
                         bitmap_size: Vector2::new(metrics.width as i32, metrics.height as i32),
                         bounds: Vector4::new(

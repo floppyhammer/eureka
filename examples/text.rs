@@ -14,7 +14,7 @@ fn main() {
     let mut label_i18n = Box::new(Label::new(&app.singletons.render_server));
     label_i18n.transform.position = Point2::new(0.0, 600.0);
     let mut text = "".to_string();
-    text += "你好世界！\n"; // Chinese
+    text += "🌤你好世界！\n"; // Chinese
     text += "こんにちは世界！\n"; // Japanese
     text += "مرحبا بالعالم!\n"; // Arabic
     text += "ওহে বিশ্ব!\n"; // Bengali
