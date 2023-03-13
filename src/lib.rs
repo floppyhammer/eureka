@@ -124,10 +124,10 @@ impl App {
     // Creating some of the wgpu types requires async code.
     async fn init_render(window: &Window) -> RenderServer {
         // The instance is a handle to our GPU.
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
+        let instance = wgpu::Instance::default();
 
         // The surface is the part of the window that we draw to.
-        let surface = unsafe { instance.create_surface(window) };
+        let surface = unsafe { instance.create_surface(window).unwrap() };
 
         // The adapter is a handle to our actual graphics card.
         let adapter = instance
@@ -155,15 +155,9 @@ impl App {
         // Get the window's inner size.
         let size = window.inner_size();
 
-        // This will define how the surface creates its underlying SurfaceTextures.
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface.get_supported_formats(&adapter)[0],
-            width: size.width,
-            height: size.height,
-            present_mode: wgpu::PresentMode::Fifo,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-        };
+        let config = surface
+            .get_default_config(&adapter, size.width, size.height)
+            .expect("Surface unsupported by adapter!");
         surface.configure(&device, &config);
 
         // Create a render server.

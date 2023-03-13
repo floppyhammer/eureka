@@ -62,10 +62,10 @@ fn unproject_point(x: f32, y: f32, z: f32) -> vec3<f32> {
 
 @vertex
 fn vs_main_grid(@builtin(vertex_index) in_vertex_index: u32) -> GridOutput {
-    let u = f32((in_vertex_index << 1u) & 2u);
-    let v = f32(in_vertex_index & 2u);
-    let u = u - 1.0;
-    let v = 1.0 - v;
+    var u = f32((in_vertex_index << 1u) & 2u);
+    var v = f32(in_vertex_index & 2u);
+    u = u - 1.0;
+    v = 1.0 - v;
 
     return GridOutput(
         vec4<f32>(u, v, 0.0, 1.0),

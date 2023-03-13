@@ -1,4 +1,3 @@
-use cgmath::Point2;
 use eureka::resources::CubeTexture;
 use eureka::scene::{Camera3d, Light, Model, Sky};
 use eureka::App;
