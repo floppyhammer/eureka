@@ -46,13 +46,12 @@ impl World {
     pub fn add_node(&mut self, mut new_node: Box<dyn AsNode>, parent: Option<NodeId>) -> NodeId {
         log::info!("Added node: {}", new_node.node_type().to_string());
 
-        // FIXME: Should move this after adding node in the tree.
-        new_node.ready();
-
         let node_type = new_node.node_type();
 
+        // Create a new node.
         let id = self.arena.new_node(new_node);
 
+        // Handle some special nodes.
         match node_type {
             NodeType::Camera2d => {
                 self.current_camera2d = Some(id);
@@ -69,7 +68,7 @@ impl World {
         if self.root_node.is_none() {
             self.root_node = Some(id);
         } else {
-            // Set the root as the parent if there's none.
+            // Set the root as the parent if no parent is provided.
             let parent = match parent {
                 Some(p) => p,
                 None => self.root_node.unwrap(),
@@ -77,6 +76,9 @@ impl World {
 
             parent.append(id, &mut self.arena);
         }
+
+        // After the node is added to the tree, call its ready() function.
+        self.arena[id].get_mut().ready();
 
         id
     }
