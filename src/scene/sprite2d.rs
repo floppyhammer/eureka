@@ -115,15 +115,15 @@ impl AsNode for Sprite2d {
             ))
         } else {
             cgmath::Matrix4::from_translation(Vector3::new(
-                (self.transform.position.x / view_size.x as f32) / view_size.x as f32 * 2.0 - 1.0,
-                (self.transform.position.y / view_size.y as f32) / view_size.y as f32 * 2.0 - 1.0,
+                self.transform.position.x / view_size.x as f32 * 2.0 - 1.0,
+                self.transform.position.y / view_size.y as f32 * 2.0 + 1.0,
                 0.0,
             ))
         };
 
         let scale = cgmath::Matrix4::from_nonuniform_scale(
-            scaled_width / camera_info.view_size.x as f32,
-            scaled_height / camera_info.view_size.y as f32,
+            scaled_width / view_size.x as f32 * 2.0,
+            scaled_height / view_size.y as f32 * 2.0,
             1.0,
         );
 

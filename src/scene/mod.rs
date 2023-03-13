@@ -1,4 +1,4 @@
-pub(crate) mod button;
+pub mod button;
 pub(crate) mod camera2d;
 pub(crate) mod camera3d;
 pub(crate) mod ecs_test;
@@ -6,7 +6,6 @@ pub mod label;
 pub mod light;
 pub(crate) mod model;
 pub mod node;
-pub mod particles2d;
 pub(crate) mod sky;
 pub mod sprite2d;
 pub(crate) mod sprite3d;

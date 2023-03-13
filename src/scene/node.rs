@@ -11,7 +11,6 @@ pub enum NodeType {
     SpriteV,
     Label,
     Button,
-    Particles2d,
 
     // 3D
     Camera3d,
@@ -29,7 +28,6 @@ impl std::fmt::Display for NodeType {
             NodeType::SpriteV => write!(f, "SpriteV"),
             NodeType::Label => write!(f, "Label"),
             NodeType::Button => write!(f, "Button"),
-            NodeType::Particles2d => write!(f, "Particles2d"),
             NodeType::Camera3d => write!(f, "Camera3d"),
             NodeType::Sprite3d => write!(f, "Sprite3d"),
             NodeType::Model => write!(f, "Model"),
@@ -54,6 +52,7 @@ pub trait AsNode {
         // Default implementation
     }
 
+    // In a single frame, node functions will be called in the following order:
     // INPUT -> UPDATE -> DRAW
 
     fn input(&mut self, input_event: &mut InputEvent, input_server: &mut InputServer) {

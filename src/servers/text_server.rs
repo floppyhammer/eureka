@@ -58,7 +58,8 @@ impl TextServer {
         // Update atlas data.
         let mut instances = vec![];
 
-        let origin = xform.position - Vector2::new(0.0, ascent);
+        // Move origin from baseline to top-left.
+        let origin = xform.position + Vector2::new(0.0, ascent);
 
         let mut layout_pos = Vector2::new(0.0, 0.0);
 
@@ -82,7 +83,7 @@ impl TextServer {
             }
 
             layout_pos.x = 0.0;
-            layout_pos.y -= font.size as f32 + leading;
+            layout_pos.y += font.size as f32 + leading;
         }
 
         instances

@@ -214,15 +214,15 @@ impl DynamicFont {
 
     /// Uses rustybuzz for shaping.
     pub(crate) fn get_glyphs(&mut self, text: &str) -> (Vec<Glyph>, Vec<Range<usize>>) {
-        // Debug
-        for g in text.graphemes(true) {
-            println!("Grapheme: {}", g);
-        }
-
-        // Debug
-        for c in text.chars() {
-            println!("Character: {}", c);
-        }
+        // // Debug
+        // for g in text.graphemes(true) {
+        //     println!("Grapheme: {}", g);
+        // }
+        //
+        // // Debug
+        // for c in text.chars() {
+        //     println!("Character: {}", c);
+        // }
 
         let mut face = rustybuzz::Face::from_slice(&self.raw_font_data, 0).unwrap();
 
@@ -411,7 +411,7 @@ impl DynamicFont {
                         index,
                         text: glyph_text,
                         unicode_characters,
-                        offset: Vector2::new(metrics.xmin, metrics.ymin),
+                        offset: Vector2::new(metrics.xmin, -metrics.ymin),
                         bitmap_size: Vector2::new(metrics.width as i32, metrics.height as i32),
                         bounds: Vector4::new(
                             metrics.bounds.xmin,

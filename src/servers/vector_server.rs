@@ -128,11 +128,11 @@ impl VectorTexture {
 
     fn process_node(&mut self, node: &usvg::Node) {
         match *node.borrow() {
-            // usvg::NodeKind::Group(_) => {
-            //     for kid in node.children() {
-            //         process_node(&kid, builder)
-            //     }
-            // }
+            usvg::NodeKind::Group(_) => {
+                for kid in node.children() {
+                    self.process_node(&kid);
+                }
+            }
             usvg::NodeKind::Path(ref path) => {
                 let mut builder = Path::builder();
 

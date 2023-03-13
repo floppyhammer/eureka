@@ -1,5 +1,6 @@
-use cgmath::Point2;
+use cgmath::{Point2, Vector2};
 use eureka::resources::Texture;
+use eureka::scene::button::Button;
 use eureka::scene::label::Label;
 use eureka::scene::sprite2d::Sprite2d;
 use eureka::scene::{Camera2d, VectorSprite};
@@ -38,6 +39,10 @@ fn main() {
     .unwrap();
     let sprite = Box::new(Sprite2d::new(&app.singletons.render_server, sprite_tex));
     app.add_node(sprite, None);
+
+    let mut button = Box::new(Button::new(&app.singletons.render_server));
+    button.transform.position = Vector2::new(200.0, 200.0);
+    app.add_node(button, None);
 
     app.run(&mut event_loop);
 }

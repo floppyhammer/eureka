@@ -17,22 +17,22 @@ impl Mesh {
         let vertices = [
             Vertex2d {
                 position: [0.0, 0.0],
+                uv: [0.0, 0.0],
+                color: [1.0, 1.0, 1.0],
+            },
+            Vertex2d {
+                position: [0.0, -1.0],
                 uv: [0.0, 1.0],
                 color: [1.0, 1.0, 1.0],
             },
             Vertex2d {
-                position: [1.0, 0.0],
+                position: [1.0, -1.0],
                 uv: [1.0, 1.0],
                 color: [1.0, 1.0, 1.0],
             },
             Vertex2d {
-                position: [1.0, 1.0],
+                position: [1.0, 0.0],
                 uv: [1.0, 0.0],
-                color: [1.0, 1.0, 1.0],
-            },
-            Vertex2d {
-                position: [0.0, 1.0],
-                uv: [0.0, 0.0],
                 color: [1.0, 1.0, 1.0],
             },
         ];

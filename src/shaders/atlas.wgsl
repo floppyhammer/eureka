@@ -47,7 +47,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: InstanceInput)
         0.0, 0.0, 0.0, 1.0,
     );
     translation[3][0] = (instance.position.x / params.camera_view_size.x) * 2.0 - 1.0;
-    translation[3][1] = (instance.position.y / params.camera_view_size.y) * 2.0 - 1.0;
+    translation[3][1] = 1.0 - (instance.position.y / params.camera_view_size.y) * 2.0;
 
     var scale = mat4x4<f32>(
         1.0, 0.0, 0.0, 0.0,
@@ -75,9 +75,9 @@ var s_diffuse: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    if (params.mode_flag & MODE_FLAG_SPRITE) > 0u {
+    if ((params.mode_flag & MODE_FLAG_SPRITE) > 0u) {
         return in.color * textureSample(t_diffuse, s_diffuse, in.tex_coords);
-    } else if (params.mode_flag & MODE_FLAG_TEXT) > 0u {
+    } else if ((params.mode_flag & MODE_FLAG_TEXT) > 0u) {
         return in.color * textureSample(t_diffuse, s_diffuse, in.tex_coords).r;
     } else {
         return vec4<f32>(1.0, 1.0, 1.0, 1.0);

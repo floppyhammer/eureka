@@ -65,11 +65,11 @@ impl AsNode for VectorSprite {
     fn ready(&mut self) {}
 
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
-        let translation = cgmath::Matrix4::from_translation(Vector3::new(-1.0, -1.0, 0.0));
+        let translation = cgmath::Matrix4::from_translation(Vector3::new(-1.0, 1.0, 0.0));
 
         let scale = cgmath::Matrix4::from_nonuniform_scale(
-            1.0 / camera_info.view_size.x as f32,
-            1.0 / camera_info.view_size.y as f32,
+            1.0 / camera_info.view_size.x as f32 * 2.0,
+            -1.0 / camera_info.view_size.y as f32 * 2.0,
             1.0,
         );
 

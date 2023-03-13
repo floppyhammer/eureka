@@ -109,9 +109,6 @@ impl World {
                     }
                 });
 
-                // for id in iter {
-                //     ids.push(id);
-                // }
                 ids = iter.map(|id| id).collect();
             }
         }

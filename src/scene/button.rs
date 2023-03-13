@@ -12,10 +12,10 @@ use image::DynamicImage;
 use lyon::geom::Transform;
 use std::any::Any;
 
-pub(crate) struct Button {
+pub struct Button {
     label: Label,
 
-    transform: Transform2d,
+    pub transform: Transform2d,
 
     pub(crate) size: Vector2<f32>,
 
@@ -26,12 +26,14 @@ pub(crate) struct Button {
 }
 
 impl Button {
-    pub(crate) fn new(render_server: &RenderServer) -> Button {
-        let position = Vector2::new(0.0_f32, 0.0);
+    pub fn new(render_server: &RenderServer) -> Button {
         let size = Vector2::new(128.0_f32, 128.0);
 
+        let mut label = Label::new(render_server);
+        label.set_text("button".to_string());
+
         Self {
-            label: Label::new(render_server),
+            label,
             transform: Transform2d::default(),
             size,
             hovered: false,
@@ -60,7 +62,34 @@ impl AsNode for Button {
 
     fn ready(&mut self) {}
 
+    fn input(&mut self, input_event: &mut InputEvent, input_server: &mut InputServer) {
+        match input_event {
+            InputEvent::MouseButton(_) => {}
+            InputEvent::MouseMotion(args) => {
+                self.hovered = false;
+                if args.position.0 > self.transform.position.x
+                    && args.position.0 < (self.transform.position.x + self.size.x)
+                {
+                    if args.position.1 > self.transform.position.y
+                        && args.position.1 < (self.transform.position.y + self.size.y)
+                    {
+                        self.hovered = true;
+                    }
+                }
+            }
+            InputEvent::MouseScroll(_) => {}
+            InputEvent::Key(_) => {}
+            InputEvent::Invalid => {}
+        }
+    }
+
     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
+        self.label.transform.position = self.transform.position;
+        if self.hovered {
+            self.label.set_text("hovered".to_string());
+        } else {
+            self.label.set_text("normal".to_string());
+        }
         self.label.update(dt, camera_info, singletons);
     }
 
