@@ -39,9 +39,9 @@ impl Sprite2d {
     pub fn new(render_server: &RenderServer, texture: Texture) -> Sprite2d {
         let device = &render_server.device;
 
-        let size = Vector2::new(128.0_f32, 128.0);
+        let size = Vector2::new(texture.size.x as f32, texture.size.y as f32);
 
-        let region = Vector4::new(0.0_f32, 0.0, 1.0, 1.0);
+        let region = Vector4::new(0.0, 0.0, 1.0, 1.0);
 
         let mesh = Mesh::default_2d(device);
 
@@ -76,6 +76,8 @@ impl Sprite2d {
         texture: Texture,
     ) {
         self.texture_bind_group = render_server.create_sprite2d_bind_group(&texture);
+        self.size.x = texture.size.x as f32;
+        self.size.y = texture.size.y as f32;
         self.texture = Some(texture);
     }
 }

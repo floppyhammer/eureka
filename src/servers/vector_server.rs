@@ -210,11 +210,18 @@ impl VectorTexture {
 
                     match stroke.paint {
                         Paint::Color(color) => {
+                            let mut options = StrokeOptions::default()
+                                .with_line_width(stroke.width.get() as f32)
+                                .with_line_join(convert_line_join(stroke.linejoin))
+                                .with_line_cap(convert_line_cap(stroke.linecap));
+                            if stroke.linejoin == usvg::LineJoin::Miter {
+                                options = options.with_miter_limit(stroke.miterlimit.get() as f32);
+                            }
+
                             // Compute the tessellation.
                             let result = tessellator.tessellate_path(
                                 &lyon_path,
-                                &StrokeOptions::default()
-                                    .with_line_width(stroke.width.get() as f32),
+                                &options,
                                 &mut BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| {
                                     VectorVertex {
                                         position: vertex.position().to_array(),
@@ -246,6 +253,22 @@ impl VectorTexture {
             }
             _ => {}
         }
+    }
+}
+
+fn convert_line_join(usvg_line_join: usvg::LineJoin) -> lyon::path::LineJoin {
+    match usvg_line_join {
+        usvg::LineJoin::Bevel => lyon::path::LineJoin::Bevel,
+        usvg::LineJoin::Miter => lyon::path::LineJoin::Miter,
+        usvg::LineJoin::Round => lyon::path::LineJoin::Round,
+    }
+}
+
+fn convert_line_cap(usvg_line_cap: usvg::LineCap) -> lyon::path::LineCap {
+    match usvg_line_cap {
+        usvg::LineCap::Round => lyon::path::LineCap::Round,
+        usvg::LineCap::Butt => lyon::path::LineCap::Butt,
+        usvg::LineCap::Square => lyon::path::LineCap::Square,
     }
 }
 

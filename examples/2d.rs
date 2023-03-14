@@ -22,13 +22,11 @@ fn main() {
             .join("svgs/features.svg"),
         &app.singletons.render_server,
     );
-
     let mut vec_sprite = Box::new(VectorSprite::new(&app.singletons.render_server));
     vec_sprite.set_texture(v_tex);
-
     app.add_node(vec_sprite, None);
 
-    let sprite_tex = Texture::load(
+    let img_tex = Texture::load(
         &app.singletons.render_server.device,
         &app.singletons.render_server.queue,
         app.singletons
@@ -37,7 +35,7 @@ fn main() {
             .join("images/happy-tree.png"),
     )
     .unwrap();
-    let sprite = Box::new(Sprite2d::new(&app.singletons.render_server, sprite_tex));
+    let sprite = Box::new(Sprite2d::new(&app.singletons.render_server, img_tex));
     app.add_node(sprite, None);
 
     let mut button = Box::new(Button::new(&app.singletons.render_server));

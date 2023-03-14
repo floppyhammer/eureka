@@ -31,7 +31,7 @@ impl Engine {
                 self.delta = elapsed.as_secs_f64();
             }
             Err(e) => {
-                println!("Error: {e:?}");
+                println!("Error: {:?}", e);
             }
         }
 
@@ -51,7 +51,7 @@ impl Engine {
         match self.startup_time.elapsed() {
             Ok(elapsed) => elapsed.as_secs_f64(),
             Err(e) => {
-                println!("Error: {e:?}");
+                println!("Error: {:?}", e);
                 0.0
             }
         }
