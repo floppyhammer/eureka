@@ -3,7 +3,7 @@
 struct VertexInput {
     @location(0) position: vec2<f32>,
     @location(1) color: vec3<f32>,
-};
+}
 
 struct Camera {
     view_pos: vec4<f32>,
