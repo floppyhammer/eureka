@@ -6,6 +6,7 @@ use std::any::Any;
 use std::error::Error;
 use std::ops::Range;
 use std::path::Path;
+use std::result::Result::Ok;
 use std::time::Instant;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
