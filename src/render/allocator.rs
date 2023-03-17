@@ -1,12 +1,4 @@
-// pathfinder/gpu/src/gpu/allocator.rs
-//
-// Copyright © 2020 The Pathfinder Project Developers.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
+// Refer to pathfinder/gpu/src/gpu/allocator.rs
 
 //! GPU memory management.
 
@@ -14,14 +6,12 @@ use std::collections::{HashMap, VecDeque};
 use std::default::Default;
 use std::mem;
 use std::time::Instant;
-use wgpu::{BufferAddress, TextureFormat};
+use wgpu;
 
 // Everything above 16 MB is allocated exactly.
 const MAX_BUFFER_SIZE_CLASS: u64 = 16 * 1024 * 1024;
 
 // Number of seconds before unused memory is purged.
-//
-// TODO(pcwalton): jemalloc uses a sigmoidal decay curve here. Consider something similar.
 const DECAY_TIME: f32 = 0.250;
 
 // Number of seconds before we can reuse an object buffer.
@@ -30,11 +20,16 @@ const DECAY_TIME: f32 = 0.250;
 const REUSE_TIME: f32 = 0.015;
 
 pub struct GpuMemoryAllocator {
-    buffers_in_use: HashMap<BufferID, BufferAllocation>,
-    textures_in_use: HashMap<TextureID, TextureAllocation>,
+    vertex_buffers_in_use: HashMap<VertexBufferId, BufferAllocation>,
+    index_buffers_in_use: HashMap<IndexBufferId, BufferAllocation>,
+    textures_in_use: HashMap<TextureId, TextureAllocation>,
+
     free_objects: VecDeque<FreeObject>,
-    next_buffer_id: BufferID,
-    next_texture_id: TextureID,
+
+    next_vertex_buffer_id: VertexBufferId,
+    next_index_buffer_id: IndexBufferId,
+    next_texture_id: TextureId,
+
     bytes_committed: u64,
     bytes_allocated: u64,
 }
@@ -57,12 +52,16 @@ struct FreeObject {
 }
 
 enum FreeObjectKind {
-    Buffer {
-        id: BufferID,
+    VertexBuffer {
+        id: VertexBufferId,
+        allocation: BufferAllocation,
+    },
+    IndexBuffer {
+        id: IndexBufferId,
         allocation: BufferAllocation,
     },
     Texture {
-        id: TextureID,
+        id: TextureId,
         allocation: TextureAllocation,
     },
 }
@@ -80,12 +79,14 @@ pub struct TextureDescriptor {
     format: wgpu::TextureFormat,
 }
 
-// Vertex, index or storage buffers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct BufferID(pub u64);
+pub struct VertexBufferId(pub u64);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct TextureID(pub u64);
+pub struct IndexBufferId(pub u64);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TextureId(pub u64);
 
 // For debugging and profiling.
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
@@ -98,22 +99,24 @@ pub struct TextureTag(pub &'static str);
 impl GpuMemoryAllocator {
     pub fn new() -> GpuMemoryAllocator {
         GpuMemoryAllocator {
-            buffers_in_use: HashMap::default(),
+            vertex_buffers_in_use: HashMap::default(),
+            index_buffers_in_use: HashMap::default(),
             textures_in_use: HashMap::default(),
             free_objects: VecDeque::new(),
-            next_buffer_id: BufferID(0),
-            next_texture_id: TextureID(0),
+            next_vertex_buffer_id: VertexBufferId(0),
+            next_index_buffer_id: IndexBufferId(0),
+            next_texture_id: TextureId(0),
             bytes_committed: 0,
             bytes_allocated: 0,
         }
     }
 
-    pub fn allocate_buffer<T>(
+    pub fn allocate_vertex_buffer<T>(
         &mut self,
         device: &wgpu::Device,
         size: u64,
         tag: BufferTag,
-    ) -> BufferID {
+    ) -> VertexBufferId {
         let mut byte_size = size * mem::size_of::<T>() as u64;
         if byte_size < MAX_BUFFER_SIZE_CLASS {
             byte_size = byte_size.next_power_of_two();
@@ -125,7 +128,7 @@ impl GpuMemoryAllocator {
             match self.free_objects[free_object_index] {
                 FreeObject {
                     ref timestamp,
-                    kind: FreeObjectKind::Buffer { ref allocation, .. },
+                    kind: FreeObjectKind::VertexBuffer { ref allocation, .. },
                 } if allocation.descriptor.size == byte_size
                     && (now - *timestamp).as_secs_f32() >= REUSE_TIME => {}
                 _ => continue,
@@ -133,15 +136,15 @@ impl GpuMemoryAllocator {
 
             let (id, mut allocation) = match self.free_objects.remove(free_object_index) {
                 Some(FreeObject {
-                    kind: FreeObjectKind::Buffer { id, allocation },
-                    ..
-                }) => (id, allocation),
+                         kind: FreeObjectKind::VertexBuffer { id, allocation },
+                         ..
+                     }) => (id, allocation),
                 _ => unreachable!(),
             };
 
             allocation.tag = tag;
             self.bytes_committed += allocation.descriptor.size;
-            self.buffers_in_use.insert(id, allocation);
+            self.vertex_buffers_in_use.insert(id, allocation);
             return id;
         }
 
@@ -149,20 +152,88 @@ impl GpuMemoryAllocator {
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some(tag.0),
-            size: byte_size as BufferAddress,
+            size: byte_size as wgpu::BufferAddress,
             usage,
             mapped_at_creation: false,
         });
 
-        let id = self.next_buffer_id;
-        self.next_buffer_id.0 += 1;
+        let id = self.next_vertex_buffer_id;
+        self.next_vertex_buffer_id.0 += 1;
 
         let descriptor = BufferDescriptor {
             size: byte_size,
             usage,
         };
 
-        self.buffers_in_use.insert(
+        self.vertex_buffers_in_use.insert(
+            id,
+            BufferAllocation {
+                buffer,
+                descriptor,
+                tag,
+            },
+        );
+        self.bytes_allocated += byte_size;
+        self.bytes_committed += byte_size;
+
+        id
+    }
+
+    pub fn allocate_index_buffer<T>(
+        &mut self,
+        device: &wgpu::Device,
+        size: u64,
+        tag: BufferTag,
+    ) -> IndexBufferId {
+        let mut byte_size = size * mem::size_of::<T>() as u64;
+        if byte_size < MAX_BUFFER_SIZE_CLASS {
+            byte_size = byte_size.next_power_of_two();
+        }
+
+        let now = Instant::now();
+
+        for free_object_index in 0..self.free_objects.len() {
+            match self.free_objects[free_object_index] {
+                FreeObject {
+                    ref timestamp,
+                    kind: FreeObjectKind::IndexBuffer { ref allocation, .. },
+                } if allocation.descriptor.size == byte_size
+                    && (now - *timestamp).as_secs_f32() >= REUSE_TIME => {}
+                _ => continue,
+            }
+
+            let (id, mut allocation) = match self.free_objects.remove(free_object_index) {
+                Some(FreeObject {
+                         kind: FreeObjectKind::IndexBuffer { id, allocation },
+                         ..
+                     }) => (id, allocation),
+                _ => unreachable!(),
+            };
+
+            allocation.tag = tag;
+            self.bytes_committed += allocation.descriptor.size;
+            self.index_buffers_in_use.insert(id, allocation);
+            return id;
+        }
+
+        let usage = wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST;
+
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(tag.0),
+            size: byte_size as wgpu::BufferAddress,
+            usage,
+            mapped_at_creation: false,
+        });
+
+        let id = self.next_index_buffer_id;
+        self.next_index_buffer_id.0 += 1;
+
+        let descriptor = BufferDescriptor {
+            size: byte_size,
+            usage,
+        };
+
+        self.index_buffers_in_use.insert(
             id,
             BufferAllocation {
                 buffer,
@@ -182,7 +253,7 @@ impl GpuMemoryAllocator {
         size: (u32, u32),
         format: wgpu::TextureFormat,
         tag: TextureTag,
-    ) -> TextureID {
+    ) -> TextureId {
         let descriptor = TextureDescriptor {
             width: size.0,
             height: size.1,
@@ -201,9 +272,9 @@ impl GpuMemoryAllocator {
 
             let (id, mut allocation) = match self.free_objects.remove(free_object_index) {
                 Some(FreeObject {
-                    kind: FreeObjectKind::Texture { id, allocation },
-                    ..
-                }) => (id, allocation),
+                         kind: FreeObjectKind::Texture { id, allocation },
+                         ..
+                     }) => (id, allocation),
                 _ => unreachable!(),
             };
 
@@ -254,22 +325,29 @@ impl GpuMemoryAllocator {
         loop {
             match self.free_objects.front() {
                 Some(FreeObject { timestamp, .. })
-                    if (now - *timestamp).as_secs_f32() >= DECAY_TIME => {}
+                if (now - *timestamp).as_secs_f32() >= DECAY_TIME => {}
                 _ => break,
             }
             match self.free_objects.pop_front() {
                 None => break,
                 Some(FreeObject {
-                    kind: FreeObjectKind::Buffer { allocation, .. },
-                    ..
-                }) => {
-                    log::debug!("purging buffer: {}", allocation.descriptor.size);
+                         kind: FreeObjectKind::VertexBuffer { allocation, .. },
+                         ..
+                     }) => {
+                    log::debug!("purging vertex buffer: {}", allocation.descriptor.size);
                     self.bytes_allocated -= allocation.descriptor.size;
                 }
                 Some(FreeObject {
-                    kind: FreeObjectKind::Texture { allocation, .. },
-                    ..
-                }) => {
+                         kind: FreeObjectKind::IndexBuffer { allocation, .. },
+                         ..
+                     }) => {
+                    log::debug!("purging index buffer: {}", allocation.descriptor.size);
+                    self.bytes_allocated -= allocation.descriptor.size;
+                }
+                Some(FreeObject {
+                         kind: FreeObjectKind::Texture { allocation, .. },
+                         ..
+                     }) => {
                     log::debug!("purging texture: {:?}", allocation.descriptor);
                     self.bytes_allocated -= allocation.descriptor.byte_size();
                 }
@@ -277,19 +355,31 @@ impl GpuMemoryAllocator {
         }
     }
 
-    pub fn free_buffer(&mut self, id: BufferID) {
+    pub fn free_vertex_buffer(&mut self, id: VertexBufferId) {
         let allocation = self
-            .buffers_in_use
+            .vertex_buffers_in_use
             .remove(&id)
             .expect("Attempted to free unallocated buffer!");
         self.bytes_committed -= allocation.descriptor.size;
         self.free_objects.push_back(FreeObject {
             timestamp: Instant::now(),
-            kind: FreeObjectKind::Buffer { id, allocation },
+            kind: FreeObjectKind::VertexBuffer { id, allocation },
         });
     }
 
-    pub fn free_texture(&mut self, id: TextureID) {
+    pub fn free_index_buffer(&mut self, id: IndexBufferId) {
+        let allocation = self
+            .index_buffers_in_use
+            .remove(&id)
+            .expect("Attempted to free unallocated index buffer!");
+        self.bytes_committed -= allocation.descriptor.size;
+        self.free_objects.push_back(FreeObject {
+            timestamp: Instant::now(),
+            kind: FreeObjectKind::IndexBuffer { id, allocation },
+        });
+    }
+
+    pub fn free_texture(&mut self, id: TextureId) {
         let allocation = self
             .textures_in_use
             .remove(&id)
@@ -302,11 +392,15 @@ impl GpuMemoryAllocator {
         });
     }
 
-    pub fn get_buffer(&self, id: BufferID) -> &wgpu::Buffer {
-        &self.buffers_in_use[&id].buffer
+    pub fn get_vertex_buffer(&self, id: VertexBufferId) -> &wgpu::Buffer {
+        &self.vertex_buffers_in_use[&id].buffer
     }
 
-    pub fn get_texture(&self, id: TextureID) -> &wgpu::Texture {
+    pub fn get_index_buffer(&self, id: IndexBufferId) -> &wgpu::Buffer {
+        &self.index_buffers_in_use[&id].buffer
+    }
+
+    pub fn get_texture(&self, id: TextureId) -> &wgpu::Texture {
         &self.textures_in_use[&id].texture
     }
 
@@ -325,11 +419,22 @@ impl GpuMemoryAllocator {
         println!("GPU memory dump");
         println!("---------------");
 
-        println!("Buffers:");
-        let mut ids: Vec<BufferID> = self.buffers_in_use.keys().cloned().collect();
+        println!("Vertex Buffers:");
+        let mut ids: Vec<VertexBufferId> = self.vertex_buffers_in_use.keys().cloned().collect();
         // ids.sort();
         for id in ids {
-            let allocation = &self.buffers_in_use[&id];
+            let allocation = &self.vertex_buffers_in_use[&id];
+            println!(
+                "id {:?}: {:?} ({:?} B)",
+                id, allocation.tag, allocation.descriptor.size
+            );
+        }
+
+        println!("Index Buffers:");
+        let mut ids: Vec<IndexBufferId> = self.index_buffers_in_use.keys().cloned().collect();
+        // ids.sort();
+        for id in ids {
+            let allocation = &self.index_buffers_in_use[&id];
             println!(
                 "id {:?}: {:?} ({:?} B)",
                 id, allocation.tag, allocation.descriptor.size
@@ -337,7 +442,7 @@ impl GpuMemoryAllocator {
         }
 
         println!("Textures:");
-        let mut ids: Vec<TextureID> = self.textures_in_use.keys().cloned().collect();
+        let mut ids: Vec<TextureId> = self.textures_in_use.keys().cloned().collect();
         // ids.sort();
         for id in ids {
             let allocation = &self.textures_in_use[&id];
@@ -362,9 +467,9 @@ impl TextureDescriptor {
     }
 }
 
-fn bytes_per_pixel_of_texture_format(format: TextureFormat) -> usize {
+fn bytes_per_pixel_of_texture_format(format: wgpu::TextureFormat) -> usize {
     match format {
-        TextureFormat::Rgba8Unorm => 4,
+        wgpu::TextureFormat::Rgba8Unorm => 4,
         _ => {
             panic!()
         }
