@@ -18,7 +18,7 @@ fn main() {
 
     let skybox_tex = CubeTexture::load(
         &app.singletons.render_server,
-        &app.singletons.asset_server.asset_dir.join("skybox.jpg"),
+        &app.singletons.asset_server.asset_dir.join("images/skybox.jpg"),
     )
     .unwrap();
     let sky = Box::new(Sky::new(&app.singletons.render_server, skybox_tex));
@@ -27,7 +27,7 @@ fn main() {
     // Light.
     let light = Light::new(
         &app.singletons.render_server,
-        &app.singletons.asset_server.asset_dir.join("light.png"),
+        &app.singletons.asset_server.asset_dir.join("images/light.png"),
     );
     app.add_node(Box::new(light), None);
 
@@ -38,7 +38,7 @@ fn main() {
             &app.singletons
                 .asset_server
                 .asset_dir
-                .join("ferris/ferris3d_v1.0.obj"),
+                .join("models/ferris/ferris3d_v1.0.obj"),
         )
         .unwrap(),
     );

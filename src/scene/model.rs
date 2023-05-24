@@ -173,7 +173,7 @@ impl Model {
             // Load normal texture.
             let normal_texture;
 
-            if m.diffuse_texture.is_some() {
+            if m.normal_texture.is_some() {
                 normal_texture = match texture::Texture::load(
                     device,
                     queue,
