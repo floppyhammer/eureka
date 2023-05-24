@@ -1,36 +1,38 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-
-pub enum AssetType {
-    Image,
-    Font,
-    Mesh,
-}
-
-pub trait AsAsset {
-    /// The returned ID will be used as the hashing key.
-    fn get_unique_id(&self) -> String;
-}
+use assets_manager::{Asset, AssetCache, AssetGuard, Compound, loader};
 
 pub struct AssetServer {
-    assets: HashMap<String, Box<dyn AsAsset>>,
     pub asset_dir: PathBuf,
+    asset_cache: AssetCache,
 }
 
 impl AssetServer {
     pub fn new() -> Self {
-        // Type inference lets us omit an explicit type signature (which
-        // would be `HashMap<String, Box<dyn AsAsset>` in this example).
-        let assets = HashMap::new();
-
         // Get the asset directory.
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         log::info!("Asset dir: {}", asset_dir.display());
 
-        Self { assets, asset_dir }
+        // Create a new cache to load assets under the "./assets" folder.
+        let cache = AssetCache::new("assets").unwrap();
+
+        Self { asset_dir, asset_cache: cache }
     }
 
-    pub fn get_asset(&mut self, id: String) -> Option<&Box<dyn AsAsset>> {
-        self.assets.get(&id)
+    pub fn load<A: Compound>(&mut self, id: &str) -> Option<AssetGuard<A>> {
+        // Get a handle on the asset.
+        let handle = self.asset_cache.load::<A>(id).ok()?;
+
+        // Lock the asset for reading.
+        // Any number of read locks can exist at the same time,
+        // but none can exist when the asset is reloaded.
+        let asset = handle.read();
+
+        Some(asset)
+    }
+
+    /// Monitor asset changes.
+    pub fn update(&mut self) {
+        self.asset_cache.hot_reload();
     }
 }

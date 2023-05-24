@@ -1,5 +1,4 @@
 use crate::resources::{RenderServer, Texture};
-use crate::servers::AsAsset;
 use allsorts::pathfinder_geometry::rect::RectI;
 use allsorts::pathfinder_geometry::vector::Vector2I;
 use cgmath::{Point2, Vector2, Vector4};
@@ -73,12 +72,6 @@ pub(crate) const FONT_ATLAS_SIZE: u32 = 2096;
 pub(crate) struct Font {
     res_path: String,
     raw_data: Vec<u8>,
-}
-
-impl AsAsset for Font {
-    fn get_unique_id(&self) -> String {
-        return self.res_path.clone();
-    }
 }
 
 pub(crate) struct DynamicFont {

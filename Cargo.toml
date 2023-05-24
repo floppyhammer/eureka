@@ -42,6 +42,8 @@ unicode-segmentation = "1.10.0"
 bevy_ecs = "0.10.0"
 # SVG parsing.
 usvg = "0.32.0"
+# Assets management.
+assets_manager = { version = "0.10.0", features = ["hot-reloading"] }
 
 [build-dependencies]
 anyhow = "1.0"
