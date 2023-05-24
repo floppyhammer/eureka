@@ -135,8 +135,8 @@ impl Texture {
             data,
             wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: std::num::NonZeroU32::new(bytes_per_row),
-                rows_per_image: std::num::NonZeroU32::new(dimensions.1),
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(dimensions.1),
             },
             size,
         );
@@ -293,8 +293,8 @@ impl CubeTexture {
             &rgba,
             wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: std::num::NonZeroU32::new(4 * size.width),
-                rows_per_image: std::num::NonZeroU32::new(size.height),
+                bytes_per_row: Some(4 * size.width),
+                rows_per_image: Some(size.height),
             },
             size,
         );
@@ -305,9 +305,9 @@ impl CubeTexture {
             dimension: Some(wgpu::TextureViewDimension::Cube),
             aspect: wgpu::TextureAspect::default(),
             base_mip_level: 0,
-            mip_level_count: std::num::NonZeroU32::new(1),
+            mip_level_count: Some(1),
             base_array_layer: 0,
-            array_layer_count: std::num::NonZeroU32::new(6),
+            array_layer_count: Some(6),
         });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {

@@ -199,8 +199,8 @@ impl DynamicFont {
                         wgpu::ImageDataLayout {
                             offset: (region.min_y() * FONT_ATLAS_SIZE as i32 + region.min_x())
                                 as wgpu::BufferAddress,
-                            bytes_per_row: std::num::NonZeroU32::new(FONT_ATLAS_SIZE),
-                            rows_per_image: std::num::NonZeroU32::new(FONT_ATLAS_SIZE),
+                            bytes_per_row: Some(FONT_ATLAS_SIZE),
+                            rows_per_image: Some(FONT_ATLAS_SIZE),
                         },
                         size,
                     );
