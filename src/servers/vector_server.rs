@@ -11,7 +11,7 @@ use lyon::tessellation::{
 };
 use std::cmp::max;
 use std::fs;
-use usvg::Paint;
+use usvg::{Paint, TreeParsing};
 use wgpu::util::DeviceExt;
 
 pub struct VectorMesh {

@@ -147,39 +147,50 @@ impl Model {
 
         // Handle materials.
         let mut materials = Vec::new();
+
         for m in obj_materials {
             // Load diffuse texture.
-            let diffuse_texture = match texture::Texture::load(
-                device,
-                queue,
-                containing_folder.join(&m.diffuse_texture),
-            ) {
-                Ok(i) => i,
-                Err(e) => {
-                    log::warn!(
+            let diffuse_texture;
+
+            if m.diffuse_texture.is_some() {
+                diffuse_texture = match texture::Texture::load(
+                    device,
+                    queue,
+                    containing_folder.join(&m.diffuse_texture.clone().unwrap()),
+                ) {
+                    Ok(i) => i,
+                    Err(e) => {
+                        log::warn!(
                         "Failed to load diffuse texture {:?}: {}",
-                        m.diffuse_texture,
+                        m.diffuse_texture.clone().unwrap(),
                         e
                     );
-                    texture::Texture::empty(device, queue, (4, 4))?
-                }
-            };
+                        texture::Texture::empty(device, queue, (4, 4))?
+                    }
+                };
+            } else { diffuse_texture = texture::Texture::empty(device, queue, (4, 4))?; };
 
             // Load normal texture.
-            let normal_texture = match texture::Texture::load(
-                device,
-                queue,
-                containing_folder.join(&m.normal_texture),
-            ) {
-                Ok(i) => i,
-                Err(e) => {
-                    log::warn!(
+            let normal_texture;
+
+            if m.diffuse_texture.is_some() {
+                normal_texture = match texture::Texture::load(
+                    device,
+                    queue,
+                    containing_folder.join(&m.normal_texture.clone().unwrap()),
+                ) {
+                    Ok(i) => i,
+                    Err(e) => {
+                        log::warn!(
                         "Failed to load normal texture {:?}: {}",
-                        m.normal_texture,
+                        m.normal_texture.clone().unwrap(),
                         e
                     );
-                    texture::Texture::empty(device, queue, (4, 4))?
-                }
+                        texture::Texture::empty(device, queue, (4, 4))?
+                    }
+                };
+            } else {
+                normal_texture = texture::Texture::empty(device, queue, (4, 4))?
             };
 
             // Create a bind group for the material textures.
@@ -338,8 +349,8 @@ impl Model {
             z: 0.0,
         };
         let rotation = if position.is_zero() {
-            // This is needed so an object at (0, 0, 0) won't get scaled to zero
-            // as Quaternions can effect scale if they're not created correctly.
+// This is needed so an object at (0, 0, 0) won't get scaled to zero
+// as Quaternions can effect scale if they're not created correctly.
             cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
         } else {
             cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
@@ -350,13 +361,13 @@ impl Model {
             z: 1.0,
         };
 
-        // Set instance data. Default number of instances is one.
+// Set instance data. Default number of instances is one.
         let instances = vec![{ Instance { position, rotation } }];
 
-        // Copy data from [Instance] to [InstanceRaw].
+// Copy data from [Instance] to [InstanceRaw].
         let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
 
-        // Create the instance buffer.
+// Create the instance buffer.
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("model instance buffer"),
             contents: bytemuck::cast_slice(&instance_data),
@@ -497,8 +508,8 @@ pub trait DrawModel<'a> {
 
 /// Rendering a mesh.
 impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a,
+    where
+        'b: 'a,
 {
     fn draw_mesh(
         &mut self,
