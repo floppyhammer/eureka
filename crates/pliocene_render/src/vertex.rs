@@ -1,5 +1,5 @@
 pub trait VertexBuffer {
-    /// Vertex buffer layout provided to a pipeline.
+    /// Vertex buffer layout provided to pipelines.
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
 }
 
@@ -118,12 +118,12 @@ impl VertexBuffer for VertexSky {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct VectorVertex {
+pub(crate) struct VertexV {
     pub(crate) position: [f32; 2],
     pub(crate) color: [f32; 3],
 }
 
-impl VertexBuffer for VectorVertex {
+impl VertexBuffer for VertexV {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<VectorVertex>() as wgpu::BufferAddress,

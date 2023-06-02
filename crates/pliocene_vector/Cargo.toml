@@ -1,0 +1,12 @@
+[package]
+name = "pliocene_vector"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# SVG parsing.
+usvg = "0.32.0"
+# For vector rendering.
+lyon = "1.0.0"

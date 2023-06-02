@@ -1,0 +1,9 @@
+[package]
+name = "pliocene_render"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wgpu = "0.16.0"
+# For simple Result.
+anyhow = "1.0"

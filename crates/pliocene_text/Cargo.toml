@@ -1,0 +1,17 @@
+[package]
+name = "pliocene_text"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Text rasterization.
+fontdue = "0.7.2"
+# Text shaping.
+rustybuzz = "0.7.0"
+allsorts = "0.14.0"
+# Language detection.
+whatlang = "0.16.2"
+# Text bidi.
+unicode-bidi = "0.3.8"
+# For splitting grapheme clusters.
+unicode-segmentation = "1.10.0"

@@ -9,7 +9,6 @@ use crate::RenderServer;
 
 /// [`Texture`] is a wrapper over wgpu texture, view and sampler.
 /// It only stores data and is not responsible for drawing.
-
 pub struct Texture {
     // Actual data.
     pub texture: wgpu::Texture,

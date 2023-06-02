@@ -12,7 +12,7 @@ use lyon::path::Path;
 use lyon::tessellation::*;
 use wgpu::util::DeviceExt;
 
-pub struct VectorSprite {
+pub struct SpriteV {
     pub transform: Transform2d,
     pub size: cgmath::Vector2<f32>,
 
@@ -25,8 +25,8 @@ pub struct VectorSprite {
     need_to_rebuild: bool,
 }
 
-impl VectorSprite {
-    pub fn new(render_server: &RenderServer) -> VectorSprite {
+impl SpriteV {
+    pub fn new(render_server: &RenderServer) -> SpriteV {
         let device = &render_server.device;
 
         let (camera_buffer, camera_bind_group) = render_server.create_camera2d_resources(device);
@@ -49,7 +49,7 @@ impl VectorSprite {
     }
 }
 
-impl AsNode for VectorSprite {
+impl AsNode for SpriteV {
     fn node_type(&self) -> NodeType {
         NodeType::SpriteV
     }
