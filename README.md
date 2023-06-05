@@ -1,2 +1,2 @@
-# Pliocene
-An experimental renderer made with wgpu.
+# Eureka
+An experimental rendering engine based on wgpu.
