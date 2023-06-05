@@ -1,4 +1,4 @@
-use crate::resources::{RenderServer, Texture};
+use crate::render::{RenderServer, Texture};
 use allsorts::pathfinder_geometry::rect::RectI;
 use allsorts::pathfinder_geometry::vector::Vector2I;
 use cgmath::{Point2, Vector2, Vector4};
@@ -131,7 +131,7 @@ impl DynamicFont {
             &atlas_image,
             "default font atlas".into(),
         )
-        .unwrap();
+            .unwrap();
 
         let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 

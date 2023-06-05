@@ -1,15 +1,15 @@
 use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{AtlasMode, DrawAtlas};
-use crate::resources::FONT_ATLAS_SIZE;
-use crate::scene::{CameraInfo, InputServer, NodeType};
+use crate::scene::{CameraInfo, NodeType};
 use crate::{
-    AsNode, Atlas, AtlasInstance, DynamicFont, InputEvent, RenderServer, Singletons, TextServer,
+    AsNode, Atlas, AtlasInstance, RenderServer, Singletons, TextServer,
     Texture,
 };
 use cgmath::{EuclideanSpace, Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use std::any::Any;
+use crate::text::FONT_ATLAS_SIZE;
 
 pub struct Label {
     text: String,

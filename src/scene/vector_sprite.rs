@@ -4,8 +4,8 @@ use std::any::Any;
 
 use crate::math::transform::Transform2d;
 use crate::scene::{AsNode, CameraUniform, CameraInfo, NodeType};
-use crate::servers::{VectorMesh, VectorTexture};
-use crate::{Camera2d, InputEvent, RenderServer, Singletons};
+use crate::vector_image::{VectorMesh, VectorTexture};
+use crate::{Camera2d, RenderServer, Singletons};
 use cgmath::Vector3;
 use lyon::math::point;
 use lyon::path::Path;

@@ -1,6 +1,7 @@
-use crate::resources::{Material2d, Mesh, Texture};
+use crate::render::{Mesh, Texture};
+use crate::pbr::{Material2d};
 use crate::scene::{AsNode, CameraUniform, CameraInfo, NodeType};
-use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons, Zero};
+use crate::{Camera2d,RenderServer, SamplerBindingType, Singletons, Zero};
 use cgmath::{InnerSpace, Rotation3, Vector3};
 use std::any::Any;
 use std::mem;

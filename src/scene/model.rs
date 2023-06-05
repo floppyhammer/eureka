@@ -12,11 +12,11 @@ use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
 
 use crate::render::vertex::Vertex3d;
-use crate::resources::{material, mesh, texture};
+use crate::pbr::*;
+use crate::render::{Mesh, Texture};
 use crate::scene::{AsNode, CameraInfo, NodeType};
-use crate::{Camera2d, InputEvent, RenderServer, Singletons};
+use crate::{Camera2d, RenderServer, Singletons};
 use material::Material3d;
-use mesh::Mesh;
 
 pub struct Model {
     pub position: cgmath::Vector3<f32>,
@@ -153,7 +153,7 @@ impl Model {
             let diffuse_texture;
 
             if m.diffuse_texture.is_some() {
-                diffuse_texture = match texture::Texture::load(
+                diffuse_texture = match Texture::load(
                     device,
                     queue,
                     containing_folder.join(&m.diffuse_texture.clone().unwrap()),
@@ -165,16 +165,16 @@ impl Model {
                         m.diffuse_texture.clone().unwrap(),
                         e
                     );
-                        texture::Texture::empty(device, queue, (4, 4))?
+                        Texture::empty(device, queue, (4, 4))?
                     }
                 };
-            } else { diffuse_texture = texture::Texture::empty(device, queue, (4, 4))?; };
+            } else { diffuse_texture = Texture::empty(device, queue, (4, 4))?; };
 
             // Load normal texture.
             let normal_texture;
 
             if m.normal_texture.is_some() {
-                normal_texture = match texture::Texture::load(
+                normal_texture = match Texture::load(
                     device,
                     queue,
                     containing_folder.join(&m.normal_texture.clone().unwrap()),
@@ -186,11 +186,11 @@ impl Model {
                         m.normal_texture.clone().unwrap(),
                         e
                     );
-                        texture::Texture::empty(device, queue, (4, 4))?
+                        Texture::empty(device, queue, (4, 4))?
                     }
                 };
             } else {
-                normal_texture = texture::Texture::empty(device, queue, (4, 4))?
+                normal_texture = Texture::empty(device, queue, (4, 4))?
             };
 
             // Create a bind group for the material textures.

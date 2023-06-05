@@ -1,13 +1,13 @@
 use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::AtlasInstance;
-use crate::resources::{Glyph, RenderServer, Texture, FONT_ATLAS_SIZE};
-use crate::DynamicFont;
+use crate::render::{RenderServer, Texture};
 use cgmath::{Point2, Vector2, Vector4};
 use std::ops::Range;
 use std::path::Path;
 use std::time::Instant;
 use winit::event::VirtualKeyCode::P;
+use crate::text::{Glyph, DynamicFont, FONT_ATLAS_SIZE};
 
 pub struct TextServer {
     default_font: DynamicFont,

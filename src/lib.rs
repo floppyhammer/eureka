@@ -22,24 +22,27 @@ use winit::platform::run_return::EventLoopExtRunReturn;
 pub mod core;
 pub mod math;
 pub mod render;
-pub mod resources;
 pub mod scene;
-pub mod servers;
+pub mod text;
+pub mod vector_image;
+pub mod window;
+pub mod asset;
+pub mod pbr;
 
 // Import local crates.
 use crate::render::atlas::{Atlas, AtlasInstance};
 use crate::render::gizmo::Gizmo;
-use crate::resources::{CubeTexture, DynamicFont, Texture};
+use crate::render::{CubeTexture, Texture, RenderServer};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::scene::{
-    AsNode, Camera2d, Camera3d, Camera3dController, InputEvent, InputServer, Label, Light,
+    AsNode, Camera2d, Camera3d, Camera3dController, Label, Light,
     LightUniform, Model, Projection, Sky, World,
 };
-use crate::servers::render_server::RenderServer;
-use crate::servers::text_server::TextServer;
-use crate::servers::AssetServer;
+use crate::asset::AssetServer;
+use crate::text::TextServer;
+use crate::window::InputServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;

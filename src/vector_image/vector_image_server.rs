@@ -1,5 +1,5 @@
 use crate::render::vertex::{VectorVertex, VertexBuffer};
-use crate::resources::RenderServer;
+use crate::render::RenderServer;
 use lyon::geom::Point;
 use lyon::math::point;
 use lyon::path::builder::Build;

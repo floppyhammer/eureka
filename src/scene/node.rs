@@ -1,5 +1,5 @@
 use crate::scene::{CameraUniform, CameraInfo};
-use crate::servers::input_server::InputEvent;
+use crate::window::input_server::InputEvent;
 use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
 use cgmath::*;
 use std::any::Any;

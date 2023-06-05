@@ -1,4 +1,4 @@
-use eureka::resources::CubeTexture;
+use eureka::render::CubeTexture;
 use eureka::scene::{Camera3d, Light, Model, Sky};
 use eureka::App;
 use winit::event_loop::EventLoop;

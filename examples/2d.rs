@@ -1,12 +1,12 @@
 use cgmath::{Point2, Vector2};
-use eureka::resources::Texture;
+use eureka::render::Texture;
 use eureka::scene::button::Button;
 use eureka::scene::label::Label;
 use eureka::scene::sprite2d::Sprite2d;
 use eureka::scene::{Camera2d, VectorSprite};
-use eureka::servers::VectorTexture;
 use eureka::App;
 use winit::event_loop::EventLoop;
+use eureka::vector_image::VectorTexture;
 
 fn main() {
     let mut event_loop = EventLoop::new();
@@ -34,7 +34,7 @@ fn main() {
             .asset_dir
             .join("images/happy-tree.png"),
     )
-    .unwrap();
+        .unwrap();
     let sprite = Box::new(Sprite2d::new(&app.singletons.render_server, img_tex));
     app.add_node(sprite, None);
 

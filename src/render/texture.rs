@@ -4,8 +4,9 @@ use image::{DynamicImage, GenericImageView, ImageBuffer, Rgb};
 use std::path::Path;
 use std::time::Instant;
 
-use crate::resources::{Material2d, Mesh};
-use crate::RenderServer;
+use crate::pbr::{Material2d};
+use crate::render::{Mesh};
+use crate::render::render_server::RenderServer;
 
 /// [`Texture`] is a wrapper over wgpu texture, view and sampler.
 /// It only stores data and is not responsible for drawing.

@@ -1,5 +1,5 @@
 use crate::scene::{AsNode, NodeType};
-use crate::{InputEvent, InputServer, RenderServer, Singletons};
+use crate::{RenderServer, Singletons};
 use cgmath::num_traits::clamp;
 use cgmath::*;
 use std::any::Any;
@@ -12,6 +12,7 @@ use wgpu::BufferAddress;
 use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
 use winit::event::*;
 use winit::window::Window;
+use crate::window::{InputEvent, InputServer};
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
 use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::scene::CameraUniform;
-use crate::{resources, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture};
+use crate::{scene, Camera2d, Camera3d, Light, SamplerBindingType};
 use bevy_ecs::system::Resource;
 use cgmath::Point2;
 use std::mem;
@@ -10,6 +10,7 @@ use std::time::Instant;
 use wgpu::util::DeviceExt;
 use wgpu::PolygonMode::Point;
 use wgpu::{BufferAddress, TextureFormat};
+use crate::render::texture::Texture;
 
 #[derive(Resource)]
 pub struct RenderServer {
@@ -286,7 +287,7 @@ impl RenderServer {
                 &self.device,
                 &pipeline_layout,
                 self.surface_config.format,
-                Some(resources::texture::Texture::DEPTH_FORMAT),
+                Some(Texture::DEPTH_FORMAT),
                 &[Vertex2d::desc()],
                 shader,
                 pipeline_label,
@@ -323,7 +324,7 @@ impl RenderServer {
                 &self.device,
                 &pipeline_layout,
                 self.surface_config.format,
-                Some(resources::texture::Texture::DEPTH_FORMAT),
+                Some(Texture::DEPTH_FORMAT),
                 &[Vertex3d::desc(), scene::model::InstanceRaw::desc()],
                 shader,
                 pipeline_label,
@@ -361,7 +362,7 @@ impl RenderServer {
                 &self.device,
                 &pipeline_layout,
                 self.surface_config.format,
-                Some(resources::texture::Texture::DEPTH_FORMAT),
+                Some(Texture::DEPTH_FORMAT),
                 &[Vertex3d::desc()],
                 shader,
                 pipeline_label,
@@ -396,7 +397,7 @@ impl RenderServer {
                 &self.device,
                 &pipeline_layout,
                 self.surface_config.format,
-                Some(resources::texture::Texture::DEPTH_FORMAT),
+                Some(Texture::DEPTH_FORMAT),
                 &[VectorVertex::desc()],
                 shader,
                 pipeline_label,
@@ -451,7 +452,7 @@ impl RenderServer {
                     ..Default::default()
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
-                    format: resources::texture::Texture::DEPTH_FORMAT,
+                    format: Texture::DEPTH_FORMAT,
                     depth_write_enabled: false,
                     depth_compare: wgpu::CompareFunction::Less,
                     stencil: wgpu::StencilState::default(),
@@ -487,7 +488,7 @@ impl RenderServer {
                 &self.device,
                 &pipeline_layout,
                 self.surface_config.format,
-                Some(resources::texture::Texture::DEPTH_FORMAT),
+                Some(Texture::DEPTH_FORMAT),
                 &[VertexSky::desc()],
                 shader,
                 pipeline_label,
@@ -539,7 +540,7 @@ impl RenderServer {
                     ..Default::default()
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
-                    format: resources::texture::Texture::DEPTH_FORMAT,
+                    format: Texture::DEPTH_FORMAT,
                     depth_write_enabled: false,
                     depth_compare: wgpu::CompareFunction::Less,
                     stencil: wgpu::StencilState::default(),

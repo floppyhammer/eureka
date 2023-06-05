@@ -4,9 +4,10 @@ use std::ops::Range;
 use std::path::Path;
 use wgpu::util::DeviceExt;
 
-use crate::resources::Mesh;
 use crate::scene::{AsNode, CameraInfo, NodeType};
-use crate::{InputEvent, Model, RenderServer, Singletons, Sprite3d, Texture};
+use crate::render::{Mesh, Texture, RenderServer};
+use crate::scene::sprite3d::Sprite3d;
+use crate::Singletons;
 
 pub struct Light {
     pub(crate) uniform: LightUniform,

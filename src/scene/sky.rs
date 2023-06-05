@@ -9,12 +9,11 @@ use std::path::Path;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 
-use crate::resources::CubeTexture;
-use crate::resources::{material, mesh, texture};
+use crate::render::{CubeTexture, Mesh, Texture};
+use crate::pbr::*;
 use crate::scene::{AsNode, CameraInfo, NodeType};
-use crate::{InputEvent, RenderServer, Singletons};
+use crate::{RenderServer, Singletons};
 use material::MaterialSky;
-use mesh::Mesh;
 
 pub struct Sky {
     pub rotation: Quaternion<f32>,
