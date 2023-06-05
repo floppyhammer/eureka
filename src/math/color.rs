@@ -8,13 +8,18 @@ pub struct ColorU {
 
 impl ColorU {
     #[inline]
-    pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
-        Self { r, g, b, a }
+    pub fn new(r: u8, g: u8, b: u8, a: u8) -> ColorU {
+        ColorU { r, g, b, a }
     }
 
     #[inline]
-    pub const fn from_u32(rgba: u32) -> Self {
-        Self {
+    pub const fn transparent_black() -> ColorU {
+        ColorU::from_u32(0)
+    }
+
+    #[inline]
+    pub const fn from_u32(rgba: u32) -> ColorU {
+        ColorU {
             r: (rgba >> 24) as u8,
             g: ((rgba >> 16) & 0xff) as u8,
             b: ((rgba >> 8) & 0xff) as u8,
@@ -23,13 +28,8 @@ impl ColorU {
     }
 
     #[inline]
-    pub const fn transparent_black() -> Self {
-        Self::from_u32(0)
-    }
-
-    #[inline]
-    pub const fn black() -> Self {
-        Self {
+    pub const fn black() -> ColorU {
+        ColorU {
             r: 0,
             g: 0,
             b: 0,
@@ -38,8 +38,8 @@ impl ColorU {
     }
 
     #[inline]
-    pub const fn white() -> Self {
-        Self {
+    pub const fn white() -> ColorU {
+        ColorU {
             r: 255,
             g: 255,
             b: 255,

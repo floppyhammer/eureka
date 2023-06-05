@@ -1,6 +1,6 @@
-use pliocene::resources::CubeTexture;
-use pliocene::scene::{Camera3d, Light, Model, Sky};
-use pliocene::App;
+use eureka::resources::CubeTexture;
+use eureka::scene::{Camera3d, Light, Model, Sky};
+use eureka::App;
 use winit::event_loop::EventLoop;
 
 fn main() {

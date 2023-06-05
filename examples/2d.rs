@@ -1,11 +1,11 @@
 use cgmath::{Point2, Vector2};
-use pliocene::resources::Texture;
-use pliocene::scene::button::Button;
-use pliocene::scene::label::Label;
-use pliocene::scene::sprite2d::Sprite2d;
-use pliocene::scene::{Camera2d, VectorSprite};
-use pliocene::servers::VectorTexture;
-use pliocene::App;
+use eureka::resources::Texture;
+use eureka::scene::button::Button;
+use eureka::scene::label::Label;
+use eureka::scene::sprite2d::Sprite2d;
+use eureka::scene::{Camera2d, VectorSprite};
+use eureka::servers::VectorTexture;
+use eureka::App;
 use winit::event_loop::EventLoop;
 
 fn main() {

@@ -1,8 +1,0 @@
-[package]
-name = "pliocene_pbr"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-# For .obj loading.
-tobj = "4.0.0"

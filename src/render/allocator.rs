@@ -1,5 +1,6 @@
-//! GPU memory management.
 // Refer to pathfinder/gpu/src/gpu/allocator.rs
+
+//! GPU memory management.
 
 use std::collections::{HashMap, VecDeque};
 use std::default::Default;
@@ -135,9 +136,9 @@ impl GpuMemoryAllocator {
 
             let (id, mut allocation) = match self.free_objects.remove(free_object_index) {
                 Some(FreeObject {
-                         kind: FreeObjectKind::VertexBuffer { id, allocation },
-                         ..
-                     }) => (id, allocation),
+                    kind: FreeObjectKind::VertexBuffer { id, allocation },
+                    ..
+                }) => (id, allocation),
                 _ => unreachable!(),
             };
 
@@ -203,9 +204,9 @@ impl GpuMemoryAllocator {
 
             let (id, mut allocation) = match self.free_objects.remove(free_object_index) {
                 Some(FreeObject {
-                         kind: FreeObjectKind::IndexBuffer { id, allocation },
-                         ..
-                     }) => (id, allocation),
+                    kind: FreeObjectKind::IndexBuffer { id, allocation },
+                    ..
+                }) => (id, allocation),
                 _ => unreachable!(),
             };
 
@@ -271,9 +272,9 @@ impl GpuMemoryAllocator {
 
             let (id, mut allocation) = match self.free_objects.remove(free_object_index) {
                 Some(FreeObject {
-                         kind: FreeObjectKind::Texture { id, allocation },
-                         ..
-                     }) => (id, allocation),
+                    kind: FreeObjectKind::Texture { id, allocation },
+                    ..
+                }) => (id, allocation),
                 _ => unreachable!(),
             };
 
@@ -324,29 +325,29 @@ impl GpuMemoryAllocator {
         loop {
             match self.free_objects.front() {
                 Some(FreeObject { timestamp, .. })
-                if (now - *timestamp).as_secs_f32() >= DECAY_TIME => {}
+                    if (now - *timestamp).as_secs_f32() >= DECAY_TIME => {}
                 _ => break,
             }
             match self.free_objects.pop_front() {
                 None => break,
                 Some(FreeObject {
-                         kind: FreeObjectKind::VertexBuffer { allocation, .. },
-                         ..
-                     }) => {
+                    kind: FreeObjectKind::VertexBuffer { allocation, .. },
+                    ..
+                }) => {
                     log::debug!("purging vertex buffer: {}", allocation.descriptor.size);
                     self.bytes_allocated -= allocation.descriptor.size;
                 }
                 Some(FreeObject {
-                         kind: FreeObjectKind::IndexBuffer { allocation, .. },
-                         ..
-                     }) => {
+                    kind: FreeObjectKind::IndexBuffer { allocation, .. },
+                    ..
+                }) => {
                     log::debug!("purging index buffer: {}", allocation.descriptor.size);
                     self.bytes_allocated -= allocation.descriptor.size;
                 }
                 Some(FreeObject {
-                         kind: FreeObjectKind::Texture { allocation, .. },
-                         ..
-                     }) => {
+                    kind: FreeObjectKind::Texture { allocation, .. },
+                    ..
+                }) => {
                     log::debug!("purging texture: {:?}", allocation.descriptor);
                     self.bytes_allocated -= allocation.descriptor.byte_size();
                 }

@@ -1,8 +1,0 @@
-[package]
-name = "pliocene_asset"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-# Assets management.
-assets_manager = { version = "0.10.0", features = ["hot-reloading"] }

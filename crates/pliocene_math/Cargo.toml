@@ -1,9 +1,0 @@
-[package]
-name = "pliocene_math"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-cgmath = "0.18"
-# For Pathfinder geometry.
-allsorts = "0.14.0"

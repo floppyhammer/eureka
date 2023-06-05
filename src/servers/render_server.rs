@@ -2,22 +2,20 @@ use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
 use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::scene::Camera2dUniform;
 use crate::{resources, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture};
+use bevy_ecs::system::Resource;
 use cgmath::Point2;
 use std::mem;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 use wgpu::PolygonMode::Point;
-use wgpu::{BufferAddress, SamplerBindingType, TextureFormat};
-use crate::vertex::Vertex3d;
+use wgpu::{BufferAddress, TextureFormat};
 
+#[derive(Resource)]
 pub struct RenderServer {
     pub surface: wgpu::Surface,
-    pub config: wgpu::SurfaceConfiguration,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-
-    /// Cached pipelines.
-    pipelines: Vec<wgpu::RenderPipeline>,
+    pub config: wgpu::SurfaceConfiguration,
 
     pub model_pipeline: wgpu::RenderPipeline,
     pub vector_sprite_pipeline: wgpu::RenderPipeline,

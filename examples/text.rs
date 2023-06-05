@@ -1,7 +1,7 @@
 use cgmath::{Point2, Vector2};
-use pliocene::scene::label::Label;
-use pliocene::scene::Camera2d;
-use pliocene::App;
+use eureka::scene::label::Label;
+use eureka::scene::Camera2d;
+use eureka::App;
 use winit::event_loop::EventLoop;
 
 fn main() {

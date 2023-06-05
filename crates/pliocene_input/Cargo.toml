@@ -1,8 +1,0 @@
-[package]
-name = "pliocene_input"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-winit = "0.28.2"
-cgmath = "0.18"
