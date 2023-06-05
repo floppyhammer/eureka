@@ -35,7 +35,7 @@ impl Light {
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &render_server.light_bind_group_layout,
+            layout: render_server.get_bind_group_layout("light bind group layout").unwrap(),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: buffer.as_entire_binding(),

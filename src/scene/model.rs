@@ -195,7 +195,7 @@ impl Model {
 
             // Create a bind group for the material textures.
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &render_server.model_texture_bind_group_layout,
+                layout: render_server.get_bind_group_layout("mesh textures bind group layout").unwrap(),
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,

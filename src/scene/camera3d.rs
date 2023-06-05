@@ -33,7 +33,7 @@ pub struct Camera3d {
     controller: Camera3dController,
 
     // CPU data
-    uniform: Camera3dUniform,
+    uniform: CameraUniform,
 
     // GPU data
     buffer: wgpu::Buffer,
@@ -49,7 +49,7 @@ impl Camera3d {
         render_server: &RenderServer,
     ) -> Self {
         let device = &render_server.device;
-        let config = &render_server.config;
+        let config = &render_server.surface_config;
 
         let projection = Projection::new(
             config.width, // Render target size
@@ -62,18 +62,18 @@ impl Camera3d {
         let controller = Camera3dController::new(4.0, 0.4);
 
         // This will be used in the model shader.
-        let mut uniform = Camera3dUniform::default();
+        let mut uniform = CameraUniform::default();
 
         // Create a buffer for the camera uniform.
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("camera3d buffer"),
-            size: mem::size_of::<Camera3dUniform>() as BufferAddress,
+            size: mem::size_of::<CameraUniform>() as BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &render_server.camera3d_bind_group_layout,
+            layout: render_server.get_bind_group_layout("camera bind group layout").unwrap(),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: buffer.as_entire_binding(),
@@ -187,16 +187,16 @@ impl CameraInfo {
 #[repr(C)]
 // This is so we can store this in a buffer.
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Camera3dUniform {
+pub struct CameraUniform {
     view_position: [f32; 4],
     /// Multiplication of the view and projection matrices.
     // We can't use cgmath with bytemuck directly so we'll have
     // to convert the Matrix4 into a 4x4 f32 array.
     view: [[f32; 4]; 4],
-    proj: [[f32; 4]; 4],
+    pub(crate) proj: [[f32; 4]; 4],
 }
 
-impl Camera3dUniform {
+impl CameraUniform {
     pub(crate) fn default() -> Self {
         use cgmath::SquareMatrix;
         Self {

@@ -239,7 +239,7 @@ impl Atlas {
             None => {}
             Some(buffer) => {
                 render_pass.draw_atlas(
-                    &render_server.atlas_pipeline,
+                    render_server.get_render_pipeline("atlas pipeline").unwrap(),
                     buffer,
                     instance_count,
                     &texture_bind_group,
@@ -262,8 +262,8 @@ pub trait DrawAtlas<'a> {
 }
 
 impl<'a, 'b> DrawAtlas<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a, // This means 'b must outlive 'a.
+    where
+        'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_atlas(
         &mut self,

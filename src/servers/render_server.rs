@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
 use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
-use crate::scene::Camera2dUniform;
+use crate::scene::CameraUniform;
 use crate::{resources, scene, Camera2d, Camera3d, Light, SamplerBindingType, Texture};
 use bevy_ecs::system::Resource;
 use cgmath::Point2;
@@ -12,237 +13,265 @@ use wgpu::{BufferAddress, TextureFormat};
 
 #[derive(Resource)]
 pub struct RenderServer {
-    pub surface: wgpu::Surface,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub config: wgpu::SurfaceConfiguration,
+    pub surface: wgpu::Surface,
+    pub surface_config: wgpu::SurfaceConfiguration,
 
-    pub model_pipeline: wgpu::RenderPipeline,
-    pub vector_sprite_pipeline: wgpu::RenderPipeline,
-    pub sprite_pipeline: wgpu::RenderPipeline,
-    pub sprite3d_pipeline: wgpu::RenderPipeline,
-    pub skybox_pipeline: wgpu::RenderPipeline,
-    pub gizmo_pipeline: wgpu::RenderPipeline,
-    pub atlas_pipeline: wgpu::RenderPipeline,
-
-    pub sprite_texture_bind_group_layout: wgpu::BindGroupLayout,
-    pub light_bind_group_layout: wgpu::BindGroupLayout,
-    pub model_texture_bind_group_layout: wgpu::BindGroupLayout,
-    pub camera2d_bind_group_layout: wgpu::BindGroupLayout,
-    pub camera3d_bind_group_layout: wgpu::BindGroupLayout,
-    pub skybox_texture_bind_group_layout: wgpu::BindGroupLayout,
-    pub sprite_params_bind_group_layout: wgpu::BindGroupLayout,
-    pub atlas_params_bind_group_layout: wgpu::BindGroupLayout,
+    bind_group_layout_cache: HashMap<&'static str, wgpu::BindGroupLayout>,
+    render_pipeline_cache: HashMap<&'static str, wgpu::RenderPipeline>,
 }
 
 impl RenderServer {
     pub(crate) fn new(
         surface: wgpu::Surface,
-        config: wgpu::SurfaceConfiguration,
+        surface_config: wgpu::SurfaceConfiguration,
         device: wgpu::Device,
         queue: wgpu::Queue,
     ) -> Self {
         let now = Instant::now();
 
+        let mut bind_group_layout_cache = HashMap::new();
+
         // Create various bind group layouts, which are used to create bind groups.
         // ------------------------------------------------------------------
-        let camera3d_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera3d bind group layout"),
-            });
+        {
+            let label = "camera bind group layout";
 
-        let camera2d_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera2d bind group layout"),
-            });
-
-        // Model textures.
-        let model_texture_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    // Diffuse texture.
-                    wgpu::BindGroupLayoutEntry {
+            let camera_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
                         },
                         count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler {
-                            0: SamplerBindingType::Filtering,
-                        },
-                        count: None,
-                    },
-                    // Normal texture.
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler {
-                            0: SamplerBindingType::Filtering,
-                        },
-                        count: None,
-                    },
-                ],
-                label: Some("model texture bind group layout"),
-            });
+                    }],
+                    label: Some(label),
+                });
 
-        let light_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("light bind group layout"),
-            });
+            bind_group_layout_cache.insert(label, camera_bind_group_layout);
+        }
 
-        let sprite_texture_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
+        // Mesh textures.
+        {
+            let label = "mesh textures bind group layout";
+
+            let mesh_textures_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[
+                        // Diffuse texture.
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler {
+                                0: SamplerBindingType::Filtering,
+                            },
+                            count: None,
+                        },
+                        // Normal texture.
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler {
+                                0: SamplerBindingType::Filtering,
+                            },
+                            count: None,
+                        },
+                    ],
+                    label: Some(label),
+                });
+
+            bind_group_layout_cache.insert(label, mesh_textures_bind_group_layout);
+        }
+
+        {
+            let label = "light bind group layout";
+
+            let light_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
                         },
                         count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler {
-                            0: SamplerBindingType::Filtering,
-                        },
-                        count: None,
-                    },
-                ],
-                label: Some("sprite texture bind group layout"),
-            });
+                    }],
+                    label: Some(label),
+                });
 
-        let skybox_texture_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
+            bind_group_layout_cache.insert(label, light_bind_group_layout);
+        }
+
+        {
+            let label = "sprite texture bind group layout";
+
+            let sprite_texture_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler {
+                                0: SamplerBindingType::Filtering,
+                            },
+                            count: None,
+                        },
+                    ],
+                    label: Some(label),
+                });
+
+            bind_group_layout_cache.insert(label, sprite_texture_bind_group_layout);
+        }
+
+        {
+            let label = "skybox texture bind group layout";
+
+            let skybox_texture_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::Cube,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler {
+                                0: SamplerBindingType::Filtering,
+                            },
+                            count: None,
+                        },
+                    ],
+                    label: Some(label),
+                });
+
+            bind_group_layout_cache.insert(label, skybox_texture_bind_group_layout);
+        }
+
+        {
+            let label = "sprite3d params bind group layout";
+
+            let bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::Cube,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
                         },
                         count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler {
-                            0: SamplerBindingType::Filtering,
-                        },
-                        count: None,
-                    },
-                ],
-                label: Some("skybox texture bind group layout"),
-            });
+                    }],
+                    label: Some(label),
+                });
 
-        let sprite_params_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("sprite params bind group layout"),
-            });
+            bind_group_layout_cache.insert(label, bind_group_layout);
+        }
+
+        {
+            let label = "atlas params bind group layout";
+
+            let bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                    label: Some(label),
+                });
+
+            bind_group_layout_cache.insert(label, bind_group_layout);
+        }
         // ------------------------------------------------------------------
 
-        // Model pipeline to draw a model.
-        let model_pipeline = {
-            // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("model render pipeline layout"),
-                bind_group_layouts: &[
-                    &model_texture_bind_group_layout,
-                    &camera3d_bind_group_layout,
-                    &light_bind_group_layout,
-                ],
-                push_constant_ranges: &[],
-            });
+        let mut render_pipeline_cache = HashMap::new();
 
-            // Shader descriptor, not a shader module yet.
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("model shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/model.wgsl").into()),
-            };
+        let mut server = Self {
+            device,
+            queue,
+            surface,
+            surface_config,
 
-            create_render_pipeline(
-                &device,
-                &pipeline_layout,
-                config.format,
-                Some(resources::texture::Texture::DEPTH_FORMAT),
-                &[Vertex3d::desc(), scene::model::InstanceRaw::desc()],
-                shader,
-                "model pipeline",
-                false,
-                Some(wgpu::Face::Back),
-            )
+            bind_group_layout_cache,
+            render_pipeline_cache,
         };
 
-        // Sprite pipeline.
-        let sprite_pipeline = {
+        server.build_atlas_pipeline();
+        server.build_gizmo_pipeline();
+        server.build_sprite2d_pipeline();
+        server.build_sprite3d_pipeline();
+        server.build_skybox_pipeline();
+        server.build_sprite_v_pipeline();
+
+        let elapsed_time = now.elapsed();
+        log::info!(
+            "Render server setup took {} milliseconds",
+            elapsed_time.as_millis()
+        );
+
+        server
+    }
+
+    pub fn build_sprite2d_pipeline(&mut self) {
+        let pipeline_label = "sprite2d pipeline";
+
+        let pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("sprite2d render pipeline layout"),
+            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("sprite2d pipeline layout"),
                 bind_group_layouts: &[
-                    &camera2d_bind_group_layout,
-                    &sprite_texture_bind_group_layout,
+                    self.get_bind_group_layout("camera bind group layout").unwrap(),
+                    self.get_bind_group_layout("sprite texture bind group layout").unwrap(),
                 ],
                 push_constant_ranges: &[],
             });
@@ -254,27 +283,69 @@ impl RenderServer {
             };
 
             create_render_pipeline(
-                &device,
+                &self.device,
                 &pipeline_layout,
-                config.format,
+                self.surface_config.format,
                 Some(resources::texture::Texture::DEPTH_FORMAT),
                 &[Vertex2d::desc()],
                 shader,
-                "sprite2d pipeline",
+                pipeline_label,
                 true,
                 Some(wgpu::Face::Back),
             )
         };
 
-        // Sprite3d pipeline.
-        let sprite3d_pipeline = {
+        self.render_pipeline_cache.insert(pipeline_label, pipeline);
+    }
+
+    pub fn build_mesh_pipeline(&mut self) {
+        let pipeline_label = "mesh pipeline";
+
+        let pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("sprite3d render pipeline layout"),
+            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("model pipeline layout"),
                 bind_group_layouts: &[
-                    &camera3d_bind_group_layout,
-                    &sprite_texture_bind_group_layout,
-                    &sprite_params_bind_group_layout,
+                    self.get_bind_group_layout("mesh textures").unwrap(),
+                    self.get_bind_group_layout("camera").unwrap(),
+                    self.get_bind_group_layout("light").unwrap(),
+                ],
+                push_constant_ranges: &[],
+            });
+
+            // Shader descriptor, not a shader module yet.
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("model shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/model.wgsl").into()),
+            };
+
+            create_render_pipeline(
+                &self.device,
+                &pipeline_layout,
+                self.surface_config.format,
+                Some(resources::texture::Texture::DEPTH_FORMAT),
+                &[Vertex3d::desc(), scene::model::InstanceRaw::desc()],
+                shader,
+                pipeline_label,
+                false,
+                Some(wgpu::Face::Back),
+            )
+        };
+
+        self.render_pipeline_cache.insert(pipeline_label, pipeline);
+    }
+
+    pub fn build_sprite3d_pipeline(&mut self) {
+        let pipeline_label = "sprite3d pipeline";
+
+        let pipeline = {
+            // Set up resource pipeline layout using bind group layouts.
+            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("sprite3d pipeline layout"),
+                bind_group_layouts: &[
+                    self.get_bind_group_layout("camera bind group layout").unwrap(),
+                    self.get_bind_group_layout("sprite texture bind group layout").unwrap(),
+                    self.get_bind_group_layout("sprite3d params bind group layout").unwrap(),
                 ],
                 push_constant_ranges: &[],
             });
@@ -287,143 +358,65 @@ impl RenderServer {
 
             // FIXME(floppyhammer): Transparency
             create_render_pipeline(
-                &device,
+                &self.device,
                 &pipeline_layout,
-                config.format,
+                self.surface_config.format,
                 Some(resources::texture::Texture::DEPTH_FORMAT),
                 &[Vertex3d::desc()],
                 shader,
-                "sprite3d pipeline",
+                pipeline_label,
                 false,
                 Some(wgpu::Face::Back),
             )
         };
 
+        self.render_pipeline_cache.insert(pipeline_label, pipeline);
+    }
+
+    pub fn build_sprite_v_pipeline(&mut self) {
+        let pipeline_label = "sprite v pipeline";
+
         // Vector sprite pipeline.
-        let vector_sprite_pipeline = {
+        let pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("vector sprite render pipeline layout"),
-                bind_group_layouts: &[&camera2d_bind_group_layout],
+            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("sprite v pipeline layout"),
+                bind_group_layouts: &[self.get_bind_group_layout("camera bind group layout").unwrap(),
+                ],
                 push_constant_ranges: &[],
             });
 
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("vector sprite shader"),
+                label: Some("sprite v shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/vector.wgsl").into()),
             };
 
             create_render_pipeline(
-                &device,
+                &self.device,
                 &pipeline_layout,
-                config.format,
+                self.surface_config.format,
                 Some(resources::texture::Texture::DEPTH_FORMAT),
                 &[VectorVertex::desc()],
                 shader,
-                "vector sprite pipeline",
+                pipeline_label,
                 true,
                 None,
             )
         };
 
-        let skybox_pipeline = {
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("skybox render pipeline layout"),
+        self.render_pipeline_cache.insert(pipeline_label, pipeline);
+    }
+
+    pub fn build_atlas_pipeline(&mut self) {
+        let pipeline_label = "atlas pipeline";
+
+        let pipeline = {
+            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("atlas pipeline layout"),
                 bind_group_layouts: &[
-                    &camera3d_bind_group_layout,
-                    &skybox_texture_bind_group_layout,
-                ],
-                push_constant_ranges: &[],
-            });
-
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("skybox shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/skybox.wgsl").into()),
-            };
-
-            create_render_pipeline(
-                &device,
-                &pipeline_layout,
-                config.format,
-                Some(resources::texture::Texture::DEPTH_FORMAT),
-                &[VertexSky::desc()],
-                shader,
-                "skybox pipeline",
-                false,
-                Some(wgpu::Face::Back),
-            )
-        };
-
-        let gizmo_pipeline = {
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("gizmo render pipeline layout"),
-                bind_group_layouts: &[&camera3d_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("gizmo shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/gizmo.wgsl").into()),
-            };
-            let shader_module = device.create_shader_module(shader);
-
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("gizmo render pipeline"),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader_module,
-                    entry_point: "vs_main_grid",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader_module,
-                    entry_point: "fs_main_grid",
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: config.format,
-                        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleStrip, // Has to be triangle strip.
-                    front_face: wgpu::FrontFace::Cw,
-                    cull_mode: None,
-                    ..Default::default()
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: resources::texture::Texture::DEPTH_FORMAT,
-                    depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::Less,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                }),
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            })
-        };
-
-        let atlas_params_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("atlas params bind group layout"),
-            });
-
-        let atlas_pipeline = {
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("atlas render pipeline layout"),
-                bind_group_layouts: &[
-                    &atlas_params_bind_group_layout,
-                    &sprite_texture_bind_group_layout,
+                    self.get_bind_group_layout("atlas params bind group layout").unwrap(),
+                    self.get_bind_group_layout("sprite texture bind group layout").unwrap(),
                 ],
                 push_constant_ranges: &[],
             });
@@ -432,10 +425,10 @@ impl RenderServer {
                 label: Some("atlas shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/atlas.wgsl").into()),
             };
-            let shader_module = device.create_shader_module(shader);
+            let shader_module = self.device.create_shader_module(shader);
 
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("atlas render pipeline"),
+            self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(pipeline_label),
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader_module,
@@ -446,7 +439,7 @@ impl RenderServer {
                     module: &shader_module,
                     entry_point: "fs_main",
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: config.format,
+                        format: self.surface_config.format,
                         blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -469,35 +462,103 @@ impl RenderServer {
             })
         };
 
-        let elapsed_time = now.elapsed();
-        log::info!(
-            "Render server setup took {} milliseconds",
-            elapsed_time.as_millis()
-        );
+        self.render_pipeline_cache.insert(pipeline_label, pipeline);
+    }
 
-        Self {
-            surface,
-            config,
-            device,
-            queue,
+    pub fn build_skybox_pipeline(&mut self) {
+        let pipeline_label = "skybox pipeline";
 
-            model_pipeline,
-            vector_sprite_pipeline,
-            sprite_pipeline,
-            sprite3d_pipeline,
-            skybox_pipeline,
-            gizmo_pipeline,
-            atlas_pipeline,
+        let pipeline = {
+            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("skybox pipeline layout"),
+                bind_group_layouts: &[
+                    self.get_bind_group_layout("camera bind group layout").unwrap(),
+                    self.get_bind_group_layout("skybox texture bind group layout").unwrap(),
+                ],
+                push_constant_ranges: &[],
+            });
 
-            sprite_texture_bind_group_layout,
-            light_bind_group_layout,
-            model_texture_bind_group_layout,
-            camera2d_bind_group_layout,
-            camera3d_bind_group_layout,
-            skybox_texture_bind_group_layout,
-            sprite_params_bind_group_layout,
-            atlas_params_bind_group_layout,
-        }
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("skybox shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/skybox.wgsl").into()),
+            };
+
+            create_render_pipeline(
+                &self.device,
+                &pipeline_layout,
+                self.surface_config.format,
+                Some(resources::texture::Texture::DEPTH_FORMAT),
+                &[VertexSky::desc()],
+                shader,
+                pipeline_label,
+                false,
+                Some(wgpu::Face::Back),
+            )
+        };
+
+        self.render_pipeline_cache.insert(pipeline_label, pipeline);
+    }
+
+    pub fn build_gizmo_pipeline(&mut self) {
+        let pipeline_label = "gizmo pipeline";
+
+        let pipeline = {
+            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("gizmo pipeline layout"),
+                bind_group_layouts: &[self.get_bind_group_layout("camera bind group layout").unwrap()],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("gizmo shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/gizmo.wgsl").into()),
+            };
+            let shader_module = self.device.create_shader_module(shader);
+
+            self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(pipeline_label),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader_module,
+                    entry_point: "vs_main_grid",
+                    buffers: &[],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader_module,
+                    entry_point: "fs_main_grid",
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: self.surface_config.format,
+                        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleStrip, // Has to be triangle strip.
+                    front_face: wgpu::FrontFace::Cw,
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: resources::texture::Texture::DEPTH_FORMAT,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+            })
+        };
+
+        self.render_pipeline_cache.insert(pipeline_label, pipeline);
+    }
+
+    pub fn get_bind_group_layout(&self, label: &'static str) -> Option<&wgpu::BindGroupLayout> {
+        return self.bind_group_layout_cache.get(label);
+    }
+
+    pub fn get_render_pipeline(&self, label: &'static str) -> Option<&wgpu::RenderPipeline> {
+        self.render_pipeline_cache.get(label)
     }
 
     pub(crate) fn create_camera2d_resources(
@@ -507,13 +568,13 @@ impl RenderServer {
         // Create a buffer for the camera uniform.
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("camera2d buffer"),
-            size: mem::size_of::<Camera2dUniform>() as BufferAddress,
+            size: mem::size_of::<CameraUniform>() as BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.camera2d_bind_group_layout,
+            layout: self.get_bind_group_layout("camera bind group layout").unwrap(),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: camera_buffer.as_entire_binding(),
@@ -526,7 +587,7 @@ impl RenderServer {
 
     pub fn create_sprite2d_bind_group(&self, texture: &Texture) -> wgpu::BindGroup {
         self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.sprite_texture_bind_group_layout,
+            layout: self.get_bind_group_layout("sprite texture bind group layout").unwrap(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -550,7 +611,7 @@ impl RenderServer {
         });
 
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.atlas_params_bind_group_layout,
+            layout: self.get_bind_group_layout("atlas params bind group layout").unwrap(),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: buffer.as_entire_binding(),

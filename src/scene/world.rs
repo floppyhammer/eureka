@@ -1,6 +1,6 @@
 use crate::render::gizmo::Gizmo;
 use crate::resources::RenderServer;
-use crate::scene::{AsNode, Camera2d, Camera3d, Camera3dUniform, CameraInfo, NodeType};
+use crate::scene::{AsNode, Camera2d, Camera3d, CameraUniform, CameraInfo, NodeType};
 use crate::servers::{InputEvent, InputServer};
 use crate::Singletons;
 use cgmath::Point2;

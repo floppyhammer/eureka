@@ -88,7 +88,7 @@ impl App {
         // Depth texture for depth test.
         let depth_texture = Texture::create_depth_texture(
             &render_server.device,
-            &render_server.config,
+            &render_server.surface_config,
             "depth texture",
         );
 
@@ -249,11 +249,11 @@ impl App {
         // Reconfigure the surface everytime the window's size changes.
         if new_size.width > 0 && new_size.height > 0 {
             self.window_size = new_size;
-            self.singletons.render_server.config.width = new_size.width;
-            self.singletons.render_server.config.height = new_size.height;
+            self.singletons.render_server.surface_config.width = new_size.width;
+            self.singletons.render_server.surface_config.height = new_size.height;
             self.singletons.render_server.surface.configure(
                 &self.singletons.render_server.device,
-                &self.singletons.render_server.config,
+                &self.singletons.render_server.surface_config,
             );
 
             // Create a new depth_texture and depth_texture_view.
@@ -261,7 +261,7 @@ impl App {
             // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
             self.depth_texture = Texture::create_depth_texture(
                 &self.singletons.render_server.device,
-                &self.singletons.render_server.config,
+                &self.singletons.render_server.surface_config,
                 "depth texture",
             );
 

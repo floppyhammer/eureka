@@ -1,4 +1,4 @@
-use crate::scene::{Camera3dUniform, CameraInfo};
+use crate::scene::{CameraUniform, CameraInfo};
 use crate::servers::input_server::InputEvent;
 use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
 use cgmath::*;

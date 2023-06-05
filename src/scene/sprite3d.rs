@@ -1,5 +1,5 @@
 use crate::resources::{Material2d, Mesh, Texture};
-use crate::scene::{AsNode, Camera2dUniform, CameraInfo, NodeType};
+use crate::scene::{AsNode, CameraUniform, CameraInfo, NodeType};
 use crate::{Camera2d, InputEvent, RenderServer, SamplerBindingType, Singletons, Zero};
 use cgmath::{InnerSpace, Rotation3, Vector3};
 use std::any::Any;
@@ -66,7 +66,7 @@ impl Sprite3d {
         let mesh = Mesh::default_3d(device);
 
         let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &render_server.sprite_texture_bind_group_layout,
+            layout: render_server.get_bind_group_layout("sprite texture bind group layout").unwrap(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -92,7 +92,7 @@ impl Sprite3d {
         });
 
         let params_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &render_server.sprite_params_bind_group_layout,
+            layout: render_server.get_bind_group_layout("sprite3d params bind group layout").unwrap(),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: params_buffer.as_entire_binding(),
@@ -166,7 +166,7 @@ impl AsNode for Sprite3d {
         match &camera_info.bind_group {
             Some(b) => {
                 render_pass.draw_sprite(
-                    &singletons.render_server.sprite3d_pipeline,
+                    singletons.render_server.get_render_pipeline("sprite3d pipeline").unwrap(),
                     &self.mesh,
                     &self.texture_bind_group,
                     b,
@@ -190,8 +190,8 @@ pub trait DrawSprite3d<'a> {
 }
 
 impl<'a, 'b> DrawSprite3d<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a, // This means 'b must outlive 'a.
+    where
+        'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,

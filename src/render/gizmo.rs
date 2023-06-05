@@ -20,7 +20,7 @@ impl Gizmo {
     ) {
         match &camera_info.bind_group {
             Some(b) => {
-                render_pass.set_pipeline(&singletons.render_server.gizmo_pipeline);
+                render_pass.set_pipeline(singletons.render_server.get_render_pipeline("gizmo pipeline").unwrap());
 
                 // Set camera group.
                 render_pass.set_bind_group(0, b, &[]);
