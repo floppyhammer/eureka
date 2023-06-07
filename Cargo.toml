@@ -36,6 +36,8 @@ allsorts = "0.14.0"
 whatlang = "0.16.2"
 # Text bidi.
 unicode-bidi = "0.3.8"
+# Finding system fonts.
+font-kit = "0.11.0"
 # For splitting grapheme clusters.
 unicode-segmentation = "1.10.0"
 # For ECS.

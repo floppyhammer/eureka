@@ -107,7 +107,7 @@ pub(crate) struct DynamicFont {
 
 impl DynamicFont {
     /// Load font from a file.
-    pub(crate) fn load<P: AsRef<Path>>(path: P, render_server: &RenderServer) -> Self {
+    pub(crate) fn load_from_file<P: AsRef<Path>>(path: P, render_server: &RenderServer) -> Self {
         let now = Instant::now();
 
         // Read the font data.
@@ -115,6 +115,12 @@ impl DynamicFont {
         let metadata = fs::metadata(path.as_ref()).expect("Unable to read font file metadata!");
         let mut buffer = vec![0; metadata.len() as usize];
         f.read(&mut buffer).expect("Font buffer overflow!");
+
+        Self::load_from_memory(buffer, render_server)
+    }
+
+    pub(crate) fn load_from_memory(buffer: Vec<u8>, render_server: &RenderServer) -> Self {
+        let now = Instant::now();
 
         // Clone the raw data, as it will be consumed when we create a fontdut font below.
         let raw_font_data = buffer.clone();

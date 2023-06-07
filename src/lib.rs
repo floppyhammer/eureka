@@ -98,9 +98,6 @@ impl App {
         let asset_server = AssetServer::new();
 
         let mut text_server = TextServer::new(
-            asset_server
-                .asset_dir
-                .join("fonts/Arial Unicode MS Font.ttf"),
             &render_server,
         );
 

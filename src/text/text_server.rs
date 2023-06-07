@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::AtlasInstance;
@@ -8,16 +9,19 @@ use std::path::Path;
 use std::time::Instant;
 use winit::event::VirtualKeyCode::P;
 use crate::text::{Glyph, DynamicFont, FONT_ATLAS_SIZE};
+use font_kit::source::SystemSource;
 
 pub struct TextServer {
-    default_font: DynamicFont,
+    fonts: HashMap<&'static str, DynamicFont>,
 }
 
 impl TextServer {
-    pub(crate) fn new<P: AsRef<Path>>(font_path: P, render_server: &RenderServer) -> Self {
+    pub(crate) fn new(render_server: &RenderServer) -> Self {
         let now = Instant::now();
 
-        let mut font = DynamicFont::load(font_path, render_server);
+        let default_font_data = find_system_font("".to_string());
+
+        let mut font = DynamicFont::load_from_memory(default_font_data.unwrap(), render_server);
 
         let elapsed_time = now.elapsed();
         log::info!(
@@ -25,15 +29,20 @@ impl TextServer {
             elapsed_time.as_millis()
         );
 
-        Self { default_font: font }
+        let mut fonts = HashMap::new();
+        fonts.insert("default", font);
+
+        Self { fonts }
     }
 
     pub(crate) fn update_gpu(&mut self, render_server: &RenderServer) {
-        self.default_font.upload(render_server);
+        for (key, font) in &mut self.fonts {
+            font.upload(render_server);
+        }
     }
 
     pub(crate) fn get_default_font(&self) -> &DynamicFont {
-        &self.default_font
+        self.fonts.get("default").unwrap()
     }
 
     pub(crate) fn get_instances(
@@ -46,9 +55,9 @@ impl TextServer {
         let font;
 
         if font_id.is_some() {
-            font = &mut self.default_font;
+            font = self.fonts.get_mut(&*font_id.unwrap()).unwrap();
         } else {
-            font = &mut self.default_font;
+            font = self.fonts.get_mut("default").unwrap();
         }
 
         let (glyphs, lines) = font.get_glyphs(text);
@@ -90,6 +99,42 @@ impl TextServer {
     }
 
     pub(crate) fn get_font_bind_group(&self, font_id: Option<String>) -> &wgpu::BindGroup {
-        &self.default_font.atlas_bind_group
+        let font;
+        if font_id.is_some() {
+            font = self.fonts.get(&*font_id.unwrap()).unwrap();
+        } else {
+            font = self.fonts.get("default").unwrap();
+        }
+
+        &font.atlas_bind_group
     }
+}
+
+fn find_system_font(font_name: String) -> Option<Vec<u8>> {
+    let result = std::panic::catch_unwind(|| {
+        let font;
+
+        if font_name.is_empty() {
+            let handle = SystemSource::new().all_fonts().unwrap().first().unwrap().clone();
+
+            font = handle.load().unwrap();
+        } else {
+            font = SystemSource::new()
+                .select_by_postscript_name(&*font_name)
+                .unwrap()
+                .load()
+                .unwrap();
+        }
+
+        let font_data = font.copy_font_data().unwrap();
+        let font_data = (*font_data).clone();
+
+        Some(font_data)
+    });
+    if result.is_err() {
+        eprintln!("ERROR: failed to find font: {}", font_name);
+        return None;
+    }
+
+    result.unwrap()
 }
