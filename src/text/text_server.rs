@@ -19,7 +19,7 @@ impl TextServer {
     pub(crate) fn new(render_server: &RenderServer) -> Self {
         let now = Instant::now();
 
-        let default_font_data = find_system_font("".to_string());
+        let default_font_data = find_system_font("");
 
         let mut font = DynamicFont::load_from_memory(default_font_data.unwrap(), render_server);
 
@@ -33,6 +33,12 @@ impl TextServer {
         fonts.insert("default", font);
 
         Self { fonts }
+    }
+
+    /// Load a new font from disk.
+    pub fn load_font(&mut self, font_path: &'static str, render_server: &RenderServer) {
+        let mut font = DynamicFont::load_from_file(font_path, render_server);
+        self.fonts.insert(font_path, font);
     }
 
     pub(crate) fn update_gpu(&mut self, render_server: &RenderServer) {
@@ -110,7 +116,7 @@ impl TextServer {
     }
 }
 
-fn find_system_font(font_name: String) -> Option<Vec<u8>> {
+fn find_system_font(font_name: &str) -> Option<Vec<u8>> {
     let result = std::panic::catch_unwind(|| {
         let font;
 
@@ -120,7 +126,7 @@ fn find_system_font(font_name: String) -> Option<Vec<u8>> {
             font = handle.load().unwrap();
         } else {
             font = SystemSource::new()
-                .select_by_postscript_name(&*font_name)
+                .select_by_postscript_name(font_name)
                 .unwrap()
                 .load()
                 .unwrap();

@@ -107,12 +107,10 @@ pub(crate) struct DynamicFont {
 
 impl DynamicFont {
     /// Load font from a file.
-    pub(crate) fn load_from_file<P: AsRef<Path>>(path: P, render_server: &RenderServer) -> Self {
-        let now = Instant::now();
-
+    pub(crate) fn load_from_file(path: &str, render_server: &RenderServer) -> Self {
         // Read the font data.
-        let mut f = File::open(path.as_ref()).expect("No font file found!");
-        let metadata = fs::metadata(path.as_ref()).expect("Unable to read font file metadata!");
+        let mut f = File::open(path).expect("No font file found!");
+        let metadata = fs::metadata(path).expect("Unable to read font file metadata!");
         let mut buffer = vec![0; metadata.len() as usize];
         f.read(&mut buffer).expect("Font buffer overflow!");
 
@@ -424,7 +422,7 @@ impl DynamicFont {
                     };
 
                     self.glyph_cache.insert(index, glyph.clone());
-                    log::info!(
+                    log::trace!(
                         "New glyph added to font cache: {} - {}",
                         glyph.index,
                         glyph.text
