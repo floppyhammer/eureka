@@ -123,13 +123,13 @@ impl App {
 
     // Creating some of the wgpu types requires async code.
     async fn init_render(window: &Window) -> RenderServer {
-        // The instance is a handle to our GPU.
+        // Context for all other wgpu objects.
         let instance = wgpu::Instance::default();
 
-        // The surface is the part of the window that we draw to.
+        // Handle to a presentable surface.
         let surface = unsafe { instance.create_surface(window).unwrap() };
 
-        // The adapter is a handle to our actual graphics card.
+        // Handle to a physical graphics and/or compute device.
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
@@ -139,7 +139,7 @@ impl App {
             .await
             .unwrap();
 
-        // Use the adapter to create the device and queue.
+        // Use the adapter to create a device and a queue.
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -155,13 +155,13 @@ impl App {
         // Get the window's inner size.
         let size = window.inner_size();
 
-        let config = surface
+        let surface_config = surface
             .get_default_config(&adapter, size.width, size.height)
             .expect("Surface unsupported by adapter!");
-        surface.configure(&device, &config);
+        surface.configure(&device, &surface_config);
 
         // Create a render server.
-        RenderServer::new(surface, config, device, queue)
+        RenderServer::new(surface, surface_config, device, queue)
     }
 
     pub fn run(&mut self, event_loop: &mut EventLoop<()>) {
@@ -301,14 +301,14 @@ impl App {
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         // First we need to get a frame to draw to.
-        let output_surface = self
+        let surface_texture = self
             .singletons
             .render_server
             .surface
             .get_current_texture()?;
 
         // Creates a TextureView with default settings.
-        let view = output_surface
+        let view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -365,7 +365,7 @@ impl App {
             .submit(std::iter::once(encoder.finish()));
 
         // Present the swapchain surface.
-        output_surface.present();
+        surface_texture.present();
 
         Ok(())
     }

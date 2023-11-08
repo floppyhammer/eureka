@@ -57,7 +57,6 @@ impl RenderServer {
             bind_group_layout_cache.insert(label, camera_bind_group_layout);
         }
 
-        // Mesh textures.
         {
             let label = "mesh textures bind group layout";
 
