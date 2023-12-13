@@ -1,4 +1,5 @@
 use crate::scene::{AsNode, NodeType};
+use crate::window::{InputEvent, InputServer};
 use crate::{RenderServer, Singletons};
 use cgmath::num_traits::clamp;
 use cgmath::*;
@@ -12,7 +13,6 @@ use wgpu::BufferAddress;
 use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
 use winit::event::*;
 use winit::window::Window;
-use crate::window::{InputEvent, InputServer};
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -74,7 +74,9 @@ impl Camera3d {
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: render_server.get_bind_group_layout("camera bind group layout").unwrap(),
+            layout: render_server
+                .get_bind_group_layout("camera bind group layout")
+                .unwrap(),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: buffer.as_entire_binding(),

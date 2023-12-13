@@ -1,6 +1,6 @@
+use assets_manager::{loader, Asset, AssetCache, AssetGuard, Compound};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use assets_manager::{Asset, AssetCache, AssetGuard, Compound, loader};
 
 pub struct AssetServer {
     pub asset_dir: PathBuf,
@@ -16,7 +16,10 @@ impl AssetServer {
         // Create a new cache to load assets under the "./assets" folder.
         let cache = AssetCache::new("assets").unwrap();
 
-        Self { asset_dir, asset_cache: cache }
+        Self {
+            asset_dir,
+            asset_cache: cache,
+        }
     }
 
     pub fn load<A: Compound>(&mut self, id: &str) -> Option<AssetGuard<A>> {

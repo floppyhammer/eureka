@@ -41,6 +41,7 @@ pub struct MouseMotion {
 }
 
 pub struct InputServer {
+    /// Track current mouse position.
     pub(crate) mouse_position: (f32, f32),
     pub(crate) input_events: Vec<InputEvent>,
     cursor_captured: bool,

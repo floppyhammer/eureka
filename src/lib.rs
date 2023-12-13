@@ -19,28 +19,28 @@ use winit::event::VirtualKeyCode::E;
 use winit::platform::run_return::EventLoopExtRunReturn;
 
 // Do this before importing local crates.
+pub mod asset;
 pub mod core;
 pub mod math;
+pub mod pbr;
 pub mod render;
 pub mod scene;
 pub mod text;
 pub mod vector_image;
 pub mod window;
-pub mod asset;
-pub mod pbr;
 
 // Import local crates.
+use crate::asset::AssetServer;
 use crate::render::atlas::{Atlas, AtlasInstance};
 use crate::render::gizmo::Gizmo;
-use crate::render::{CubeTexture, Texture, RenderServer};
+use crate::render::{CubeTexture, RenderServer, Texture};
 use crate::scene::sprite2d::Sprite2d;
 use crate::scene::sprite3d::Sprite3d;
 use crate::scene::vector_sprite::{DrawVector, VectorSprite};
 use crate::scene::{
-    AsNode, Camera2d, Camera3d, Camera3dController, Label, Light,
-    LightUniform, Model, Projection, Sky, World,
+    AsNode, Camera2d, Camera3d, Camera3dController, Label, Light, LightUniform, Model, Projection,
+    Sky, World,
 };
-use crate::asset::AssetServer;
 use crate::text::TextServer;
 use crate::window::InputServer;
 
@@ -62,10 +62,15 @@ pub struct App {
     world: World,
     pub singletons: Singletons,
     is_init: bool,
+    /// In order to call EventLoop::run_return from App::run,
+    /// we have to put it in an option to avoid borrow errors.
+    event_loop: Option<EventLoop<()>>,
 }
 
 impl App {
-    pub fn new(event_loop: &EventLoop<()>) -> Self {
+    pub fn new() -> Self {
+        let event_loop = EventLoop::new();
+
         let env = env_logger::Env::default()
             .filter_or("EUREKA_LOG_LEVEL", "info")
             .write_style_or("EUREKA_LOG_STYLE", "always");
@@ -97,9 +102,7 @@ impl App {
 
         let asset_server = AssetServer::new();
 
-        let mut text_server = TextServer::new(
-            &render_server,
-        );
+        let mut text_server = TextServer::new(&render_server);
 
         let mut world = World::new(Point2::new(window_size.width, window_size.height));
 
@@ -118,6 +121,7 @@ impl App {
             world,
             singletons,
             is_init: false,
+            event_loop: Some(event_loop),
         }
     }
 
@@ -164,9 +168,9 @@ impl App {
         RenderServer::new(surface, surface_config, device, queue)
     }
 
-    pub fn run(&mut self, event_loop: &mut EventLoop<()>) {
+    pub fn run(&mut self) {
         // Main loop.
-        event_loop.run_return(move |event, _, control_flow| {
+        self.event_loop.take().unwrap().run_return( |event, _, control_flow| {
             match event {
                 // Device event.
                 Event::DeviceEvent {

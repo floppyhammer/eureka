@@ -9,8 +9,8 @@ use std::path::Path;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 
-use crate::render::{CubeTexture, Mesh, Texture};
 use crate::pbr::*;
+use crate::render::{CubeTexture, Mesh, Texture};
 use crate::scene::{AsNode, CameraInfo, NodeType};
 use crate::{RenderServer, Singletons};
 use material::MaterialSky;
@@ -32,7 +32,9 @@ impl Sky {
         let bind_group = render_server
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: render_server.get_bind_group_layout("skybox texture bind group layout").unwrap(),
+                layout: render_server
+                    .get_bind_group_layout("skybox texture bind group layout")
+                    .unwrap(),
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -89,7 +91,12 @@ impl AsNode for Sky {
     ) {
         match &camera_info.bind_group {
             Some(b) => {
-                render_pass.set_pipeline(singletons.render_server.get_render_pipeline("skybox pipeline").unwrap());
+                render_pass.set_pipeline(
+                    singletons
+                        .render_server
+                        .get_render_pipeline("skybox pipeline")
+                        .unwrap(),
+                );
 
                 render_pass.draw_skybox(&self.mesh, &self.material, b);
             }
@@ -108,8 +115,8 @@ pub trait DrawSky<'a> {
 }
 
 impl<'a, 'b> DrawSky<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
+where
+    'b: 'a,
 {
     fn draw_skybox(
         &mut self,

@@ -1,6 +1,6 @@
 use crate::math::transform::Transform2d;
 use crate::scene::{AsNode, NodeType};
-use crate::{Singletons};
+use crate::Singletons;
 use cgmath::{Point2, Vector2, Vector3};
 use std::any::Any;
 use wgpu::util::DeviceExt;

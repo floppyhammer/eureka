@@ -4,9 +4,9 @@ use std::ops::Range;
 use std::path::Path;
 use wgpu::util::DeviceExt;
 
-use crate::scene::{AsNode, CameraInfo, NodeType};
-use crate::render::{Mesh, Texture, RenderServer};
+use crate::render::{Mesh, RenderServer, Texture};
 use crate::scene::sprite3d::Sprite3d;
+use crate::scene::{AsNode, CameraInfo, NodeType};
 use crate::Singletons;
 
 pub struct Light {
@@ -36,7 +36,9 @@ impl Light {
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: render_server.get_bind_group_layout("light bind group layout").unwrap(),
+            layout: render_server
+                .get_bind_group_layout("light bind group layout")
+                .unwrap(),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: buffer.as_entire_binding(),

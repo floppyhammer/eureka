@@ -4,9 +4,7 @@ use eureka::App;
 use winit::event_loop::EventLoop;
 
 fn main() {
-    let mut event_loop = EventLoop::new();
-
-    let mut app = App::new(&event_loop);
+    let mut app = App::new();
 
     let camera3d = Camera3d::new(
         (0.0, 0.0, 0.0),
@@ -18,7 +16,10 @@ fn main() {
 
     let skybox_tex = CubeTexture::load(
         &app.singletons.render_server,
-        &app.singletons.asset_server.asset_dir.join("images/skybox.jpg"),
+        &app.singletons
+            .asset_server
+            .asset_dir
+            .join("images/skybox.jpg"),
     )
     .unwrap();
     let sky = Box::new(Sky::new(&app.singletons.render_server, skybox_tex));
@@ -27,7 +28,10 @@ fn main() {
     // Light.
     let light = Light::new(
         &app.singletons.render_server,
-        &app.singletons.asset_server.asset_dir.join("images/light.png"),
+        &app.singletons
+            .asset_server
+            .asset_dir
+            .join("images/light.png"),
     );
     app.add_node(Box::new(light), None);
 
@@ -44,5 +48,5 @@ fn main() {
     );
     app.add_node(obj_model, None);
 
-    app.run(&mut event_loop);
+    app.run();
 }

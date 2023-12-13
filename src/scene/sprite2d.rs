@@ -1,11 +1,10 @@
 use crate::math::transform::Transform2d;
+use crate::pbr::Material2d;
 use crate::render::{Mesh, Texture};
-use crate::pbr::{Material2d};
-use crate::scene::{AsNode, CameraUniform, CameraInfo, NodeType};
+use crate::scene::{AsNode, CameraInfo, CameraUniform, NodeType};
 use crate::{Camera2d, RenderServer, SamplerBindingType, Singletons};
 use cgmath::{Vector2, Vector3, Vector4};
 use std::any::Any;
-use bevy_ecs::prelude::unwrap;
 use wgpu::util::DeviceExt;
 
 pub struct SpriteSheet {
@@ -150,7 +149,10 @@ impl AsNode for Sprite2d {
         );
 
         render_pass.draw_sprite(
-            singletons.render_server.get_render_pipeline("sprite2d pipeline").unwrap(),
+            singletons
+                .render_server
+                .get_render_pipeline("sprite2d pipeline")
+                .unwrap(),
             &self.mesh,
             &self.texture_bind_group,
             &self.camera_bind_group,

@@ -11,8 +11,8 @@ use std::time::Instant;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
 
-use crate::render::vertex::Vertex3d;
 use crate::pbr::*;
+use crate::render::vertex::Vertex3d;
 use crate::render::{Mesh, Texture};
 use crate::scene::{AsNode, CameraInfo, NodeType};
 use crate::{Camera2d, RenderServer, Singletons};
@@ -161,14 +161,16 @@ impl Model {
                     Ok(i) => i,
                     Err(e) => {
                         log::warn!(
-                        "Failed to load diffuse texture {:?}: {}",
-                        m.diffuse_texture.clone().unwrap(),
-                        e
-                    );
+                            "Failed to load diffuse texture {:?}: {}",
+                            m.diffuse_texture.clone().unwrap(),
+                            e
+                        );
                         Texture::empty(device, queue, (4, 4))?
                     }
                 };
-            } else { diffuse_texture = Texture::empty(device, queue, (4, 4))?; };
+            } else {
+                diffuse_texture = Texture::empty(device, queue, (4, 4))?;
+            };
 
             // Load normal texture.
             let normal_texture;
@@ -182,10 +184,10 @@ impl Model {
                     Ok(i) => i,
                     Err(e) => {
                         log::warn!(
-                        "Failed to load normal texture {:?}: {}",
-                        m.normal_texture.clone().unwrap(),
-                        e
-                    );
+                            "Failed to load normal texture {:?}: {}",
+                            m.normal_texture.clone().unwrap(),
+                            e
+                        );
                         Texture::empty(device, queue, (4, 4))?
                     }
                 };
@@ -195,7 +197,9 @@ impl Model {
 
             // Create a bind group for the material textures.
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: render_server.get_bind_group_layout("mesh textures bind group layout").unwrap(),
+                layout: render_server
+                    .get_bind_group_layout("mesh textures bind group layout")
+                    .unwrap(),
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -349,8 +353,8 @@ impl Model {
             z: 0.0,
         };
         let rotation = if position.is_zero() {
-// This is needed so an object at (0, 0, 0) won't get scaled to zero
-// as Quaternions can effect scale if they're not created correctly.
+            // This is needed so an object at (0, 0, 0) won't get scaled to zero
+            // as Quaternions can effect scale if they're not created correctly.
             cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
         } else {
             cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
@@ -361,13 +365,13 @@ impl Model {
             z: 1.0,
         };
 
-// Set instance data. Default number of instances is one.
+        // Set instance data. Default number of instances is one.
         let instances = vec![{ Instance { position, rotation } }];
 
-// Copy data from [Instance] to [InstanceRaw].
+        // Copy data from [Instance] to [InstanceRaw].
         let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
 
-// Create the instance buffer.
+        // Create the instance buffer.
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("model instance buffer"),
             contents: bytemuck::cast_slice(&instance_data),
@@ -508,8 +512,8 @@ pub trait DrawModel<'a> {
 
 /// Rendering a mesh.
 impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
+where
+    'b: 'a,
 {
     fn draw_mesh(
         &mut self,

@@ -135,7 +135,7 @@ impl DynamicFont {
             &atlas_image,
             "default font atlas".into(),
         )
-            .unwrap();
+        .unwrap();
 
         let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 

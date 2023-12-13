@@ -1,5 +1,5 @@
-use crate::render::Texture;
 use crate::render::texture::CubeTexture;
+use crate::render::Texture;
 
 pub struct Material2d {
     // Material name for debugging reason. Not unique.

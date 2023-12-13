@@ -5,9 +5,7 @@ use eureka::App;
 use winit::event_loop::EventLoop;
 
 fn main() {
-    let mut event_loop = EventLoop::new();
-
-    let mut app = App::new(&event_loop);
+    let mut app = App::new();
 
     app.add_node(Box::new(Camera2d::new()), None);
 
@@ -27,5 +25,5 @@ fn main() {
 
     app.add_node(label_i18n, None);
 
-    app.run(&mut event_loop);
+    app.run();
 }

@@ -1,15 +1,15 @@
-use std::collections::HashMap;
 use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::AtlasInstance;
 use crate::render::{RenderServer, Texture};
+use crate::text::{DynamicFont, Glyph, FONT_ATLAS_SIZE};
 use cgmath::{Point2, Vector2, Vector4};
+use font_kit::source::SystemSource;
+use std::collections::HashMap;
 use std::ops::Range;
 use std::path::Path;
 use std::time::Instant;
 use winit::event::VirtualKeyCode::P;
-use crate::text::{Glyph, DynamicFont, FONT_ATLAS_SIZE};
-use font_kit::source::SystemSource;
 
 pub struct TextServer {
     fonts: HashMap<&'static str, DynamicFont>,
@@ -19,7 +19,7 @@ impl TextServer {
     pub(crate) fn new(render_server: &RenderServer) -> Self {
         let now = Instant::now();
 
-        let default_font_data = find_system_font("");
+        let default_font_data = find_system_font("Heiti SC");
 
         let mut font = DynamicFont::load_from_memory(default_font_data.unwrap(), render_server);
 
@@ -121,7 +121,12 @@ fn find_system_font(font_name: &str) -> Option<Vec<u8>> {
         let font;
 
         if font_name.is_empty() {
-            let handle = SystemSource::new().all_fonts().unwrap().first().unwrap().clone();
+            let handle = SystemSource::new()
+                .all_fonts()
+                .unwrap()
+                .first()
+                .unwrap()
+                .clone();
 
             font = handle.load().unwrap();
         } else {

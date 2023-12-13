@@ -1,17 +1,14 @@
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{AtlasMode, DrawAtlas};
+use crate::render::render_server::RenderServer;
 use crate::scene::vector_sprite::VectorSprite;
 use crate::scene::{CameraInfo, Label, NodeType};
-use crate::{
-    AsNode, Atlas, AtlasInstance, Singletons, TextServer,
-    Texture,
-};
+use crate::window::{InputEvent, InputServer};
+use crate::{AsNode, Atlas, AtlasInstance, Singletons, TextServer, Texture};
 use cgmath::{Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use lyon::geom::Transform;
 use std::any::Any;
-use crate::render::render_server::RenderServer;
-use crate::window::{InputEvent, InputServer};
 
 pub struct Button {
     label: Label,

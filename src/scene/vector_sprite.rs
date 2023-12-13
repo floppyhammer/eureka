@@ -3,7 +3,7 @@ extern crate lyon;
 use std::any::Any;
 
 use crate::math::transform::Transform2d;
-use crate::scene::{AsNode, CameraUniform, CameraInfo, NodeType};
+use crate::scene::{AsNode, CameraInfo, CameraUniform, NodeType};
 use crate::vector_image::{VectorMesh, VectorTexture};
 use crate::{Camera2d, RenderServer, Singletons};
 use cgmath::Vector3;
@@ -93,7 +93,10 @@ impl AsNode for VectorSprite {
             );
 
             render_pass.draw_path(
-                singletons.render_server.get_render_pipeline("sprite v pipeline").unwrap(),
+                singletons
+                    .render_server
+                    .get_render_pipeline("sprite v pipeline")
+                    .unwrap(),
                 &tex.mesh.as_ref().unwrap(),
                 &self.camera_bind_group,
             );
@@ -111,8 +114,8 @@ pub trait DrawVector<'a> {
 }
 
 impl<'a, 'b> DrawVector<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
+where
+    'b: 'a,
 {
     fn draw_path(
         &mut self,

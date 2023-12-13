@@ -1,18 +1,16 @@
-use std::collections::HashMap;
 use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
+use crate::render::texture::Texture;
 use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::scene::CameraUniform;
 use crate::{scene, Camera2d, Camera3d, Light, SamplerBindingType};
-use bevy_ecs::system::Resource;
 use cgmath::Point2;
+use std::collections::HashMap;
 use std::mem;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 use wgpu::PolygonMode::Point;
 use wgpu::{BufferAddress, TextureFormat};
-use crate::render::texture::Texture;
 
-#[derive(Resource)]
 pub struct RenderServer {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
@@ -267,14 +265,18 @@ impl RenderServer {
 
         let pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("sprite2d pipeline layout"),
-                bind_group_layouts: &[
-                    self.get_bind_group_layout("camera bind group layout").unwrap(),
-                    self.get_bind_group_layout("sprite texture bind group layout").unwrap(),
-                ],
-                push_constant_ranges: &[],
-            });
+            let pipeline_layout =
+                self.device
+                    .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some("sprite2d pipeline layout"),
+                        bind_group_layouts: &[
+                            self.get_bind_group_layout("camera bind group layout")
+                                .unwrap(),
+                            self.get_bind_group_layout("sprite texture bind group layout")
+                                .unwrap(),
+                        ],
+                        push_constant_ranges: &[],
+                    });
 
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
@@ -303,15 +305,17 @@ impl RenderServer {
 
         let pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("model pipeline layout"),
-                bind_group_layouts: &[
-                    self.get_bind_group_layout("mesh textures").unwrap(),
-                    self.get_bind_group_layout("camera").unwrap(),
-                    self.get_bind_group_layout("light").unwrap(),
-                ],
-                push_constant_ranges: &[],
-            });
+            let pipeline_layout =
+                self.device
+                    .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some("model pipeline layout"),
+                        bind_group_layouts: &[
+                            self.get_bind_group_layout("mesh textures").unwrap(),
+                            self.get_bind_group_layout("camera").unwrap(),
+                            self.get_bind_group_layout("light").unwrap(),
+                        ],
+                        push_constant_ranges: &[],
+                    });
 
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
@@ -340,15 +344,20 @@ impl RenderServer {
 
         let pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("sprite3d pipeline layout"),
-                bind_group_layouts: &[
-                    self.get_bind_group_layout("camera bind group layout").unwrap(),
-                    self.get_bind_group_layout("sprite texture bind group layout").unwrap(),
-                    self.get_bind_group_layout("sprite3d params bind group layout").unwrap(),
-                ],
-                push_constant_ranges: &[],
-            });
+            let pipeline_layout =
+                self.device
+                    .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some("sprite3d pipeline layout"),
+                        bind_group_layouts: &[
+                            self.get_bind_group_layout("camera bind group layout")
+                                .unwrap(),
+                            self.get_bind_group_layout("sprite texture bind group layout")
+                                .unwrap(),
+                            self.get_bind_group_layout("sprite3d params bind group layout")
+                                .unwrap(),
+                        ],
+                        push_constant_ranges: &[],
+                    });
 
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
@@ -379,12 +388,15 @@ impl RenderServer {
         // Vector sprite pipeline.
         let pipeline = {
             // Set up resource pipeline layout using bind group layouts.
-            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("sprite v pipeline layout"),
-                bind_group_layouts: &[self.get_bind_group_layout("camera bind group layout").unwrap(),
-                ],
-                push_constant_ranges: &[],
-            });
+            let pipeline_layout =
+                self.device
+                    .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some("sprite v pipeline layout"),
+                        bind_group_layouts: &[self
+                            .get_bind_group_layout("camera bind group layout")
+                            .unwrap()],
+                        push_constant_ranges: &[],
+                    });
 
             // Shader descriptor, not a shader module yet.
             let shader = wgpu::ShaderModuleDescriptor {
@@ -412,14 +424,18 @@ impl RenderServer {
         let pipeline_label = "atlas pipeline";
 
         let pipeline = {
-            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("atlas pipeline layout"),
-                bind_group_layouts: &[
-                    self.get_bind_group_layout("atlas params bind group layout").unwrap(),
-                    self.get_bind_group_layout("sprite texture bind group layout").unwrap(),
-                ],
-                push_constant_ranges: &[],
-            });
+            let pipeline_layout =
+                self.device
+                    .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some("atlas pipeline layout"),
+                        bind_group_layouts: &[
+                            self.get_bind_group_layout("atlas params bind group layout")
+                                .unwrap(),
+                            self.get_bind_group_layout("sprite texture bind group layout")
+                                .unwrap(),
+                        ],
+                        push_constant_ranges: &[],
+                    });
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("atlas shader"),
@@ -427,39 +443,40 @@ impl RenderServer {
             };
             let shader_module = self.device.create_shader_module(shader);
 
-            self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(pipeline_label),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader_module,
-                    entry_point: "vs_main",
-                    buffers: &[AtlasInstanceRaw::desc()],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader_module,
-                    entry_point: "fs_main",
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: self.surface_config.format,
-                        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleStrip, // Has to be triangle strip.
-                    front_face: wgpu::FrontFace::Cw,
-                    cull_mode: None,
-                    ..Default::default()
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: Texture::DEPTH_FORMAT,
-                    depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::Less,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                }),
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            })
+            self.device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(pipeline_label),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader_module,
+                        entry_point: "vs_main",
+                        buffers: &[AtlasInstanceRaw::desc()],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader_module,
+                        entry_point: "fs_main",
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: self.surface_config.format,
+                            blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleStrip, // Has to be triangle strip.
+                        front_face: wgpu::FrontFace::Cw,
+                        cull_mode: None,
+                        ..Default::default()
+                    },
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: Texture::DEPTH_FORMAT,
+                        depth_write_enabled: false,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
+                    multisample: wgpu::MultisampleState::default(),
+                    multiview: None,
+                })
         };
 
         self.render_pipeline_cache.insert(pipeline_label, pipeline);
@@ -469,14 +486,18 @@ impl RenderServer {
         let pipeline_label = "skybox pipeline";
 
         let pipeline = {
-            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("skybox pipeline layout"),
-                bind_group_layouts: &[
-                    self.get_bind_group_layout("camera bind group layout").unwrap(),
-                    self.get_bind_group_layout("skybox texture bind group layout").unwrap(),
-                ],
-                push_constant_ranges: &[],
-            });
+            let pipeline_layout =
+                self.device
+                    .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some("skybox pipeline layout"),
+                        bind_group_layouts: &[
+                            self.get_bind_group_layout("camera bind group layout")
+                                .unwrap(),
+                            self.get_bind_group_layout("skybox texture bind group layout")
+                                .unwrap(),
+                        ],
+                        push_constant_ranges: &[],
+                    });
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("skybox shader"),
@@ -503,11 +524,15 @@ impl RenderServer {
         let pipeline_label = "gizmo pipeline";
 
         let pipeline = {
-            let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("gizmo pipeline layout"),
-                bind_group_layouts: &[self.get_bind_group_layout("camera bind group layout").unwrap()],
-                push_constant_ranges: &[],
-            });
+            let pipeline_layout =
+                self.device
+                    .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some("gizmo pipeline layout"),
+                        bind_group_layouts: &[self
+                            .get_bind_group_layout("camera bind group layout")
+                            .unwrap()],
+                        push_constant_ranges: &[],
+                    });
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("gizmo shader"),
@@ -515,39 +540,40 @@ impl RenderServer {
             };
             let shader_module = self.device.create_shader_module(shader);
 
-            self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(pipeline_label),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader_module,
-                    entry_point: "vs_main_grid",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader_module,
-                    entry_point: "fs_main_grid",
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: self.surface_config.format,
-                        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleStrip, // Has to be triangle strip.
-                    front_face: wgpu::FrontFace::Cw,
-                    cull_mode: None,
-                    ..Default::default()
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: Texture::DEPTH_FORMAT,
-                    depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::Less,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                }),
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            })
+            self.device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(pipeline_label),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader_module,
+                        entry_point: "vs_main_grid",
+                        buffers: &[],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader_module,
+                        entry_point: "fs_main_grid",
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: self.surface_config.format,
+                            blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleStrip, // Has to be triangle strip.
+                        front_face: wgpu::FrontFace::Cw,
+                        cull_mode: None,
+                        ..Default::default()
+                    },
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: Texture::DEPTH_FORMAT,
+                        depth_write_enabled: false,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
+                    multisample: wgpu::MultisampleState::default(),
+                    multiview: None,
+                })
         };
 
         self.render_pipeline_cache.insert(pipeline_label, pipeline);
@@ -574,7 +600,9 @@ impl RenderServer {
         });
 
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: self.get_bind_group_layout("camera bind group layout").unwrap(),
+            layout: self
+                .get_bind_group_layout("camera bind group layout")
+                .unwrap(),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: camera_buffer.as_entire_binding(),
@@ -587,7 +615,9 @@ impl RenderServer {
 
     pub fn create_sprite2d_bind_group(&self, texture: &Texture) -> wgpu::BindGroup {
         self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: self.get_bind_group_layout("sprite texture bind group layout").unwrap(),
+            layout: self
+                .get_bind_group_layout("sprite texture bind group layout")
+                .unwrap(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -611,7 +641,9 @@ impl RenderServer {
         });
 
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: self.get_bind_group_layout("atlas params bind group layout").unwrap(),
+            layout: self
+                .get_bind_group_layout("atlas params bind group layout")
+                .unwrap(),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: buffer.as_entire_binding(),

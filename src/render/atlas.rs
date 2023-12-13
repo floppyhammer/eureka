@@ -262,8 +262,8 @@ pub trait DrawAtlas<'a> {
 }
 
 impl<'a, 'b> DrawAtlas<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a, // This means 'b must outlive 'a.
+where
+    'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_atlas(
         &mut self,
