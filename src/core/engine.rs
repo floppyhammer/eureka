@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 pub struct Engine {
     startup_time: SystemTime,

@@ -120,7 +120,7 @@ impl DynamicFont {
     pub(crate) fn load_from_memory(buffer: Vec<u8>, render_server: &RenderServer) -> Self {
         let now = Instant::now();
 
-        // Clone the raw data, as it will be consumed when we create a fontdut font below.
+        // Clone the raw data, as it will be consumed when we create a fontdue font below.
         let raw_font_data = buffer.clone();
 
         let fontdue_font =

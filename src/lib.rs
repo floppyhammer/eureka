@@ -170,7 +170,7 @@ impl App {
 
     pub fn run(&mut self) {
         // Main loop.
-        self.event_loop.take().unwrap().run_return( |event, _, control_flow| {
+        self.event_loop.take().unwrap().run_return(|event, _, control_flow| {
             match event {
                 // Device event.
                 Event::DeviceEvent {
@@ -240,7 +240,7 @@ impl App {
         });
     }
 
-    pub fn add_node(&mut self, mut new_node: Box<dyn AsNode>, parent: Option<NodeId>) {
+    pub fn add_node(&mut self, new_node: Box<dyn AsNode>, parent: Option<NodeId>) {
         self.world.add_node(new_node, parent);
     }
 

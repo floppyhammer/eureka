@@ -1,7 +1,6 @@
-use cgmath::{Point2, Vector2};
+use cgmath::Vector2;
 use eureka::render::Texture;
 use eureka::scene::button::Button;
-use eureka::scene::label::Label;
 use eureka::scene::sprite2d::Sprite2d;
 use eureka::scene::{Camera2d, VectorSprite};
 use eureka::vector_image::VectorTexture;

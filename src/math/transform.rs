@@ -1,4 +1,4 @@
-use cgmath::{Point2, Point3, Quaternion, Vector2, Vector3};
+use cgmath::{Point3, Quaternion, Vector2, Vector3};
 
 #[derive(Copy, Clone)]
 pub struct Transform2d {

@@ -1,15 +1,13 @@
 use crate::render::gizmo::Gizmo;
-use crate::render::RenderServer;
 use crate::scene::{AsNode, Camera2d, Camera3d, CameraInfo, CameraUniform, NodeType};
-use crate::window::{InputEvent, InputServer};
+use crate::window::InputServer;
 use crate::Singletons;
 use cgmath::Point2;
-use indextree::{Arena, Descendants, NodeEdge, NodeId};
-use std::thread::current;
+use indextree::{Arena, NodeEdge, NodeId};
 
 pub struct World {
     // Type Box<dyn AsNode> is a trait object;
-    // it’s a stand-in for any type inside a Box that implements the AsNode trait.
+    // it's a stand-in for any type inside a Box that implements the AsNode trait.
     pub arena: Arena<Box<dyn AsNode>>,
 
     root_node: Option<NodeId>,
@@ -69,10 +67,7 @@ impl World {
             self.root_node = Some(id);
         } else {
             // Set the root as the parent if no parent is provided.
-            let parent = match parent {
-                Some(p) => p,
-                None => self.root_node.unwrap(),
-            };
+            let parent = parent.unwrap_or_else(|| self.root_node.unwrap());
 
             parent.append(id, &mut self.arena);
         }

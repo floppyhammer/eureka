@@ -21,7 +21,7 @@ impl TextServer {
 
         let default_font_data = find_system_font("Heiti SC");
 
-        let mut font = DynamicFont::load_from_memory(default_font_data.unwrap(), render_server);
+        let font = DynamicFont::load_from_memory(default_font_data.unwrap(), render_server);
 
         let elapsed_time = now.elapsed();
         log::info!(
@@ -37,7 +37,7 @@ impl TextServer {
 
     /// Load a new font from disk.
     pub fn load_font(&mut self, font_path: &'static str, render_server: &RenderServer) {
-        let mut font = DynamicFont::load_from_file(font_path, render_server);
+        let font = DynamicFont::load_from_file(font_path, render_server);
         self.fonts.insert(font_path, font);
     }
 

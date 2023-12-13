@@ -1,7 +1,6 @@
 use eureka::render::CubeTexture;
 use eureka::scene::{Camera3d, Light, Model, Sky};
 use eureka::App;
-use winit::event_loop::EventLoop;
 
 fn main() {
     let mut app = App::new();
