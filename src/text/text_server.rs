@@ -118,9 +118,28 @@ impl TextServer {
 
 fn find_system_font(font_name: &str) -> Option<Vec<u8>> {
     let result = std::panic::catch_unwind(|| {
-        let font;
+        let mut font = None;
 
-        if font_name.is_empty() {
+        if !font_name.is_empty() {
+            let res = SystemSource::new().select_by_postscript_name(font_name);
+
+            if res.is_ok() {
+                font = Some(res.unwrap().load().unwrap());
+            }
+        }
+
+        if (font.is_none()) {
+            let family_names = [font_kit::family_name::FamilyName::Serif];
+            let properties = font_kit::properties::Properties::default();
+
+            let res = SystemSource::new().select_best_match(&family_names, &properties);
+
+            if res.is_ok() {
+                font = Some(res.unwrap().load().unwrap());
+            }
+        }
+
+        if (font.is_none()) {
             let handle = SystemSource::new()
                 .all_fonts()
                 .unwrap()
@@ -128,16 +147,14 @@ fn find_system_font(font_name: &str) -> Option<Vec<u8>> {
                 .unwrap()
                 .clone();
 
-            font = handle.load().unwrap();
-        } else {
-            font = SystemSource::new()
-                .select_by_postscript_name(font_name)
-                .unwrap()
-                .load()
-                .unwrap();
+            font = Some(handle.load().unwrap());
         }
 
-        let font_data = font.copy_font_data().unwrap();
+        let font_data = font
+            .take()
+            .expect("Font fallback failed!")
+            .copy_font_data()
+            .unwrap();
         let font_data = (*font_data).clone();
 
         Some(font_data)
