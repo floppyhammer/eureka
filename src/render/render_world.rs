@@ -132,7 +132,9 @@ impl RenderWorld {
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
     ) {
-        render_sky(self.mesh_render_resources.camera_bind_group.as_ref().unwrap(), &self.sky_render_resources, render_pass);
+        if (self.mesh_render_resources.camera_bind_group.is_some()) {
+            render_sky(self.mesh_render_resources.camera_bind_group.as_ref().unwrap(), &self.sky_render_resources, render_pass);
+        }
 
         // Draw sprites.
         self.render_sprite2d(render_pass);

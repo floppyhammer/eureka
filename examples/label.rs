@@ -1,4 +1,4 @@
-use eureka::scene::label::Label;
+use eureka::scene::Label;
 use eureka::scene::Camera2d;
 use eureka::App;
 
