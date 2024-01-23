@@ -1,8 +1,10 @@
-use crate::render::gizmo::Gizmo;
-use crate::scene::{AsNode, Camera2d, Camera3d, CameraInfo, CameraUniform, NodeType};
+use crate::render::draw_command::DrawCommands;
+// use crate::render::gizmo::Gizmo;
+use crate::render::RenderServer;
+use crate::scene::{AsNode, Camera2d, NodeType};
 use crate::window::InputServer;
 use crate::Singletons;
-use cgmath::Point2;
+use cgmath::{Point2, Vector2};
 use indextree::{Arena, NodeEdge, NodeId};
 
 pub struct World {
@@ -16,18 +18,15 @@ pub struct World {
     current_camera3d: Option<NodeId>,
     lights: Vec<NodeId>,
 
-    camera_info: CameraInfo,
-
-    gizmo: Gizmo,
-
-    view_size: Point2<u32>,
+    // gizmo: Gizmo,
+    view_size: Vector2<u32>,
 }
 
 impl World {
-    pub fn new(view_size: Point2<u32>) -> Self {
+    pub fn new(view_size: Vector2<u32>) -> Self {
         let mut arena = Arena::new();
 
-        let gizmo = Gizmo::new();
+        // let gizmo = Gizmo::new();
 
         Self {
             arena,
@@ -35,8 +34,6 @@ impl World {
             current_camera2d: None,
             current_camera3d: None,
             lights: vec![],
-            gizmo,
-            camera_info: CameraInfo::default(),
             view_size,
         }
     }
@@ -145,42 +142,37 @@ impl World {
     }
 
     pub fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        if let Some(node_id) = self.current_camera2d {
-            // Get camera info.
-            if let Some(camera2d) = self.get_node::<Camera2d>(node_id) {
-                self.camera_info.position = camera2d.transform.position;
-                self.camera_info.view_size = self.view_size;
-            }
-        }
+        if let Some(node_id) = self.current_camera2d {}
 
-        if let Some(node_id) = self.current_camera3d {
-            if let Some(camera3d) = self.get_node::<Camera3d>(node_id) {
-                self.camera_info.bind_group = Some(camera3d.bind_group.clone());
-            }
-        }
+        // if let Some(node_id) = self.current_camera3d {
+        //     if let Some(camera3d) = self.get_node::<Camera3d>(node_id) {
+        //         self.camera_info.bind_group = Some(camera3d.bind_group.clone());
+        //     }
+        // }
 
         for id in self.traverse() {
-            self.arena[id]
-                .get_mut()
-                .update(dt, &self.camera_info, singletons);
+            self.arena[id].get_mut().update(dt, singletons);
         }
+
+        // Reload assets.
+        singletons.asset_server.update();
     }
 
-    pub fn draw<'a, 'b: 'a>(
-        &'b mut self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        singletons: &'b Singletons,
-    ) {
+    pub fn queue_draw(&mut self) -> DrawCommands {
+        let mut draw_cmds = DrawCommands::default();
+        draw_cmds.view_info.view_size = self.view_size;
+
+        // Collect draw commands from the scene tree.
         for id in self.traverse() {
-            self.arena[id]
-                .get()
-                .draw(render_pass, &self.camera_info, singletons);
+            self.arena[id].get().draw(&mut draw_cmds);
         }
 
-        self.gizmo.draw(render_pass, &self.camera_info, singletons);
+        draw_cmds
+
+        // self.gizmo.draw(render_pass, &self.camera_info, singletons);
     }
 
-    pub fn when_view_size_changes(&mut self, new_size: Point2<u32>) {
+    pub fn when_view_size_changes(&mut self, new_size: Vector2<u32>) {
         self.view_size = new_size;
 
         if let Some(node_id) = self.current_camera2d {
@@ -189,10 +181,10 @@ impl World {
                 .when_view_size_changes(new_size);
         }
 
-        if let Some(node_id) = self.current_camera3d {
-            self.get_node_mut::<Camera3d>(node_id)
-                .unwrap()
-                .when_view_size_changes(new_size);
-        }
+        // if let Some(node_id) = self.current_camera3d {
+        //     self.get_node_mut::<Camera3d>(node_id)
+        //         .unwrap()
+        //         .when_view_size_changes(new_size);
+        // }
     }
 }

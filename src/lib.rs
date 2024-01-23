@@ -22,7 +22,6 @@ use winit::platform::run_return::EventLoopExtRunReturn;
 pub mod asset;
 pub mod core;
 pub mod math;
-pub mod pbr;
 pub mod render;
 pub mod scene;
 pub mod text;
@@ -31,17 +30,20 @@ pub mod window;
 
 // Import local crates.
 use crate::asset::AssetServer;
-use crate::render::atlas::{Atlas, AtlasInstance};
-use crate::render::gizmo::Gizmo;
-use crate::render::{CubeTexture, RenderServer, Texture};
-use crate::scene::sprite2d::Sprite2d;
-use crate::scene::sprite3d::Sprite3d;
-use crate::scene::vector_sprite::{DrawVector, VectorSprite};
-use crate::scene::{
-    AsNode, Camera2d, Camera3d, Camera3dController, Label, Light, LightUniform, Model, Projection,
-    Sky, World,
-};
+// use crate::render::atlas::{Atlas, AtlasInstance};
+// use crate::render::gizmo::Gizmo;
+use crate::render::render_world::RenderWorld;
+use crate::render::{RenderServer, Texture, TextureId};
+use crate::scene::Sprite2d;
+// use crate::scene::sprite3d::Sprite3d;
+// use crate::scene::vector_sprite::{DrawVector, VectorSprite};
+use crate::scene::{AsNode, Camera2d, World};
 use crate::text::TextServer;
+// use crate::scene::{
+//     AsNode, Camera2d, Camera3d, Camera3dController, Label, Light, LightUniform, Model, Projection,
+//     Sky, World,
+// };
+// use crate::text::TextServer;
 use crate::window::InputServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
@@ -58,8 +60,8 @@ pub struct Singletons {
 pub struct App {
     window: Window,
     window_size: winit::dpi::PhysicalSize<u32>,
-    depth_texture: Texture,
     world: World,
+    pub render_world: RenderWorld,
     pub singletons: Singletons,
     is_init: bool,
     /// In order to call EventLoop::run_return from App::run,
@@ -93,18 +95,13 @@ impl App {
 
         let mut engine = Engine::new();
 
-        // Depth texture for depth test.
-        let depth_texture = Texture::create_depth_texture(
-            &render_server.device,
-            &render_server.surface_config,
-            "depth texture",
-        );
-
         let asset_server = AssetServer::new();
 
-        let mut text_server = TextServer::new(&render_server);
+        let mut world = World::new(Vector2::new(window_size.width, window_size.height));
 
-        let mut world = World::new(Point2::new(window_size.width, window_size.height));
+        let mut render_world = RenderWorld::new(&render_server);
+
+        let text_server = TextServer::new(&render_server, &mut render_world.texture_cache);
 
         let singletons = Singletons {
             engine,
@@ -117,8 +114,8 @@ impl App {
         Self {
             window,
             window_size,
-            depth_texture,
             world,
+            render_world,
             singletons,
             is_init: false,
             event_loop: Some(event_loop),
@@ -253,24 +250,21 @@ impl App {
         // Reconfigure the surface everytime the window's size changes.
         if new_size.width > 0 && new_size.height > 0 {
             self.window_size = new_size;
-            self.singletons.render_server.surface_config.width = new_size.width;
-            self.singletons.render_server.surface_config.height = new_size.height;
-            self.singletons.render_server.surface.configure(
-                &self.singletons.render_server.device,
-                &self.singletons.render_server.surface_config,
-            );
 
-            // Create a new depth_texture and depth_texture_view.
-            // Make sure you update the depth_texture after you update config.
-            // If you don't, your program will crash as the depth_texture will be a different size than the surface texture.
-            self.depth_texture = Texture::create_depth_texture(
-                &self.singletons.render_server.device,
-                &self.singletons.render_server.surface_config,
-                "depth texture",
-            );
+            let config = &mut self.singletons.render_server.surface_config;
+            config.width = new_size.width;
+            config.height = new_size.height;
+
+            self.singletons
+                .render_server
+                .surface
+                .configure(&self.singletons.render_server.device, config);
+
+            self.render_world
+                .recreate_depth_texture(&self.singletons.render_server);
 
             self.world
-                .when_view_size_changes(Point2::new(new_size.width, new_size.height))
+                .when_view_size_changes(Vector2::new(new_size.width, new_size.height))
         }
     }
 
@@ -304,24 +298,43 @@ impl App {
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        // Collects draw commands from the scene world.
+        let draw_commands = self.world.queue_draw();
+
+        // Extract render entities from the draw commands.
+        self.render_world.extract(&draw_commands);
+
+        let render_server = &self.singletons.render_server;
+
+        self.render_world.prepare(render_server);
+
+        // Update server GPU resources.
+        self.singletons
+            .text_server
+            .prepare(&self.singletons.render_server, &mut self.render_world.texture_cache);
+
+        let render_world = &self.render_world;
+
         // First we need to get a frame to draw to.
-        let surface_texture = self
-            .singletons
-            .render_server
-            .surface
-            .get_current_texture()?;
+        let surface_texture = render_server.surface.get_current_texture()?;
 
         // Creates a TextureView with default settings.
         let view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
+        let depth_texture = render_world
+            .texture_cache
+            .get(render_world.surface_depth_texture)
+            .unwrap();
+
         // Builds a command buffer that we can then send to the GPU.
-        let mut encoder = self.singletons.render_server.device.create_command_encoder(
-            &wgpu::CommandEncoderDescriptor {
-                label: Some("main render encoder"),
-            },
-        );
+        let mut encoder =
+            render_server
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("main render encoder"),
+                });
 
         // The RenderPass has all the methods to do the actual drawing.
         {
@@ -339,26 +352,23 @@ impl App {
                                 b: 0.3,
                                 a: 1.0,
                             }),
-                            store: true,
+                            store: wgpu::StoreOp::Store,
                         },
                     }),
                 ],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture.view,
+                    view: &depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
-                        store: true,
+                        store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
                 }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
             });
 
-            // Update server GPU resources.
-            self.singletons
-                .text_server
-                .update_gpu(&self.singletons.render_server);
-
-            self.world.draw(&mut render_pass, &self.singletons);
+            self.render_world.render(&mut render_pass);
         }
 
         // Finish the command encoder to generate a command buffer,

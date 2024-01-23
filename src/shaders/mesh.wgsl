@@ -7,7 +7,7 @@ struct Camera {
 }
 
 // Bind group 1.
-@group(1) @binding(0)
+@group(0) @binding(0)
 var<uniform> camera: Camera;
 
 struct Light {
@@ -16,7 +16,7 @@ struct Light {
 }
 
 // Bind group 2.
-@group(2) @binding(0)
+@group(1) @binding(0)
 var<uniform> light: Light;
 
 struct VertexInput {
@@ -47,6 +47,7 @@ struct VertexOutput {
     @location(1) tangent_position: vec3<f32>,
     @location(2) tangent_light_position: vec3<f32>,
     @location(3) tangent_view_position: vec3<f32>,
+    @location(4) normal: vec3<f32>,
 }
 
 @vertex
@@ -79,6 +80,7 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     out.tangent_position = tangent_matrix * world_position.xyz;
     out.tangent_view_position = tangent_matrix * camera.view_pos.xyz;
     out.tangent_light_position = tangent_matrix * light.position;
+    out.normal = world_normal;
 
     return out;
 }
@@ -87,26 +89,39 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
 
 // Bind group 0.
 // -------------------------
+#ifdef COLOR_MAP
 // Diffuse.
-@group(0) @binding(0)
+@group(2) @binding(0)
 var t_diffuse: texture_2d<f32>;
 
-@group(0) @binding(1)
+@group(2) @binding(1)
 var s_diffuse: sampler;
+#endif
 
+#ifdef NORMAP_MAP
 // Normal map.
-@group(0) @binding(2)
+@group(2) @binding(2)
 var t_normal: texture_2d<f32>;
 
-@group(0) @binding(3)
+@group(2) @binding(3)
 var s_normal: sampler;
+#endif
 // -------------------------
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Sample diffuse texture.
+#ifdef COLOR_MAP
     let object_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
+#else
+    let object_color: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+#endif
+
+#ifdef NORMAP_MAP
     let object_normal: vec4<f32> = textureSample(t_normal, s_normal, in.tex_coords);
+#else
+    let object_normal: vec4<f32> = vec4<f32>(in.normal, 1.0);
+#endif
 
     // We don't need (or want) much ambient light, so 0.1 is fine.
     let ambient_strength = 0.1;

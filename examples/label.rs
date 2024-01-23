@@ -5,7 +5,7 @@ use eureka::App;
 fn main() {
     let mut app = App::new();
 
-    app.add_node(Box::new(Camera2d::new()), None);
+    app.add_node(Box::new(Camera2d::default()), None);
 
     let mut text = "".to_string();
     text += "🌤你好世界！\n"; // Chinese
@@ -19,7 +19,7 @@ fn main() {
     text += "שלום עולם!\n"; // Hebrew
     text += "ABCDEFG Hello!٠١٢مرحبا!你好\n"; // Mixed languages.
 
-    let mut label = Box::new(Label::new(&app.singletons.render_server));
+    let mut label = Box::new(Label::new(&mut app.render_world.texture_cache, &app.singletons.render_server));
     label.set_text(text);
 
     app.add_node(label, None);

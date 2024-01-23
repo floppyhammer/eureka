@@ -1,15 +1,10 @@
-//////////////////////////////// Vertex shader ////////////////////////////////
+// For text and 2D particles.
 
-const MODE_FLAG_SPRITE : u32 = 1u;
-const MODE_FLAG_TEXT : u32 = 2u;
+// Vertex shader //
 
 struct AtlasParams {
     camera_view_size: vec2<f32>,
-    texture_size: vec2<f32>,
-    mode_flag: u32,
-    pad0: u32,
-    pad1: u32,
-    pad2: u32,
+    atlas_size: vec2<f32>,
 }
 
 @group(0) @binding(0)
@@ -65,7 +60,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: InstanceInput)
     return out;
 }
 
-//////////////////////////////// Fragment shader ////////////////////////////////
+// Fragment shader //
 
 @group(1) @binding(0)
 var t_diffuse: texture_2d<f32>;
@@ -75,11 +70,9 @@ var s_diffuse: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    if ((params.mode_flag & MODE_FLAG_SPRITE) > 0u) {
-        return in.color * textureSample(t_diffuse, s_diffuse, in.tex_coords);
-    } else if ((params.mode_flag & MODE_FLAG_TEXT) > 0u) {
+#ifdef TEXT
         return in.color * textureSample(t_diffuse, s_diffuse, in.tex_coords).r;
-    } else {
-        return vec4<f32>(1.0, 1.0, 1.0, 1.0);
-    }
+#else
+        return in.color * textureSample(t_diffuse, s_diffuse, in.tex_coords);
+#endif
 }

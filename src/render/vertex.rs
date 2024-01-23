@@ -3,7 +3,7 @@ pub trait VertexBuffer {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
 }
 
-/// GPU vertex data.
+/// 3D vertex data sent to GPU.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex3d {

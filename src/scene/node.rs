@@ -1,7 +1,6 @@
-use crate::scene::{CameraInfo, CameraUniform};
+use crate::render::draw_command::DrawCommands;
 use crate::window::input_server::InputEvent;
-use crate::{Camera2d, Gizmo, InputServer, RenderServer, Singletons};
-use cgmath::*;
+use crate::{InputServer, Singletons};
 use std::any::Any;
 
 pub enum NodeType {
@@ -59,16 +58,11 @@ pub trait AsNode {
         // Default implementation
     }
 
-    fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         // Default implementation
     }
 
-    fn draw<'a, 'b: 'a>(
-        &'b self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        camera_info: &'b CameraInfo,
-        singletons: &'b Singletons,
-    ) {
+    fn draw(&self, draw_cmds: &mut DrawCommands) {
         // Default implementation
     }
 }

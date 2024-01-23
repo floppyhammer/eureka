@@ -1,4 +1,4 @@
-use crate::render::{RenderServer, Texture};
+use crate::render::{RenderServer, Texture, TextureCache, TextureId};
 use allsorts::pathfinder_geometry::rect::RectI;
 use allsorts::pathfinder_geometry::vector::Vector2I;
 use cgmath::{Point2, Vector2, Vector4};
@@ -87,8 +87,7 @@ pub(crate) struct DynamicFont {
     atlas_image: DynamicImage,
 
     /// GPU texture.
-    atlas_texture: Texture,
-    pub(crate) atlas_bind_group: wgpu::BindGroup,
+    pub atlas_texture: TextureId,
 
     /// Atlas has been changed, a region of the GPU texture needs to be updated.
     ///
@@ -107,17 +106,17 @@ pub(crate) struct DynamicFont {
 
 impl DynamicFont {
     /// Load font from a file.
-    pub(crate) fn load_from_file(path: &str, render_server: &RenderServer) -> Self {
+    pub(crate) fn load_from_file(path: &str, render_server: &RenderServer, texture_cache: &mut TextureCache) -> Self {
         // Read the font data.
         let mut f = File::open(path).expect("No font file found!");
         let metadata = fs::metadata(path).expect("Unable to read font file metadata!");
         let mut buffer = vec![0; metadata.len() as usize];
         f.read(&mut buffer).expect("Font buffer overflow!");
 
-        Self::load_from_memory(buffer, render_server)
+        Self::load_from_memory(buffer, render_server, texture_cache)
     }
 
-    pub(crate) fn load_from_memory(buffer: Vec<u8>, render_server: &RenderServer) -> Self {
+    pub(crate) fn load_from_memory(buffer: Vec<u8>, render_server: &RenderServer, texture_cache: &mut TextureCache) -> Self {
         let now = Instant::now();
 
         // Clone the raw data, as it will be consumed when we create a fontdue font below.
@@ -132,12 +131,13 @@ impl DynamicFont {
         let atlas_texture = Texture::from_image(
             &render_server.device,
             &render_server.queue,
+            texture_cache,
             &atlas_image,
             "default font atlas".into(),
         )
-        .unwrap();
+            .unwrap();
 
-        let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
+        // let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 
         log::info!(
             "Loading font file took {} milliseconds",
@@ -150,7 +150,6 @@ impl DynamicFont {
             size: 32,
             atlas_image,
             atlas_texture,
-            atlas_bind_group,
             updated_atlas_region: None,
             next_glyph_position: Point2::new(0, 0),
             max_height_of_current_row: 0,
@@ -167,13 +166,15 @@ impl DynamicFont {
     }
 
     /// Upload atlas data to the atlas texture.
-    pub(crate) fn upload(&mut self, render_server: &RenderServer) {
+    pub(crate) fn upload(&mut self, render_server: &RenderServer, texture_cache: &TextureCache) {
+        let texture = texture_cache.get(self.atlas_texture).unwrap();
+
         if let Some(region) = self.updated_atlas_region {
             let queue = &render_server.queue;
 
             let img_copy_texture = wgpu::ImageCopyTexture {
                 aspect: wgpu::TextureAspect::All,
-                texture: &self.atlas_texture.texture,
+                texture: &texture.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d {
                     x: region.min_x() as u32,

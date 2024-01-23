@@ -1,25 +1,27 @@
 use crate::math::transform::Transform2d;
 use crate::scene::{AsNode, NodeType};
-use crate::Singletons;
-use cgmath::{Point2, Vector2, Vector3};
+use cgmath::{Point2, Vector2};
 use std::any::Any;
-use wgpu::util::DeviceExt;
 
 pub struct Camera2d {
     pub transform: Transform2d,
 
-    pub view_size: Point2<u32>,
+    pub view_size: Vector2<u32>,
+
+    /// Where to draw. None for screen.
+    pub view: Option<u32>,
 }
 
 impl Camera2d {
-    pub fn new() -> Self {
+    pub fn default() -> Self {
         Self {
             transform: Transform2d::default(),
-            view_size: Point2::new(0, 0),
+            view_size: Vector2::new(0, 0),
+            view: None,
         }
     }
 
-    pub fn when_view_size_changes(&mut self, new_size: Point2<u32>) {
+    pub fn when_view_size_changes(&mut self, new_size: Vector2<u32>) {
         self.view_size = new_size;
     }
 }

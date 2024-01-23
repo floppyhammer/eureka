@@ -1,12 +1,14 @@
 use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
-use crate::render::atlas::{AtlasMode, DrawAtlas};
-use crate::scene::{CameraInfo, NodeType};
+use crate::render::atlas::{Atlas, AtlasMode, DrawAtlas, ExtractedAtlas};
+use crate::scene::{NodeType};
 use crate::text::FONT_ATLAS_SIZE;
-use crate::{AsNode, Atlas, AtlasInstance, RenderServer, Singletons, TextServer, Texture};
+use crate::{AsNode, RenderServer, Singletons, Texture};
 use cgmath::{EuclideanSpace, Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use std::any::Any;
+use crate::render::draw_command::DrawCommands;
+use crate::render::TextureCache;
 
 pub struct Label {
     text: String,
@@ -20,22 +22,16 @@ pub struct Label {
 
     single_line: bool,
 
-    /// To draw glyph sprites.
-    atlas: Atlas,
-
     leading: f32,
     tracking: f32,
+
+    /// For rendering glyph sprites.
+    atlas: Option<Atlas>,
 }
 
 impl Label {
-    pub fn new(render_server: &RenderServer) -> Label {
+    pub fn new(texture_cache: &mut TextureCache, render_server: &RenderServer) -> Label {
         let size = Vector2::new(128.0_f32, 128.0);
-
-        let mut atlas = Atlas::new(
-            &render_server,
-            Point2::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE),
-        );
-        atlas.set_mode(AtlasMode::Text);
 
         Self {
             text: "Label".to_string(),
@@ -44,9 +40,9 @@ impl Label {
             text_is_dirty: true,
             layout_is_dirty: true,
             single_line: false,
-            atlas,
             leading: 20.0,
             tracking: 0.0,
+            atlas: None,
         }
     }
 
@@ -69,33 +65,24 @@ impl AsNode for Label {
         self
     }
 
-    fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         if self.text_is_dirty {
-            let mut instances = singletons.text_server.get_instances(
+            self.atlas = Some(singletons.text_server.get_atlas(
                 self.text.as_str(),
                 None,
                 self.transform,
                 self.leading,
-            );
-
-            self.atlas
-                .set_instances(instances, &singletons.render_server);
+            ));
 
             self.text_is_dirty = false;
         }
     }
 
-    fn draw<'a, 'b: 'a>(
-        &'b self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        camera_info: &'b CameraInfo,
-        singletons: &'b Singletons,
+    fn draw(&self, draw_commands: &mut DrawCommands,
     ) {
-        self.atlas.draw(
-            singletons.text_server.get_font_bind_group(None),
-            render_pass,
-            camera_info,
-            singletons,
-        );
+        draw_commands.extracted.atlases.push(ExtractedAtlas {
+            atlas: self.atlas.clone().unwrap(),
+            view_size: draw_commands.view_info.view_size.into(),
+        });
     }
 }

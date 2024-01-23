@@ -1,4 +1,4 @@
-use eureka::render::CubeTexture;
+use eureka::render::{Texture};
 use eureka::scene::{Camera3d, Light, Model, Sky};
 use eureka::App;
 
@@ -13,37 +13,35 @@ fn main() {
     );
     app.add_node(Box::new(camera3d), None);
 
-    let skybox_tex = CubeTexture::load(
+    let skybox_tex = Texture::load_cube(
         &app.singletons.render_server,
+        &mut app.render_world.texture_cache,
         &app.singletons
             .asset_server
             .asset_dir
             .join("images/skybox.jpg"),
     )
-    .unwrap();
-    let sky = Box::new(Sky::new(&app.singletons.render_server, skybox_tex));
+        .unwrap();
+    let sky = Box::new(Sky::new(skybox_tex));
     app.add_node(sky, None);
 
     // Light.
-    let light = Light::new(
-        &app.singletons.render_server,
-        &app.singletons
-            .asset_server
-            .asset_dir
-            .join("images/light.png"),
-    );
+    let light = Light::new();
     app.add_node(Box::new(light), None);
 
     // Model.
     let obj_model = Box::new(
         Model::load(
+            &mut app.render_world.texture_cache,
+            &mut app.render_world.mesh_render_resources.material_cache,
+            &mut app.render_world.mesh_cache,
             &app.singletons.render_server,
             &app.singletons
                 .asset_server
                 .asset_dir
                 .join("models/ferris/ferris3d_v1.0.obj"),
         )
-        .unwrap(),
+            .unwrap(),
     );
     app.add_node(obj_model, None);
 

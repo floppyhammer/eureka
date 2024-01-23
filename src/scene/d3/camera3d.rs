@@ -1,3 +1,5 @@
+use crate::render::camera::CameraUniform;
+use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, NodeType};
 use crate::window::{InputEvent, InputServer};
 use crate::{RenderServer, Singletons};
@@ -32,14 +34,6 @@ pub struct Camera3d {
     projection: Projection,
 
     controller: Camera3dController,
-
-    // CPU data
-    uniform: CameraUniform,
-
-    // GPU data
-    buffer: wgpu::Buffer,
-
-    pub(crate) bind_group: Rc<wgpu::BindGroup>,
 }
 
 impl Camera3d {
@@ -62,38 +56,12 @@ impl Camera3d {
 
         let controller = Camera3dController::new(4.0, 0.4);
 
-        // This will be used in the model shader.
-        let mut uniform = CameraUniform::default();
-
-        // Create a buffer for the camera uniform.
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("camera3d buffer"),
-            size: mem::size_of::<CameraUniform>() as BufferAddress,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: render_server
-                .get_bind_group_layout("camera bind group layout")
-                .unwrap(),
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: buffer.as_entire_binding(),
-            }],
-            label: Some("camera3d bind group"),
-        });
-        // ----------------------------
-
         Self {
             position: position.into(),
             yaw: yaw.into(),
             pitch: pitch.into(),
             projection,
             controller,
-            uniform,
-            buffer,
-            bind_group: Rc::new(bind_group),
         }
     }
 
@@ -164,48 +132,6 @@ impl ModelUniform {
         use cgmath::SquareMatrix;
         Self {
             model: cgmath::Matrix4::identity().into(),
-        }
-    }
-}
-
-pub struct CameraInfo {
-    pub position: Vector2<f32>,
-
-    pub view_size: Point2<u32>,
-
-    pub bind_group: Option<Rc<wgpu::BindGroup>>,
-}
-
-impl CameraInfo {
-    pub(crate) fn default() -> Self {
-        Self {
-            position: Vector2::new(0.0, 0.0),
-            view_size: Point2::new(0, 0),
-            bind_group: None,
-        }
-    }
-}
-
-// We need this for Rust to store our data correctly for the shaders.
-#[repr(C)]
-// This is so we can store this in a buffer.
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct CameraUniform {
-    view_position: [f32; 4],
-    /// Multiplication of the view and projection matrices.
-    // We can't use cgmath with bytemuck directly so we'll have
-    // to convert the Matrix4 into a 4x4 f32 array.
-    view: [[f32; 4]; 4],
-    pub(crate) proj: [[f32; 4]; 4],
-}
-
-impl CameraUniform {
-    pub(crate) fn default() -> Self {
-        use cgmath::SquareMatrix;
-        Self {
-            view_position: [0.0; 4],
-            view: cgmath::Matrix4::identity().into(),
-            proj: cgmath::Matrix4::identity().into(),
         }
     }
 }
@@ -360,7 +286,7 @@ impl AsNode for Camera3d {
         }
     }
 
-    fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         let queue = &mut singletons.render_server.queue;
 
         // Update camera transform.
@@ -412,14 +338,17 @@ impl AsNode for Camera3d {
         }
 
         // Update camera uniform and its buffer.
-        {
-            // We're using Vector4 because of the uniforms 16 byte spacing requirement.
-            self.uniform.view_position = self.position.to_homogeneous().into();
-            self.uniform.view = self.calc_view_matrix().into();
-            self.uniform.proj = self.projection.calc_matrix().into();
+        {}
+    }
 
-            // Update camera buffer.
-            queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
-        }
+    fn draw(&self, draw_cmds: &mut DrawCommands) {
+        let mut uniform = CameraUniform::default();
+
+        // We're using Vector4 because of the uniforms 16 byte spacing requirement.
+        uniform.view_position = self.position.to_homogeneous().into();
+        uniform.view = self.calc_view_matrix().into();
+        uniform.proj = self.projection.calc_matrix().into();
+
+        draw_cmds.extracted.cameras.push(uniform);
     }
 }

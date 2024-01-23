@@ -1,4 +1,4 @@
-//////////////////////////////// Vertex shader ////////////////////////////////
+// Vertex shader //
 
 struct Camera {
     view_pos: vec4<f32>,
@@ -34,7 +34,7 @@ fn vs_main(
     return out;
 }
 
-//////////////////////////////// Fragment shader ////////////////////////////////
+// Fragment shader //
 
 @group(1) @binding(0)
 var t_diffuse: texture_2d<f32>;

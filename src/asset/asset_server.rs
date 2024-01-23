@@ -1,4 +1,4 @@
-use assets_manager::{loader, Asset, AssetCache, AssetGuard, Compound};
+use assets_manager::{loader, Asset, AssetCache, AssetGuard, Compound, Handle};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -22,16 +22,18 @@ impl AssetServer {
         }
     }
 
-    pub fn load<A: Compound>(&mut self, id: &str) -> Option<AssetGuard<A>> {
+    pub fn load<A: Compound>(&mut self, id: &str) -> Option<Handle<A>> {
         // Get a handle on the asset.
         let handle = self.asset_cache.load::<A>(id).ok()?;
 
-        // Lock the asset for reading.
-        // Any number of read locks can exist at the same time,
-        // but none can exist when the asset is reloaded.
-        let asset = handle.read();
+        // // Lock the asset for reading.
+        // // Any number of read locks can exist at the same time,
+        // // but none can exist when the asset is reloaded.
+        // let asset = handle.read();
+        //
+        // han
 
-        Some(asset)
+        Some(handle)
     }
 
     /// Monitor asset changes.
