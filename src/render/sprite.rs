@@ -256,7 +256,8 @@ impl<'a, 'b> DrawSprite3d<'b> for wgpu::RenderPass<'a>
     }
 }
 
-const QUAD_INDICES: [u32; 6] = [0, 3, 2, 0, 2, 1];
+/// CCW is front.
+const QUAD_INDICES: [u32; 6] = [0, 2, 3, 0, 1, 2];
 
 const QUAD_VERTEX_POSITIONS: [Vector2<f32>; 4] = [
     Vector2::new(-0.5, 0.5),
@@ -329,14 +330,17 @@ pub(crate) fn prepare_sprite(sprites: &Vec<ExtractedSprite2d>, render_resources:
         }
 
         // By default, the size of the quad is the size of the texture.
-        let quad_size = Vector2::new(e.size.0, e.size.1);
+        let quad_size = Vector2::new(size.0, size.1);
 
         let mut vertices = vec![];
         vertices.reserve(4);
 
         // Apply size and global transform.
         for i in 0..QUAD_VERTEX_POSITIONS.len() {
-            let quad_pos = QUAD_VERTEX_POSITIONS[i];
+            let mut quad_pos = QUAD_VERTEX_POSITIONS[i];
+            if !e.centered {
+                quad_pos += Vector2::new(0.5, 0.5);
+            }
             let new_pos = transform.transform_point(&quad_pos.mul_element_wise(quad_size));
 
             vertices.push(Vertex2d {

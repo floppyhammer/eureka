@@ -252,9 +252,9 @@ impl OrthographicProjection {
         let origin_y = 0f32;
 
         self.left = -origin_x;
-        self.bottom = -origin_y;
+        self.top = -origin_y;
         self.right = width - origin_x;
-        self.top = height - origin_y;
+        self.bottom = height - origin_y;
     }
 
     /// Get projection matrix.
