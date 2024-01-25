@@ -1,4 +1,4 @@
-use crate::render::camera::CameraUniform;
+use crate::render::camera::{CameraUniform, PerspectiveProjection, Projection};
 use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, NodeType};
 use crate::window::{InputEvent, InputServer};
@@ -46,7 +46,7 @@ impl Camera3d {
         let device = &render_server.device;
         let config = &render_server.surface_config;
 
-        let projection = Projection::new(
+        let projection = PerspectiveProjection::new(
             config.width, // Render target size
             config.height,
             cgmath::Deg(45.0),
@@ -60,7 +60,7 @@ impl Camera3d {
             position: position.into(),
             yaw: yaw.into(),
             pitch: pitch.into(),
-            projection,
+            projection: projection.into(),
             controller,
         }
     }
@@ -86,36 +86,8 @@ impl Camera3d {
         )
     }
 
-    pub fn when_view_size_changes(&mut self, new_size: Point2<u32>) {
-        self.projection.resize(new_size);
-    }
-}
-
-/// The projection needs to change if the window (or render target) resizes.
-pub struct Projection {
-    aspect: f32,
-    fovy: Rad<f32>,
-    znear: f32,
-    zfar: f32,
-}
-
-impl Projection {
-    pub fn new<F: Into<Rad<f32>>>(width: u32, height: u32, fovy: F, znear: f32, zfar: f32) -> Self {
-        Self {
-            aspect: width as f32 / height as f32,
-            fovy: fovy.into(),
-            znear,
-            zfar,
-        }
-    }
-
-    pub fn resize(&mut self, new_size: Point2<u32>) {
-        self.aspect = new_size.x as f32 / new_size.y as f32;
-    }
-
-    /// Get projection matrix.
-    pub fn calc_matrix(&self) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX * perspective(self.fovy, self.aspect, self.znear, self.zfar)
+    pub fn when_view_size_changes(&mut self, new_size: Vector2<u32>) {
+        self.projection.update(new_size.x as f32, new_size.y as f32);
     }
 }
 
@@ -288,6 +260,8 @@ impl AsNode for Camera3d {
 
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         let queue = &mut singletons.render_server.queue;
+
+        self.projection.update(singletons.render_server.surface_config.width as f32, singletons.render_server.surface_config.height as f32);
 
         // Update camera transform.
         {

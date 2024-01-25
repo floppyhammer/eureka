@@ -2,11 +2,11 @@ use crate::asset::AssetServer;
 use crate::core::engine::Engine;
 use crate::math::alignup_u32;
 use crate::render::bind_group::BindGroupCache;
-use crate::render::camera::CameraUniform;
+use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::draw_command::DrawCommands;
 use crate::render::gizmo::GizmoRenderResources;
 use crate::render::shader_maker::ShaderMaker;
-use crate::render::sprite::{ExtractedSprite2d, SpriteRenderResources};
+use crate::render::sprite::{ExtractedSprite2d, prepare_sprite, render_sprite, SpriteBatch, SpriteRenderResources};
 use crate::render::{
     DrawModel, ExtractedMesh, MeshCache, MeshRenderResources, RenderServer, Texture, TextureCache,
     TextureId,
@@ -44,6 +44,7 @@ pub struct RenderWorld {
     pub(crate) surface_depth_texture: TextureId,
     pub texture_cache: TextureCache,
     pub(crate) shader_maker: ShaderMaker,
+    pub camera_render_resources: CameraRenderResources,
 
     // Sprites.
     pub(crate) sprite_render_resources: SpriteRenderResources,
@@ -54,6 +55,7 @@ pub struct RenderWorld {
 
     // Temporary.
     pub(crate) extracted: Extracted,
+    pub(crate) sprite_batches: Vec<SpriteBatch>,
 
     // Cameras.
 
@@ -79,13 +81,15 @@ impl RenderWorld {
             Some("surface depth texture"),
         );
 
+        let camera_render_resources = CameraRenderResources::new(render_server);
+
         let sprite_render_resources = SpriteRenderResources::new(render_server);
 
         let mesh_render_resources = MeshRenderResources::new(render_server);
 
         let gizmo_render_resources = GizmoRenderResources::new(
             render_server,
-            &mesh_render_resources.camera_bind_group_layout,
+            &camera_render_resources.bind_group_layout,
         );
 
         let atlas_render_resources = AtlasRenderResources::new(
@@ -100,10 +104,12 @@ impl RenderWorld {
             surface_depth_texture: depth_texture,
             texture_cache,
             mesh_cache: MeshCache::new(),
+            camera_render_resources,
             sprite_render_resources,
             mesh_render_resources,
             shader_maker: ShaderMaker::new(),
             extracted: Extracted::default(),
+            sprite_batches: vec![],
             gizmo_render_resources,
             atlas_render_resources,
             sky_render_resources,
@@ -116,14 +122,16 @@ impl RenderWorld {
 
     // Prepare GPU resources.
     pub fn prepare(&mut self, render_server: &RenderServer) {
-        self.prepare_sprite2d(render_server);
+        self.camera_render_resources.prepare_cameras(render_server, &self.extracted.cameras);
+
+        self.sprite_batches = prepare_sprite(&self.extracted.sprites, &mut self.sprite_render_resources, &self.texture_cache, render_server, &self.camera_render_resources.bind_group_layout);
 
         self.prepare_meshes(render_server);
 
         prepare_atlas(&self.extracted.atlases, &mut self.atlas_render_resources, render_server, &self.texture_cache, &mut self.shader_maker);
 
         if (self.extracted.sky.is_some()) {
-            prepare_sky(&mut self.sky_render_resources, render_server, &self.texture_cache, &self.extracted.sky.unwrap().texture, &self.mesh_render_resources.camera_bind_group_layout);
+            prepare_sky(&mut self.sky_render_resources, render_server, &self.texture_cache, &self.extracted.sky.unwrap().texture, &self.camera_render_resources.bind_group_layout);
         }
     }
 
@@ -132,132 +140,16 @@ impl RenderWorld {
         &'b self,
         render_pass: &mut wgpu::RenderPass<'a>,
     ) {
-        if (self.mesh_render_resources.camera_bind_group.is_some()) {
-            render_sky(self.mesh_render_resources.camera_bind_group.as_ref().unwrap(), &self.sky_render_resources, render_pass);
+        if (self.camera_render_resources.bind_group.is_some()) {
+            render_sky(self.camera_render_resources.bind_group.as_ref().unwrap(), &self.sky_render_resources, render_pass);
         }
 
         // Draw sprites.
-        self.render_sprite2d(render_pass);
+        render_sprite(&self.sprite_batches, &self.sprite_render_resources, render_pass, self.camera_render_resources.bind_group.as_ref().unwrap());
 
         self.render_meshes(render_pass);
 
         render_atlas(&self.extracted.atlases, &self.atlas_render_resources, render_pass);
-    }
-
-    // TODO: add batching.
-    pub(crate) fn prepare_sprite2d(&mut self, render_server: &RenderServer) {
-        let sprite_count = self.extracted.sprites.len();
-
-        let offset_limit = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
-        let offset =
-            alignup_u32(mem::size_of::<CameraUniform>() as u32, offset_limit) * offset_limit;
-
-        if self.sprite_render_resources.camera_buffer_capacity < sprite_count {
-            let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("sprite2d camera uniform buffer"),
-                size: (offset * sprite_count as u32) as BufferAddress,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-
-            let camera_bind_group =
-                render_server
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        layout: &self.sprite_render_resources.camera_bind_group_layout,
-                        entries: &[wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                buffer: &buffer,
-                                offset: 0,
-                                // See DynamicUniformBufferOffset.
-                                size: Some(
-                                    wgpu::BufferSize::new(mem::size_of::<CameraUniform>() as u64)
-                                        .unwrap(),
-                                ),
-                            }),
-                        }],
-                        label: Some("sprite2d camera bind group"),
-                    });
-
-            self.sprite_render_resources.camera_buffer_capacity = sprite_count;
-            self.sprite_render_resources.camera_uniform_buffer = Some(buffer);
-            self.sprite_render_resources.camera_bind_group = Some(camera_bind_group);
-        }
-
-        let mut uniforms = Vec::new();
-        for e in &self.extracted.sprites {
-            uniforms.push(e.render_params);
-
-            self.sprite_render_resources.add_texture_bind_group(
-                &render_server.device,
-                &self.texture_cache,
-                e.texture_id,
-            );
-        }
-
-        if (self.sprite_render_resources.camera_uniform_buffer.is_some()) {
-            // Consider align-up.
-            let mut aligned_up_data = vec![0u8; offset as usize * sprite_count];
-
-            for i in 0..uniforms.len() {
-                let slice = bytemuck::cast_slice(&uniforms[i..i + 1]);
-
-                for j in 0..slice.len() {
-                    aligned_up_data[i * offset as usize + j] = slice[j];
-                }
-            }
-
-            // Update the big buffer of camera uniforms.
-            render_server.queue.write_buffer(
-                self.sprite_render_resources
-                    .camera_uniform_buffer
-                    .as_ref()
-                    .unwrap(),
-                0,
-                &aligned_up_data[..],
-            );
-        }
-    }
-
-    pub(crate) fn render_sprite2d<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
-        let mut uniform_offset = 0;
-
-        let mesh = &self.sprite_render_resources.mesh;
-        let camera_bind_group = self.sprite_render_resources.camera_bind_group.as_ref();
-
-        if (camera_bind_group.is_none()) {
-            return;
-        }
-
-        let offset_limit = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
-
-        for e in &self.extracted.sprites {
-            let texture_bind_group = self
-                .sprite_render_resources
-                .get_texture_bind_group(e.texture_id);
-
-            let pipeline = self.sprite_render_resources.pipeline.as_ref().unwrap();
-
-            render_pass.set_pipeline(pipeline);
-
-            // Set vertex buffer for VertexInput.
-            render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-
-            render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-            // Set camera group.
-            render_pass.set_bind_group(0, camera_bind_group.unwrap(), &[uniform_offset]);
-
-            // Set texture group.
-            render_pass.set_bind_group(1, texture_bind_group, &[]);
-
-            render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
-
-            let offset_factor =
-                alignup_u32(mem::size_of::<CameraUniform>() as u32, offset_limit) as DynamicOffset;
-            uniform_offset += offset_limit * offset_factor;
-        }
     }
 
     pub(crate) fn prepare_meshes(&mut self, render_server: &RenderServer) {
@@ -279,13 +171,9 @@ impl RenderWorld {
             self.mesh_render_resources.prepare_pipeline(
                 render_server,
                 &mut self.shader_maker,
+                &self.camera_render_resources.bind_group_layout,
                 mesh.material_id,
             );
-        }
-
-        for camera in &self.extracted.cameras {
-            self.mesh_render_resources
-                .prepare_cameras(render_server, *camera);
         }
 
         for light in &self.extracted.lights {
@@ -298,16 +186,19 @@ impl RenderWorld {
     }
 
     pub(crate) fn render_meshes<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
-        if (self.mesh_render_resources.camera_bind_group.is_none()) {
+        if (self.camera_render_resources.bind_group.is_none()) {
+            return;
+        }
+        if (self.mesh_render_resources.light_bind_group.is_none()) {
             return;
         }
 
-        // TODO
         let camera_bind_group = self
-            .mesh_render_resources
-            .camera_bind_group
+            .camera_render_resources
+            .bind_group
             .as_ref()
             .unwrap();
+
         let light_bind_group = self
             .mesh_render_resources
             .light_bind_group
@@ -353,18 +244,31 @@ impl RenderWorld {
             render_pass.set_pipeline(pipeline);
             // Set vertex buffer for InstanceInput.
             render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
-            render_pass.draw_mesh(
-                mesh,
-                texture_bind_group,
-                camera_bind_group,
-                light_bind_group,
-            );
+
+            // Set vertex buffer for VertexInput.
+            render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+
+            render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+            // FIXME
+            // Set camera uniform.
+            render_pass.set_bind_group(0, camera_bind_group, &[0]);
+
+            // Set light uniform.
+            render_pass.set_bind_group(1, light_bind_group, &[]);
+
+            // Set textures.
+            if (texture_bind_group.is_some()) {
+                render_pass.set_bind_group(2, texture_bind_group.unwrap(), &[]);
+            }
+
+            render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
         }
 
         self.gizmo_render_resources.render(
             render_pass,
-            self.mesh_render_resources
-                .camera_bind_group
+            self.camera_render_resources
+                .bind_group
                 .as_ref()
                 .unwrap(),
         );

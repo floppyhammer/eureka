@@ -42,11 +42,11 @@ fn main() {
     app.add_node(sprite1, None);
 
     let mut sprite2 = Box::new(Sprite2d::new(&app.render_world.texture_cache, img_tex));
-    sprite2.transform.position = Vector2::new(200f32, -200f32);
+    sprite2.transform.position = Vector2::new(200f32, 200f32);
     app.add_node(sprite2, None);
 
     let mut sprite3 = Box::new(Sprite2d::new(&app.render_world.texture_cache, img_tex));
-    sprite3.transform.position = Vector2::new(400f32, -400f32);
+    sprite3.transform.position = Vector2::new(400f32, 400f32);
     app.add_node(sprite3, None);
 
     // let mut button = Box::new(Button::new(&app.singletons.render_server));

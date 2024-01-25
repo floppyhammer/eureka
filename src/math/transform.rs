@@ -1,6 +1,6 @@
 use cgmath::{Deg, InnerSpace, Point3, Quaternion, Rotation3, Vector2, Vector3, Zero};
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Transform2d {
     pub position: Vector2<f32>,
     pub rotation: f32,
@@ -14,6 +14,19 @@ impl Transform2d {
             rotation: 0.0,
             scale: Vector2::new(1.0, 1.0),
         }
+    }
+
+    pub fn transform_point(&self, point: &Vector2<f32>) -> Vector2<f32> {
+        let m00 = self.rotation.cos() * self.scale.x;
+        let m01 = -self.rotation.sin();
+        let m10 = self.rotation.sin();
+        let m11 = self.rotation.cos() * self.scale.y;
+
+        let mut new_point = Vector2::new(0f32, 0f32);
+        new_point.x = m00 * point.x + m01 * point.y;
+        new_point.y = m10 * point.x + m11 * point.y;
+
+        new_point + self.position
     }
 }
 

@@ -78,8 +78,9 @@ impl GizmoRenderResources {
     ) {
         render_pass.set_pipeline(&self.pipeline);
 
+        // FIXME
         // Set camera group.
-        render_pass.set_bind_group(0, camera_bind_group, &[]);
+        render_pass.set_bind_group(0, camera_bind_group, &[0]);
 
         render_pass.draw(0..4, 0..1);
     }

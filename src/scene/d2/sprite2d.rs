@@ -36,6 +36,9 @@ pub struct Sprite2d {
 
     // pub camera_uniform: CameraUniform,
     pub centered: bool,
+
+    pub flip_x: bool,
+    pub flip_y: bool,
 }
 
 impl Sprite2d {
@@ -58,6 +61,8 @@ impl Sprite2d {
             },
             texture: Some(texture_id),
             centered: false,
+            flip_x: false,
+            flip_y: false,
         }
     }
 
@@ -130,8 +135,12 @@ impl AsNode for Sprite2d {
         }
 
         let extracted = ExtractedSprite2d {
-            render_params: self.calc_render_params(&draw_cmds.view_info),
+            transform: self.transform,
+            size: self.size.into(),
             texture_id: self.texture.unwrap(),
+            centered: self.centered,
+            flip_x: self.flip_x,
+            flip_y: self.flip_y,
         };
 
         draw_cmds.extracted.sprites.push(extracted);

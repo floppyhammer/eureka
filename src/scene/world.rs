@@ -1,7 +1,7 @@
 use crate::render::draw_command::DrawCommands;
 // use crate::render::gizmo::Gizmo;
 use crate::render::RenderServer;
-use crate::scene::{AsNode, Camera2d, NodeType};
+use crate::scene::{AsNode, Camera2d, Camera3d, NodeType};
 use crate::window::InputServer;
 use crate::Singletons;
 use cgmath::{Point2, Vector2};
@@ -181,10 +181,10 @@ impl World {
                 .when_view_size_changes(new_size);
         }
 
-        // if let Some(node_id) = self.current_camera3d {
-        //     self.get_node_mut::<Camera3d>(node_id)
-        //         .unwrap()
-        //         .when_view_size_changes(new_size);
-        // }
+        if let Some(node_id) = self.current_camera3d {
+            self.get_node_mut::<Camera3d>(node_id)
+                .unwrap()
+                .when_view_size_changes(new_size);
+        }
     }
 }

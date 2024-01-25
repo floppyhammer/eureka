@@ -343,8 +343,8 @@ pub trait DrawModel<'a> {
 
 /// Rendering a mesh.
 impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a,
+    where
+        'b: 'a,
 {
     fn draw_mesh(
         &mut self,
@@ -430,10 +430,6 @@ where
 
 /// All mesh related resources.
 pub struct MeshRenderResources {
-    pub(crate) camera_bind_group_layout: wgpu::BindGroupLayout,
-    pub(crate) camera_bind_group: Option<wgpu::BindGroup>,
-    pub(crate) camera_uniform_buffer: Option<wgpu::Buffer>,
-
     pub(crate) light_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) light_bind_group: Option<wgpu::BindGroup>,
     pub(crate) light_uniform_buffer: Option<wgpu::Buffer>,
@@ -455,23 +451,6 @@ pub(crate) struct InstanceMetadata {
 
 impl MeshRenderResources {
     pub(crate) fn new(render_server: &RenderServer) -> Self {
-        let camera_bind_group_layout =
-            render_server
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                    label: Some("mesh camera bind group layout"),
-                });
-
         let light_bind_group_layout =
             render_server
                 .device
@@ -490,9 +469,6 @@ impl MeshRenderResources {
                 });
 
         Self {
-            camera_bind_group_layout,
-            camera_uniform_buffer: None,
-            camera_bind_group: None,
             light_bind_group_layout,
             light_uniform_buffer: None,
             texture_bind_group_layout_cache: Default::default(),
@@ -592,39 +568,6 @@ impl MeshRenderResources {
         self.texture_bind_group_layout_cache.get(&flags).unwrap()
     }
 
-    pub fn prepare_cameras(&mut self, render_server: &RenderServer, camera_uniform: CameraUniform) {
-        if self.camera_bind_group.is_none() {
-            // Create a buffer for the camera uniform.
-            let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("camera3d buffer"),
-                size: mem::size_of::<CameraUniform>() as BufferAddress,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-
-            let bind_group = render_server
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &self.camera_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: buffer.as_entire_binding(),
-                    }],
-                    label: Some("camera3d bind group"),
-                });
-
-            self.camera_bind_group = Some(bind_group);
-            self.camera_uniform_buffer = Some(buffer);
-        }
-
-        // Update camera buffer.
-        render_server.queue.write_buffer(
-            self.camera_uniform_buffer.as_ref().unwrap(),
-            0,
-            bytemuck::cast_slice(&[camera_uniform]),
-        );
-    }
-
     pub fn prepare_lights(&mut self, render_server: &RenderServer, light_uniform: LightUniform) {
         if self.light_bind_group.is_none() {
             // We'll want to update our lights position, so we use COPY_DST.
@@ -702,6 +645,7 @@ impl MeshRenderResources {
         &mut self,
         render_server: &RenderServer,
         shader_maker: &mut ShaderMaker,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
         material_id: Option<MaterialId>,
     ) {
         if (material_id.is_none()) {
@@ -717,7 +661,7 @@ impl MeshRenderResources {
                         &wgpu::PipelineLayoutDescriptor {
                             label: Some("mesh pipeline layout"),
                             bind_group_layouts: &[
-                                &self.camera_bind_group_layout,
+                                camera_bind_group_layout,
                                 &self.light_bind_group_layout,
                             ],
                             push_constant_ranges: &[],
@@ -768,7 +712,7 @@ impl MeshRenderResources {
                         &wgpu::PipelineLayoutDescriptor {
                             label: Some("mesh pipeline layout"),
                             bind_group_layouts: &[
-                                &self.camera_bind_group_layout,
+                                camera_bind_group_layout,
                                 &self.light_bind_group_layout,
                                 self.get_texture_bind_group_layout(&material),
                             ],

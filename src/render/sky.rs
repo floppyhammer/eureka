@@ -124,6 +124,10 @@ pub(crate) fn prepare_sky(render_resources: &mut SkyRenderResources, render_serv
 }
 
 pub(crate) fn render_sky<'a, 'b: 'a>(camera_bind_group: &'b wgpu::BindGroup, render_resources: &'b SkyRenderResources, render_pass: &mut RenderPass<'a>) {
+    if render_resources.pipeline.is_none() {
+        return;
+    }
+
     render_pass.set_pipeline(render_resources.pipeline.as_ref().unwrap());
 
     // Set vertex buffer for VertexInput.
@@ -131,8 +135,9 @@ pub(crate) fn render_sky<'a, 'b: 'a>(camera_bind_group: &'b wgpu::BindGroup, ren
 
     render_pass.set_index_buffer(render_resources.mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
+    // FIXME
     // Set camera uniform.
-    render_pass.set_bind_group(0, camera_bind_group, &[]);
+    render_pass.set_bind_group(0, camera_bind_group, &[0]);
 
     // Set texture.
     render_pass.set_bind_group(1, render_resources.texture_bind_group.as_ref().unwrap(), &[]);
