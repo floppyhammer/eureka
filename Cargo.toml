@@ -12,7 +12,7 @@ image = { version = "0.24", default-features = false, features = [
 ] }
 winit = "0.29.10"
 cgmath = "0.18"
-env_logger = "0.10.0"
+env_logger = "0.11.0"
 log = "0.4"
 wgpu = { version = "0.19.1", features = ["naga-ir"] }
 pollster = "0.3.0"
@@ -28,22 +28,22 @@ lyon = "1.0.0"
 # Tree structure.
 indextree = "4.4.0"
 # Text rasterization.
-fontdue = "0.7.2"
+fontdue = "0.8.0"
 # Text shaping.
-rustybuzz = "0.7.0"
+rustybuzz = "0.12.1"
 allsorts = "0.14.0"
 # Language detection.
 whatlang = "0.16.2"
 # Text bidi.
 unicode-bidi = "0.3.8"
 # Finding system fonts.
-font-kit = "0.11.0"
+font-kit = "0.12.0"
 # For splitting grapheme clusters.
 unicode-segmentation = "1.10.0"
 # SVG parsing.
-usvg = "0.32.0"
+usvg = "0.38.0"
 # Assets management.
-assets_manager = { version = "0.10.0", features = ["hot-reloading", "image"] }
+assets_manager = { version = "0.11.2", features = ["hot-reloading", "image"] }
 bitflags = { version = "2.4.1", features = [] }
 # Shader preprocessing.
 naga_oil = "0.12.0"
