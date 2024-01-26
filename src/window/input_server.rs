@@ -2,6 +2,7 @@ use cgmath::Point2;
 use std::fmt::{Debug, Formatter};
 use winit::dpi::{PhysicalPosition, Position};
 use winit::event::*;
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
 
 #[derive(Debug, Copy, Clone)]
@@ -15,7 +16,7 @@ pub enum InputEvent {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Key {
-    pub(crate) key: VirtualKeyCode,
+    pub(crate) key_code: KeyCode,
     pub(crate) pressed: bool,
 }
 
@@ -80,18 +81,15 @@ impl InputServer {
 
         // Convert to our own input event.
         let input_event = match event {
-            WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state,
-                        virtual_keycode: Some(key),
-                        ..
-                    },
-                ..
-            } => InputEvent::Key {
+            WindowEvent::KeyboardInput { event, .. } => InputEvent::Key {
                 0: Key {
-                    key: *key,
-                    pressed: *state == ElementState::Pressed,
+                    key_code: match event.physical_key {
+                        PhysicalKey::Code(code) => code,
+                        PhysicalKey::Unidentified(_) => {
+                            panic!()
+                        }
+                    },
+                    pressed: event.state == ElementState::Pressed,
                 },
             },
             WindowEvent::MouseWheel { delta, .. } => {
@@ -143,7 +141,7 @@ impl InputServer {
 
                 InputEvent::MouseMotion {
                     0: MouseMotion {
-                        delta: (relative.0 as f32, relative.1 as f32),
+                        delta: relative,
                         position: self.mouse_position,
                         consumed: false,
                     },

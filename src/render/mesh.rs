@@ -343,8 +343,8 @@ pub trait DrawModel<'a> {
 
 /// Rendering a mesh.
 impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a,
+where
+    'b: 'a,
 {
     fn draw_mesh(
         &mut self,

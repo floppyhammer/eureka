@@ -258,15 +258,24 @@ impl Texture {
         self.sampler = new_sampler;
     }
 
-    pub fn load_cube<P: AsRef<Path>>(render_server: &RenderServer, cache: &mut TextureCache, path: P) -> Result<TextureId> {
-
+    pub fn load_cube<P: AsRef<Path>>(
+        render_server: &RenderServer,
+        cache: &mut TextureCache,
+        path: P,
+    ) -> Result<TextureId> {
         // Needed to appease the borrow checker.
         let path_copy = path.as_ref().to_path_buf();
         let label = path_copy.to_str();
 
         let img = image::open(path).context("Invalid image path")?;
 
-        Self::from_cube_image(&render_server.device, &render_server.queue, cache, &img, label)
+        Self::from_cube_image(
+            &render_server.device,
+            &render_server.queue,
+            cache,
+            &img,
+            label,
+        )
     }
 
     /// Create texture from image.

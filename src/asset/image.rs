@@ -1,7 +1,7 @@
-use std::borrow::Cow;
-use assets_manager::{loader::Loader, Asset, BoxedError};
 use assets_manager::loader::ImageLoader;
+use assets_manager::{loader::Loader, Asset, BoxedError};
 use image::DynamicImage;
+use std::borrow::Cow;
 
 pub struct Image(pub DynamicImage);
 

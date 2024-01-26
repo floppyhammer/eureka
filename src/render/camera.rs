@@ -1,10 +1,10 @@
-use std::mem;
-use cgmath::{Matrix4, ortho, perspective, Point2, Rad, Vector2};
-use std::rc::Rc;
-use wgpu::{BufferAddress, DynamicOffset};
 use crate::math::alignup_u32;
 use crate::render::RenderServer;
 use crate::scene::OPENGL_TO_WGPU_MATRIX;
+use cgmath::{ortho, perspective, Matrix4, Point2, Rad, Vector2};
+use std::mem;
+use std::rc::Rc;
+use wgpu::{BufferAddress, DynamicOffset};
 
 // We need this for Rust to store our data correctly for the shaders.
 #[repr(C)]
@@ -31,8 +31,7 @@ impl CameraUniform {
 
     pub(crate) fn get_uniform_offset_unit() -> u32 {
         let offset_limit = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
-        let offset_factor =
-            alignup_u32(mem::size_of::<CameraUniform>() as u32, offset_limit);
+        let offset_factor = alignup_u32(mem::size_of::<CameraUniform>() as u32, offset_limit);
 
         return offset_factor * offset_limit;
     }
@@ -102,25 +101,24 @@ impl CameraRenderResources {
                 mapped_at_creation: false,
             });
 
-            let bind_group =
-                render_server
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        layout: &self.bind_group_layout,
-                        entries: &[wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                buffer: &buffer,
-                                offset: 0,
-                                // See DynamicUniformBufferOffset.
-                                size: Some(
-                                    wgpu::BufferSize::new(mem::size_of::<CameraUniform>() as u64)
-                                        .unwrap(),
-                                ),
-                            }),
-                        }],
-                        label: Some("camera bind group (unique)"),
-                    });
+            let bind_group = render_server
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &self.bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &buffer,
+                            offset: 0,
+                            // See DynamicUniformBufferOffset.
+                            size: Some(
+                                wgpu::BufferSize::new(mem::size_of::<CameraUniform>() as u64)
+                                    .unwrap(),
+                            ),
+                        }),
+                    }],
+                    label: Some("camera bind group (unique)"),
+                });
 
             self.bind_group = Some(bind_group);
             self.uniform_buffer = Some(buffer);
@@ -259,6 +257,14 @@ impl OrthographicProjection {
 
     /// Get projection matrix.
     pub fn calc_matrix(&self) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX * ortho(self.left, self.right, self.bottom, self.top, self.znear, self.zfar)
+        OPENGL_TO_WGPU_MATRIX
+            * ortho(
+                self.left,
+                self.right,
+                self.bottom,
+                self.top,
+                self.znear,
+                self.zfar,
+            )
     }
 }

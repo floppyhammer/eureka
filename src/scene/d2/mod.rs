@@ -7,5 +7,5 @@ pub(crate) mod vector_sprite;
 pub use button::*;
 pub use camera2d::*;
 pub use label::*;
-pub use vector_sprite::*;
 pub use sprite2d::*;
+pub use vector_sprite::*;

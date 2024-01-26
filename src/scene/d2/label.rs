@@ -1,14 +1,14 @@
 use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasMode, DrawAtlas, ExtractedAtlas};
-use crate::scene::{NodeType};
+use crate::render::draw_command::DrawCommands;
+use crate::render::TextureCache;
+use crate::scene::NodeType;
 use crate::text::FONT_ATLAS_SIZE;
 use crate::{AsNode, RenderServer, Singletons, Texture};
 use cgmath::{EuclideanSpace, Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use std::any::Any;
-use crate::render::draw_command::DrawCommands;
-use crate::render::TextureCache;
 
 pub struct Label {
     text: String,
@@ -78,8 +78,7 @@ impl AsNode for Label {
         }
     }
 
-    fn draw(&self, draw_commands: &mut DrawCommands,
-    ) {
+    fn draw(&self, draw_commands: &mut DrawCommands) {
         draw_commands.extracted.atlases.push(ExtractedAtlas {
             atlas: self.atlas.clone().unwrap(),
             view_size: draw_commands.view_info.view_size.into(),

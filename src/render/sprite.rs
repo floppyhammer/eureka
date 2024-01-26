@@ -1,15 +1,15 @@
+use crate::math::alignup_u32;
+use crate::math::transform::Transform2d;
 use crate::render::bind_group::{BindGroupCache, BindGroupId};
 use crate::render::camera::CameraUniform;
 use crate::render::vertex::{Vertex2d, VertexBuffer};
 use crate::render::{create_render_pipeline, Mesh, RenderServer, Texture, TextureCache, TextureId};
+use cgmath::{ElementWise, Vector2};
+use naga::TypeInner::Vector;
 use std::collections::HashMap;
 use std::mem;
 use std::ops::Range;
-use cgmath::{ElementWise, Vector2};
-use naga::TypeInner::Vector;
 use wgpu::{BufferAddress, Device, DynamicOffset, SamplerBindingType};
-use crate::math::alignup_u32;
-use crate::math::transform::Transform2d;
 
 /// Minimal data for rendering a sprite.
 #[derive(Debug, Copy, Clone)]
@@ -186,8 +186,8 @@ pub trait DrawSprite2d<'a> {
 }
 
 impl<'a, 'b> DrawSprite2d<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a, // This means 'b must outlive 'a.
+where
+    'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite2d(
         &mut self,
@@ -225,8 +225,8 @@ pub trait DrawSprite3d<'a> {
 }
 
 impl<'a, 'b> DrawSprite3d<'b> for wgpu::RenderPass<'a>
-    where
-        'b: 'a, // This means 'b must outlive 'a.
+where
+    'b: 'a, // This means 'b must outlive 'a.
 {
     fn draw_sprite(
         &mut self,
@@ -273,7 +273,13 @@ const QUAD_UVS: [Vector2<f32>; 4] = [
     Vector2::new(0., 0.),
 ];
 
-pub(crate) fn prepare_sprite(sprites: &Vec<ExtractedSprite2d>, render_resources: &mut SpriteRenderResources, texture_cache: &TextureCache, render_server: &RenderServer, camera_bind_group_layout: &wgpu::BindGroupLayout) -> Vec<SpriteBatch> {
+pub(crate) fn prepare_sprite(
+    sprites: &Vec<ExtractedSprite2d>,
+    render_resources: &mut SpriteRenderResources,
+    texture_cache: &TextureCache,
+    render_server: &RenderServer,
+    camera_bind_group_layout: &wgpu::BindGroupLayout,
+) -> Vec<SpriteBatch> {
     if sprites.is_empty() {
         return vec![];
     }
@@ -399,10 +405,7 @@ pub(crate) fn prepare_sprite(sprites: &Vec<ExtractedSprite2d>, render_resources:
     // Write the vertex buffer.
     if render_resources.vertex_buffer.is_some() {
         render_server.queue.write_buffer(
-            render_resources
-                .vertex_buffer
-                .as_ref()
-                .unwrap(),
+            render_resources.vertex_buffer.as_ref().unwrap(),
             0,
             bytemuck::cast_slice(all_vertices.as_slice()),
         );
@@ -410,10 +413,7 @@ pub(crate) fn prepare_sprite(sprites: &Vec<ExtractedSprite2d>, render_resources:
 
     if render_resources.index_buffer.is_some() {
         render_server.queue.write_buffer(
-            render_resources
-                .index_buffer
-                .as_ref()
-                .unwrap(),
+            render_resources.index_buffer.as_ref().unwrap(),
             0,
             bytemuck::cast_slice(all_indices.as_slice()),
         );
@@ -422,7 +422,12 @@ pub(crate) fn prepare_sprite(sprites: &Vec<ExtractedSprite2d>, render_resources:
     batches
 }
 
-pub(crate) fn render_sprite<'a, 'b: 'a>(batches: &'b Vec<SpriteBatch>, render_resources: &'b SpriteRenderResources, render_pass: &mut wgpu::RenderPass<'a>, camera_bind_group: &'b wgpu::BindGroup) {
+pub(crate) fn render_sprite<'a, 'b: 'a>(
+    batches: &'b Vec<SpriteBatch>,
+    render_resources: &'b SpriteRenderResources,
+    render_pass: &mut wgpu::RenderPass<'a>,
+    camera_bind_group: &'b wgpu::BindGroup,
+) {
     if batches.is_empty() {
         return;
     }
@@ -433,17 +438,22 @@ pub(crate) fn render_sprite<'a, 'b: 'a>(batches: &'b Vec<SpriteBatch>, render_re
     for b in batches {
         let uniform_offset = offset_unit * b.camera_index;
 
-        let texture_bind_group = render_resources
-            .get_texture_bind_group(b.texture_id.unwrap());
+        let texture_bind_group = render_resources.get_texture_bind_group(b.texture_id.unwrap());
 
         let pipeline = render_resources.pipeline.as_ref().unwrap();
 
         render_pass.set_pipeline(pipeline);
 
         // Set vertex buffer for VertexInput.
-        render_pass.set_vertex_buffer(0, render_resources.vertex_buffer.as_ref().unwrap().slice(..));
+        render_pass.set_vertex_buffer(
+            0,
+            render_resources.vertex_buffer.as_ref().unwrap().slice(..),
+        );
 
-        render_pass.set_index_buffer(render_resources.index_buffer.as_ref().unwrap().slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.set_index_buffer(
+            render_resources.index_buffer.as_ref().unwrap().slice(..),
+            wgpu::IndexFormat::Uint32,
+        );
 
         // Set camera group.
         render_pass.set_bind_group(0, camera_bind_group, &[uniform_offset]);

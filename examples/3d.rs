@@ -1,4 +1,4 @@
-use eureka::render::{Texture};
+use eureka::render::Texture;
 use eureka::scene::{Camera3d, Light, Model, Sky};
 use eureka::App;
 
@@ -21,7 +21,7 @@ fn main() {
             .asset_dir
             .join("images/skybox.jpg"),
     )
-        .unwrap();
+    .unwrap();
     let sky = Box::new(Sky::new(skybox_tex));
     app.add_node(sky, None);
 
@@ -41,7 +41,7 @@ fn main() {
                 .asset_dir
                 .join("models/ferris/ferris3d_v1.0.obj"),
         )
-            .unwrap(),
+        .unwrap(),
     );
     app.add_node(obj_model, None);
 

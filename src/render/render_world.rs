@@ -1,12 +1,16 @@
 use crate::asset::AssetServer;
 use crate::core::engine::Engine;
 use crate::math::alignup_u32;
+use crate::render::atlas::{prepare_atlas, render_atlas, AtlasRenderResources, ExtractedAtlas};
 use crate::render::bind_group::BindGroupCache;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::draw_command::DrawCommands;
 use crate::render::gizmo::GizmoRenderResources;
 use crate::render::shader_maker::ShaderMaker;
-use crate::render::sprite::{ExtractedSprite2d, prepare_sprite, render_sprite, SpriteBatch, SpriteRenderResources};
+use crate::render::sky::{prepare_sky, render_sky, ExtractedSky, SkyRenderResources};
+use crate::render::sprite::{
+    prepare_sprite, render_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
+};
 use crate::render::{
     DrawModel, ExtractedMesh, MeshCache, MeshRenderResources, RenderServer, Texture, TextureCache,
     TextureId,
@@ -19,8 +23,6 @@ use std::mem;
 use wgpu::{BufferAddress, DynamicOffset, SamplerBindingType};
 use winit::event_loop::{EventLoop, EventLoopWindowTarget};
 use winit::window::{Window, WindowBuilder};
-use crate::render::atlas::{AtlasRenderResources, ExtractedAtlas, prepare_atlas, render_atlas};
-use crate::render::sky::{ExtractedSky, prepare_sky, render_sky, SkyRenderResources};
 
 #[derive(Default, Clone)]
 pub struct Extracted {
@@ -87,18 +89,12 @@ impl RenderWorld {
 
         let mesh_render_resources = MeshRenderResources::new(render_server);
 
-        let gizmo_render_resources = GizmoRenderResources::new(
-            render_server,
-            &camera_render_resources.bind_group_layout,
-        );
+        let gizmo_render_resources =
+            GizmoRenderResources::new(render_server, &camera_render_resources.bind_group_layout);
 
-        let atlas_render_resources = AtlasRenderResources::new(
-            render_server,
-        );
+        let atlas_render_resources = AtlasRenderResources::new(render_server);
 
-        let sky_render_resources = SkyRenderResources::new(
-            render_server,
-        );
+        let sky_render_resources = SkyRenderResources::new(render_server);
 
         Self {
             surface_depth_texture: depth_texture,
@@ -122,34 +118,63 @@ impl RenderWorld {
 
     // Prepare GPU resources.
     pub fn prepare(&mut self, render_server: &RenderServer) {
-        self.camera_render_resources.prepare_cameras(render_server, &self.extracted.cameras);
+        self.camera_render_resources
+            .prepare_cameras(render_server, &self.extracted.cameras);
 
-        self.sprite_batches = prepare_sprite(&self.extracted.sprites, &mut self.sprite_render_resources, &self.texture_cache, render_server, &self.camera_render_resources.bind_group_layout);
+        self.sprite_batches = prepare_sprite(
+            &self.extracted.sprites,
+            &mut self.sprite_render_resources,
+            &self.texture_cache,
+            render_server,
+            &self.camera_render_resources.bind_group_layout,
+        );
 
         self.prepare_meshes(render_server);
 
-        prepare_atlas(&self.extracted.atlases, &mut self.atlas_render_resources, render_server, &self.texture_cache, &mut self.shader_maker);
+        prepare_atlas(
+            &self.extracted.atlases,
+            &mut self.atlas_render_resources,
+            render_server,
+            &self.texture_cache,
+            &mut self.shader_maker,
+        );
 
         if (self.extracted.sky.is_some()) {
-            prepare_sky(&mut self.sky_render_resources, render_server, &self.texture_cache, &self.extracted.sky.unwrap().texture, &self.camera_render_resources.bind_group_layout);
+            prepare_sky(
+                &mut self.sky_render_resources,
+                render_server,
+                &self.texture_cache,
+                &self.extracted.sky.unwrap().texture,
+                &self.camera_render_resources.bind_group_layout,
+            );
         }
     }
 
     // Send draw calls.
-    pub(crate) fn render<'a, 'b: 'a>(
-        &'b self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-    ) {
+    pub(crate) fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
         if (self.camera_render_resources.bind_group.is_some()) {
-            render_sky(self.camera_render_resources.bind_group.as_ref().unwrap(), &self.sky_render_resources, render_pass);
+            render_sky(
+                self.camera_render_resources.bind_group.as_ref().unwrap(),
+                &self.sky_render_resources,
+                render_pass,
+            );
         }
 
         // Draw sprites.
-        render_sprite(&self.sprite_batches, &self.sprite_render_resources, render_pass, self.camera_render_resources.bind_group.as_ref().unwrap());
+        render_sprite(
+            &self.sprite_batches,
+            &self.sprite_render_resources,
+            render_pass,
+            self.camera_render_resources.bind_group.as_ref().unwrap(),
+        );
 
         self.render_meshes(render_pass);
 
-        render_atlas(&self.extracted.atlases, &self.atlas_render_resources, render_pass);
+        render_atlas(
+            &self.extracted.atlases,
+            &self.atlas_render_resources,
+            render_pass,
+        );
     }
 
     pub(crate) fn prepare_meshes(&mut self, render_server: &RenderServer) {
@@ -193,11 +218,7 @@ impl RenderWorld {
             return;
         }
 
-        let camera_bind_group = self
-            .camera_render_resources
-            .bind_group
-            .as_ref()
-            .unwrap();
+        let camera_bind_group = self.camera_render_resources.bind_group.as_ref().unwrap();
 
         let light_bind_group = self
             .mesh_render_resources
@@ -267,10 +288,7 @@ impl RenderWorld {
 
         self.gizmo_render_resources.render(
             render_pass,
-            self.camera_render_resources
-                .bind_group
-                .as_ref()
-                .unwrap(),
+            self.camera_render_resources.bind_group.as_ref().unwrap(),
         );
     }
 

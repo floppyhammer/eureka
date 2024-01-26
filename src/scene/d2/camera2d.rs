@@ -1,10 +1,10 @@
 use crate::math::transform::Transform2d;
-use crate::scene::{AsNode, NodeType};
-use cgmath::{Matrix4, Perspective, Point2, Vector2};
-use std::any::Any;
 use crate::render::camera::{CameraUniform, OrthographicProjection, Projection};
 use crate::render::draw_command::DrawCommands;
+use crate::scene::{AsNode, NodeType};
 use crate::Singletons;
+use cgmath::{Matrix4, Perspective, Point2, Vector2};
+use std::any::Any;
 
 pub struct Camera2d {
     pub transform: Transform2d,
@@ -46,7 +46,10 @@ impl AsNode for Camera2d {
     }
 
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        self.projection.update(singletons.render_server.surface_config.width as f32, singletons.render_server.surface_config.height as f32);
+        self.projection.update(
+            singletons.render_server.surface_config.width as f32,
+            singletons.render_server.surface_config.height as f32,
+        );
     }
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {

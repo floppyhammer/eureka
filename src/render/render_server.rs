@@ -1,6 +1,6 @@
 // use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
 use crate::render::texture::Texture;
-use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
+// use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 // use crate::scene::CameraUniform;
 use crate::{scene, Camera2d, SamplerBindingType};
 // use crate::{scene, Camera2d, Camera3d, Light, SamplerBindingType};
@@ -19,10 +19,10 @@ use wgpu::PolygonMode::Point;
 use wgpu::{BufferAddress, TextureFormat};
 
 /// Contains render context (but not GPU resources)
-pub struct RenderServer {
+pub struct RenderServer<'a> {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub surface: wgpu::Surface,
+    pub surface: wgpu::Surface<'a>,
     pub surface_config: wgpu::SurfaceConfiguration,
     // bind_group_layout_cache: HashMap<&'static str, wgpu::BindGroupLayout>,
     // material_3d_bind_group_layout_cache: HashMap<u32, wgpu::BindGroupLayout>,
@@ -30,9 +30,9 @@ pub struct RenderServer {
     // material_3d_pipeline_cache: HashMap<u32, wgpu::RenderPipeline>,
 }
 
-impl RenderServer {
-    pub(crate) fn new(
-        surface: wgpu::Surface,
+impl<'a> RenderServer<'a> {
+    pub(crate) fn new<'b: 'a>(
+        surface: wgpu::Surface<'b>,
         surface_config: wgpu::SurfaceConfiguration,
         device: wgpu::Device,
         queue: wgpu::Queue,

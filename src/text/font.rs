@@ -106,7 +106,11 @@ pub(crate) struct DynamicFont {
 
 impl DynamicFont {
     /// Load font from a file.
-    pub(crate) fn load_from_file(path: &str, render_server: &RenderServer, texture_cache: &mut TextureCache) -> Self {
+    pub(crate) fn load_from_file(
+        path: &str,
+        render_server: &RenderServer,
+        texture_cache: &mut TextureCache,
+    ) -> Self {
         // Read the font data.
         let mut f = File::open(path).expect("No font file found!");
         let metadata = fs::metadata(path).expect("Unable to read font file metadata!");
@@ -116,7 +120,11 @@ impl DynamicFont {
         Self::load_from_memory(buffer, render_server, texture_cache)
     }
 
-    pub(crate) fn load_from_memory(buffer: Vec<u8>, render_server: &RenderServer, texture_cache: &mut TextureCache) -> Self {
+    pub(crate) fn load_from_memory(
+        buffer: Vec<u8>,
+        render_server: &RenderServer,
+        texture_cache: &mut TextureCache,
+    ) -> Self {
         let now = Instant::now();
 
         // Clone the raw data, as it will be consumed when we create a fontdue font below.
@@ -135,7 +143,7 @@ impl DynamicFont {
             &atlas_image,
             "default font atlas".into(),
         )
-            .unwrap();
+        .unwrap();
 
         // let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 

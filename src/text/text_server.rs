@@ -1,6 +1,7 @@
 use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 // use crate::render::atlas::AtlasInstance;
+use crate::render::atlas::{Atlas, AtlasInstance, AtlasMode};
 use crate::render::{RenderServer, Texture, TextureCache};
 use crate::text::{DynamicFont, Glyph, FONT_ATLAS_SIZE};
 use cgmath::{Point2, Vector2, Vector4};
@@ -9,8 +10,7 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::path::Path;
 use std::time::Instant;
-use winit::event::VirtualKeyCode::P;
-use crate::render::atlas::{Atlas, AtlasInstance, AtlasMode};
+use winit::keyboard::Key::Named;
 
 pub struct TextServer {
     fonts: HashMap<&'static str, DynamicFont>,
@@ -22,7 +22,8 @@ impl TextServer {
 
         let default_font_data = find_system_font("arial");
 
-        let font = DynamicFont::load_from_memory(default_font_data.unwrap(), render_server, texture_cache);
+        let font =
+            DynamicFont::load_from_memory(default_font_data.unwrap(), render_server, texture_cache);
 
         let elapsed_time = now.elapsed();
         log::info!(
@@ -37,12 +38,21 @@ impl TextServer {
     }
 
     /// Load a new font from disk.
-    pub fn load_font(&mut self, font_path: &'static str, render_server: &RenderServer, texture_cache: &mut TextureCache) {
+    pub fn load_font(
+        &mut self,
+        font_path: &'static str,
+        render_server: &RenderServer,
+        texture_cache: &mut TextureCache,
+    ) {
         let font = DynamicFont::load_from_file(font_path, render_server, texture_cache);
         self.fonts.insert(font_path, font);
     }
 
-    pub(crate) fn prepare(&mut self, render_server: &RenderServer, texture_cache: &mut TextureCache) {
+    pub(crate) fn prepare(
+        &mut self,
+        render_server: &RenderServer,
+        texture_cache: &mut TextureCache,
+    ) {
         for (key, font) in &mut self.fonts {
             font.upload(render_server, texture_cache);
         }

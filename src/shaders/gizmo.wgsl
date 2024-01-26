@@ -120,8 +120,6 @@ fn fs_main_grid(in: GridOutput) -> FragOut {
 
     let clip = camera.proj * camera.view * vec4<f32>(pos.xyz, 1.0);
     let depth = clip.z / clip.w;
-//    let near = 0.0005;
-//    let fading = 1.0 - near / depth;
     let fading = 1.0 - t;
 
     // Two grids, one with axes drawn.

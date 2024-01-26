@@ -16,5 +16,6 @@ pub(crate) mod draw_command;
 pub(crate) mod material;
 pub(crate) mod render_world;
 pub(crate) mod shader_maker;
-pub(crate) mod sprite;
 pub(crate) mod sky;
+pub(crate) mod sprite;
+pub(crate) mod vector_texture;

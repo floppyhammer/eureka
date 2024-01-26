@@ -1,22 +1,19 @@
 use std::convert::TryFrom;
-use std::mem;
-use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use winit::{
-    dpi::{LogicalPosition, PhysicalPosition, Position, Size},
     event::*,
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::{Window, WindowBuilder},
 };
 
-use cgmath::{prelude::*, Point2, Vector2, Vector3, Vector4};
+use cgmath::{prelude::*, Vector2};
 use indextree::NodeId;
 
 use crate::core::engine::Engine;
-use wgpu::{util::DeviceExt, SamplerBindingType, TextureView};
-use winit::event::VirtualKeyCode::E;
-use winit::platform::run_return::EventLoopExtRunReturn;
+use wgpu::{util::DeviceExt, SamplerBindingType};
+use winit::dpi::PhysicalSize;
+use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 
 // Do this before importing local crates.
 pub mod asset;
@@ -25,73 +22,63 @@ pub mod math;
 pub mod render;
 pub mod scene;
 pub mod text;
-pub mod vector_image;
 pub mod window;
 
 // Import local crates.
 use crate::asset::AssetServer;
-// use crate::render::atlas::{Atlas, AtlasInstance};
-// use crate::render::gizmo::Gizmo;
 use crate::render::render_world::RenderWorld;
-use crate::render::{RenderServer, Texture, TextureId};
-use crate::scene::Sprite2d;
-// use crate::scene::sprite3d::Sprite3d;
-// use crate::scene::vector_sprite::{DrawVector, VectorSprite};
+use crate::render::{RenderServer, Texture};
 use crate::scene::{AsNode, Camera2d, World};
 use crate::text::TextServer;
-// use crate::scene::{
-//     AsNode, Camera2d, Camera3d, Camera3dController, Label, Light, LightUniform, Model, Projection,
-//     Sky, World,
-// };
-// use crate::text::TextServer;
 use crate::window::InputServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
 
-pub struct Singletons {
+pub struct Singletons<'a> {
     pub engine: Engine,
-    pub render_server: RenderServer,
+    pub render_server: RenderServer<'a>,
     pub input_server: InputServer,
     pub text_server: TextServer,
     pub asset_server: AssetServer,
 }
 
-pub struct App {
-    window: Window,
-    window_size: winit::dpi::PhysicalSize<u32>,
+pub struct App<'a> {
+    window: Arc<Window>,
+    window_size: PhysicalSize<u32>,
     world: World,
     pub render_world: RenderWorld,
-    pub singletons: Singletons,
-    is_init: bool,
+    pub singletons: Singletons<'a>,
+    initialized: bool,
     /// In order to call EventLoop::run_return from App::run,
     /// we have to put it in an option to avoid borrow errors.
     event_loop: Option<EventLoop<()>>,
 }
 
-impl App {
+impl<'a> App<'a> {
     pub fn new() -> Self {
-        let event_loop = EventLoop::new();
-
         let env = env_logger::Env::default()
             .filter_or("EUREKA_LOG_LEVEL", "info")
             .write_style_or("EUREKA_LOG_STYLE", "always");
         env_logger::init_from_env(env);
 
+        let event_loop = EventLoop::new().unwrap();
+
         // Use cargo package name as the window title.
         let title = env!("CARGO_PKG_NAME");
 
-        let window_size =
-            winit::dpi::PhysicalSize::new(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
+        let window_size = PhysicalSize::new(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
 
-        let window = WindowBuilder::new()
-            .with_title(title)
-            .with_inner_size(window_size)
-            .build(&event_loop)
-            .unwrap();
+        let window = Arc::new(
+            WindowBuilder::new()
+                .with_title(title)
+                .with_inner_size(window_size)
+                .build(&event_loop)
+                .unwrap(),
+        );
 
         // App::init_render uses async code, so we're going to wait for it to finish.
-        let mut render_server = pollster::block_on(App::init_render(&window));
+        let mut render_server = pollster::block_on(App::init_render(window.clone()));
 
         let mut engine = Engine::new();
 
@@ -117,18 +104,18 @@ impl App {
             world,
             render_world,
             singletons,
-            is_init: false,
+            initialized: false,
             event_loop: Some(event_loop),
         }
     }
 
     // Creating some of the wgpu types requires async code.
-    async fn init_render(window: &Window) -> RenderServer {
+    async fn init_render(window: Arc<Window>) -> RenderServer<'a> {
         // Context for all other wgpu objects.
         let instance = wgpu::Instance::default();
 
         // Handle to a presentable surface.
-        let surface = unsafe { instance.create_surface(window).unwrap() };
+        let surface = instance.create_surface(window.clone()).unwrap();
 
         // Handle to a physical graphics and/or compute device.
         let adapter = instance
@@ -138,20 +125,20 @@ impl App {
                 force_fallback_adapter: false,
             })
             .await
-            .unwrap();
+            .expect("Failed to find an appropriate adapter!");
 
         // Use the adapter to create a device and a queue.
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
                     label: None,
+                    required_features: wgpu::Features::empty(),
+                    required_limits: Default::default(),
                 },
                 None,
             )
             .await
-            .unwrap();
+            .expect("Failed to create device!");
 
         // Get the window's inner size.
         let size = window.inner_size();
@@ -167,74 +154,94 @@ impl App {
 
     pub fn run(&mut self) {
         // Main loop.
-        self.event_loop.take().unwrap().run_return(|event, _, control_flow| {
-            match event {
-                // Device event.
-                Event::DeviceEvent {
-                    ref event,
-                    .. // We're not using device_id currently.
-                } => {
-                    // We're not handling raw input data currently.
-                }
-                // Window event.
-                Event::WindowEvent {
-                    ref event,
-                    window_id,
-                } if window_id == self.window.id() => {
-                    match event {
-                        WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                        WindowEvent::Resized(physical_size) => {
-                            // See https://github.com/rust-windowing/winit/issues/2094.
-                            if self.is_init {
-                                return;
+        self.event_loop
+            .take()
+            .unwrap()
+            .run(move |mut event, elwt| {
+                match event {
+                    // Device event.
+                    Event::DeviceEvent {
+                        ref event,
+                        device_id,
+                    } => {
+                        // We're not handling raw input data currently.
+                    }
+                    // Window event.
+                    Event::WindowEvent {
+                        ref mut event,
+                        window_id,
+                    } if window_id == self.window.id() => {
+                        match event {
+                            WindowEvent::CloseRequested => elwt.exit(),
+                            WindowEvent::Resized(physical_size) => {
+                                // See https://github.com/rust-windowing/winit/issues/2094.
+                                if self.initialized {
+                                    return;
+                                }
+
+                                self.resize(*physical_size);
+
+                                log::info!("Window resized to {:?}", physical_size);
                             }
+                            // Scale factor changed.
+                            WindowEvent::ScaleFactorChanged {
+                                scale_factor,
+                                ref mut inner_size_writer,
+                            } => {
+                                let new_width =
+                                    (self.window_size.width as f64 * *scale_factor) as u32;
+                                let new_height =
+                                    (self.window_size.height as f64 * *scale_factor) as u32;
+                                let new_size = PhysicalSize::new(new_width, new_height);
+                                // self.resize(new_size);
+                                inner_size_writer
+                                    .request_inner_size(new_size)
+                                    .expect("TODO: panic message");
 
-                            self.resize(*physical_size);
+                                log::info!(
+                                    "Scale factor changed, change window size to {:?}",
+                                    new_size
+                                );
+                            }
+                            // Redraw request.
+                            WindowEvent::RedrawRequested => {
+                                self.singletons.input_server.update(&self.window);
 
-                            log::info!("Window resized to {:?}", physical_size);
-                        }
-                        // Scale factor changed.
-                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                            self.resize(**new_inner_size);
+                                self.update();
 
-                            log::info!("Scale factor changed, new window size is {:?}", new_inner_size);
-                        }
-                        _ => {
-                            // Other input events should be handled by the input server.
-                            self.input(event);
+                                match self.render() {
+                                    Ok(_) => {
+                                        self.window.request_redraw();
+                                    }
+                                    // Reconfigure the surface if lost.
+                                    Err(wgpu::SurfaceError::Lost) => self.resize(self.window_size),
+                                    // The system is out of memory, we should probably quit.
+                                    Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
+                                    // All other errors (Outdated, Timeout) should be resolved by the next frame.
+                                    Err(e) => eprintln!("App resource error: {:?}", e),
+                                }
+                            }
+                            _ => {
+                                // Other input events should be handled by the input server.
+                                self.input(event);
+                            }
                         }
                     }
-                }
-                // Redraw request.
-                Event::RedrawRequested(_) => {
-                    self.singletons.input_server.update(&self.window);
-
-                    self.update();
-
-                    match self.render() {
-                        Ok(_) => {}
-                        // Reconfigure the surface if lost.
-                        Err(wgpu::SurfaceError::Lost) => self.resize(self.window_size),
-                        // The system is out of memory, we should probably quit.
-                        Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                        // All other errors (Outdated, Timeout) should be resolved by the next frame.
-                        Err(e) => eprintln!("App resource error: {:?}", e),
+                    // Event::MainEventsCleared => {
+                    //     // RedrawRequested will only trigger once, unless we manually request it.
+                    //     self.window.request_redraw();
+                    // }
+                    Event::NewEvents(cause) => {
+                        if cause == StartCause::Init {
+                            self.initialized = true;
+                        } else {
+                            self.initialized = false;
+                        }
                     }
+                    _ => {}
                 }
-                Event::MainEventsCleared => {
-                    // RedrawRequested will only trigger once, unless we manually request it.
-                    self.window.request_redraw();
-                }
-                Event::NewEvents(cause) => {
-                    if cause == StartCause::Init {
-                        self.is_init = true;
-                    } else {
-                        self.is_init = false;
-                    }
-                }
-                _ => {}
-            }
-        });
+            })
+            .expect("TODO: panic message");
     }
 
     pub fn add_node(&mut self, new_node: Box<dyn AsNode>, parent: Option<NodeId>) {
@@ -309,9 +316,10 @@ impl App {
         self.render_world.prepare(render_server);
 
         // Update server GPU resources.
-        self.singletons
-            .text_server
-            .prepare(&self.singletons.render_server, &mut self.render_world.texture_cache);
+        self.singletons.text_server.prepare(
+            &self.singletons.render_server,
+            &mut self.render_world.texture_cache,
+        );
 
         let render_world = &self.render_world;
 

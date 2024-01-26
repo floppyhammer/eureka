@@ -1,4 +1,4 @@
-//////////////////////////////// Vertex shader ////////////////////////////////
+// Vertex shader //
 
 struct Camera {
     view_pos: vec4<f32>,
@@ -6,7 +6,6 @@ struct Camera {
     proj: mat4x4<f32>,
 }
 
-// Bind group 1.
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
@@ -15,7 +14,6 @@ struct Light {
     color: vec3<f32>,
 }
 
-// Bind group 2.
 @group(1) @binding(0)
 var<uniform> light: Light;
 
@@ -85,9 +83,9 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     return out;
 }
 
-//////////////////////////////// Fragment shader ////////////////////////////////
+// Fragment shader //
 
-// Bind group 0.
+// Texture bind group.
 // -------------------------
 #ifdef COLOR_MAP
 // Diffuse.

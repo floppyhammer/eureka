@@ -1,7 +1,7 @@
 use crate::render::camera::{CameraUniform, PerspectiveProjection, Projection};
 use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, NodeType};
-use crate::window::{InputEvent, InputServer};
+use crate::window::{InputEvent, InputServer, Key};
 use crate::{RenderServer, Singletons};
 use cgmath::num_traits::clamp;
 use cgmath::*;
@@ -14,6 +14,8 @@ use wgpu::util::DeviceExt;
 use wgpu::BufferAddress;
 use winit::dpi::{LogicalPosition, PhysicalPosition, Position};
 use winit::event::*;
+use winit::keyboard::Key::{Named, Unidentified};
+use winit::keyboard::{KeyCode, NamedKey, NativeKeyCode};
 use winit::window::Window;
 
 #[rustfmt::skip]
@@ -148,30 +150,30 @@ impl Camera3dController {
         }
     }
 
-    pub fn process_keyboard(&mut self, key: VirtualKeyCode, pressed: bool) -> bool {
+    pub fn process_keyboard(&mut self, key: KeyCode, pressed: bool) -> bool {
         let amount = if pressed { 1.0 } else { 0.0 };
         match key {
-            VirtualKeyCode::W | VirtualKeyCode::Up => {
+            KeyCode::KeyW => {
                 self.amount_forward = amount;
                 true
             }
-            VirtualKeyCode::S | VirtualKeyCode::Down => {
+            KeyCode::KeyS => {
                 self.amount_backward = amount;
                 true
             }
-            VirtualKeyCode::A | VirtualKeyCode::Left => {
+            KeyCode::KeyA => {
                 self.amount_left = amount;
                 true
             }
-            VirtualKeyCode::D | VirtualKeyCode::Right => {
+            KeyCode::KeyD => {
                 self.amount_right = amount;
                 true
             }
-            VirtualKeyCode::E => {
+            KeyCode::KeyE => {
                 self.amount_up = amount;
                 true
             }
-            VirtualKeyCode::Q => {
+            KeyCode::KeyQ => {
                 self.amount_down = amount;
                 true
             }
@@ -247,8 +249,8 @@ impl AsNode for Camera3d {
             InputEvent::MouseScroll(event) => {
                 self.controller.process_scroll(event.delta);
             }
-            InputEvent::Key(event) => {
-                self.controller.process_keyboard(event.key, event.pressed);
+            InputEvent::Key(key) => {
+                self.controller.process_keyboard(key.key_code, key.pressed);
             }
             _ => {}
         }
@@ -261,7 +263,10 @@ impl AsNode for Camera3d {
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         let queue = &mut singletons.render_server.queue;
 
-        self.projection.update(singletons.render_server.surface_config.width as f32, singletons.render_server.surface_config.height as f32);
+        self.projection.update(
+            singletons.render_server.surface_config.width as f32,
+            singletons.render_server.surface_config.height as f32,
+        );
 
         // Update camera transform.
         {

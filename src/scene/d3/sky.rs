@@ -9,12 +9,12 @@ use std::path::Path;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 
-use crate::render::{Mesh, Texture, TextureId};
-use crate::scene::{AsNode, NodeType};
-use crate::{RenderServer, Singletons};
 use crate::render::draw_command::DrawCommands;
 use crate::render::material::MaterialId;
 use crate::render::sky::ExtractedSky;
+use crate::render::{Mesh, Texture, TextureId};
+use crate::scene::{AsNode, NodeType};
+use crate::{RenderServer, Singletons};
 
 pub struct Sky {
     // TODO
@@ -27,10 +27,7 @@ impl Sky {
     pub fn new(texture: TextureId) -> Self {
         let rotation = cgmath::Quaternion::new(0.0, 0.0, 0.0, 0.0);
 
-        Self {
-            rotation,
-            texture,
-        }
+        Self { rotation, texture }
     }
 }
 
@@ -47,9 +44,7 @@ impl AsNode for Sky {
         self
     }
 
-    fn draw(
-        &self, draw_commands: &mut DrawCommands,
-    ) {
+    fn draw(&self, draw_commands: &mut DrawCommands) {
         draw_commands.extracted.sky = Some(ExtractedSky {
             texture: self.texture,
         });
