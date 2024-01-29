@@ -1,5 +1,5 @@
-use cgmath::Vector2;
 use crate::render::TextureId;
+use cgmath::Vector2;
 
 enum RenderTarget {
     Window(u32),

@@ -1,16 +1,12 @@
 use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
-// use crate::render::atlas::AtlasInstance;
 use crate::render::atlas::{Atlas, AtlasInstance, AtlasMode};
 use crate::render::{RenderServer, Texture, TextureCache};
 use crate::text::{DynamicFont, Glyph, FONT_ATLAS_SIZE};
 use cgmath::{Point2, Vector2, Vector4};
 use font_kit::source::SystemSource;
 use std::collections::HashMap;
-use std::ops::Range;
-use std::path::Path;
 use std::time::Instant;
-use winit::keyboard::Key::Named;
 
 pub struct TextServer {
     fonts: HashMap<&'static str, DynamicFont>,

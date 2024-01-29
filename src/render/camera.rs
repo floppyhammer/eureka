@@ -3,13 +3,14 @@ use crate::render::RenderServer;
 use crate::scene::OPENGL_TO_WGPU_MATRIX;
 use cgmath::{ortho, perspective, Matrix4, Rad, Vector2};
 use std::mem;
-use wgpu::{BufferAddress};
+use wgpu::BufferAddress;
 
 // We need this for Rust to store our data correctly for the shaders.
 #[repr(C)]
 // This is so we can store this in a buffer.
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
+    // We're using Vector4 because of the uniforms 16 byte spacing requirement.
     pub(crate) view_position: [f32; 4],
     /// Multiplication of the view and projection matrices.
     // We can't use cgmath with bytemuck directly, so we'll have

@@ -29,7 +29,11 @@ impl Camera2d {
 
     pub fn calc_view_matrix(&self) -> Matrix4<f32> {
         let rotation_mat = Matrix4::from_angle_z(-cgmath::Deg(self.transform.rotation));
-        let translation_mat = Matrix4::from_translation(Vector3::new(self.transform.position.x, self.transform.position.y, 0.0));
+        let translation_mat = Matrix4::from_translation(Vector3::new(
+            self.transform.position.x,
+            self.transform.position.y,
+            0.0,
+        ));
 
         translation_mat * rotation_mat
     }
@@ -65,7 +69,6 @@ impl AsNode for Camera2d {
         let view_mat = self.calc_view_matrix();
         let proj_mat = self.projection.calc_matrix();
 
-        // We're using Vector4 because of the uniforms 16 byte spacing requirement.
         uniform.view_position[0] = self.transform.position.x;
         uniform.view_position[1] = self.transform.position.y;
         uniform.view = view_mat.into();

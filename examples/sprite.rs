@@ -34,7 +34,7 @@ fn main() {
             .asset_dir
             .join("images/happy-tree.png"),
     )
-        .unwrap();
+    .unwrap();
 
     let img_tex2 = Texture::load(
         &app.singletons.render_server.device,
@@ -45,7 +45,7 @@ fn main() {
             .asset_dir
             .join("images/texture.jpg"),
     )
-        .unwrap();
+    .unwrap();
 
     let sprite1 = Box::new(Sprite2d::new(&app.render_world.texture_cache, img_tex));
     app.add_node(sprite1, None);

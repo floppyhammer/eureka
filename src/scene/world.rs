@@ -1,10 +1,8 @@
 use crate::render::draw_command::DrawCommands;
-// use crate::render::gizmo::Gizmo;
-use crate::render::RenderServer;
 use crate::scene::{AsNode, Camera2d, Camera3d, NodeType};
 use crate::window::InputServer;
 use crate::Singletons;
-use cgmath::{Point2, Vector2};
+use cgmath::Vector2;
 use indextree::{Arena, NodeEdge, NodeId};
 
 pub struct World {
@@ -16,9 +14,7 @@ pub struct World {
 
     current_camera2d: Option<NodeId>,
     current_camera3d: Option<NodeId>,
-    lights: Vec<NodeId>,
 
-    // gizmo: Gizmo,
     view_size: Vector2<u32>,
 }
 
@@ -26,14 +22,11 @@ impl World {
     pub fn new(view_size: Vector2<u32>) -> Self {
         let mut arena = Arena::new();
 
-        // let gizmo = Gizmo::new();
-
         Self {
             arena,
             root_node: None,
             current_camera2d: None,
             current_camera3d: None,
-            lights: vec![],
             view_size,
         }
     }
@@ -43,7 +36,7 @@ impl World {
 
         let node_type = new_node.node_type();
 
-        // Create a new node.
+        // Create a new arena node.
         let id = self.arena.new_node(new_node);
 
         // Handle some special nodes.
@@ -54,12 +47,10 @@ impl World {
             NodeType::Camera3d => {
                 self.current_camera3d = Some(id);
             }
-            NodeType::Light => {
-                self.lights.push(id);
-            }
             _ => {}
         }
 
+        // Check if this is the first node.
         if self.root_node.is_none() {
             self.root_node = Some(id);
         } else {
@@ -142,14 +133,6 @@ impl World {
     }
 
     pub fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        if let Some(node_id) = self.current_camera2d {}
-
-        // if let Some(node_id) = self.current_camera3d {
-        //     if let Some(camera3d) = self.get_node::<Camera3d>(node_id) {
-        //         self.camera_info.bind_group = Some(camera3d.bind_group.clone());
-        //     }
-        // }
-
         for id in self.traverse() {
             self.arena[id].get_mut().update(dt, singletons);
         }
@@ -168,8 +151,6 @@ impl World {
         }
 
         draw_cmds
-
-        // self.gizmo.draw(render_pass, &self.camera_info, singletons);
     }
 
     pub fn when_view_size_changes(&mut self, new_size: Vector2<u32>) {

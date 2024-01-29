@@ -326,7 +326,6 @@ impl AsNode for Camera3d {
         let view_mat = self.calc_view_matrix();
         let proj_mat = self.projection.calc_matrix();
 
-        // We're using Vector4 because of the uniforms 16 byte spacing requirement.
         uniform.view_position = self.position.to_homogeneous().into();
         uniform.view = view_mat.into();
         uniform.proj = proj_mat.into();
