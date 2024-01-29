@@ -1,5 +1,5 @@
 use crate::math::transform::Transform2d;
-use crate::render::camera::{CameraUniform, ViewInfo};
+use crate::render::camera::{CameraUniform};
 use crate::render::draw_command::DrawCommands;
 use crate::render::sprite::ExtractedSprite2d;
 use crate::render::{Mesh, Texture, TextureCache, TextureId};
@@ -8,6 +8,7 @@ use crate::{Camera2d, RenderServer, SamplerBindingType, Singletons};
 use cgmath::{Vector2, Vector3, Vector4};
 use std::any::Any;
 use wgpu::util::DeviceExt;
+use crate::render::view::ViewInfo;
 
 pub struct SpriteSheet {
     h_frames: u32,

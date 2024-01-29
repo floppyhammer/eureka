@@ -3,7 +3,7 @@ use crate::render::camera::{CameraUniform, OrthographicProjection, Projection};
 use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, NodeType};
 use crate::Singletons;
-use cgmath::{Matrix4, Perspective, Point2, Vector2};
+use cgmath::{Angle, InnerSpace, Matrix4, Perspective, Point2, Point3, Vector2, Vector3};
 use std::any::Any;
 
 pub struct Camera2d {
@@ -14,7 +14,7 @@ pub struct Camera2d {
     /// Where to draw. None for screen.
     pub view: Option<u32>,
 
-    pub projection: Projection,
+    projection: Projection,
 }
 
 impl Camera2d {
@@ -25,6 +25,13 @@ impl Camera2d {
             view: None,
             projection: OrthographicProjection::default().into(),
         }
+    }
+
+    pub fn calc_view_matrix(&self) -> Matrix4<f32> {
+        let rotation_mat = Matrix4::from_angle_z(-cgmath::Deg(self.transform.rotation));
+        let translation_mat = Matrix4::from_translation(Vector3::new(self.transform.position.x, self.transform.position.y, 0.0));
+
+        translation_mat * rotation_mat
     }
 
     pub fn when_view_size_changes(&mut self, new_size: Vector2<u32>) {
@@ -55,10 +62,15 @@ impl AsNode for Camera2d {
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         let mut uniform = CameraUniform::default();
 
+        let view_mat = self.calc_view_matrix();
+        let proj_mat = self.projection.calc_matrix();
+
         // We're using Vector4 because of the uniforms 16 byte spacing requirement.
         uniform.view_position[0] = self.transform.position.x;
         uniform.view_position[1] = self.transform.position.y;
-        uniform.proj = self.projection.calc_matrix().into();
+        uniform.view = view_mat.into();
+        uniform.proj = proj_mat.into();
+        uniform.view_proj = (proj_mat * view_mat).into();
 
         draw_cmds.extracted.cameras.push(uniform);
     }

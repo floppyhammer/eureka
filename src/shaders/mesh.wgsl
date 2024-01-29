@@ -4,6 +4,7 @@ struct Camera {
     view_pos: vec4<f32>,
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
+    view_proj: mat4x4<f32>,
 }
 
 @group(0) @binding(0)
@@ -73,7 +74,7 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
 
     var out: VertexOutput;
-    out.clip_position = camera.proj * camera.view * world_position;
+    out.clip_position = camera.view_proj * world_position;
     out.tex_coords = model.tex_coords;
     out.tangent_position = tangent_matrix * world_position.xyz;
     out.tangent_view_position = tangent_matrix * camera.view_pos.xyz;

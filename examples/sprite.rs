@@ -7,7 +7,9 @@ use eureka::App;
 fn main() {
     let mut app = App::new();
 
-    app.add_node(Box::new(Camera2d::default()), None);
+    let mut camera = Box::new(Camera2d::default());
+    camera.transform.rotation = 35.0;
+    app.add_node(camera, None);
 
     // let v_tex = VectorTexture::from_file(
     //     app.singletons
@@ -32,7 +34,18 @@ fn main() {
             .asset_dir
             .join("images/happy-tree.png"),
     )
-    .unwrap();
+        .unwrap();
+
+    let img_tex2 = Texture::load(
+        &app.singletons.render_server.device,
+        &app.singletons.render_server.queue,
+        &mut app.render_world.texture_cache,
+        app.singletons
+            .asset_server
+            .asset_dir
+            .join("images/texture.jpg"),
+    )
+        .unwrap();
 
     let sprite1 = Box::new(Sprite2d::new(&app.render_world.texture_cache, img_tex));
     app.add_node(sprite1, None);
@@ -41,7 +54,7 @@ fn main() {
     sprite2.transform.position = Vector2::new(200f32, 200f32);
     app.add_node(sprite2, None);
 
-    let mut sprite3 = Box::new(Sprite2d::new(&app.render_world.texture_cache, img_tex));
+    let mut sprite3 = Box::new(Sprite2d::new(&app.render_world.texture_cache, img_tex2));
     sprite3.transform.position = Vector2::new(400f32, 400f32);
     app.add_node(sprite3, None);
 

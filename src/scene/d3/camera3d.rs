@@ -323,10 +323,15 @@ impl AsNode for Camera3d {
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         let mut uniform = CameraUniform::default();
 
+        let view_mat = self.calc_view_matrix();
+        let proj_mat = self.projection.calc_matrix();
+
         // We're using Vector4 because of the uniforms 16 byte spacing requirement.
         uniform.view_position = self.position.to_homogeneous().into();
-        uniform.view = self.calc_view_matrix().into();
-        uniform.proj = self.projection.calc_matrix().into();
+        uniform.view = view_mat.into();
+        uniform.proj = proj_mat.into();
+
+        uniform.view_proj = (proj_mat * view_mat).into();
 
         draw_cmds.extracted.cameras.push(uniform);
     }

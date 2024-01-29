@@ -1,10 +1,9 @@
 use crate::math::alignup_u32;
 use crate::render::RenderServer;
 use crate::scene::OPENGL_TO_WGPU_MATRIX;
-use cgmath::{ortho, perspective, Matrix4, Point2, Rad, Vector2};
+use cgmath::{ortho, perspective, Matrix4, Rad, Vector2};
 use std::mem;
-use std::rc::Rc;
-use wgpu::{BufferAddress, DynamicOffset};
+use wgpu::{BufferAddress};
 
 // We need this for Rust to store our data correctly for the shaders.
 #[repr(C)]
@@ -13,10 +12,11 @@ use wgpu::{BufferAddress, DynamicOffset};
 pub struct CameraUniform {
     pub(crate) view_position: [f32; 4],
     /// Multiplication of the view and projection matrices.
-    // We can't use cgmath with bytemuck directly so we'll have
+    // We can't use cgmath with bytemuck directly, so we'll have
     // to convert the Matrix4 into a 4x4 f32 array.
     pub(crate) view: [[f32; 4]; 4],
     pub(crate) proj: [[f32; 4]; 4],
+    pub(crate) view_proj: [[f32; 4]; 4],
 }
 
 impl CameraUniform {
@@ -24,31 +24,17 @@ impl CameraUniform {
         use cgmath::SquareMatrix;
         Self {
             view_position: [0.0; 4],
-            view: cgmath::Matrix4::identity().into(),
-            proj: cgmath::Matrix4::identity().into(),
+            view: Matrix4::identity().into(),
+            proj: Matrix4::identity().into(),
+            view_proj: Matrix4::identity().into(),
         }
     }
 
     pub(crate) fn get_uniform_offset_unit() -> u32 {
         let offset_limit = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
-        let offset_factor = alignup_u32(mem::size_of::<CameraUniform>() as u32, offset_limit);
+        let multiplier = alignup_u32(mem::size_of::<CameraUniform>() as u32, offset_limit);
 
-        return offset_factor * offset_limit;
-    }
-}
-
-pub struct ViewInfo {
-    pub id: u32,
-
-    pub view_size: Vector2<u32>,
-}
-
-impl Default for ViewInfo {
-    fn default() -> Self {
-        Self {
-            id: 0,
-            view_size: Vector2::new(0, 0),
-        }
+        return multiplier * offset_limit;
     }
 }
 
@@ -188,17 +174,18 @@ impl Projection {
 pub struct PerspectiveProjection {
     aspect: f32,
     fovy: Rad<f32>,
-    znear: f32,
-    zfar: f32,
+    // Note : near and far are always positive.
+    near: f32,
+    far: f32,
 }
 
 impl PerspectiveProjection {
-    pub fn new<F: Into<Rad<f32>>>(width: u32, height: u32, fovy: F, znear: f32, zfar: f32) -> Self {
+    pub fn new<F: Into<Rad<f32>>>(width: u32, height: u32, fovy: F, near: f32, far: f32) -> Self {
         Self {
             aspect: width as f32 / height as f32,
             fovy: fovy.into(),
-            znear,
-            zfar,
+            near,
+            far,
         }
     }
 
@@ -206,9 +193,8 @@ impl PerspectiveProjection {
         self.aspect = width / height;
     }
 
-    /// Get projection matrix.
     pub fn calc_matrix(&self) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX * perspective(self.fovy, self.aspect, self.znear, self.zfar)
+        OPENGL_TO_WGPU_MATRIX * perspective(self.fovy, self.aspect, self.near, self.far)
     }
 }
 
@@ -218,19 +204,19 @@ pub struct OrthographicProjection {
     right: f32,
     bottom: f32,
     top: f32,
-    znear: f32,
-    zfar: f32,
+    near: f32,
+    far: f32,
 }
 
 impl OrthographicProjection {
-    pub fn new(znear: f32, zfar: f32) -> Self {
+    pub fn new(near: f32, far: f32) -> Self {
         Self {
             left: 0f32,
             right: 1f32,
             bottom: 0f32,
             top: 1f32,
-            znear,
-            zfar,
+            near,
+            far,
         }
     }
 
@@ -239,9 +225,9 @@ impl OrthographicProjection {
             left: 0f32,
             right: 1f32,
             bottom: 0f32,
-            top: 1f32,
-            znear: 1000.0,
-            zfar: 0.0,
+            top: 0.1,
+            near: 100.0,
+            far: 0.0,
         }
     }
 
@@ -259,12 +245,12 @@ impl OrthographicProjection {
     pub fn calc_matrix(&self) -> Matrix4<f32> {
         OPENGL_TO_WGPU_MATRIX
             * ortho(
-                self.left,
-                self.right,
-                self.bottom,
-                self.top,
-                self.znear,
-                self.zfar,
-            )
+            self.left,
+            self.right,
+            self.bottom,
+            self.top,
+            self.near,
+            self.far,
+        )
     }
 }

@@ -4,6 +4,7 @@ struct Camera {
     view_pos: vec4<f32>,
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
+    view_proj: mat4x4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> camera: Camera;
@@ -118,7 +119,7 @@ fn fs_main_grid(in: GridOutput) -> FragOut {
     let t = -in.near.y / (in.far.y - in.near.y);
     let pos = in.near + t * (in.far - in.near);
 
-    let clip = camera.proj * camera.view * vec4<f32>(pos.xyz, 1.0);
+    let clip = camera.view_proj * vec4<f32>(pos.xyz, 1.0);
     let depth = clip.z / clip.w;
     let fading = 1.0 - t;
 
