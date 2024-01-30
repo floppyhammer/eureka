@@ -3,7 +3,7 @@ use crate::core::engine::Engine;
 use crate::math::alignup_u32;
 use crate::render::atlas::{prepare_atlas, render_atlas, AtlasRenderResources, ExtractedAtlas};
 use crate::render::bind_group::BindGroupCache;
-use crate::render::camera::{CameraRenderResources, CameraUniform};
+use crate::render::camera::{CameraRenderResources, CameraType, CameraUniform, ExtractedCameras};
 use crate::render::draw_command::DrawCommands;
 use crate::render::gizmo::GizmoRenderResources;
 use crate::render::shader_maker::ShaderMaker;
@@ -12,8 +12,8 @@ use crate::render::sprite::{
     prepare_sprite, render_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
 };
 use crate::render::{
-    DrawModel, ExtractedMesh, MeshCache, MeshRenderResources, RenderServer, Texture, TextureCache,
-    TextureId,
+    prepare_meshes, render_meshes, DrawModel, ExtractedMesh, MeshCache, MeshRenderResources,
+    RenderServer, Texture, TextureCache, TextureId,
 };
 use crate::scene::{Camera2d, LightUniform, World};
 use crate::window::InputServer;
@@ -30,8 +30,7 @@ pub struct Extracted {
 
     pub(crate) meshes: Vec<ExtractedMesh>,
 
-    // Only for 3D. Only one for now.
-    pub(crate) cameras: Vec<CameraUniform>,
+    pub(crate) cameras: ExtractedCameras,
 
     pub(crate) lights: Vec<LightUniform>,
 
@@ -121,175 +120,83 @@ impl RenderWorld {
         self.camera_render_resources
             .prepare_cameras(render_server, &self.extracted.cameras);
 
-        self.sprite_batches = prepare_sprite(
-            &self.extracted.sprites,
-            &mut self.sprite_render_resources,
-            &self.texture_cache,
-            render_server,
-            &self.camera_render_resources.bind_group_layout,
-        );
+        for i in 0..self.extracted.cameras.uniforms.len() {
+            if self.extracted.cameras.types[i] == CameraType::D2 {
+                self.sprite_batches = prepare_sprite(
+                    &self.extracted.sprites,
+                    &mut self.sprite_render_resources,
+                    &self.texture_cache,
+                    render_server,
+                    &self.camera_render_resources.bind_group_layout,
+                );
 
-        self.prepare_meshes(render_server);
+                prepare_atlas(
+                    &self.extracted.atlases,
+                    &mut self.atlas_render_resources,
+                    render_server,
+                    &self.texture_cache,
+                    &mut self.shader_maker,
+                );
+            } else {
+                prepare_meshes(
+                    &self.extracted.meshes,
+                    &self.extracted.lights,
+                    &self.texture_cache,
+                    &mut self.shader_maker,
+                    &mut self.mesh_render_resources,
+                    &self.camera_render_resources,
+                    &render_server,
+                );
 
-        prepare_atlas(
-            &self.extracted.atlases,
-            &mut self.atlas_render_resources,
-            render_server,
-            &self.texture_cache,
-            &mut self.shader_maker,
-        );
-
-        if (self.extracted.sky.is_some()) {
-            prepare_sky(
-                &mut self.sky_render_resources,
-                render_server,
-                &self.texture_cache,
-                &self.extracted.sky.unwrap().texture,
-                &self.camera_render_resources.bind_group_layout,
-            );
+                if (self.extracted.sky.is_some()) {
+                    prepare_sky(
+                        &mut self.sky_render_resources,
+                        render_server,
+                        &self.texture_cache,
+                        &self.extracted.sky.unwrap().texture,
+                        &self.camera_render_resources.bind_group_layout,
+                    );
+                }
+            }
         }
     }
 
     // Send draw calls.
     pub(crate) fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
-        if (self.camera_render_resources.bind_group.is_some()) {
-            render_sky(
-                self.camera_render_resources.bind_group.as_ref().unwrap(),
-                &self.sky_render_resources,
-                render_pass,
-            );
-        }
-
-        // Draw sprites.
-        render_sprite(
-            &self.sprite_batches,
-            &self.sprite_render_resources,
-            render_pass,
-            self.camera_render_resources.bind_group.as_ref().unwrap(),
-        );
-
-        self.render_meshes(render_pass);
-
-        render_atlas(
-            &self.extracted.atlases,
-            &self.atlas_render_resources,
-            render_pass,
-        );
-    }
-
-    pub(crate) fn prepare_meshes(&mut self, render_server: &RenderServer) {
-        //
-        // // Copy data from [Instance] to [InstanceRaw].
-        // let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-        //
-        // // Create the instance buffer.
-        // let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        //     label: Some("model instance buffer"),
-        //     contents: bytemuck::cast_slice(&instance_data),
-        //     usage: wgpu::BufferUsages::VERTEX,
-        // });
-
-        for mesh in &self.extracted.meshes {
-            self.mesh_render_resources
-                .prepare_materials(&self.texture_cache, render_server);
-
-            self.mesh_render_resources.prepare_pipeline(
-                render_server,
-                &mut self.shader_maker,
-                &self.camera_render_resources.bind_group_layout,
-                mesh.material_id,
-            );
-        }
-
-        for light in &self.extracted.lights {
-            self.mesh_render_resources
-                .prepare_lights(render_server, *light);
-        }
-
-        self.mesh_render_resources
-            .prepare_instances(render_server, &self.extracted.meshes);
-    }
-
-    pub(crate) fn render_meshes<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
-        if (self.camera_render_resources.bind_group.is_none()) {
-            return;
-        }
-        if (self.mesh_render_resources.light_bind_group.is_none()) {
-            return;
-        }
-
-        let camera_bind_group = self.camera_render_resources.bind_group.as_ref().unwrap();
-
-        let light_bind_group = self
-            .mesh_render_resources
-            .light_bind_group
-            .as_ref()
-            .unwrap();
-
-        for extracted in &self.extracted.meshes {
-            let mut texture_bind_group = None;
-            let mut flags = 0;
-
-            if (extracted.material_id.is_some()) {
-                let material_id = &extracted.material_id.unwrap();
-
-                texture_bind_group = Some(
-                    self.mesh_render_resources
-                        .texture_bind_group_cache
-                        .get(material_id)
-                        .unwrap(),
+        for i in 0..self.extracted.cameras.uniforms.len() {
+            if self.extracted.cameras.types[i] == CameraType::D2 {
+                render_atlas(
+                    &self.extracted.atlases,
+                    &self.atlas_render_resources,
+                    render_pass,
                 );
 
-                let material = self
-                    .mesh_render_resources
-                    .material_cache
-                    .get(material_id)
-                    .unwrap();
-                flags = material.get_flags();
+                // Draw sprites.
+                render_sprite(
+                    &self.sprite_batches,
+                    &self.sprite_render_resources,
+                    render_pass,
+                    self.camera_render_resources.bind_group.as_ref().unwrap(),
+                );
+            } else {
+                if (self.camera_render_resources.bind_group.is_some()) {
+                    render_sky(
+                        self.camera_render_resources.bind_group.as_ref().unwrap(),
+                        &self.sky_render_resources,
+                        render_pass,
+                    );
+                }
+
+                render_meshes(
+                    &self.extracted.meshes,
+                    &self.mesh_cache,
+                    &self.mesh_render_resources,
+                    &self.camera_render_resources,
+                    &self.gizmo_render_resources,
+                    render_pass,
+                );
             }
-
-            let pipeline = self
-                .mesh_render_resources
-                .pipeline_cache
-                .get(&flags)
-                .unwrap();
-
-            let mesh = self.mesh_cache.get(extracted.mesh_id).unwrap();
-
-            let instance = self
-                .mesh_render_resources
-                .instance_cache
-                .get(&extracted.mesh_id)
-                .unwrap();
-
-            render_pass.set_pipeline(pipeline);
-            // Set vertex buffer for InstanceInput.
-            render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
-
-            // Set vertex buffer for VertexInput.
-            render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-
-            render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-            // FIXME
-            // Set camera uniform.
-            render_pass.set_bind_group(0, camera_bind_group, &[0]);
-
-            // Set light uniform.
-            render_pass.set_bind_group(1, light_bind_group, &[]);
-
-            // Set textures.
-            if (texture_bind_group.is_some()) {
-                render_pass.set_bind_group(2, texture_bind_group.unwrap(), &[]);
-            }
-
-            render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
         }
-
-        self.gizmo_render_resources.render(
-            render_pass,
-            self.camera_render_resources.bind_group.as_ref().unwrap(),
-        );
     }
 
     pub fn recreate_depth_texture(&mut self, render_server: &RenderServer) {

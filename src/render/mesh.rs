@@ -1,5 +1,6 @@
 use crate::math::transform::Transform3d;
-use crate::render::camera::CameraUniform;
+use crate::render::camera::{CameraRenderResources, CameraUniform};
+use crate::render::gizmo::GizmoRenderResources;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
@@ -804,4 +805,121 @@ impl MeshRenderResources {
             );
         }
     }
+}
+
+pub(crate) fn prepare_meshes(
+    extracted_meshes: &Vec<ExtractedMesh>,
+    extracted_lights: &Vec<LightUniform>,
+    texture_cache: &TextureCache,
+    shader_maker: &mut ShaderMaker,
+    mesh_render_resources: &mut MeshRenderResources,
+    camera_render_resources: &CameraRenderResources,
+    render_server: &RenderServer,
+) {
+    //
+    // // Copy data from [Instance] to [InstanceRaw].
+    // let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+    //
+    // // Create the instance buffer.
+    // let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    //     label: Some("model instance buffer"),
+    //     contents: bytemuck::cast_slice(&instance_data),
+    //     usage: wgpu::BufferUsages::VERTEX,
+    // });
+
+    for mesh in extracted_meshes {
+        mesh_render_resources.prepare_materials(&texture_cache, render_server);
+
+        mesh_render_resources.prepare_pipeline(
+            render_server,
+            shader_maker,
+            &camera_render_resources.bind_group_layout,
+            mesh.material_id,
+        );
+    }
+
+    for light in extracted_lights {
+        mesh_render_resources.prepare_lights(render_server, *light);
+    }
+
+    mesh_render_resources.prepare_instances(render_server, &extracted_meshes);
+}
+
+pub(crate) fn render_meshes<'a, 'b: 'a>(
+    extracted_meshes: &'b Vec<ExtractedMesh>,
+    mesh_cache: &'b MeshCache,
+    mesh_render_resources: &'b MeshRenderResources,
+    camera_render_resources: &'b CameraRenderResources,
+    gizmo_render_resources: &'b GizmoRenderResources,
+    render_pass: &mut wgpu::RenderPass<'a>,
+) {
+    if (camera_render_resources.bind_group.is_none()) {
+        return;
+    }
+    if (mesh_render_resources.light_bind_group.is_none()) {
+        return;
+    }
+
+    let camera_bind_group = camera_render_resources.bind_group.as_ref().unwrap();
+
+    let light_bind_group = mesh_render_resources.light_bind_group.as_ref().unwrap();
+
+    for extracted in extracted_meshes {
+        let mut texture_bind_group = None;
+        let mut flags = 0;
+
+        if (extracted.material_id.is_some()) {
+            let material_id = &extracted.material_id.unwrap();
+
+            texture_bind_group = Some(
+                mesh_render_resources
+                    .texture_bind_group_cache
+                    .get(material_id)
+                    .unwrap(),
+            );
+
+            let material = mesh_render_resources
+                .material_cache
+                .get(material_id)
+                .unwrap();
+            flags = material.get_flags();
+        }
+
+        let pipeline = mesh_render_resources.pipeline_cache.get(&flags).unwrap();
+
+        let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
+
+        let instance = mesh_render_resources
+            .instance_cache
+            .get(&extracted.mesh_id)
+            .unwrap();
+
+        render_pass.set_pipeline(pipeline);
+        // Set vertex buffer for InstanceInput.
+        render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
+
+        // Set vertex buffer for VertexInput.
+        render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+
+        render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+        // FIXME
+        // Set camera uniform.
+        render_pass.set_bind_group(0, camera_bind_group, &[0]);
+
+        // Set light uniform.
+        render_pass.set_bind_group(1, light_bind_group, &[]);
+
+        // Set textures.
+        if (texture_bind_group.is_some()) {
+            render_pass.set_bind_group(2, texture_bind_group.unwrap(), &[]);
+        }
+
+        render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+    }
+
+    gizmo_render_resources.render(
+        render_pass,
+        camera_render_resources.bind_group.as_ref().unwrap(),
+    );
 }

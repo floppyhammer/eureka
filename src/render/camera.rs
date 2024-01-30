@@ -5,6 +5,25 @@ use cgmath::{ortho, perspective, Matrix4, Rad, Vector2};
 use std::mem;
 use wgpu::BufferAddress;
 
+#[derive(Clone, PartialEq)]
+pub(crate) enum CameraType {
+    D2,
+    D3,
+}
+
+#[derive(Default, Clone)]
+pub(crate) struct ExtractedCameras {
+    pub(crate) types: Vec<CameraType>,
+    pub(crate) uniforms: Vec<CameraUniform>,
+}
+
+impl ExtractedCameras {
+    pub(crate) fn add(&mut self, camera_type: CameraType, uniform: CameraUniform) {
+        self.types.push(camera_type);
+        self.uniforms.push(uniform);
+    }
+}
+
 // We need this for Rust to store our data correctly for the shaders.
 #[repr(C)]
 // This is so we can store this in a buffer.
@@ -20,8 +39,8 @@ pub struct CameraUniform {
     pub(crate) view_proj: [[f32; 4]; 4],
 }
 
-impl CameraUniform {
-    pub(crate) fn default() -> Self {
+impl Default for CameraUniform {
+    fn default() -> Self {
         use cgmath::SquareMatrix;
         Self {
             view_position: [0.0; 4],
@@ -30,7 +49,9 @@ impl CameraUniform {
             view_proj: Matrix4::identity().into(),
         }
     }
+}
 
+impl CameraUniform {
     pub(crate) fn get_uniform_offset_unit() -> u32 {
         let offset_limit = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
         let multiplier = alignup_u32(mem::size_of::<CameraUniform>() as u32, offset_limit);
@@ -75,10 +96,12 @@ impl CameraRenderResources {
         }
     }
 
-    pub fn prepare_cameras(&mut self, render_server: &RenderServer, cameras: &Vec<CameraUniform>) {
-        if self.uniform_buffer_capacity < cameras.len() {
+    pub fn prepare_cameras(&mut self, render_server: &RenderServer, cameras: &ExtractedCameras) {
+        let camera_count = cameras.uniforms.len();
+
+        if self.uniform_buffer_capacity < camera_count {
             let offset_unit = CameraUniform::get_uniform_offset_unit();
-            let buffer_size = offset_unit * cameras.len() as u32;
+            let buffer_size = offset_unit * camera_count as u32;
 
             // Create a buffer for the camera uniform.
             let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
@@ -109,7 +132,7 @@ impl CameraRenderResources {
 
             self.bind_group = Some(bind_group);
             self.uniform_buffer = Some(buffer);
-            self.uniform_buffer_capacity = cameras.len();
+            self.uniform_buffer_capacity = camera_count;
         }
 
         let offset_unit = CameraUniform::get_uniform_offset_unit();
@@ -117,10 +140,10 @@ impl CameraRenderResources {
         // Write the camera buffer.
         if self.uniform_buffer.is_some() {
             // Consider align-up.
-            let mut aligned_up_data = vec![0u8; offset_unit as usize * cameras.len()];
+            let mut aligned_up_data = vec![0u8; offset_unit as usize * camera_count];
 
-            for i in 0..cameras.len() {
-                let slice = bytemuck::cast_slice(&cameras[i..i + 1]);
+            for i in 0..camera_count {
+                let slice = bytemuck::cast_slice(&cameras.uniforms[i..i + 1]);
 
                 for j in 0..slice.len() {
                     aligned_up_data[i * offset_unit as usize + j] = slice[j];
@@ -246,12 +269,12 @@ impl OrthographicProjection {
     pub fn calc_matrix(&self) -> Matrix4<f32> {
         OPENGL_TO_WGPU_MATRIX
             * ortho(
-            self.left,
-            self.right,
-            self.bottom,
-            self.top,
-            self.near,
-            self.far,
-        )
+                self.left,
+                self.right,
+                self.bottom,
+                self.top,
+                self.near,
+                self.far,
+            )
     }
 }

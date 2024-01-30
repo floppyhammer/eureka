@@ -1,4 +1,4 @@
-use crate::render::camera::{CameraUniform, PerspectiveProjection, Projection};
+use crate::render::camera::{CameraType, CameraUniform, PerspectiveProjection, Projection};
 use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, NodeType};
 use crate::window::{InputEvent, InputServer, Key};
@@ -332,6 +332,6 @@ impl AsNode for Camera3d {
 
         uniform.view_proj = (proj_mat * view_mat).into();
 
-        draw_cmds.extracted.cameras.push(uniform);
+        draw_cmds.extracted.cameras.add(CameraType::D3, uniform);
     }
 }
