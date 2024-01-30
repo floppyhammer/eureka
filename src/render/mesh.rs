@@ -5,7 +5,6 @@ use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::render::{create_render_pipeline, RenderServer, Texture, TextureCache, TextureId};
-use crate::scene::LightUniform;
 use crate::Singletons;
 use cgmath::{Deg, InnerSpace, Matrix3, Matrix4, Quaternion, Rotation3, Vector3, Zero};
 use lyon::path::Position;
@@ -14,6 +13,7 @@ use std::mem;
 use std::ops::Range;
 use wgpu::util::DeviceExt;
 use wgpu::{BufferAddress, Device, SamplerBindingType};
+use crate::render::light::LightUniform;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MeshId(uuid::Uuid);

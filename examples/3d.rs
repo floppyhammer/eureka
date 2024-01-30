@@ -1,3 +1,4 @@
+use cgmath::Vector3;
 use eureka::render::Texture;
 use eureka::scene::{Camera3d, Light, Model, Sky};
 use eureka::App;
@@ -26,7 +27,8 @@ fn main() {
     app.add_node(sky, None);
 
     // Light.
-    let light = Light::new();
+    let mut light = Light::new();
+    light.transform.position = Vector3::new(0.0, 2.0, 0.0);
     app.add_node(Box::new(light), None);
 
     // Model.

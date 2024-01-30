@@ -6,6 +6,8 @@ pub(crate) mod render_server;
 pub(crate) mod texture;
 pub(crate) mod vertex;
 
+pub(crate) mod light;
+
 pub use mesh::*;
 pub use render_server::*;
 pub use texture::*;

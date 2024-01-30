@@ -4,7 +4,6 @@ use crate::render::render_world::Extracted;
 use crate::render::sprite::ExtractedSprite2d;
 use crate::render::view::ViewInfo;
 use crate::render::ExtractedMesh;
-use crate::scene::LightUniform;
 
 #[derive(Default)]
 pub struct DrawCommands {

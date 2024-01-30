@@ -15,7 +15,7 @@ use crate::render::{
     prepare_meshes, render_meshes, DrawModel, ExtractedMesh, MeshCache, MeshRenderResources,
     RenderServer, Texture, TextureCache, TextureId,
 };
-use crate::scene::{Camera2d, LightUniform, World};
+use crate::scene::{Camera2d, World};
 use crate::window::InputServer;
 use crate::{App, Singletons, INITIAL_WINDOW_HEIGHT, INITIAL_WINDOW_WIDTH};
 use cgmath::Point2;
@@ -23,6 +23,7 @@ use std::mem;
 use wgpu::{BufferAddress, DynamicOffset, SamplerBindingType};
 use winit::event_loop::{EventLoop, EventLoopWindowTarget};
 use winit::window::{Window, WindowBuilder};
+use crate::render::light::LightUniform;
 
 #[derive(Default, Clone)]
 pub struct Extracted {

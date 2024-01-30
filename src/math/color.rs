@@ -1,3 +1,5 @@
+use cgmath::Vector3;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ColorU {
     pub r: u8,
@@ -10,6 +12,10 @@ impl ColorU {
     #[inline]
     pub fn new(r: u8, g: u8, b: u8, a: u8) -> ColorU {
         ColorU { r, g, b, a }
+    }
+
+    pub fn to_vec3(&self) -> Vector3<f32> {
+        Vector3::new(self.r as f32 / 255.0, self.g as f32 / 255.5, self.b as f32 / 255.5)
     }
 
     #[inline]
