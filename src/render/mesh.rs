@@ -1,6 +1,7 @@
 use crate::math::transform::Transform3d;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::gizmo::GizmoRenderResources;
+use crate::render::light::LightUniform;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
@@ -13,7 +14,6 @@ use std::mem;
 use std::ops::Range;
 use wgpu::util::DeviceExt;
 use wgpu::{BufferAddress, Device, SamplerBindingType};
-use crate::render::light::LightUniform;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MeshId(uuid::Uuid);
@@ -234,13 +234,16 @@ pub(crate) struct InstanceRaw {
 // since each object is submitted to the GPU then drawn individually.
 pub(crate) struct Instance {
     pub(crate) position: Vector3<f32>,
+    pub(crate) scale: Vector3<f32>,
     pub(crate) rotation: Quaternion<f32>,
 }
 
 impl Instance {
-    /// Convert Instance to to InstanceRaw.
+    /// Convert Instance to InstanceRaw.
     pub(crate) fn to_raw(&self) -> InstanceRaw {
-        let model = Matrix4::from_translation(self.position) * Matrix4::from(self.rotation);
+        let model = Matrix4::from_translation(self.position)
+            * Matrix4::from(self.rotation)
+            * Matrix4::from_nonuniform_scale(self.scale.x, self.scale.y, self.scale.z);
 
         InstanceRaw {
             model: model.into(),
@@ -791,6 +794,7 @@ impl MeshRenderResources {
 
             instances.push(Instance {
                 position: transform.position,
+                scale: transform.scale,
                 rotation: transform.rotation,
             });
 

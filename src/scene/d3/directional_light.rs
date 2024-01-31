@@ -1,14 +1,14 @@
+use crate::math::color::ColorU;
+use crate::math::transform::Transform3d;
 use cgmath::prelude::*;
 use std::any::Any;
 use std::ops::Range;
 use std::path::Path;
 use wgpu::util::DeviceExt;
-use crate::math::color::ColorU;
-use crate::math::transform::{Transform3d};
 
 use crate::render::draw_command::DrawCommands;
-use crate::render::{Mesh, RenderServer, Texture};
 use crate::render::light::LightUniform;
+use crate::render::{Mesh, RenderServer, Texture};
 use crate::scene::{AsNode, NodeType};
 // use crate::scene::sprite3d::Sprite3d;
 // use crate::scene::{AsNode, CameraInfo, NodeType};
@@ -48,7 +48,6 @@ impl AsNode for Light {
 
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         // let queue = &mut singletons.render_server.queue;
-
 
         // self.sprite.position = new_position;
         // self.sprite.update(dt, camera_info, singletons);

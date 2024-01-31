@@ -15,7 +15,11 @@ impl ColorU {
     }
 
     pub fn to_vec3(&self) -> Vector3<f32> {
-        Vector3::new(self.r as f32 / 255.0, self.g as f32 / 255.5, self.b as f32 / 255.5)
+        Vector3::new(
+            self.r as f32 / 255.0,
+            self.g as f32 / 255.5,
+            self.b as f32 / 255.5,
+        )
     }
 
     #[inline]

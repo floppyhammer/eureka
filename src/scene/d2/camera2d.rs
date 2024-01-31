@@ -1,7 +1,5 @@
 use crate::math::transform::Transform2d;
-use crate::render::camera::{
-    CameraType, CameraUniform, OrthographicProjection, Projection,
-};
+use crate::render::camera::{CameraType, CameraUniform, OrthographicProjection, Projection};
 use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, NodeType};
 use crate::Singletons;

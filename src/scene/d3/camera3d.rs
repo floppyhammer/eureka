@@ -32,6 +32,7 @@ pub struct Camera3d {
     position: Point3<f32>,
     yaw: Rad<f32>,
     pitch: Rad<f32>,
+    fov: f32,
 
     projection: Projection,
 
@@ -48,10 +49,12 @@ impl Camera3d {
         let device = &render_server.device;
         let config = &render_server.surface_config;
 
+        let fov = 45.0;
+
         let projection = PerspectiveProjection::new(
             config.width, // Render target size
             config.height,
-            cgmath::Deg(45.0),
+            cgmath::Deg(fov),
             0.1,
             100.0,
         );
@@ -62,6 +65,7 @@ impl Camera3d {
             position: position.into(),
             yaw: yaw.into(),
             pitch: pitch.into(),
+            fov,
             projection: projection.into(),
             controller,
         }
@@ -261,8 +265,6 @@ impl AsNode for Camera3d {
     }
 
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        let queue = &mut singletons.render_server.queue;
-
         self.projection.update(
             singletons.render_server.surface_config.width as f32,
             singletons.render_server.surface_config.height as f32,

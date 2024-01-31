@@ -6,6 +6,7 @@ use crate::render::bind_group::BindGroupCache;
 use crate::render::camera::{CameraRenderResources, CameraType, CameraUniform, ExtractedCameras};
 use crate::render::draw_command::DrawCommands;
 use crate::render::gizmo::GizmoRenderResources;
+use crate::render::light::LightUniform;
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sky::{prepare_sky, render_sky, ExtractedSky, SkyRenderResources};
 use crate::render::sprite::{
@@ -23,7 +24,6 @@ use std::mem;
 use wgpu::{BufferAddress, DynamicOffset, SamplerBindingType};
 use winit::event_loop::{EventLoop, EventLoopWindowTarget};
 use winit::window::{Window, WindowBuilder};
-use crate::render::light::LightUniform;
 
 #[derive(Default, Clone)]
 pub struct Extracted {
