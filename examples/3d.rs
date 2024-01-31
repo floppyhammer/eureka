@@ -1,6 +1,6 @@
 use cgmath::{Deg, Quaternion, Rotation, Rotation3, Vector3};
 use eureka::render::Texture;
-use eureka::scene::{Camera3d, PointLight, Model, Sky};
+use eureka::scene::{Camera3d, PointLight, Model, Sky, DirectionalLight};
 use eureka::App;
 
 fn main() {
@@ -28,15 +28,21 @@ fn main() {
 
     // Light 1.
     let mut light = PointLight::new();
-    light.transform.position = Vector3::new(4.0, 3.0, 0.0);
+    light.transform.position = Vector3::new(4.0, 5.0, 0.0);
     light.strength = 5.0;
     app.add_node(Box::new(light), None);
+    //
+    // // Light 2.
+    // let mut light = PointLight::new();
+    // light.transform.position = Vector3::new(-4.0, 5.0, 0.0);
+    // light.strength = 2.0;
+    // app.add_node(Box::new(light), None);
 
-    // Light 2.
-    let mut light = PointLight::new();
-    light.transform.position = Vector3::new(-4.0, 3.0, 0.0);
-    light.strength = 2.0;
-    app.add_node(Box::new(light), None);
+    // Light 3.
+    // let mut light = DirectionalLight::new();
+    // // light.transform.rotation = Quaternion::from_angle_x(Deg(180.0));
+    // light.strength = 2.0;
+    // app.add_node(Box::new(light), None);
 
     // Model1.
     let mut obj_model = Box::new(
@@ -52,7 +58,7 @@ fn main() {
         )
         .unwrap(),
     );
-    obj_model.transform.position = Vector3::new(0.0, 0.0, 0.0);
+    obj_model.transform.position = Vector3::new(0.0, 2.0, 0.0);
     app.add_node(obj_model, None);
 
     // Model 2.

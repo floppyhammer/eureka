@@ -9,3 +9,4 @@ pub use camera3d::*;
 pub use point_light::*;
 pub use model::*;
 pub use sky::*;
+pub use directional_light::*;

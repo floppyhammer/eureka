@@ -8,7 +8,7 @@ use naga::SwitchValue::Default;
 use wgpu::util::DeviceExt;
 
 use crate::render::draw_command::DrawCommands;
-use crate::render::light::{LightUniform, PointLight};
+use crate::render::light::{DirectionalLightUniform, LightUniform, PointLightUniform};
 use crate::render::{Mesh, RenderServer, Texture};
 use crate::scene::{AsNode, NodeType};
 // use crate::scene::sprite3d::Sprite3d;
@@ -64,5 +64,13 @@ impl AsNode for DirectionalLight {
         //
         // self.uniform.position = new_position.into();
 
+        let directional_light = DirectionalLightUniform {
+            direction: self.transform.position.into(),
+            strength: self.strength,
+            color: self.color.to_vec3().into(),
+            ..std::default::Default::default()
+        };
+
+        draw_cmds.extracted.lights.directional_light = Some(directional_light);
     }
 }

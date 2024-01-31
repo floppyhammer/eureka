@@ -25,7 +25,7 @@ struct DirectionalLight {
     direction: vec3<f32>,
     strength: f32,
     color: vec3<f32>,
-    distance: f32,
+    _pad: f32,
 }
 
 const MAX_POINT_LIGHTS = 10;
@@ -199,7 +199,27 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         point_lights_result = point_lights_result + (diffuse_color + specular_color) * attenuation;
     }
 
-    let result = (ambient_color + point_lights_result) * object_color.xyz;
+    var directional_light_result = vec3<f32>(0.0, 0.0, 0.0);
+    {
+        let light_dir = tbn_matrix * lights.directional_light.direction;
+
+        let view_dir = normalize(in.tbn_view_position - in.tbn_position);
+        let half_dir = normalize(view_dir + light_dir);
+
+        let light_color = lights.directional_light.color;
+
+        // Calculate diffuse lighting.
+        let diffuse_strength = max(dot(tbn_normal, light_dir), 0.0);
+        let diffuse_color = light_color * diffuse_strength;
+
+        // Calculate specular lighting.
+        let specular_strength = pow(max(dot(tbn_normal, half_dir), 0.0), 4.0);
+        let specular_color = light_color * specular_strength;
+
+        directional_light_result = (diffuse_color + specular_color) * lights.directional_light.strength;
+    }
+
+    let result = (ambient_color + point_lights_result + directional_light_result) * object_color.xyz;
 
     return vec4<f32>(result, object_color.a);
 }

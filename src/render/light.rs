@@ -7,7 +7,7 @@ use crate::render::shader_maker::ShaderMaker;
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct PointLight {
+pub(crate) struct PointLightUniform {
     pub(crate) position: [f32; 3],
     pub(crate) strength: f32,
     pub(crate) color: [f32; 3],
@@ -20,7 +20,7 @@ pub(crate) struct PointLight {
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct DirectionalLight {
+pub(crate) struct DirectionalLightUniform {
     pub(crate) direction: [f32; 3],
     pub(crate) strength: f32,
     pub(crate) color: [f32; 3],
@@ -29,8 +29,8 @@ pub(crate) struct DirectionalLight {
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ExtractedLights {
-    pub(crate) point_lights: Vec<PointLight>,
-    pub(crate) directional_light: Option<DirectionalLight>,
+    pub(crate) point_lights: Vec<PointLightUniform>,
+    pub(crate) directional_light: Option<DirectionalLightUniform>,
 }
 
 const MAX_POINT_LIGHTS: usize = 10;
@@ -41,8 +41,8 @@ pub(crate) struct LightUniform {
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here.
     pub(crate) ambient_color: [f32; 3],
     pub(crate) ambient_strength: f32,
-    pub(crate) directional_light: DirectionalLight,
-    pub(crate) point_lights: [PointLight; MAX_POINT_LIGHTS],
+    pub(crate) directional_light: DirectionalLightUniform,
+    pub(crate) point_lights: [PointLightUniform; MAX_POINT_LIGHTS],
     pub(crate) point_light_count: u32,
     pub(crate) _pad: [u32; 3],
 }

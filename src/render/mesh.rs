@@ -608,6 +608,10 @@ impl MeshRenderResources {
             light_uniform.point_lights[i] = lights.point_lights[i];
         }
 
+        if lights.directional_light.is_some() {
+            light_uniform.directional_light = lights.directional_light.unwrap();
+        }
+
         render_server.queue.write_buffer(
             self.light_uniform_buffer.as_ref().unwrap(),
             0,

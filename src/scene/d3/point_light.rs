@@ -7,7 +7,7 @@ use std::path::Path;
 use wgpu::util::DeviceExt;
 
 use crate::render::draw_command::DrawCommands;
-use crate::render::light::LightUniform;
+use crate::render::light::{LightUniform, PointLightUniform};
 use crate::render::{Mesh, RenderServer, Texture};
 use crate::scene::{AsNode, NodeType};
 // use crate::scene::sprite3d::Sprite3d;
@@ -63,7 +63,7 @@ impl AsNode for PointLight {
         //
         // self.uniform.position = new_position.into();
 
-        let point_light = crate::render::light::PointLight {
+        let point_light = PointLightUniform {
             position: self.transform.position.into(),
             strength: self.strength,
             color: self.color.to_vec3().into(),
