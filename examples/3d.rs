@@ -28,7 +28,7 @@ fn main() {
 
     // Light.
     let mut light = Light::new();
-    light.transform.position = Vector3::new(0.0, 2.0, 0.0);
+    light.transform.position = Vector3::new(0.0, 5.0, 0.0);
     app.add_node(Box::new(light), None);
 
     // Model1.

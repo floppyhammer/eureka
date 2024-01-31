@@ -43,14 +43,14 @@ struct VertexOutput {
     // Analogous to GLSL's gl_Position.
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
-    @location(1) tangent_position: vec3<f32>,
-    @location(2) tangent_light_position: vec3<f32>,
-    @location(3) tangent_view_position: vec3<f32>,
-    @location(4) normal: vec3<f32>,
+    // Positions below are in TBN space.
+    @location(1) tbn_position: vec3<f32>,
+    @location(2) tbn_light_position: vec3<f32>,
+    @location(3) tbn_view_position: vec3<f32>,
 }
 
 @vertex
-fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
+fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     let model_matrix = mat4x4<f32>(
         instance.model_matrix_0,
         instance.model_matrix_1,
@@ -63,23 +63,25 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
         instance.normal_matrix_2);
 
     // Construct the tangent matrix.
-    let world_normal = normalize(normal_matrix * model.normal);
-    let world_tangent = normalize(normal_matrix * model.tangent);
-    let world_bitangent = normalize(normal_matrix * model.bitangent);
-    let tangent_matrix = transpose(mat3x3<f32>(
+    let world_normal = normalize(normal_matrix * vertex.normal);
+    let world_tangent = normalize(normal_matrix * vertex.tangent);
+    let world_bitangent = normalize(normal_matrix * vertex.bitangent);
+    let tbn_matrix = transpose(mat3x3<f32>(
         world_tangent,
         world_bitangent,
         world_normal));
 
-    let world_position = model_matrix * vec4<f32>(model.position, 1.0);
+    // Vertex's world position.
+    let vertex_world_position = model_matrix * vec4<f32>(vertex.position, 1.0);
 
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * world_position;
-    out.tex_coords = model.tex_coords;
-    out.tangent_position = tangent_matrix * world_position.xyz;
-    out.tangent_view_position = tangent_matrix * camera.view_pos.xyz;
-    out.tangent_light_position = tangent_matrix * light.position;
-    out.normal = world_normal;
+    out.clip_position = camera.view_proj * vertex_world_position;
+    out.tex_coords = vertex.tex_coords;
+
+    // Convert world positions to TBN space.
+    out.tbn_position = tbn_matrix * vertex_world_position.xyz;
+    out.tbn_view_position = tbn_matrix * camera.view_pos.xyz;
+    out.tbn_light_position = tbn_matrix * light.position;
 
     return out;
 }
@@ -117,28 +119,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 #endif
 
 #ifdef NORMAP_MAP
-    let object_normal: vec4<f32> = textureSample(t_normal, s_normal, in.tex_coords);
+    // The normal map is defined in TBN space.
+    let tbn_normal = textureSample(t_normal, s_normal, in.tex_coords).xyz * 2.0 - 1.0;
 #else
-    let object_normal: vec4<f32> = vec4<f32>(in.normal, 1.0);
+    // Use the unit normal in TBN space.
+    let tbn_normal = vec3<f32>(0.0, 0.0, 1.0);
 #endif
 
-    // We don't need (or want) much ambient light, so 0.1 is fine.
-    let ambient_strength = 0.1;
+    // TODO: make this a uniform.
+    let ambient_strength = 0.01;
     let ambient_color = light.color * ambient_strength;
 
-    // Create the lighting vectors.
-    let tangent_normal = object_normal.xyz * 2.0 - 1.0;
-    let light_dir = normalize(in.tangent_light_position - in.tangent_position);
-    let view_dir = normalize(in.tangent_view_position - in.tangent_position);
+    // Create the lighting vectors. (Do calculations in TBN space.)
+    let light_dir = normalize(in.tbn_light_position - in.tbn_position);
+    let view_dir = normalize(in.tbn_view_position - in.tbn_position);
     // The Blinn part of Blinn-Phong.
     let half_dir = normalize(view_dir + light_dir);
 
-    // Calculate diffuse.
-    let diffuse_strength = max(dot(tangent_normal, light_dir), 0.0);
+    // Calculate diffuse lighting.
+    let diffuse_strength = max(dot(tbn_normal, light_dir), 0.0);
     let diffuse_color = light.color * diffuse_strength;
 
-    // Calculate specular.
-    let specular_strength = pow(max(dot(tangent_normal, half_dir), 0.0), 4.0);
+    // Calculate specular lighting.
+    let specular_strength = pow(max(dot(tbn_normal, half_dir), 0.0), 4.0);
     let specular_color = specular_strength * light.color;
 
     let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;
