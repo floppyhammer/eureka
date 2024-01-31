@@ -6,7 +6,7 @@ use crate::render::bind_group::BindGroupCache;
 use crate::render::camera::{CameraRenderResources, CameraType, CameraUniform, ExtractedCameras};
 use crate::render::draw_command::DrawCommands;
 use crate::render::gizmo::GizmoRenderResources;
-use crate::render::light::LightUniform;
+use crate::render::light::{ExtractedLights, LightUniform};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sky::{prepare_sky, render_sky, ExtractedSky, SkyRenderResources};
 use crate::render::sprite::{
@@ -33,7 +33,7 @@ pub struct Extracted {
 
     pub(crate) cameras: ExtractedCameras,
 
-    pub(crate) lights: LightUniform,
+    pub(crate) lights: ExtractedLights,
 
     pub(crate) atlases: Vec<ExtractedAtlas>,
 

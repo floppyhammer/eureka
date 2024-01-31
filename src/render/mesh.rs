@@ -1,7 +1,7 @@
 use crate::math::transform::Transform3d;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::gizmo::GizmoRenderResources;
-use crate::render::light::LightUniform;
+use crate::render::light::{ExtractedLights, LightUniform};
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
@@ -572,12 +572,14 @@ impl MeshRenderResources {
         self.texture_bind_group_layout_cache.get(&flags).unwrap()
     }
 
-    pub fn prepare_lights(&mut self, render_server: &RenderServer, light_uniform: &LightUniform) {
+    pub fn prepare_lights(&mut self, render_server: &RenderServer, lights: &ExtractedLights) {
+        let light_uniform_size = mem::size_of::<LightUniform>();
+
         if self.light_bind_group.is_none() {
             // We'll want to update our lights position, so we use COPY_DST.
             let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("light uniform buffer"),
-                size: mem::size_of::<LightUniform>() as BufferAddress,
+                size: light_uniform_size as BufferAddress,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -597,10 +599,19 @@ impl MeshRenderResources {
             self.light_uniform_buffer = Some(buffer);
         }
 
+        let mut light_uniform = LightUniform::default();
+        light_uniform.ambient_color = Vector3::new(1.0, 1.0, 1.0).into();
+        light_uniform.ambient_strength = 0.01;
+
+        light_uniform.point_light_count = lights.point_lights.len() as u32;
+        for i in 0..lights.point_lights.len() {
+            light_uniform.point_lights[i] = lights.point_lights[i];
+        }
+
         render_server.queue.write_buffer(
             self.light_uniform_buffer.as_ref().unwrap(),
             0,
-            bytemuck::cast_slice(&[*light_uniform]),
+            bytemuck::cast_slice(&[light_uniform]),
         );
     }
 
@@ -813,7 +824,7 @@ impl MeshRenderResources {
 
 pub(crate) fn prepare_meshes(
     extracted_meshes: &Vec<ExtractedMesh>,
-    extracted_lights: &LightUniform,
+    extracted_lights: &ExtractedLights,
     texture_cache: &TextureCache,
     shader_maker: &mut ShaderMaker,
     mesh_render_resources: &mut MeshRenderResources,

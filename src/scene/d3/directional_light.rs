@@ -4,10 +4,11 @@ use cgmath::prelude::*;
 use std::any::Any;
 use std::ops::Range;
 use std::path::Path;
+use naga::SwitchValue::Default;
 use wgpu::util::DeviceExt;
 
 use crate::render::draw_command::DrawCommands;
-use crate::render::light::LightUniform;
+use crate::render::light::{LightUniform, PointLight};
 use crate::render::{Mesh, RenderServer, Texture};
 use crate::scene::{AsNode, NodeType};
 // use crate::scene::sprite3d::Sprite3d;
@@ -63,11 +64,5 @@ impl AsNode for DirectionalLight {
         //
         // self.uniform.position = new_position.into();
 
-        draw_cmds.extracted.lights.point_light.position = self.transform.position.into();
-        draw_cmds.extracted.lights.point_light.color = self.color.to_vec3().into();
-        draw_cmds.extracted.lights.point_light.strength = self.strength;
-        draw_cmds.extracted.lights.point_light.constant = 1.0;
-        draw_cmds.extracted.lights.point_light.linear = 0.09;
-        draw_cmds.extracted.lights.point_light.quadratic = 0.032;
     }
 }

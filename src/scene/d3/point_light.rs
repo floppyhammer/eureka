@@ -63,11 +63,16 @@ impl AsNode for PointLight {
         //
         // self.uniform.position = new_position.into();
 
-        draw_cmds.extracted.lights.point_light.position = self.transform.position.into();
-        draw_cmds.extracted.lights.point_light.color = self.color.to_vec3().into();
-        draw_cmds.extracted.lights.point_light.strength = self.strength;
-        draw_cmds.extracted.lights.point_light.constant = 1.0;
-        draw_cmds.extracted.lights.point_light.linear = 0.09;
-        draw_cmds.extracted.lights.point_light.quadratic = 0.032;
+        let point_light = crate::render::light::PointLight {
+            position: self.transform.position.into(),
+            strength: self.strength,
+            color: self.color.to_vec3().into(),
+            constant: 1.0,
+            linear: 0.09,
+            quadratic: 0.032,
+            ..Default::default()
+        };
+
+        draw_cmds.extracted.lights.point_lights.push(point_light);
     }
 }

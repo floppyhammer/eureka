@@ -28,11 +28,15 @@ struct DirectionalLight {
     distance: f32,
 }
 
+const MAX_POINT_LIGHTS = 10;
+
 struct Lights {
     ambient_color: vec3<f32>,
     ambient_strength: f32,
-    point_light: PointLight,
     directional_light: DirectionalLight,
+    point_lights: array<PointLight, MAX_POINT_LIGHTS>,
+    point_light_count: u32,
+    // Invisible padding of vec3<u32>. Don't add it explicitly.
 }
 
 @group(1) @binding(0)
@@ -65,8 +69,10 @@ struct VertexOutput {
     @location(0) tex_coords: vec2<f32>,
     // Positions below are in TBN space.
     @location(1) tbn_position: vec3<f32>,
-    @location(2) tbn_light_position: vec3<f32>,
-    @location(3) tbn_view_position: vec3<f32>,
+    @location(2) tbn_view_position: vec3<f32>,
+    @location(3) tbn_matrix0: vec3<f32>,
+    @location(4) tbn_matrix1: vec3<f32>,
+    @location(5) tbn_matrix2: vec3<f32>,
 }
 
 @vertex
@@ -109,7 +115,9 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     // Convert world positions to TBN space.
     out.tbn_position = tbn_matrix * vertex_world_position.xyz;
     out.tbn_view_position = tbn_matrix * camera.view_pos.xyz;
-    out.tbn_light_position = tbn_matrix * lights.point_light.position;
+    out.tbn_matrix0 = tbn_matrix[0];
+    out.tbn_matrix1 = tbn_matrix[1];
+    out.tbn_matrix2 = tbn_matrix[2];
 
     return out;
 }
@@ -156,26 +164,42 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let ambient_color = lights.ambient_color * lights.ambient_strength;
 
-    // Create the lighting vectors. (Do calculations in TBN space.)
-    let light_dir = normalize(in.tbn_light_position - in.tbn_position);
-    let view_dir = normalize(in.tbn_view_position - in.tbn_position);
-    // The Blinn part of Blinn-Phong.
-    let half_dir = normalize(view_dir + light_dir);
+    let tbn_matrix = mat3x3<f32>(
+        in.tbn_matrix0,
+        in.tbn_matrix1,
+        in.tbn_matrix2);
 
-    // Calculate diffuse lighting.
-    let diffuse_strength = max(dot(tbn_normal, light_dir), 0.0);
-    let diffuse_color = lights.point_light.color * diffuse_strength;
+    var point_lights_result = vec3<f32>(0.0, 0.0, 0.0);
 
-    // Calculate specular lighting.
-    let specular_strength = pow(max(dot(tbn_normal, half_dir), 0.0), 4.0);
-    let specular_color = specular_strength * lights.point_light.color;
+    for (var i: u32 = 0; i < lights.point_light_count; i++) {
+        // We have to calculate the TBN light position in the fragment shader, since we cannot pass an array of that from vertex to fragment.
+        let tbn_light_position = tbn_matrix * lights.point_lights[i].position;
 
-    // Compute attenuation.
-    let distance = length(in.tbn_light_position - in.tbn_position);
-    let attenuation = 1.0 / (lights.point_light.constant + lights.point_light.linear0 * distance +
-    		    lights.point_light.quadratic * (distance * distance));
+        // Create the lighting vectors. (Do calculations in TBN space.)
+        let light_dir = normalize(tbn_light_position - in.tbn_position);
+        let view_dir = normalize(in.tbn_view_position - in.tbn_position);
+        // The Blinn part of Blinn-Phong.
+        let half_dir = normalize(view_dir + light_dir);
 
-    let result = (ambient_color + diffuse_color + specular_color) * attenuation * object_color.xyz;
+        let light_color = lights.point_lights[i].color;
+
+        // Calculate diffuse lighting.
+        let diffuse_strength = max(dot(tbn_normal, light_dir), 0.0);
+        let diffuse_color = light_color * diffuse_strength;
+
+        // Calculate specular lighting.
+        let specular_strength = pow(max(dot(tbn_normal, half_dir), 0.0), 4.0);
+        let specular_color = light_color * specular_strength;
+
+        // Compute attenuation.
+        let distance = length(tbn_light_position - in.tbn_position);
+        let attenuation = 1.0 / (lights.point_lights[0].constant + lights.point_lights[0].linear0 * distance +
+                    lights.point_lights[0].quadratic * (distance * distance));
+
+        point_lights_result = point_lights_result + (diffuse_color + specular_color) * attenuation;
+    }
+
+    let result = (ambient_color + point_lights_result) * object_color.xyz;
 
     return vec4<f32>(result, object_color.a);
 }

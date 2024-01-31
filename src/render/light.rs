@@ -14,8 +14,8 @@ pub(crate) struct PointLight {
     pub(crate) constant: f32,
     pub(crate) linear: f32,
     pub(crate) quadratic: f32,
-    _pad0: f32,
-    _pad1: f32,
+    pub(crate) _pad0: f32,
+    pub(crate) _pad1: f32,
 }
 
 #[repr(C)]
@@ -27,14 +27,24 @@ pub(crate) struct DirectionalLight {
     pub(crate) distance: f32,
 }
 
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ExtractedLights {
+    pub(crate) point_lights: Vec<PointLight>,
+    pub(crate) directional_light: Option<DirectionalLight>,
+}
+
+const MAX_POINT_LIGHTS: usize = 10;
+
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct LightUniform {
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here.
-    ambient_color: [f32; 3],
-    ambient_strength: f32,
-    pub(crate) point_light: PointLight,
+    pub(crate) ambient_color: [f32; 3],
+    pub(crate) ambient_strength: f32,
     pub(crate) directional_light: DirectionalLight,
+    pub(crate) point_lights: [PointLight; MAX_POINT_LIGHTS],
+    pub(crate) point_light_count: u32,
+    pub(crate) _pad: [u32; 3],
 }
 
 struct LightRenderResources {

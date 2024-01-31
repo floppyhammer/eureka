@@ -26,9 +26,16 @@ fn main() {
     let sky = Box::new(Sky::new(skybox_tex));
     app.add_node(sky, None);
 
-    // Light.
+    // Light 1.
     let mut light = PointLight::new();
-    light.transform.position = Vector3::new(0.0, 5.0, 0.0);
+    light.transform.position = Vector3::new(4.0, 3.0, 0.0);
+    light.strength = 5.0;
+    app.add_node(Box::new(light), None);
+
+    // Light 2.
+    let mut light = PointLight::new();
+    light.transform.position = Vector3::new(-4.0, 3.0, 0.0);
+    light.strength = 2.0;
     app.add_node(Box::new(light), None);
 
     // Model1.
