@@ -33,7 +33,7 @@ pub struct Extracted {
 
     pub(crate) cameras: ExtractedCameras,
 
-    pub(crate) lights: Vec<LightUniform>,
+    pub(crate) lights: LightUniform,
 
     pub(crate) atlases: Vec<ExtractedAtlas>,
 

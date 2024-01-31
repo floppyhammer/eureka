@@ -14,14 +14,14 @@ use crate::scene::{AsNode, NodeType};
 // use crate::scene::{AsNode, CameraInfo, NodeType};
 use crate::Singletons;
 
-pub struct DirectionalLight {
+pub struct PointLight {
     pub transform: Transform3d,
     pub color: ColorU,
     pub strength: f32,
     // pub(crate) sprite: Sprite3d,
 }
 
-impl DirectionalLight {
+impl PointLight {
     pub fn new() -> Self {
         // let sprite_tex = Texture::load(&device, &queue, &mut render_server.texture_cache, icon_path).unwrap();
         // let sprite3d = Sprite3d::new(&render_server, sprite_tex);
@@ -35,9 +35,9 @@ impl DirectionalLight {
     }
 }
 
-impl AsNode for DirectionalLight {
+impl AsNode for PointLight {
     fn node_type(&self) -> NodeType {
-        NodeType::DirectionalLight
+        NodeType::PointLight
     }
 
     fn as_any(&self) -> &dyn Any {

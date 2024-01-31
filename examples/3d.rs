@@ -1,6 +1,6 @@
-use cgmath::Vector3;
+use cgmath::{Deg, Quaternion, Rotation, Rotation3, Vector3};
 use eureka::render::Texture;
-use eureka::scene::{Camera3d, Light, Model, Sky};
+use eureka::scene::{Camera3d, PointLight, Model, Sky};
 use eureka::App;
 
 fn main() {
@@ -27,7 +27,7 @@ fn main() {
     app.add_node(sky, None);
 
     // Light.
-    let mut light = Light::new();
+    let mut light = PointLight::new();
     light.transform.position = Vector3::new(0.0, 5.0, 0.0);
     app.add_node(Box::new(light), None);
 
@@ -58,11 +58,12 @@ fn main() {
             &app.singletons
                 .asset_server
                 .asset_dir
-                .join("models/cube/cube.obj"),
+                .join("models/viking_room/viking_room.obj"),
         )
         .unwrap(),
     );
     obj_model2.transform.position = Vector3::new(5.0, 1.0, 0.0);
+    obj_model2.transform.rotation = Quaternion::from_angle_z(Deg(180.0));
     app.add_node(obj_model2, None);
 
     // Model 3.

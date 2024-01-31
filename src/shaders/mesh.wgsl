@@ -10,13 +10,33 @@ struct Camera {
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
-struct Light {
+struct PointLight {
     position: vec3<f32>,
+    strength: f32,
     color: vec3<f32>,
+    constant: f32,
+    linear0: f32,
+    quadratic: f32,
+    _pad0: f32,
+    _pad1: f32,
+}
+
+struct DirectionalLight {
+    direction: vec3<f32>,
+    strength: f32,
+    color: vec3<f32>,
+    distance: f32,
+}
+
+struct Lights {
+    ambient_color: vec3<f32>,
+    ambient_strength: f32,
+    point_light: PointLight,
+    directional_light: DirectionalLight,
 }
 
 @group(1) @binding(0)
-var<uniform> light: Light;
+var<uniform> lights: Lights;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -57,6 +77,7 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
         instance.model_matrix_2,
         instance.model_matrix_3);
 
+    // Model matrix for normal.
     let normal_matrix = mat3x3<f32>(
         instance.normal_matrix_0,
         instance.normal_matrix_1,
@@ -78,10 +99,17 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     out.clip_position = camera.view_proj * vertex_world_position;
     out.tex_coords = vertex.tex_coords;
 
+    /*
+    So instead of sending the inverse of the TBN matrix to the fragment shader,
+    we send a tangent-space light position, view position, and vertex position
+    to the fragment shader. This saves us from having to do matrix
+    multiplications in the fragment shader.
+    */
+
     // Convert world positions to TBN space.
     out.tbn_position = tbn_matrix * vertex_world_position.xyz;
     out.tbn_view_position = tbn_matrix * camera.view_pos.xyz;
-    out.tbn_light_position = tbn_matrix * light.position;
+    out.tbn_light_position = tbn_matrix * lights.point_light.position;
 
     return out;
 }
@@ -126,9 +154,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tbn_normal = vec3<f32>(0.0, 0.0, 1.0);
 #endif
 
-    // TODO: make this a uniform.
-    let ambient_strength = 0.01;
-    let ambient_color = light.color * ambient_strength;
+    let ambient_color = lights.ambient_color * lights.ambient_strength;
 
     // Create the lighting vectors. (Do calculations in TBN space.)
     let light_dir = normalize(in.tbn_light_position - in.tbn_position);
@@ -138,13 +164,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // Calculate diffuse lighting.
     let diffuse_strength = max(dot(tbn_normal, light_dir), 0.0);
-    let diffuse_color = light.color * diffuse_strength;
+    let diffuse_color = lights.point_light.color * diffuse_strength;
 
     // Calculate specular lighting.
     let specular_strength = pow(max(dot(tbn_normal, half_dir), 0.0), 4.0);
-    let specular_color = specular_strength * light.color;
+    let specular_color = specular_strength * lights.point_light.color;
 
-    let result = (ambient_color + diffuse_color + specular_color) * object_color.xyz;
+    // Compute attenuation.
+    let distance = length(in.tbn_light_position - in.tbn_position);
+    let attenuation = 1.0 / (lights.point_light.constant + lights.point_light.linear0 * distance +
+    		    lights.point_light.quadratic * (distance * distance));
+
+    let result = (ambient_color + diffuse_color + specular_color) * attenuation * object_color.xyz;
 
     return vec4<f32>(result, object_color.a);
 }

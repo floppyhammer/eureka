@@ -7,13 +7,34 @@ use crate::render::shader_maker::ShaderMaker;
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct LightUniform {
+pub(crate) struct PointLight {
     pub(crate) position: [f32; 3],
-    // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
-    pub(crate) _padding: u32,
+    pub(crate) strength: f32,
     pub(crate) color: [f32; 3],
-    // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
-    pub(crate) _padding2: u32,
+    pub(crate) constant: f32,
+    pub(crate) linear: f32,
+    pub(crate) quadratic: f32,
+    _pad0: f32,
+    _pad1: f32,
+}
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub(crate) struct DirectionalLight {
+    pub(crate) direction: [f32; 3],
+    pub(crate) strength: f32,
+    pub(crate) color: [f32; 3],
+    pub(crate) distance: f32,
+}
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub(crate) struct LightUniform {
+    // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here.
+    ambient_color: [f32; 3],
+    ambient_strength: f32,
+    pub(crate) point_light: PointLight,
+    pub(crate) directional_light: DirectionalLight,
 }
 
 struct LightRenderResources {

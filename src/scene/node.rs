@@ -16,7 +16,8 @@ pub enum NodeType {
     Sprite3d,
     Model,
     Sky,
-    Light,
+    PointLight,
+    DirectionalLight,
 }
 
 impl std::fmt::Display for NodeType {
@@ -31,7 +32,8 @@ impl std::fmt::Display for NodeType {
             NodeType::Sprite3d => write!(f, "Sprite3d"),
             NodeType::Model => write!(f, "Model"),
             NodeType::Sky => write!(f, "Sky"),
-            NodeType::Light => write!(f, "Light"),
+            NodeType::PointLight => write!(f, "PointLight"),
+            NodeType::DirectionalLight => write!(f, "DirectionalLight"),
         }
     }
 }

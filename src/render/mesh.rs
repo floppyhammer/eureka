@@ -572,7 +572,7 @@ impl MeshRenderResources {
         self.texture_bind_group_layout_cache.get(&flags).unwrap()
     }
 
-    pub fn prepare_lights(&mut self, render_server: &RenderServer, light_uniform: LightUniform) {
+    pub fn prepare_lights(&mut self, render_server: &RenderServer, light_uniform: &LightUniform) {
         if self.light_bind_group.is_none() {
             // We'll want to update our lights position, so we use COPY_DST.
             let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
@@ -600,7 +600,7 @@ impl MeshRenderResources {
         render_server.queue.write_buffer(
             self.light_uniform_buffer.as_ref().unwrap(),
             0,
-            bytemuck::cast_slice(&[light_uniform]),
+            bytemuck::cast_slice(&[*light_uniform]),
         );
     }
 
@@ -813,7 +813,7 @@ impl MeshRenderResources {
 
 pub(crate) fn prepare_meshes(
     extracted_meshes: &Vec<ExtractedMesh>,
-    extracted_lights: &Vec<LightUniform>,
+    extracted_lights: &LightUniform,
     texture_cache: &TextureCache,
     shader_maker: &mut ShaderMaker,
     mesh_render_resources: &mut MeshRenderResources,
@@ -842,9 +842,7 @@ pub(crate) fn prepare_meshes(
         );
     }
 
-    for light in extracted_lights {
-        mesh_render_resources.prepare_lights(render_server, *light);
-    }
+    mesh_render_resources.prepare_lights(render_server, extracted_lights);
 
     mesh_render_resources.prepare_instances(render_server, &extracted_meshes);
 }
