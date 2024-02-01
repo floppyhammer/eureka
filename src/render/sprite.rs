@@ -15,7 +15,7 @@ use wgpu::{BufferAddress, Device, DynamicOffset, SamplerBindingType};
 #[derive(Debug, Copy, Clone)]
 pub struct ExtractedSprite2d {
     pub(crate) transform: Transform2d,
-    pub(crate) size: (f32, f32),
+    pub(crate) size: Option<(f32, f32)>,
     pub(crate) texture_id: TextureId,
     pub(crate) centered: bool,
     pub(crate) flip_x: bool,
@@ -334,6 +334,13 @@ pub(crate) fn prepare_sprite(
         if (e.flip_y) {
             uvs = [uvs[3], uvs[2], uvs[1], uvs[0]];
         }
+
+        let size = if size.is_some() {
+            size.unwrap()
+        } else {
+            let texture = texture_cache.get(e.texture_id).unwrap();
+            (texture.size.0 as f32, texture.size.1 as f32)
+        };
 
         // By default, the size of the quad is the size of the texture.
         let quad_size = Vector2::new(size.0, size.1);

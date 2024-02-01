@@ -4,18 +4,18 @@ use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasMode, DrawAtlas, ExtractedAtlas};
 use crate::render::draw_command::DrawCommands;
 use crate::render::{RenderServer, TextureCache};
+use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
 use crate::scene::{AsNode, NodeType};
 use crate::text::FONT_ATLAS_SIZE;
 use cgmath::{EuclideanSpace, Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use std::any::Any;
+use usvg::Node;
 
 pub struct Label {
+    node_ui: NodeUi,
+
     text: String,
-
-    pub transform: Transform2d,
-
-    pub(crate) size: Vector2<f32>,
 
     text_is_dirty: bool,
     layout_is_dirty: bool,
@@ -30,13 +30,10 @@ pub struct Label {
 }
 
 impl Label {
-    pub fn new(texture_cache: &mut TextureCache, render_server: &RenderServer) -> Label {
-        let size = Vector2::new(128.0_f32, 128.0);
-
+    pub fn new() -> Label {
         Self {
+            node_ui: NodeUi::default(),
             text: "Label".to_string(),
-            transform: Transform2d::default(),
-            size,
             text_is_dirty: true,
             layout_is_dirty: true,
             single_line: false,
@@ -53,10 +50,6 @@ impl Label {
 }
 
 impl AsNode for Label {
-    fn node_type(&self) -> NodeType {
-        NodeType::Label
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -65,12 +58,16 @@ impl AsNode for Label {
         self
     }
 
+    fn node_type(&self) -> NodeType {
+        NodeType::Label
+    }
+
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         if self.text_is_dirty {
             self.atlas = Some(singletons.text_server.get_atlas(
                 self.text.as_str(),
                 None,
-                self.transform,
+                self.node_ui.transform,
                 self.leading,
             ));
 
@@ -83,5 +80,23 @@ impl AsNode for Label {
             atlas: self.atlas.clone().unwrap(),
             view_size: draw_commands.view_info.view_size.into(),
         });
+    }
+}
+
+impl AsNodeUi for Label {
+    fn get_size(&self) -> Vector2<f32> {
+        self.node_ui.size
+    }
+
+    fn set_size(&mut self, size: &Vector2<f32>) {
+        self.node_ui.size = *size;
+    }
+
+    fn get_position(&self) -> Vector2<f32> {
+        self.node_ui.transform.position
+    }
+
+    fn set_position(&mut self, position: &Vector2<f32>) {
+        self.node_ui.transform.position = *position;
     }
 }

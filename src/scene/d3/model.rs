@@ -16,9 +16,10 @@ use crate::render::{
     ExtractedMesh, Instance, Mesh, MeshCache, MeshId, RenderServer, Texture, TextureCache,
 };
 use crate::scene::{AsNode, NodeType};
+use crate::scene::d3::node_3d::{AsNode3d, Node3d};
 
 pub struct Model {
-    pub transform: Transform3d,
+    node_3d: Node3d,
 
     // A single model usually contains multiple meshes.
     pub meshes: Vec<MeshId>,
@@ -255,7 +256,7 @@ impl Model {
         );
 
         Ok(Self {
-            transform: Transform3d::default(),
+            node_3d: Node3d::default(),
             meshes,
             materials,
             name: "".to_string(),
@@ -265,10 +266,6 @@ impl Model {
 }
 
 impl AsNode for Model {
-    fn node_type(&self) -> NodeType {
-        NodeType::Model
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -277,13 +274,17 @@ impl AsNode for Model {
         self
     }
 
+    fn node_type(&self) -> NodeType {
+        NodeType::Model
+    }
+
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         for i in 0..self.meshes.len() {
             let mesh = self.meshes[i];
             let material = self.materials[i];
 
             let extracted_mesh = ExtractedMesh {
-                transform: self.transform,
+                transform: self.node_3d.transform,
                 mesh_id: mesh,
                 material_id: material,
             };
@@ -301,5 +302,31 @@ impl AsNode for Model {
         //     &camera_info.bind_group.unwrap(),
         //     &camera_info.bind_group.unwrap(), // FIXME
         // );
+    }
+}
+
+impl AsNode3d for Model {
+    fn get_position(&self) -> Vector3<f32> {
+        self.node_3d.transform.position
+    }
+
+    fn set_position(&mut self, position: &Vector3<f32>) {
+        self.node_3d.transform.position = *position;
+    }
+
+    fn get_rotation(&self) -> Quaternion<f32> {
+        self.node_3d.transform.rotation
+    }
+
+    fn set_rotation(&mut self, rotation: &Quaternion<f32>) {
+        self.node_3d.transform.rotation = *rotation;
+    }
+
+    fn get_scale(&self) -> Vector3<f32> {
+        self.node_3d.transform.scale
+    }
+
+    fn set_scale(&mut self, scale: &Vector3<f32>) {
+        self.node_3d.transform.scale = *scale;
     }
 }

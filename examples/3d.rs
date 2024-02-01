@@ -1,7 +1,7 @@
 use cgmath::{Deg, Quaternion, Rotation, Rotation3, Vector3};
 use eureka::core::App;
 use eureka::render::Texture;
-use eureka::scene::{Camera3d, DirectionalLight, Model, PointLight, Sky};
+use eureka::scene::{AsNode3d, Camera3d, DirectionalLight, Model, PointLight, Sky};
 
 fn main() {
     let mut app = App::new();
@@ -56,7 +56,7 @@ fn main() {
             .join("models/ferris/ferris3d_v1.0.obj"),
     )
     .unwrap();
-    obj_model.transform.position = Vector3::new(0.0, 2.0, 0.0);
+    obj_model.set_position(&Vector3::new(0.0, 2.0, 0.0));
     app.add_node(obj_model, None);
 
     // Model 2.
@@ -71,8 +71,8 @@ fn main() {
             .join("models/viking_room/viking_room.obj"),
     )
     .unwrap();
-    obj_model2.transform.position = Vector3::new(5.0, 1.0, 0.0);
-    obj_model2.transform.rotation = Quaternion::from_angle_z(Deg(180.0));
+    obj_model2.set_position(&Vector3::new(5.0, 1.0, 0.0));
+    obj_model2.set_rotation(&Quaternion::from_angle_z(Deg(180.0)));
     app.add_node(obj_model2, None);
 
     // Model 3.
@@ -87,7 +87,7 @@ fn main() {
             .join("models/granite_ground/granite_ground.obj"),
     )
     .unwrap();
-    obj_model3.transform.scale = Vector3::new(5.0, 1.0, 5.0);
+    obj_model3.set_scale(&Vector3::new(5.0, 1.0, 5.0));
     app.add_node(obj_model3, None);
 
     app.run();

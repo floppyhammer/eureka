@@ -1,8 +1,8 @@
 use cgmath::Vector2;
 use eureka::core::App;
 use eureka::render::Texture;
-use eureka::scene::Camera2d;
 use eureka::scene::Sprite2d;
+use eureka::scene::{AsNodeUi, Camera2d};
 
 fn main() {
     let mut app = App::new();
@@ -51,11 +51,11 @@ fn main() {
     app.add_node(sprite1, None);
 
     let mut sprite2 = Sprite2d::new(&app.render_world.texture_cache, img_tex);
-    sprite2.transform.position = Vector2::new(200f32, 200f32);
+    sprite2.set_position(&Vector2::new(200f32, 200f32));
     app.add_node(sprite2, None);
 
     let mut sprite3 = Sprite2d::new(&app.render_world.texture_cache, img_tex2);
-    sprite3.transform.position = Vector2::new(400f32, 400f32);
+    sprite3.set_position(&Vector2::new(400f32, 400f32));
     app.add_node(sprite3, None);
 
     // let mut button = Button::new(&app.singletons.render_server);
