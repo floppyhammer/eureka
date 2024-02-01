@@ -1,6 +1,7 @@
+use crate::core::singleton::Singletons;
 use crate::render::draw_command::DrawCommands;
 use crate::window::input_server::InputEvent;
-use crate::{InputServer, Singletons};
+use crate::window::InputServer;
 use std::any::Any;
 
 pub enum NodeType {

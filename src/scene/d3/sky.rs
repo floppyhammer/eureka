@@ -14,7 +14,6 @@ use crate::render::material::MaterialId;
 use crate::render::sky::ExtractedSky;
 use crate::render::{Mesh, Texture, TextureId};
 use crate::scene::{AsNode, NodeType};
-use crate::{RenderServer, Singletons};
 
 pub struct Sky {
     // TODO

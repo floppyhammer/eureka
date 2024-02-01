@@ -1,8 +1,7 @@
 use crate::math::alignup_u32;
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::VertexBuffer;
-use crate::render::{InstanceRaw, TextureCache, TextureId};
-use crate::{RenderServer, Texture};
+use crate::render::{InstanceRaw, RenderServer, Texture, TextureCache, TextureId};
 use cgmath::{Vector2, Vector4};
 use std::collections::HashMap;
 use std::mem;

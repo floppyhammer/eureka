@@ -1,6 +1,5 @@
 use crate::render::material::{MaterialCache, MaterialId};
-use crate::render::{InstanceMetadata, MeshId, Texture};
-use crate::{RenderServer, Singletons};
+use crate::render::{InstanceMetadata, MeshId, RenderServer, Texture};
 use rustybuzz::ttf_parser::gpos::Device;
 use std::collections::HashMap;
 use wgpu::BindGroupLayout;

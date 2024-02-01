@@ -18,7 +18,6 @@ use crate::render::{
 };
 use crate::scene::{Camera2d, World};
 use crate::window::InputServer;
-use crate::{App, Singletons, INITIAL_WINDOW_HEIGHT, INITIAL_WINDOW_WIDTH};
 use cgmath::Point2;
 use std::mem;
 use wgpu::{BufferAddress, DynamicOffset, SamplerBindingType};

@@ -1,8 +1,8 @@
+use crate::core::singleton::Singletons;
 use crate::math::transform::Transform2d;
 use crate::render::camera::{CameraType, CameraUniform, OrthographicProjection, Projection};
 use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, NodeType};
-use crate::Singletons;
 use cgmath::{Angle, InnerSpace, Matrix4, Perspective, Point2, Point3, Vector2, Vector3};
 use std::any::Any;
 

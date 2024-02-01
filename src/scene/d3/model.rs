@@ -12,9 +12,10 @@ use crate::math::transform::Transform3d;
 use crate::render::draw_command::DrawCommands;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::vertex::Vertex3d;
-use crate::render::{ExtractedMesh, Instance, Mesh, MeshCache, MeshId, Texture, TextureCache};
+use crate::render::{
+    ExtractedMesh, Instance, Mesh, MeshCache, MeshId, RenderServer, Texture, TextureCache,
+};
 use crate::scene::{AsNode, NodeType};
-use crate::RenderServer;
 
 pub struct Model {
     pub transform: Transform3d,

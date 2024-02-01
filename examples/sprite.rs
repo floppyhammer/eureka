@@ -1,13 +1,13 @@
 use cgmath::Vector2;
+use eureka::core::App;
 use eureka::render::Texture;
 use eureka::scene::Camera2d;
 use eureka::scene::Sprite2d;
-use eureka::App;
 
 fn main() {
     let mut app = App::new();
 
-    let mut camera = Box::new(Camera2d::default());
+    let mut camera = Camera2d::default();
     camera.transform.rotation = 35.0;
     app.add_node(camera, None);
 
@@ -18,7 +18,7 @@ fn main() {
     //         .join("svgs/features.svg"),
     //     &app.singletons.render_server,
     // );
-    // let mut vec_sprite = Box::new(VectorSprite::new(&app.singletons.render_server));
+    // let mut vec_sprite = VectorSprite::new(&app.singletons.render_server);
     // vec_sprite.set_texture(v_tex);
     // app.add_node(vec_sprite, None);
 
@@ -47,18 +47,18 @@ fn main() {
     )
     .unwrap();
 
-    let sprite1 = Box::new(Sprite2d::new(&app.render_world.texture_cache, img_tex));
+    let sprite1 = Sprite2d::new(&app.render_world.texture_cache, img_tex);
     app.add_node(sprite1, None);
 
-    let mut sprite2 = Box::new(Sprite2d::new(&app.render_world.texture_cache, img_tex));
+    let mut sprite2 = Sprite2d::new(&app.render_world.texture_cache, img_tex);
     sprite2.transform.position = Vector2::new(200f32, 200f32);
     app.add_node(sprite2, None);
 
-    let mut sprite3 = Box::new(Sprite2d::new(&app.render_world.texture_cache, img_tex2));
+    let mut sprite3 = Sprite2d::new(&app.render_world.texture_cache, img_tex2);
     sprite3.transform.position = Vector2::new(400f32, 400f32);
     app.add_node(sprite3, None);
 
-    // let mut button = Box::new(Button::new(&app.singletons.render_server));
+    // let mut button = Button::new(&app.singletons.render_server);
     // button.transform.position = Vector2::new(200.0, 200.0);
     // app.add_node(button, None);
 

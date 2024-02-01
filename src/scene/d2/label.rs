@@ -1,11 +1,11 @@
+use crate::core::singleton::Singletons;
 use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasMode, DrawAtlas, ExtractedAtlas};
 use crate::render::draw_command::DrawCommands;
-use crate::render::TextureCache;
-use crate::scene::NodeType;
+use crate::render::{RenderServer, TextureCache};
+use crate::scene::{AsNode, NodeType};
 use crate::text::FONT_ATLAS_SIZE;
-use crate::{AsNode, RenderServer, Singletons, Texture};
 use cgmath::{EuclideanSpace, Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use std::any::Any;

@@ -2,7 +2,6 @@
 use crate::render::texture::Texture;
 // use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 // use crate::scene::CameraUniform;
-use crate::{scene, Camera2d, SamplerBindingType};
 // use crate::{scene, Camera2d, Camera3d, Light, SamplerBindingType};
 
 use crate::render::bind_group::BindGroupCache;

@@ -1,9 +1,11 @@
-use std::mem;
-use wgpu::BufferAddress;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::gizmo::GizmoRenderResources;
-use crate::render::{ExtractedMesh, MeshCache, MeshRenderResources, RenderServer, Texture, TextureCache, TextureId};
 use crate::render::shader_maker::ShaderMaker;
+use crate::render::{
+    ExtractedMesh, MeshCache, MeshRenderResources, RenderServer, Texture, TextureCache, TextureId,
+};
+use std::mem;
+use wgpu::BufferAddress;
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -80,10 +82,7 @@ pub(crate) fn prepare_shadow(
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &buffer,
                         offset: 0,
-                        size: Some(
-                            wgpu::BufferSize::new(uniform_size as u64)
-                                .unwrap(),
-                        ),
+                        size: Some(wgpu::BufferSize::new(uniform_size as u64).unwrap()),
                     }),
                 }],
                 label: Some("light camera bind group (unique)"),
@@ -101,7 +100,10 @@ pub(crate) fn prepare_shadow(
 
         // Write the instance buffer.
         render_server.queue.write_buffer(
-            render_resources.light_camera_uniform_buffer.as_ref().unwrap(),
+            render_resources
+                .light_camera_uniform_buffer
+                .as_ref()
+                .unwrap(),
             0,
             bytemuck::cast_slice(&[camera_uniform]),
         );

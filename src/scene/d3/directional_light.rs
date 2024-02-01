@@ -1,10 +1,11 @@
+use crate::core::singleton::Singletons;
 use crate::math::color::ColorU;
 use crate::math::transform::Transform3d;
 use cgmath::prelude::*;
+use naga::SwitchValue::Default;
 use std::any::Any;
 use std::ops::Range;
 use std::path::Path;
-use naga::SwitchValue::Default;
 use wgpu::util::DeviceExt;
 
 use crate::render::draw_command::DrawCommands;
@@ -13,7 +14,6 @@ use crate::render::{Mesh, RenderServer, Texture};
 use crate::scene::{AsNode, NodeType};
 // use crate::scene::sprite3d::Sprite3d;
 // use crate::scene::{AsNode, CameraInfo, NodeType};
-use crate::Singletons;
 
 pub struct DirectionalLight {
     pub transform: Transform3d,

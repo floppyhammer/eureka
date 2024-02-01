@@ -1,7 +1,7 @@
+use crate::core::singleton::Singletons;
 use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, Camera2d, Camera3d, NodeType};
 use crate::window::InputServer;
-use crate::Singletons;
 use cgmath::Vector2;
 use indextree::{Arena, NodeEdge, NodeId};
 
