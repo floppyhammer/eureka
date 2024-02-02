@@ -40,6 +40,8 @@ pub struct Sprite2d {
 
     pub flip_x: bool,
     pub flip_y: bool,
+
+    pub custom_update: Option<fn(f32, &mut Self)>,
 }
 
 impl Sprite2d {
@@ -64,6 +66,7 @@ impl Sprite2d {
             centered: false,
             flip_x: false,
             flip_y: false,
+            custom_update: None,
         }
     }
 
@@ -130,7 +133,11 @@ impl AsNode for Sprite2d {
 
     fn ready(&mut self) {}
 
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {}
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+        if self.custom_update.is_some() {
+            self.custom_update.unwrap()(dt, self);
+        }
+    }
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         if (self.texture.is_none()) {
@@ -159,15 +166,23 @@ impl AsNodeUi for Sprite2d {
         self.node_ui.size
     }
 
-    fn set_size(&mut self, size: &Vector2<f32>) {
-        self.node_ui.size = *size;
+    fn set_size(&mut self, size: Vector2<f32>) {
+        self.node_ui.size = size;
     }
 
     fn get_position(&self) -> Vector2<f32> {
         self.node_ui.transform.position
     }
 
-    fn set_position(&mut self, position: &Vector2<f32>) {
-        self.node_ui.transform.position = *position;
+    fn set_position(&mut self, position: Vector2<f32>) {
+        self.node_ui.transform.position = position;
+    }
+
+    fn get_rotation(&self) -> f32 {
+        self.node_ui.transform.rotation
+    }
+
+    fn set_rotation(&mut self, rotation: f32) {
+        self.node_ui.transform.rotation = rotation;
     }
 }

@@ -30,7 +30,7 @@ pub struct Label {
 }
 
 impl Label {
-    pub fn new() -> Label {
+    pub fn default() -> Label {
         Self {
             node_ui: NodeUi::default(),
             text: "Label".to_string(),
@@ -88,15 +88,23 @@ impl AsNodeUi for Label {
         self.node_ui.size
     }
 
-    fn set_size(&mut self, size: &Vector2<f32>) {
-        self.node_ui.size = *size;
+    fn set_size(&mut self, size: Vector2<f32>) {
+        self.node_ui.size = size;
     }
 
     fn get_position(&self) -> Vector2<f32> {
         self.node_ui.transform.position
     }
 
-    fn set_position(&mut self, position: &Vector2<f32>) {
-        self.node_ui.transform.position = *position;
+    fn set_position(&mut self, position: Vector2<f32>) {
+        self.node_ui.transform.position = position;
+    }
+
+    fn get_rotation(&self) -> f32 {
+        self.node_ui.transform.rotation
+    }
+
+    fn set_rotation(&mut self, rotation: f32) {
+        self.node_ui.transform.rotation = rotation;
     }
 }

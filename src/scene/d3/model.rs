@@ -310,23 +310,23 @@ impl AsNode3d for Model {
         self.node_3d.transform.position
     }
 
-    fn set_position(&mut self, position: &Vector3<f32>) {
-        self.node_3d.transform.position = *position;
+    fn set_position(&mut self, position: Vector3<f32>) {
+        self.node_3d.transform.position = position;
     }
 
     fn get_rotation(&self) -> Quaternion<f32> {
         self.node_3d.transform.rotation
     }
 
-    fn set_rotation(&mut self, rotation: &Quaternion<f32>) {
-        self.node_3d.transform.rotation = *rotation;
+    fn set_rotation(&mut self, rotation: Quaternion<f32>) {
+        self.node_3d.transform.rotation = rotation;
     }
 
     fn get_scale(&self) -> Vector3<f32> {
         self.node_3d.transform.scale
     }
 
-    fn set_scale(&mut self, scale: &Vector3<f32>) {
-        self.node_3d.transform.scale = *scale;
+    fn set_scale(&mut self, scale: Vector3<f32>) {
+        self.node_3d.transform.scale = scale;
     }
 }

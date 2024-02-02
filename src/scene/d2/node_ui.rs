@@ -24,9 +24,13 @@ impl Default for NodeUi {
 pub trait AsNodeUi {
     fn get_size(&self) -> Vector2<f32>;
 
-    fn set_size(&mut self, size: &Vector2<f32>);
+    fn set_size(&mut self, size: Vector2<f32>);
 
     fn get_position(&self) -> Vector2<f32>;
 
-    fn set_position(&mut self, position: &Vector2<f32>);
+    fn set_position(&mut self, position: Vector2<f32>);
+
+    fn get_rotation(&self) -> f32;
+
+    fn set_rotation(&mut self, rotation: f32);
 }

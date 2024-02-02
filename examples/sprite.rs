@@ -3,6 +3,11 @@ use eureka::core::App;
 use eureka::render::Texture;
 use eureka::scene::Sprite2d;
 use eureka::scene::{AsNodeUi, Camera2d};
+use eureka::scene::NodeType::VectorSprite;
+
+fn custom_update(dt: f32, sprite: &mut Sprite2d) {
+    sprite.set_rotation(sprite.get_rotation() + dt);
+}
 
 fn main() {
     let mut app = App::new();
@@ -47,15 +52,16 @@ fn main() {
     )
     .unwrap();
 
-    let sprite1 = Sprite2d::new(&app.render_world.texture_cache, img_tex);
+    let mut sprite1 = Sprite2d::new(&app.render_world.texture_cache, img_tex);
+    sprite1.custom_update = Some(custom_update);
     app.add_node(sprite1, None);
 
     let mut sprite2 = Sprite2d::new(&app.render_world.texture_cache, img_tex);
-    sprite2.set_position(&Vector2::new(200f32, 200f32));
+    sprite2.set_position(Vector2::new(200f32, 200f32));
     app.add_node(sprite2, None);
 
     let mut sprite3 = Sprite2d::new(&app.render_world.texture_cache, img_tex2);
-    sprite3.set_position(&Vector2::new(400f32, 400f32));
+    sprite3.set_position(Vector2::new(400f32, 400f32));
     app.add_node(sprite3, None);
 
     // let mut button = Button::new(&app.singletons.render_server);

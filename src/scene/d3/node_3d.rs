@@ -18,13 +18,13 @@ impl Default for Node3d {
 pub trait AsNode3d {
     fn get_position(&self) -> Vector3<f32>;
 
-    fn set_position(&mut self, position: &Vector3<f32>);
+    fn set_position(&mut self, position: Vector3<f32>);
 
     fn get_rotation(&self) -> Quaternion<f32>;
 
-    fn set_rotation(&mut self, rotation: &Quaternion<f32>);
+    fn set_rotation(&mut self, rotation: Quaternion<f32>);
 
     fn get_scale(&self) -> Vector3<f32>;
 
-    fn set_scale(&mut self, scale: &Vector3<f32>);
+    fn set_scale(&mut self, scale: Vector3<f32>);
 }

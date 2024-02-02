@@ -19,10 +19,7 @@ fn main() {
     text += "שלום עולם!\n"; // Hebrew
     text += "ABCDEFG Hello!٠١٢مرحبا!你好\n"; // Mixed languages.
 
-    let mut label = Label::new(
-        &mut app.render_world.texture_cache,
-        &app.singletons.render_server,
-    );
+    let mut label = Label::default();
     label.set_text(text);
 
     app.add_node(label, None);
