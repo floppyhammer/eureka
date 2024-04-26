@@ -2,21 +2,27 @@ use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasInstance, AtlasMode};
 use crate::render::{RenderServer, Texture, TextureCache};
-use crate::text::{DynamicFont, Glyph, FONT_ATLAS_SIZE};
+use crate::text::{DynamicFont, Glyph, FONT_ATLAS_SIZE, Script};
 use cgmath::{Point2, Vector2, Vector4};
 use font_kit::source::SystemSource;
 use std::collections::HashMap;
+use std::iter::Map;
 use std::time::Instant;
 
 pub struct TextServer {
-    fonts: HashMap<&'static str, DynamicFont>,
+    fonts: HashMap<String, DynamicFont>,
+    // fallback_fonts: Map<Script, DynamicFont>,
 }
 
 impl TextServer {
     pub(crate) fn new(render_server: &RenderServer, texture_cache: &mut TextureCache) -> Self {
         let now = Instant::now();
 
-        let default_font_data = find_system_font("arial");
+        #[cfg(target_family = "windows")]
+            let default_font_data = find_system_font("arial");
+
+        #[cfg(not(target_family = "windows"))]
+            let default_font_data = find_system_font("Droid Sans Fallback");
 
         let font =
             DynamicFont::load_from_memory(default_font_data.unwrap(), render_server, texture_cache);
@@ -28,7 +34,7 @@ impl TextServer {
         );
 
         let mut fonts = HashMap::new();
-        fonts.insert("default", font);
+        fonts.insert("default".to_string(), font);
 
         Self { fonts }
     }
@@ -36,12 +42,12 @@ impl TextServer {
     /// Load a new font from disk.
     pub fn load_font(
         &mut self,
-        font_path: &'static str,
+        font_path: &String,
         render_server: &RenderServer,
         texture_cache: &mut TextureCache,
     ) {
-        let font = DynamicFont::load_from_file(font_path, render_server, texture_cache);
-        self.fonts.insert(font_path, font);
+        let font = DynamicFont::load_from_file(&font_path[..], render_server, texture_cache);
+        self.fonts.insert(font_path.clone(), font);
     }
 
     pub(crate) fn prepare(
@@ -73,7 +79,7 @@ impl TextServer {
             font = self.fonts.get_mut("default").unwrap();
         }
 
-        let (glyphs, lines) = font.get_glyphs(text);
+        let (glyphs, paras) = font.get_glyphs(text);
 
         let ascent = font.get_ascent();
 
@@ -85,8 +91,8 @@ impl TextServer {
 
         let mut layout_pos = Vector2::new(0.0, 0.0);
 
-        for line in lines {
-            for i in line {
+        for para in paras {
+            for i in para {
                 let g = &glyphs[i];
 
                 let instance = AtlasInstance {

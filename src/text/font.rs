@@ -18,7 +18,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 /// Only scripts in this enum are supported.
 #[derive(Clone)]
-enum Script {
+pub enum Script {
     // Emojis, symbols, etc.
     Common,
     // English, Vietnamese, etc.
@@ -143,7 +143,7 @@ impl DynamicFont {
             &atlas_image,
             "default font atlas".into(),
         )
-        .unwrap();
+            .unwrap();
 
         // let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 
@@ -237,21 +237,23 @@ impl DynamicFont {
         let bidi_info = BidiInfo::new(text, None);
 
         let mut glyphs = vec![];
-        let mut glyph_lines = vec![];
+        let mut glyph_paras = vec![];
 
         for para in &bidi_info.paragraphs {
-            let line = para.range.clone();
-            // println!("Line text: {}", &text[line.clone()]);
+            let para_range = para.range.clone();
 
-            // Reorder line text only when where's RTL text.
+            let para_text = &text[para_range.clone()];
+            // println!("Line text: {}", para_text);
+
+            // Reorder line text only when there's RTL text.
             if bidi_info.has_rtl() {
-                let reordered_text = bidi_info.reorder_line(para, line.clone());
+                let reordered_text = bidi_info.reorder_line(para, para_range.clone());
                 // println!("Reordered RTL line text: {}", reordered_text);
             }
 
-            let (_, level_runs) = bidi_info.visual_runs(para, line.clone());
+            let (_, level_runs) = bidi_info.visual_runs(para, para_range.clone());
 
-            // For line ranges.
+            // Glyph count before handling this paragraph.
             let glyph_count = glyphs.len();
 
             for run in level_runs.iter() {
@@ -308,7 +310,7 @@ impl DynamicFont {
                 // Do shaping.
                 let glyph_buffer = rustybuzz::shape(&face, &[], unicode_buffer);
 
-                let glyph_count = glyph_buffer.len();
+                let run_glyph_count = glyph_buffer.len();
 
                 // let run_clusters = run_text.bytes().collect::<Vec<u8>>();
                 // let glyph_text = run_text[info.cluster as usize].to_string();
@@ -338,7 +340,7 @@ impl DynamicFont {
                     // Get glyph index (specific to a font).
                     let index = info.glyph_id as u16;
 
-                    // Try find the glyph in the cache.
+                    // Try to find the glyph in the cache.
                     if let Some(g) = self.glyph_cache.get(&index) {
                         run_glyphs.push(g.clone());
                         continue;
@@ -453,7 +455,7 @@ impl DynamicFont {
                 glyphs.append(&mut run_glyphs);
             }
 
-            glyph_lines.push(Range {
+            glyph_paras.push(Range {
                 start: glyph_count,
                 end: glyphs.len(),
             });
@@ -461,7 +463,7 @@ impl DynamicFont {
 
         //self.atlas_image.save("font_atlas.png").expect("Failed to save font atlas as file!");
 
-        (glyphs, glyph_lines)
+        (glyphs, glyph_paras)
     }
 
     // /// Uses allsorts for shaping.

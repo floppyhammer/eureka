@@ -20,6 +20,8 @@ pub struct Label {
     text_is_dirty: bool,
     layout_is_dirty: bool,
 
+    font_id: Option<String>,
+
     single_line: bool,
 
     leading: f32,
@@ -36,6 +38,7 @@ impl Label {
             text: "Label".to_string(),
             text_is_dirty: true,
             layout_is_dirty: true,
+            font_id: None,
             single_line: false,
             leading: 20.0,
             tracking: 0.0,
@@ -46,6 +49,10 @@ impl Label {
     pub fn set_text(&mut self, text: String) {
         self.text = text;
         self.text_is_dirty = true;
+    }
+
+    pub fn set_font(&mut self, font_id: String) {
+        self.font_id = Some(font_id);
     }
 }
 
@@ -66,7 +73,7 @@ impl AsNode for Label {
         if self.text_is_dirty {
             self.atlas = Some(singletons.text_server.get_atlas(
                 self.text.as_str(),
-                None,
+                self.font_id.clone(),
                 self.node_ui.transform,
                 self.leading,
             ));
