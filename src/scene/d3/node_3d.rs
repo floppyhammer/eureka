@@ -1,10 +1,9 @@
 use crate::math::transform::{Transform2d, Transform3d};
-use cgmath::{Quaternion, Vector2, Vector3};
 use crate::scene::{AsNodeUi, Sprite2d};
+use cgmath::{Quaternion, Vector2, Vector3};
 
 pub struct Node3d {
     pub transform: Transform3d,
-
 }
 
 impl Default for Node3d {

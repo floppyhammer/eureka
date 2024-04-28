@@ -36,6 +36,8 @@ allsorts = "0.14.0"
 whatlang = "0.16.2"
 # Text bidi.
 unicode-bidi = "0.3.8"
+# Text line break.
+unicode-linebreak = "0.1.5"
 # Finding system fonts.
 font-kit = "0.12.0"
 # For splitting grapheme clusters.

@@ -14,6 +14,10 @@ use std::path::Path;
 use std::str::FromStr;
 use std::time::Instant;
 use unicode_bidi::{BidiClass, BidiInfo, Level};
+use unicode_linebreak::{
+    break_property, linebreaks, BreakClass,
+    BreakOpportunity::{Allowed, Mandatory},
+};
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Only scripts in this enum are supported.
@@ -63,8 +67,9 @@ pub(crate) struct Glyph {
     pub(crate) bounds: Vector4<f32>,
     /// X advance.
     pub(crate) x_adv: i32,
-    /// Region in the font atlas.
-    pub(crate) region: RectI,
+    /// Region in the font atlas. None means there's no such a glyph in this font.
+    pub(crate) region: Option<RectI>,
+    pub(crate) break_property: BreakClass,
 }
 
 pub(crate) const FONT_ATLAS_SIZE: u32 = 2096;
@@ -143,7 +148,7 @@ impl DynamicFont {
             &atlas_image,
             "default font atlas".into(),
         )
-            .unwrap();
+        .unwrap();
 
         // let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 
@@ -260,12 +265,12 @@ impl DynamicFont {
                 let mut run = run.clone();
 
                 // Skip paragraph separator.
-                if bidi_info.original_classes[run.end - 1] == BidiClass::B {
-                    run = Range {
-                        start: run.start,
-                        end: run.end - 1,
-                    };
-                }
+                // if bidi_info.original_classes[run.end - 1] == BidiClass::B {
+                //     run = Range {
+                //         start: run.start,
+                //         end: run.end - 1,
+                //     };
+                // }
 
                 let run_text = &text[run.clone()];
                 // println!("Run text: {}", run_text);
@@ -317,7 +322,7 @@ impl DynamicFont {
 
                 // Collect clusters first.
                 let mut run_clusters = vec![];
-                for i in 0..glyph_buffer.glyph_infos().len() {
+                for i in 0..run_glyph_count {
                     let info = glyph_buffer.glyph_infos()[i];
                     run_clusters.push(info.cluster as usize);
                 }
@@ -329,7 +334,7 @@ impl DynamicFont {
                 }
 
                 // Handle run glyphs.
-                for i in 0..glyph_buffer.glyph_infos().len() {
+                for i in 0..run_glyph_count {
                     let info = glyph_buffer.glyph_infos()[i];
                     let pos = glyph_buffer.glyph_positions()[i];
                     let cluster_range = Range {
@@ -341,9 +346,12 @@ impl DynamicFont {
                     let index = info.glyph_id as u16;
 
                     // Try to find the glyph in the cache.
-                    if let Some(g) = self.glyph_cache.get(&index) {
-                        run_glyphs.push(g.clone());
-                        continue;
+                    // Note that we skip invalid glyphs.
+                    if index != 0 {
+                        if let Some(g) = self.glyph_cache.get(&index) {
+                            run_glyphs.push(g.clone());
+                            continue;
+                        }
                     }
 
                     // Rasterize and get the layout metrics for the character.
@@ -362,7 +370,7 @@ impl DynamicFont {
 
                     // Add to the atlas.
                     let region;
-                    {
+                    if index != 0 {
                         // Advance atlas row if necessary.
                         if self.next_glyph_position.x + metrics.width as u32 > FONT_ATLAS_SIZE {
                             self.next_glyph_position.x = 0;
@@ -390,18 +398,20 @@ impl DynamicFont {
                             }
                         }
 
-                        region = RectI::new(
+                        region = Some(RectI::new(
                             Vector2I::new(
                                 self.next_glyph_position.x as i32,
                                 self.next_glyph_position.y as i32,
                             ),
                             Vector2I::new(metrics.width as i32, metrics.height as i32),
-                        );
+                        ));
 
                         self.next_glyph_position.x += metrics.width as u32;
 
                         self.max_height_of_current_row =
                             max(self.max_height_of_current_row, metrics.height as u32);
+                    } else {
+                        region = None;
                     }
 
                     let run_bytes = run_text.bytes().collect::<Vec<u8>>();
@@ -413,6 +423,12 @@ impl DynamicFont {
                             codepoint: c,
                             script,
                         })
+                    }
+
+                    let mut glyph_break_property = BreakClass::Unknown;
+                    if glyph_text.chars().last().is_some() {
+                        glyph_break_property =
+                            break_property(glyph_text.chars().last().unwrap() as u32);
                     }
 
                     let glyph = Glyph {
@@ -430,22 +446,28 @@ impl DynamicFont {
                         x_adv: (pos.x_advance as f32 * self.size as f32 / units_per_em as f32)
                             .round() as i32,
                         region,
+                        break_property: glyph_break_property,
                     };
 
-                    self.glyph_cache.insert(index, glyph.clone());
-                    log::trace!(
-                        "New glyph added to font cache: {} - {}",
-                        glyph.index,
-                        glyph.text
-                    );
+                    if index != 0 {
+                        self.glyph_cache.insert(index, glyph.clone());
+                        log::trace!(
+                            "New glyph added to font cache: {} - {}",
+                            glyph.index,
+                            glyph.text
+                        );
+                    }
 
-                    match self.updated_atlas_region {
-                        Some(r) => {
-                            self.updated_atlas_region =
-                                Some(r.to_f32().union_rect(region.to_f32()).to_i32());
-                        }
-                        None => {
-                            self.updated_atlas_region = Some(region);
+                    // Add this region to the total atlas region that we need to update.
+                    if region.is_some() {
+                        match self.updated_atlas_region {
+                            Some(r) => {
+                                self.updated_atlas_region =
+                                    Some(r.to_f32().union_rect(region.unwrap().to_f32()).to_i32());
+                            }
+                            None => {
+                                self.updated_atlas_region = region;
+                            }
                         }
                     }
 

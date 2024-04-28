@@ -1,9 +1,9 @@
 use cgmath::Vector2;
 use eureka::core::App;
 use eureka::render::Texture;
+use eureka::scene::NodeType::VectorSprite;
 use eureka::scene::Sprite2d;
 use eureka::scene::{AsNodeUi, Camera2d};
-use eureka::scene::NodeType::VectorSprite;
 
 fn custom_update(dt: f32, sprite: &mut Sprite2d) {
     sprite.set_rotation(sprite.get_rotation() + dt);

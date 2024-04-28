@@ -15,8 +15,8 @@ use crate::render::vertex::Vertex3d;
 use crate::render::{
     ExtractedMesh, Instance, Mesh, MeshCache, MeshId, RenderServer, Texture, TextureCache,
 };
-use crate::scene::{AsNode, NodeType};
 use crate::scene::d3::node_3d::{AsNode3d, Node3d};
+use crate::scene::{AsNode, NodeType};
 
 pub struct Model {
     node_3d: Node3d,

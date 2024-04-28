@@ -2,10 +2,10 @@ use crate::core::singleton::Singletons;
 use crate::math::color::ColorU;
 use crate::math::transform::Transform3d;
 use cgmath::prelude::*;
+use cgmath::{Quaternion, Vector3};
 use std::any::Any;
 use std::ops::Range;
 use std::path::Path;
-use cgmath::{Quaternion, Vector3};
 
 use crate::render::draw_command::DrawCommands;
 use crate::render::light::{LightUniform, PointLightUniform};
@@ -19,7 +19,6 @@ pub struct PointLight {
     pub color: ColorU,
     pub strength: f32,
     // pub(crate) sprite: Sprite3d,
-
     pub custom_update: Option<fn(f32, &mut Self)>,
 }
 
