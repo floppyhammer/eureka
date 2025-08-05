@@ -28,7 +28,7 @@ lyon = "1.0.0"
 # Tree structure.
 indextree = "4.4.0"
 # Text rasterization.
-fontdue = "0.8.0"
+fontdue = "0.9.3"
 # Text shaping.
 rustybuzz = "0.12.1"
 allsorts = "0.14.0"
