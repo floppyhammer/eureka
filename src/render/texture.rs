@@ -334,6 +334,7 @@ impl Texture {
             label: Some("cubemap texture view"),
             format: Some(format),
             dimension: Some(wgpu::TextureViewDimension::Cube),
+            usage: None,
             aspect: wgpu::TextureAspect::default(),
             base_mip_level: 0,
             mip_level_count: Some(1),
