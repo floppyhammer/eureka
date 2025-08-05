@@ -158,7 +158,7 @@ impl Texture {
             view_formats: &[],
         });
 
-        let img_copy_texture = wgpu::ImageCopyTexture {
+        let img_copy_texture = wgpu::TexelCopyTextureInfo {
             aspect: wgpu::TextureAspect::All,
             texture: &texture,
             mip_level: 0,
@@ -169,7 +169,7 @@ impl Texture {
         queue.write_texture(
             img_copy_texture,
             data,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(bytes_per_row),
                 rows_per_image: Some(size.1),
@@ -315,14 +315,14 @@ impl Texture {
 
         // Write image data to texture.
         queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 aspect: wgpu::TextureAspect::All,
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
             &rgba,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * size.width),
                 rows_per_image: Some(size.height),

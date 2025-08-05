@@ -185,7 +185,7 @@ impl DynamicFont {
         if let Some(region) = self.updated_atlas_region {
             let queue = &render_server.queue;
 
-            let img_copy_texture = wgpu::ImageCopyTexture {
+            let img_copy_texture = wgpu::TexelCopyTextureInfo {
                 aspect: wgpu::TextureAspect::All,
                 texture: &texture.texture,
                 mip_level: 0,
@@ -207,7 +207,7 @@ impl DynamicFont {
                     queue.write_texture(
                         img_copy_texture,
                         &gray,
-                        wgpu::ImageDataLayout {
+                        wgpu::TexelCopyBufferLayout {
                             offset: (region.min_y() * FONT_ATLAS_SIZE as i32 + region.min_x())
                                 as wgpu::BufferAddress,
                             bytes_per_row: Some(FONT_ATLAS_SIZE),

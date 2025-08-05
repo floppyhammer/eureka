@@ -329,6 +329,7 @@ impl<'a> App<'a> {
                     // This is what @location(0) in the fragment shader targets.
                     Some(wgpu::RenderPassColorAttachment {
                         view: &view, // Change this to change where to draw.
+                        depth_slice: None,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color {
