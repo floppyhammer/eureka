@@ -37,13 +37,13 @@ impl GizmoRenderResources {
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader_module,
-                    entry_point: "vs_main_grid",
+                    entry_point: Some("vs_main_grid"),
                     compilation_options: Default::default(),
                     buffers: &[],
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader_module,
-                    entry_point: "fs_main_grid",
+                    entry_point: Some("fs_main_grid"),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: render_server.surface_config.format,

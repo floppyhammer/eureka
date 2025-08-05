@@ -127,13 +127,13 @@ impl AtlasRenderResources {
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader_module,
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
                     compilation_options: Default::default(),
                     buffers: &[AtlasInstanceRaw::desc()],
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader_module,
-                    entry_point: "fs_main",
+                    entry_point: Some("fs_main"),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: render_server.surface_config.format,
@@ -492,10 +492,10 @@ pub fn render_atlas<'a, 'b: 'a>(
         // Set bind groups.
         render_pass.set_bind_group(
             0,
-            &render_resources.params_bind_group.as_ref().unwrap(),
+            &render_resources.params_bind_group,
             &[(i * mem::size_of::<AtlasParamsUniform>()) as DynamicOffset],
         );
-        render_pass.set_bind_group(1, &texture_bind_group.unwrap(), &[]);
+        render_pass.set_bind_group(1, texture_bind_group, &[]);
 
         render_pass.draw(0..4, instance_offset..a.instances.len() as u32);
 
@@ -532,8 +532,8 @@ where
         self.set_vertex_buffer(0, instance_buffer.slice(..));
 
         // Set bind groups.
-        self.set_bind_group(0, &atlas_params_bind_group, &[]);
-        self.set_bind_group(1, &texture_bind_group, &[]);
+        self.set_bind_group(0, Some(atlas_params_bind_group), &[]);
+        self.set_bind_group(1, Some(texture_bind_group), &[]);
 
         self.draw(0..4, 0..instance_count);
     }

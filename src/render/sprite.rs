@@ -204,10 +204,10 @@ where
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
         // Set camera group.
-        self.set_bind_group(0, &camera_bind_group, &[]);
+        self.set_bind_group(0, Some(camera_bind_group), &[]);
 
         // Set texture group.
-        self.set_bind_group(1, &texture_bind_group, &[]);
+        self.set_bind_group(1, Some(texture_bind_group), &[]);
 
         self.draw_indexed(0..mesh.index_count, 0, 0..1);
     }
@@ -244,13 +244,13 @@ where
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
         // Set camera group.
-        self.set_bind_group(0, &camera_bind_group, &[]);
+        self.set_bind_group(0, Some(camera_bind_group), &[]);
 
         // Set texture group.
-        self.set_bind_group(1, &texture_bind_group, &[]);
+        self.set_bind_group(1, Some(texture_bind_group), &[]);
 
         // Set params group.
-        self.set_bind_group(2, &params_bind_group, &[]);
+        self.set_bind_group(2, Some(params_bind_group), &[]);
 
         self.draw_indexed(0..mesh.index_count, 0, 0..1);
     }
