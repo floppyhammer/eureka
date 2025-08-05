@@ -128,11 +128,13 @@ impl AtlasRenderResources {
                 vertex: wgpu::VertexState {
                     module: &shader_module,
                     entry_point: "vs_main",
+                    compilation_options: Default::default(),
                     buffers: &[AtlasInstanceRaw::desc()],
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader_module,
                     entry_point: "fs_main",
+                    compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: render_server.surface_config.format,
                         blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),

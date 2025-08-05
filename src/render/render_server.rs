@@ -186,11 +186,13 @@ pub fn create_render_pipeline(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: "vs_main",
+            compilation_options: Default::default(),
             buffers: vertex_layouts,
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
             entry_point: "fs_main",
+            compilation_options: Default::default(),
             targets: &[Some(wgpu::ColorTargetState {
                 format: color_format,
                 blend: Some(if !transparency {
