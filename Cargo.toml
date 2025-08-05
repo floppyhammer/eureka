@@ -14,7 +14,7 @@ winit = "0.30.12"
 cgmath = "0.18"
 env_logger = "0.11.0"
 log = "0.4"
-wgpu = { version = "0.20.1", features = ["naga-ir"] }
+wgpu = { version = "22.0.0", features = ["naga-ir"] }
 pollster = "0.3.0"
 bytemuck = { version = "1.4", features = ["derive"] }
 anyhow = "1.0"
@@ -48,8 +48,8 @@ usvg = "0.38.0"
 assets_manager = { version = "0.11.2", features = ["hot-reloading", "image"] }
 bitflags = { version = "2.4.1", features = [] }
 # Shader preprocessing.
-naga_oil = "0.14.0"
-naga = "0.20.0"
+naga_oil = "0.15.0"
+naga = "22.0.0"
 
 [dependencies.uuid]
 version = "1.6.1"

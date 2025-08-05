@@ -247,5 +247,6 @@ pub fn create_render_pipeline(
         // If the pipeline will be used with a multiview resource pass, this
         // indicates how many array layers the attachments will have.
         multiview: None,
+        cache: None,
     })
 }

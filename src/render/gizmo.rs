@@ -66,6 +66,7 @@ impl GizmoRenderResources {
                 }),
                 multisample: wgpu::MultisampleState::default(),
                 multiview: None,
+                cache: None,
             })
         };
 

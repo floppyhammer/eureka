@@ -156,6 +156,7 @@ impl AtlasRenderResources {
                 }),
                 multisample: wgpu::MultisampleState::default(),
                 multiview: None,
+                cache: None,
             })
         };
 
