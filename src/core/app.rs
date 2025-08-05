@@ -12,7 +12,7 @@ use indextree::NodeId;
 
 use crate::core::engine::Engine;
 use wgpu::{util::DeviceExt, SamplerBindingType};
-use winit::dpi::{PhysicalSize, Size};
+use winit::dpi::{LogicalSize, PhysicalSize, Size};
 use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 
 // Import local crates.
@@ -29,7 +29,8 @@ const INITIAL_WINDOW_HEIGHT: u32 = 720;
 
 pub struct App<'a> {
     window: Arc<Window>,
-    window_size: PhysicalSize<u32>,
+    window_size: LogicalSize<u32>,
+    scale_factor: f64,
     world: World,
     pub render_world: RenderWorld,
     pub singletons: Singletons<'a>,
@@ -51,7 +52,7 @@ impl<'a> App<'a> {
         // Use cargo package name as the window title.
         let title = env!("CARGO_PKG_NAME");
 
-        let window_size = PhysicalSize::new(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
+        let window_size = LogicalSize::new(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
 
         let mut attributes = WindowAttributes::default();
         attributes.title = title.to_string();
@@ -83,6 +84,7 @@ impl<'a> App<'a> {
         Self {
             window,
             window_size,
+            scale_factor: 1.0,
             world,
             render_world,
             singletons,
@@ -169,19 +171,19 @@ impl<'a> App<'a> {
                                 scale_factor,
                                 ref mut inner_size_writer,
                             } => {
-                                let new_width =
-                                    (self.window_size.width as f64 * *scale_factor) as u32;
-                                let new_height =
-                                    (self.window_size.height as f64 * *scale_factor) as u32;
-                                let new_size = PhysicalSize::new(new_width, new_height);
-                                // self.resize(new_size);
+                                self.scale_factor = *scale_factor;
+
+                                let new_physical_size = self.window_size.to_physical(*scale_factor);
+
+                                self.resize(new_physical_size);
+
                                 inner_size_writer
-                                    .request_inner_size(new_size)
+                                    .request_inner_size(new_physical_size)
                                     .expect("TODO: panic message");
 
                                 log::info!(
                                     "Scale factor changed, change window size to {:?}",
-                                    new_size
+                                    new_physical_size
                                 );
                             }
                             // Redraw request.
@@ -195,7 +197,9 @@ impl<'a> App<'a> {
                                         self.window.request_redraw();
                                     }
                                     // Reconfigure the surface if lost.
-                                    Err(wgpu::SurfaceError::Lost) => self.resize(self.window_size),
+                                    Err(wgpu::SurfaceError::Lost) => {
+                                        self.resize(self.window_size.to_physical(self.scale_factor))
+                                    }
                                     // The system is out of memory, we should probably quit.
                                     Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
                                     // All other errors (Outdated, Timeout) should be resolved by the next frame.
@@ -230,11 +234,11 @@ impl<'a> App<'a> {
     }
 
     /// Resize window.
-    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+    fn resize(&mut self, new_size: PhysicalSize<u32>) {
+        self.window_size = new_size.to_logical(self.scale_factor);
+
         // Reconfigure the surface everytime the window's size changes.
         if new_size.width > 0 && new_size.height > 0 {
-            self.window_size = new_size;
-
             let config = &mut self.singletons.render_server.surface_config;
             config.width = new_size.width;
             config.height = new_size.height;
