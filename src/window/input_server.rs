@@ -3,7 +3,7 @@ use std::fmt::{Debug, Formatter};
 use winit::dpi::{PhysicalPosition, Position};
 use winit::event::*;
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::Window;
+use winit::window::{CursorGrabMode, Window};
 
 #[derive(Debug, Copy, Clone)]
 pub enum InputEvent {

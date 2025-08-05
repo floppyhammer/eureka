@@ -21,8 +21,8 @@ use crate::window::InputServer;
 use cgmath::Point2;
 use std::mem;
 use wgpu::{BufferAddress, DynamicOffset, SamplerBindingType};
-use winit::event_loop::{EventLoop, EventLoopWindowTarget};
-use winit::window::{Window, WindowBuilder};
+use winit::event_loop::EventLoop;
+use winit::window::Window;
 
 #[derive(Default, Clone)]
 pub struct Extracted {

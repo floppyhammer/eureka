@@ -4,7 +4,7 @@ use std::sync::Arc;
 use winit::{
     event::*,
     event_loop::EventLoop,
-    window::{Window, WindowBuilder},
+    window::{Window, WindowAttributes},
 };
 
 use cgmath::{prelude::*, Vector2};
@@ -12,7 +12,7 @@ use indextree::NodeId;
 
 use crate::core::engine::Engine;
 use wgpu::{util::DeviceExt, SamplerBindingType};
-use winit::dpi::PhysicalSize;
+use winit::dpi::{PhysicalSize, Size};
 use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 
 // Import local crates.
@@ -53,13 +53,11 @@ impl<'a> App<'a> {
 
         let window_size = PhysicalSize::new(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
 
-        let window = Arc::new(
-            WindowBuilder::new()
-                .with_title(title)
-                .with_inner_size(window_size)
-                .build(&event_loop)
-                .unwrap(),
-        );
+        let mut attributes = WindowAttributes::default();
+        attributes.title = title.to_string();
+        attributes.inner_size = Some(Size::from(window_size));
+
+        let window = Arc::new(event_loop.create_window(attributes).unwrap());
 
         // App::init_render uses async code, so we're going to wait for it to finish.
         let mut render_server = pollster::block_on(App::init_render(window.clone()));
