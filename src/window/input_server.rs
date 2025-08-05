@@ -123,6 +123,8 @@ impl InputServer {
                 );
 
                 if self.cursor_captured {
+                    // For Wayland
+                    window.set_cursor_grab(CursorGrabMode::Locked).ok();
                     // Use PhysicalPosition, or use LogicalPosition divided by ScaleFactor.
                     window
                         .set_cursor_position(Position::new(PhysicalPosition::new(
@@ -130,6 +132,7 @@ impl InputServer {
                             self.mouse_position.1,
                         )))
                         .expect("Setting cursor position failed!");
+                    window.set_cursor_grab(CursorGrabMode::None).unwrap();
                 } else {
                     //let inner_size = window.inner_size();
 
