@@ -244,9 +244,18 @@ impl Instance {
             * Matrix4::from(self.rotation)
             * Matrix4::from_nonuniform_scale(self.scale.x, self.scale.y, self.scale.z);
 
+        // Correct normal matrix: transpose(inverse(upper_left_3x3(model)))
+        // For efficiency, if there's no non-uniform scaling, Matrix3::from(rotation) works.
+        // But to be safe with scaling:
+        let normal = Matrix3::from_cols(
+            self.rotation * Vector3::new(1.0 / self.scale.x, 0.0, 0.0),
+            self.rotation * Vector3::new(0.0, 1.0 / self.scale.y, 0.0),
+            self.rotation * Vector3::new(0.0, 0.0, 1.0 / self.scale.z),
+        );
+
         InstanceRaw {
             model: model.into(),
-            normal: Matrix3::from(self.rotation).into(),
+            normal: normal.into(),
         }
     }
 }

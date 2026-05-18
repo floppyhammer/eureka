@@ -181,23 +181,31 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var directional_light_result = vec3<f32>(0.0, 0.0, 0.0);
     {
-        // Shadow mapping.
-        let shadow_coords = light_camera.view_proj * in.world_position;
-        let shadow_pos = shadow_coords.xyz / shadow_coords.w;
-        // Convert clip space [-1, 1] to UV [0, 1]. (Y is flipped in UV)
-        let shadow_uv = shadow_pos.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
-
-        var shadow_factor = 1.0;
-        // Only sample shadow if within shadow map range.
-        if (shadow_pos.x >= -1.0 && shadow_pos.x <= 1.0 &&
-            shadow_pos.y >= -1.0 && shadow_pos.y <= 1.0 &&
-            shadow_pos.z >= 0.0 && shadow_pos.z <= 1.0) {
-            shadow_factor = textureSampleCompare(t_shadow, s_shadow, shadow_uv, shadow_pos.z - 0.005);
-        }
-
+        // 1. Calculate direction vectors
         let light_dir = normalize(-lights.directional_light.direction);
         let half_dir = normalize(view_dir + light_dir);
 
+        // 2. Shadow mapping
+        let shadow_coords = light_camera.view_proj * in.world_position;
+        let shadow_pos = shadow_coords.xyz / shadow_coords.w;
+        let shadow_uv = shadow_pos.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
+
+        var shadow_factor = 1.0;
+        // Geometric back-face check: if the surface faces away from the light, it's in shadow.
+        let n_dot_l = dot(world_normal_basis, light_dir);
+        if (n_dot_l <= 0.0) {
+            shadow_factor = 0.0;
+        } else if (shadow_pos.x >= -1.0 && shadow_pos.x <= 1.0 &&
+            shadow_pos.y >= -1.0 && shadow_pos.y <= 1.0 &&
+            shadow_pos.z >= 0.0 && shadow_pos.z <= 1.0) {
+
+            // Slope-scaled Bias: more bias when the light is at a steep angle.
+            // This prevents "Shadow Acne" while minimizing "Peter Panning".
+            let bias = max(0.0015 * (1.0 - n_dot_l), 0.0002);
+            shadow_factor = textureSampleCompare(t_shadow, s_shadow, shadow_uv, shadow_pos.z - bias);
+        }
+
+        // 3. Lighting calculation
         let diffuse_strength = max(dot(world_normal, light_dir), 0.0);
         let diffuse_color = lights.directional_light.color * diffuse_strength;
 
