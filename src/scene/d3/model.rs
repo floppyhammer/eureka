@@ -239,7 +239,7 @@ impl Model {
             meshes.push(mesh_cache.add(mesh));
 
             // Prepare a material id for each mesh.
-            if (m.mesh.material_id.is_some()) {
+            if m.mesh.material_id.is_some() {
                 materials.push(Some(local_materials[m.mesh.material_id.unwrap()]));
             } else {
                 materials.push(None);

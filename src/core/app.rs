@@ -1,26 +1,24 @@
-use std::convert::TryFrom;
 use std::sync::Arc;
 
 use winit::{
+    application::ApplicationHandler,
     event::*,
-    event_loop::EventLoop,
-    window::{Window, WindowAttributes},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    window::{Window, WindowAttributes, WindowId},
 };
 
 use cgmath::{prelude::*, Vector2};
 use indextree::NodeId;
 
 use crate::core::engine::Engine;
-use wgpu::{util::DeviceExt, SamplerBindingType};
 use winit::dpi::{LogicalSize, PhysicalSize, Size};
-use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 
 // Import local crates.
 use crate::asset::AssetServer;
 use crate::core::singleton::Singletons;
 use crate::render::render_world::RenderWorld;
-use crate::render::{RenderServer, Texture};
-use crate::scene::{AsNode, Camera2d, World};
+use crate::render::{RenderServer};
+use crate::scene::{AsNode, World};
 use crate::text::TextServer;
 use crate::window::InputServer;
 
@@ -28,16 +26,17 @@ const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
 
 pub struct App<'a> {
-    window: Arc<Window>,
+    window: Option<Arc<Window>>,
     window_size: LogicalSize<u32>,
     scale_factor: f64,
-    world: World,
-    pub render_world: RenderWorld,
-    pub singletons: Singletons<'a>,
+    pub world: World,
+    pub render_world: Option<RenderWorld>,
+    pub singletons: Option<Singletons<'a>>,
     initialized: bool,
-    /// In order to call EventLoop::run_return from App::run,
-    /// we have to put it in an option to avoid borrow errors.
+    /// We keep the event loop in an option to take it when running.
     event_loop: Option<EventLoop<()>>,
+    /// Callback for user setup logic after initialization.
+    setup_callback: Option<Box<dyn FnOnce(&mut App<'a>)>>,
 }
 
 impl<'a> App<'a> {
@@ -45,52 +44,31 @@ impl<'a> App<'a> {
         let env = env_logger::Env::default()
             .filter_or("EUREKA_LOG_LEVEL", "info")
             .write_style_or("EUREKA_LOG_STYLE", "always");
-        env_logger::init_from_env(env);
+        let _ = env_logger::try_init_from_env(env);
 
         let event_loop = EventLoop::new().unwrap();
 
-        // Use cargo package name as the window title.
-        let title = env!("CARGO_PKG_NAME");
-
         let window_size = LogicalSize::new(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
-
-        let mut attributes = WindowAttributes::default();
-        attributes.title = title.to_string();
-        attributes.inner_size = Some(Size::from(window_size));
-
-        let window = Arc::new(event_loop.create_window(attributes).unwrap());
-
-        // App::init_render uses async code, so we're going to wait for it to finish.
-        let mut render_server = pollster::block_on(App::init_render(window.clone()));
-
-        let mut engine = Engine::new();
-
-        let asset_server = AssetServer::new();
-
-        let mut world = World::new(Vector2::new(window_size.width, window_size.height));
-
-        let mut render_world = RenderWorld::new(&render_server);
-
-        let text_server = TextServer::new(&render_server, &mut render_world.texture_cache);
-
-        let singletons = Singletons {
-            engine,
-            render_server,
-            input_server: InputServer::new(),
-            text_server,
-            asset_server,
-        };
+        let world = World::new(Vector2::new(window_size.width, window_size.height));
 
         Self {
-            window,
+            window: None,
             window_size,
             scale_factor: 1.0,
             world,
-            render_world,
-            singletons,
+            render_world: None,
+            singletons: None,
             initialized: false,
             event_loop: Some(event_loop),
+            setup_callback: None,
         }
+    }
+
+    pub fn setup<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut App<'a>) + 'static,
+    {
+        self.setup_callback = Some(Box::new(f));
     }
 
     // Creating some of the wgpu types requires async code.
@@ -136,97 +114,9 @@ impl<'a> App<'a> {
     }
 
     pub fn run(&mut self) {
-        // Main loop.
-        self.event_loop
-            .take()
-            .unwrap()
-            .run(move |mut event, elwt| {
-                match event {
-                    // Device event.
-                    Event::DeviceEvent {
-                        ref event,
-                        device_id,
-                    } => {
-                        // We're not handling raw input data currently.
-                    }
-                    // Window event.
-                    Event::WindowEvent {
-                        ref mut event,
-                        window_id,
-                    } if window_id == self.window.id() => {
-                        match event {
-                            WindowEvent::CloseRequested => elwt.exit(),
-                            WindowEvent::Resized(physical_size) => {
-                                // See https://github.com/rust-windowing/winit/issues/2094.
-                                if self.initialized {
-                                    return;
-                                }
-
-                                self.resize(*physical_size);
-
-                                log::info!("Window resized to {:?}", physical_size);
-                            }
-                            // Scale factor changed.
-                            WindowEvent::ScaleFactorChanged {
-                                scale_factor,
-                                ref mut inner_size_writer,
-                            } => {
-                                self.scale_factor = *scale_factor;
-
-                                let new_physical_size = self.window_size.to_physical(*scale_factor);
-
-                                self.resize(new_physical_size);
-
-                                inner_size_writer
-                                    .request_inner_size(new_physical_size)
-                                    .expect("TODO: panic message");
-
-                                log::info!(
-                                    "Scale factor changed, change window size to {:?}",
-                                    new_physical_size
-                                );
-                            }
-                            // Redraw request.
-                            WindowEvent::RedrawRequested => {
-                                self.singletons.input_server.update(&self.window);
-
-                                self.update();
-
-                                match self.render() {
-                                    Ok(_) => {
-                                        self.window.request_redraw();
-                                    }
-                                    // Reconfigure the surface if lost.
-                                    Err(wgpu::SurfaceError::Lost) => {
-                                        self.resize(self.window_size.to_physical(self.scale_factor))
-                                    }
-                                    // The system is out of memory, we should probably quit.
-                                    Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
-                                    // All other errors (Outdated, Timeout) should be resolved by the next frame.
-                                    Err(e) => eprintln!("App resource error: {:?}", e),
-                                }
-                            }
-                            _ => {
-                                // Other input events should be handled by the input server.
-                                self.input(event);
-                            }
-                        }
-                    }
-                    // Event::MainEventsCleared => {
-                    //     // RedrawRequested will only trigger once, unless we manually request it.
-                    //     self.window.request_redraw();
-                    // }
-                    Event::NewEvents(cause) => {
-                        if cause == StartCause::Init {
-                            self.initialized = true;
-                        } else {
-                            self.initialized = false;
-                        }
-                    }
-                    _ => {}
-                }
-            })
-            .expect("TODO: panic message");
+        let event_loop = self.event_loop.take().expect("Event loop already taken");
+        event_loop.set_control_flow(ControlFlow::Poll);
+        event_loop.run_app(self).expect("Failed to run event loop");
     }
 
     pub fn add_node(&mut self, new_node: impl AsNode + 'static, parent: Option<NodeId>) {
@@ -237,72 +127,72 @@ impl<'a> App<'a> {
     fn resize(&mut self, new_size: PhysicalSize<u32>) {
         self.window_size = new_size.to_logical(self.scale_factor);
 
-        // Reconfigure the surface everytime the window's size changes.
-        if new_size.width > 0 && new_size.height > 0 {
-            let config = &mut self.singletons.render_server.surface_config;
-            config.width = new_size.width;
-            config.height = new_size.height;
+        if let Some(singletons) = &mut self.singletons {
+            // Reconfigure the surface everytime the window's size changes.
+            if new_size.width > 0 && new_size.height > 0 {
+                let config = &mut singletons.render_server.surface_config;
+                config.width = new_size.width;
+                config.height = new_size.height;
 
-            self.singletons
-                .render_server
-                .surface
-                .configure(&self.singletons.render_server.device, config);
+                singletons
+                    .render_server
+                    .surface
+                    .configure(&singletons.render_server.device, config);
 
-            self.render_world
-                .recreate_depth_texture(&self.singletons.render_server);
+                if let Some(render_world) = &mut self.render_world {
+                    render_world.recreate_depth_texture(&singletons.render_server);
+                }
 
-            self.world
-                .when_view_size_changes(Vector2::new(new_size.width, new_size.height))
+                self.world
+                    .when_view_size_changes(Vector2::new(new_size.width, new_size.height))
+            }
         }
     }
 
     /// Handle input events.
     fn input(&mut self, event: &WindowEvent) -> bool {
-        // Convert to our own input events.
-        self.singletons
-            .input_server
-            .prepare_input_event(&self.window, event);
+        if let (Some(window), Some(singletons)) = (&self.window, &mut self.singletons) {
+            // Convert to our own input events.
+            singletons
+                .input_server
+                .prepare_input_event(window, event);
 
-        self.world.input(&mut self.singletons.input_server);
-
-        true
+            self.world.input(&mut singletons.input_server);
+            return true;
+        }
+        false
     }
 
     fn update(&mut self) {
-        self.singletons.engine.tick();
-
-        // self.world
-        //     .get_node_mut::<Label>(self.fps_label_id)
-        //     .unwrap()
-        //     .set_text(format!(
-        //         "FPS: {}",
-        //         self.singletons.core_server.get_fps() as i32
-        //     ));
-
-        self.world.update(
-            self.singletons.engine.get_delta() as f32,
-            &mut self.singletons,
-        );
+        if let Some(singletons) = &mut self.singletons {
+            singletons.engine.tick();
+            self.world.update(
+                singletons.engine.get_delta() as f32,
+                singletons,
+            );
+        }
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        let (Some(singletons), Some(render_world)) = (&mut self.singletons, &mut self.render_world) else {
+            return Ok(());
+        };
+
         // Collects draw commands from the scene world.
         let draw_commands = self.world.queue_draw();
 
         // Extract render entities from the draw commands.
-        self.render_world.extract(&draw_commands);
+        render_world.extract(&draw_commands);
 
-        let render_server = &self.singletons.render_server;
+        let render_server = &singletons.render_server;
 
-        self.render_world.prepare(render_server);
+        render_world.prepare(render_server);
 
         // Update server GPU resources.
-        self.singletons.text_server.prepare(
-            &self.singletons.render_server,
-            &mut self.render_world.texture_cache,
+        singletons.text_server.prepare(
+            &singletons.render_server,
+            &mut render_world.texture_cache,
         );
-
-        let render_world = &self.render_world;
 
         // First we need to get a frame to draw to.
         let surface_texture = render_server.surface.get_current_texture()?;
@@ -358,12 +248,12 @@ impl<'a> App<'a> {
                 occlusion_query_set: None,
             });
 
-            self.render_world.render(&mut render_pass);
+            render_world.render(&mut render_pass);
         }
 
         // Finish the command encoder to generate a command buffer,
         // then submit it for execution.
-        self.singletons
+        singletons
             .render_server
             .queue
             .submit(std::iter::once(encoder.finish()));
@@ -372,5 +262,112 @@ impl<'a> App<'a> {
         surface_texture.present();
 
         Ok(())
+    }
+}
+
+impl<'a> ApplicationHandler for App<'a> {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if self.window.is_some() {
+            return;
+        }
+
+        // Use cargo package name as the window title.
+        let title = env!("CARGO_PKG_NAME");
+
+        let mut attributes = WindowAttributes::default();
+        attributes.title = title.to_string();
+        attributes.inner_size = Some(Size::from(self.window_size));
+
+        let window = Arc::new(event_loop.create_window(attributes).unwrap());
+        self.window = Some(window.clone());
+
+        // App::init_render uses async code, so we're going to wait for it to finish.
+        let render_server = pollster::block_on(Self::init_render(window.clone()));
+
+        let engine = Engine::new();
+        let asset_server = AssetServer::new();
+        let mut render_world = RenderWorld::new(&render_server);
+        let text_server = TextServer::new(&render_server, &mut render_world.texture_cache);
+
+        self.singletons = Some(Singletons {
+            engine,
+            render_server,
+            input_server: InputServer::new(),
+            text_server,
+            asset_server,
+        });
+
+        self.render_world = Some(render_world);
+        self.initialized = true;
+
+        // Run user setup callback if provided.
+        if let Some(setup) = self.setup_callback.take() {
+            setup(self);
+        }
+    }
+
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
+        // Clone the Arc to release the borrow on self and satisfy the borrow checker.
+        let window = match &self.window {
+            Some(w) if w.id() == window_id => w.clone(),
+            _ => return,
+        };
+
+        match event {
+            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::Resized(physical_size) => {
+                self.resize(physical_size);
+                log::info!("Window resized to {:?}", physical_size);
+            }
+            // Scale factor changed.
+            WindowEvent::ScaleFactorChanged {
+                scale_factor,
+                ..
+            } => {
+                self.scale_factor = scale_factor;
+
+                let new_physical_size = self.window_size.to_physical(scale_factor);
+                self.resize(new_physical_size);
+
+                let _ = window.request_inner_size(new_physical_size);
+
+                log::info!(
+                    "Scale factor changed, change window size to {:?}",
+                    new_physical_size
+                );
+            }
+            // Redraw request.
+            WindowEvent::RedrawRequested => {
+                if let Some(singletons) = &mut self.singletons {
+                    singletons.input_server.update(&window);
+
+                    self.update();
+
+                    match self.render() {
+                        Ok(_) => {
+                            window.request_redraw();
+                        }
+                        // Reconfigure the surface if lost.
+                        Err(wgpu::SurfaceError::Lost) => {
+                            self.resize(self.window_size.to_physical(self.scale_factor))
+                        }
+                        // The system is out of memory, we should probably quit.
+                        Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
+                        // All other errors (Outdated, Timeout) should be resolved by the next frame.
+                        Err(e) => eprintln!("App resource error: {:?}", e),
+                    }
+                }
+            }
+            _ => {
+                // Other input events should be handled by the input server.
+                self.input(&event);
+            }
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
     }
 }

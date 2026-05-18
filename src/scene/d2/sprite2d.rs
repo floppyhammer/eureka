@@ -140,7 +140,7 @@ impl AsNode for Sprite2d {
     }
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
-        if (self.texture.is_none()) {
+        if self.texture.is_none() {
             return;
         }
 

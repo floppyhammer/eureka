@@ -143,7 +143,7 @@ fn find_system_font(font_name: &str) -> Option<Vec<u8>> {
             }
         }
 
-        if (font.is_none()) {
+        if font.is_none() {
             let family_names = [font_kit::family_name::FamilyName::Serif];
             let properties = font_kit::properties::Properties::default();
 
@@ -154,7 +154,7 @@ fn find_system_font(font_name: &str) -> Option<Vec<u8>> {
             }
         }
 
-        if (font.is_none()) {
+        if font.is_none() {
             let handle = SystemSource::new()
                 .all_fonts()
                 .unwrap()
