@@ -328,10 +328,10 @@ pub(crate) fn prepare_sprite(
         let mut uvs = QUAD_UVS;
 
         // Consider flip.
-        if (e.flip_x) {
+        if e.flip_x {
             uvs = [uvs[1], uvs[0], uvs[3], uvs[2]];
         }
-        if (e.flip_y) {
+        if e.flip_y {
             uvs = [uvs[3], uvs[2], uvs[1], uvs[0]];
         }
 

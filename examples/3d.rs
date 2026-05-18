@@ -31,17 +31,18 @@ fn main() {
         world.add_node(Box::new(sky), None);
 
         // Point light.
-        let mut light = PointLight::new();
-        light.color = ColorU::new(0, 255, 0, 255);
-        light.set_position(Vector3::new(5.0, 5.0, 0.0));
-        light.strength = 5.0;
-        world.add_node(Box::new(light), None);
+        // let mut light = PointLight::new();
+        // light.color = ColorU::new(0, 255, 0, 255);
+        // light.set_position(Vector3::new(5.0, 5.0, 0.0));
+        // light.strength = 5.0;
+        // world.add_node(Box::new(light), None);
 
         // Directional light.
-        // let mut light = DirectionalLight::new();
-        // light.strength = 5.0;
-        // light.transform.rotation = Quaternion::from_angle_y(Deg(0.0f32.to_radians()));
-        // world.add_node(Box::new(light), None);
+        let mut light = DirectionalLight::new();
+        light.color = ColorU::new(0, 255, 0, 255);
+        light.strength = 5.0;
+        light.transform.rotation = Quaternion::from_angle_x(Deg(-90.0f32));
+        world.add_node(Box::new(light), None);
 
         // Model 1.
         let mut obj_model = Model::load(

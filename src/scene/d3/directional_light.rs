@@ -6,6 +6,7 @@ use naga::SwitchValue::Default;
 use std::any::Any;
 use std::ops::Range;
 use std::path::Path;
+use cgmath::Vector3;
 use wgpu::util::DeviceExt;
 
 use crate::render::draw_command::DrawCommands;
@@ -57,18 +58,13 @@ impl AsNode for DirectionalLight {
     }
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
-        // let old_position: cgmath::Vector3<_> = self.uniform.position.into();
-        // let new_position =
-        //     cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt))
-        //         * old_position;
-        //
-        // self.uniform.position = new_position.into();
+        let direction = self.transform.rotation * Vector3::unit_z() * -1.0;
 
         let directional_light = DirectionalLightUniform {
-            direction: self.transform.position.into(),
+            direction: direction.into(),
             strength: self.strength,
             color: self.color.to_vec3().into(),
-            ..std::default::Default::default()
+            distance: 20.0, // Default distance for shadow mapping
         };
 
         draw_cmds.extracted.lights.directional_light = Some(directional_light);
