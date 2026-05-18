@@ -7,7 +7,7 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use cgmath::{prelude::*, Vector2};
+use cgmath::{Vector2};
 use indextree::NodeId;
 
 use crate::core::engine::Engine;
@@ -104,9 +104,18 @@ impl<'a> App<'a> {
         // Get the window's inner size.
         let size = window.inner_size();
 
-        let surface_config = surface
+        let mut surface_config = surface
             .get_default_config(&adapter, size.width, size.height)
             .expect("Surface unsupported by adapter!");
+
+        let surface_capabilities = surface.get_capabilities(&adapter);
+        let present_mode = if surface_capabilities.present_modes.contains(&wgpu::PresentMode::Mailbox) {
+            wgpu::PresentMode::Mailbox
+        } else {
+            wgpu::PresentMode::Fifo // 保底使用 Fifo
+        };
+        surface_config.present_mode = present_mode;
+
         surface.configure(&device, &surface_config);
 
         // Create a render server.
