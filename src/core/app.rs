@@ -157,7 +157,6 @@ impl<'a> App<'a> {
                 .input_server
                 .prepare_input_event(window, event);
 
-            self.world.input(&mut singletons.input_server);
             return true;
         }
         false
@@ -341,6 +340,9 @@ impl<'a> ApplicationHandler for App<'a> {
                 if let Some(singletons) = &mut self.singletons {
                     singletons.input_server.update(&window);
 
+                    self.world.input(&mut singletons.input_server);
+                    singletons.input_server.input_events.clear();
+
                     self.update();
 
                     match self.render() {
@@ -362,6 +364,12 @@ impl<'a> ApplicationHandler for App<'a> {
                 // Other input events should be handled by the input server.
                 self.input(&event);
             }
+        }
+    }
+
+    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: DeviceId, event: DeviceEvent) {
+        if let Some(singletons) = &mut self.singletons {
+            singletons.input_server.handle_device_event(&event);
         }
     }
 

@@ -60,7 +60,7 @@ impl Camera3d {
             100.0,
         );
 
-        let controller = Camera3dController::new(4.0, 0.4);
+        let controller = Camera3dController::new(4.0, 0.003);
 
         Self {
             position: position.into(),
@@ -194,8 +194,8 @@ impl Camera3dController {
         mouse_y: f32,
     ) {
         if self.cursor_captured {
-            self.rotate_horizontal = mouse_dx;
-            self.rotate_vertical = mouse_dy;
+            self.rotate_horizontal += mouse_dx;
+            self.rotate_vertical += mouse_dy;
         } else {
             self.cursor_captured_position.x = mouse_x;
             self.cursor_captured_position.y = mouse_y;
@@ -299,11 +299,11 @@ impl AsNode for Camera3d {
                 * self.controller.speed
                 * dt;
 
-            // Horizontal rotation.
-            self.yaw += Rad(self.controller.rotate_horizontal) * self.controller.sensitivity * dt;
+            // Horizontal rotation (Yaw)
+            self.yaw += Rad(self.controller.rotate_horizontal) * self.controller.sensitivity;
 
-            // Vertical rotation.
-            self.pitch += Rad(-self.controller.rotate_vertical) * self.controller.sensitivity * dt;
+            // Vertical rotation (Pitch)
+            self.pitch += Rad(-self.controller.rotate_vertical) * self.controller.sensitivity;
 
             // If process_mouse isn't called every frame, these values
             // will not get set to zero, and the camera will rotate
