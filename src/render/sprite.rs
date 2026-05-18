@@ -114,7 +114,7 @@ impl SpriteRenderResources {
             create_render_pipeline(
                 &render_server.device,
                 &pipeline_layout,
-                render_server.surface_config.format,
+                Some(render_server.surface_config.format),
                 Some(Texture::DEPTH_FORMAT),
                 &[Vertex2d::desc()],
                 shader,

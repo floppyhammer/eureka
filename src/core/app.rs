@@ -223,6 +223,8 @@ impl<'a> App<'a> {
                     label: Some("main render encoder"),
                 });
 
+        render_world.render_shadow(&mut encoder);
+
         // The RenderPass has all the methods to do the actual drawing.
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

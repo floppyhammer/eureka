@@ -6,7 +6,7 @@ use crate::render::bind_group::BindGroupCache;
 use crate::render::camera::{CameraRenderResources, CameraType, CameraUniform, ExtractedCameras};
 use crate::render::draw_command::DrawCommands;
 use crate::render::gizmo::GizmoRenderResources;
-use crate::render::light::{ExtractedLights, LightUniform};
+use crate::render::light::{prepare_shadow, render_shadow, ExtractedLights, LightRenderResources, LightUniform};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sky::{prepare_sky, render_sky, ExtractedSky, SkyRenderResources};
 use crate::render::sprite::{
@@ -54,6 +54,9 @@ pub struct RenderWorld {
     pub mesh_cache: MeshCache,
     pub mesh_render_resources: MeshRenderResources,
 
+    // Lights.
+    pub(crate) light_render_resources: LightRenderResources,
+
     // Temporary.
     pub(crate) extracted: Extracted,
     pub(crate) sprite_batches: Vec<SpriteBatch>,
@@ -95,6 +98,8 @@ impl RenderWorld {
 
         let sky_render_resources = SkyRenderResources::new(render_server);
 
+        let light_render_resources = LightRenderResources::new();
+
         Self {
             surface_depth_texture: depth_texture,
             texture_cache,
@@ -102,6 +107,7 @@ impl RenderWorld {
             camera_render_resources,
             sprite_render_resources,
             mesh_render_resources,
+            light_render_resources,
             shader_maker: ShaderMaker::new(),
             extracted: Extracted::default(),
             sprite_batches: vec![],
@@ -144,8 +150,17 @@ impl RenderWorld {
                     &self.texture_cache,
                     &mut self.shader_maker,
                     &mut self.mesh_render_resources,
+                    &self.light_render_resources,
                     &self.camera_render_resources,
                     &render_server,
+                );
+
+                prepare_shadow(
+                    &self.extracted.lights,
+                    render_server,
+                    &mut self.texture_cache,
+                    &mut self.light_render_resources,
+                    &self.camera_render_resources,
                 );
 
                 if (self.extracted.sky.is_some()) {
@@ -159,6 +174,17 @@ impl RenderWorld {
                 }
             }
         }
+    }
+
+    pub(crate) fn render_shadow(&self, encoder: &mut wgpu::CommandEncoder) {
+        render_shadow(
+            encoder,
+            &self.texture_cache,
+            &self.light_render_resources,
+            &self.extracted.meshes,
+            &self.mesh_cache,
+            &self.mesh_render_resources,
+        );
     }
 
     // Send draw calls.

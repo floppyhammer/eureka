@@ -47,14 +47,7 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
 
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * world_position;
+    out.clip_position = light.view_proj * world_position;
 
     return out;
-}
-
-// Fragment shader //
-
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Do nothing.
 }

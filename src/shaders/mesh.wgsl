@@ -42,6 +42,13 @@ struct Lights {
 @group(1) @binding(0)
 var<uniform> lights: Lights;
 
+@group(1) @binding(1)
+var t_shadow: texture_depth_2d;
+@group(1) @binding(2)
+var s_shadow: sampler_comparison;
+@group(1) @binding(3)
+var<uniform> light_camera: Camera;
+
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) tex_coords: vec2<f32>,
@@ -73,6 +80,7 @@ struct VertexOutput {
     @location(3) tbn_matrix0: vec3<f32>,
     @location(4) tbn_matrix1: vec3<f32>,
     @location(5) tbn_matrix2: vec3<f32>,
+    @location(6) world_position: vec4<f32>,
 }
 
 @vertex
@@ -118,6 +126,7 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     out.tbn_matrix0 = tbn_matrix[0];
     out.tbn_matrix1 = tbn_matrix[1];
     out.tbn_matrix2 = tbn_matrix[2];
+    out.world_position = vertex_world_position;
 
     return out;
 }
@@ -201,7 +210,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var directional_light_result = vec3<f32>(0.0, 0.0, 0.0);
     {
-        let light_dir = tbn_matrix * lights.directional_light.direction;
+        // Shadow mapping.
+        let shadow_coords = light_camera.view_proj * in.world_position;
+        let shadow_pos = shadow_coords.xyz / shadow_coords.w;
+        // Convert clip space [-1, 1] to UV [0, 1]. (Y is flipped in UV)
+        let shadow_uv = shadow_pos.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
+
+        var shadow_factor = 1.0;
+        // Only sample shadow if within shadow map range.
+        if (shadow_pos.x >= -1.0 && shadow_pos.x <= 1.0 &&
+            shadow_pos.y >= -1.0 && shadow_pos.y <= 1.0 &&
+            shadow_pos.z >= 0.0 && shadow_pos.z <= 1.0) {
+            shadow_factor = textureSampleCompare(t_shadow, s_shadow, shadow_uv, shadow_pos.z - 0.005);
+        }
+
+        let light_dir = tbn_matrix * (-lights.directional_light.direction);
 
         let view_dir = normalize(in.tbn_view_position - in.tbn_position);
         let half_dir = normalize(view_dir + light_dir);
@@ -216,7 +239,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let specular_strength = pow(max(dot(tbn_normal, half_dir), 0.0), 4.0);
         let specular_color = light_color * specular_strength;
 
-        directional_light_result = (diffuse_color + specular_color) * lights.directional_light.strength;
+        directional_light_result = (diffuse_color + specular_color) * lights.directional_light.strength * shadow_factor;
     }
 
     let result = (ambient_color + point_lights_result + directional_light_result) * object_color.xyz;

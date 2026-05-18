@@ -169,7 +169,7 @@ impl<'a> RenderServer<'a> {
 pub fn create_render_pipeline(
     device: &wgpu::Device,
     layout: &wgpu::PipelineLayout,
-    color_format: wgpu::TextureFormat,
+    color_format: Option<wgpu::TextureFormat>,
     depth_format: Option<wgpu::TextureFormat>,
     vertex_layouts: &[wgpu::VertexBufferLayout],
     shader: wgpu::ShaderModuleDescriptor,
@@ -177,8 +177,43 @@ pub fn create_render_pipeline(
     transparency: bool,
     cull_mode: Option<wgpu::Face>,
 ) -> wgpu::RenderPipeline {
-    // Create actual shader module using the shader descriptor.
     let shader = device.create_shader_module(shader);
+
+    // 1. 先准备好混合状态
+    let blend = Some(if !transparency {
+        wgpu::BlendState {
+            alpha: wgpu::BlendComponent::REPLACE,
+            color: wgpu::BlendComponent::REPLACE,
+        }
+    } else {
+        wgpu::BlendState {
+            alpha: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                operation: wgpu::BlendOperation::Add,
+            },
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                operation: wgpu::BlendOperation::Add,
+            },
+        }
+    });
+
+    // 2. 创建一个拥有所有权的目标状态数组（如果有颜色格式的话）
+    let targets = color_format.map(|format| [Some(wgpu::ColorTargetState {
+        format,
+        blend,
+        write_mask: wgpu::ColorWrites::ALL,
+    })]);
+
+    // 3. 将数组引用映射到 FragmentState
+    let fragment = targets.as_ref().map(|targets| wgpu::FragmentState {
+        module: &shader,
+        entry_point: Some("fs_main"),
+        compilation_options: Default::default(),
+        targets,
+    });
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(label),
@@ -189,52 +224,19 @@ pub fn create_render_pipeline(
             compilation_options: Default::default(),
             buffers: vertex_layouts,
         },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
-            compilation_options: Default::default(),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: color_format,
-                blend: Some(if !transparency {
-                    wgpu::BlendState {
-                        alpha: wgpu::BlendComponent::REPLACE,
-                        color: wgpu::BlendComponent::REPLACE,
-                    }
-                } else {
-                    wgpu::BlendState {
-                        alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                        color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                    }
-                }),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
+        fragment,
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
             cull_mode,
-            // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: wgpu::PolygonMode::Fill,
-            // Requires Features::DEPTH_CLIP_CONTROL
             unclipped_depth: false,
-            // Requires Features::CONSERVATIVE_RASTERIZATION
             conservative: false,
         },
         depth_stencil: depth_format.map(|format| wgpu::DepthStencilState {
             format,
             depth_write_enabled: !transparency,
-            // The depth_compare function tells us when to discard a new pixel.
-            // Using LESS means pixels will be drawn front to back.
-            // This has to be LESS_OR_EQUAL for correct skybox rendering.
             depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
@@ -244,8 +246,6 @@ pub fn create_render_pipeline(
             mask: !0,
             alpha_to_coverage_enabled: false,
         },
-        // If the pipeline will be used with a multiview resource pass, this
-        // indicates how many array layers the attachments will have.
         multiview: None,
         cache: None,
     })

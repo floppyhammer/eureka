@@ -1,7 +1,7 @@
 use crate::math::transform::Transform3d;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::gizmo::GizmoRenderResources;
-use crate::render::light::{ExtractedLights, LightUniform};
+use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform};
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
@@ -458,16 +458,44 @@ impl MeshRenderResources {
             render_server
                 .device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
                         },
-                        count: None,
-                    }],
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                sample_type: wgpu::TextureSampleType::Depth,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                    ],
                     label: Some("mesh light bind group layout"),
                 });
 
@@ -571,31 +599,77 @@ impl MeshRenderResources {
         self.texture_bind_group_layout_cache.get(&flags).unwrap()
     }
 
-    pub fn prepare_lights(&mut self, render_server: &RenderServer, lights: &ExtractedLights) {
+    pub fn prepare_lights(
+        &mut self,
+        render_server: &RenderServer,
+        lights: &ExtractedLights,
+        light_render_resources: &LightRenderResources,
+        texture_cache: &TextureCache,
+    ) {
         let light_uniform_size = mem::size_of::<LightUniform>();
 
-        if self.light_bind_group.is_none() {
+        if self.light_uniform_buffer.is_none() {
             // We'll want to update our lights position, so we use COPY_DST.
-            let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("light uniform buffer"),
-                size: light_uniform_size as BufferAddress,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
+            self.light_uniform_buffer = Some(render_server.device.create_buffer(
+                &wgpu::BufferDescriptor {
+                    label: Some("light uniform buffer"),
+                    size: light_uniform_size as BufferAddress,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                },
+            ));
+        }
+
+        if self.light_bind_group.is_none()
+            && light_render_resources.shadow_map.is_some()
+            && light_render_resources.light_camera_uniform_buffer.is_some()
+        {
+            let shadow_map = texture_cache
+                .get(light_render_resources.shadow_map.unwrap())
+                .unwrap();
+
+            let shadow_sampler = render_server.device.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("shadow sampler"),
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Nearest,
+                compare: Some(wgpu::CompareFunction::LessEqual),
+                ..Default::default()
             });
 
             let bind_group = render_server
                 .device
                 .create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &self.light_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: buffer.as_entire_binding(),
-                    }],
-                    label: None,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: self.light_uniform_buffer.as_ref().unwrap().as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(&shadow_map.view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::Sampler(&shadow_sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: light_render_resources
+                                .light_camera_uniform_buffer
+                                .as_ref()
+                                .unwrap()
+                                .as_entire_binding(),
+                        },
+                    ],
+                    label: Some("light bind group with shadow"),
                 });
 
             self.light_bind_group = Some(bind_group);
-            self.light_uniform_buffer = Some(buffer);
         }
 
         let mut light_uniform = LightUniform::default();
@@ -697,7 +771,7 @@ impl MeshRenderResources {
                     create_render_pipeline(
                         &render_server.device,
                         &pipeline_layout,
-                        render_server.surface_config.format,
+                        Some(render_server.surface_config.format),
                         Some(Texture::DEPTH_FORMAT),
                         &[Vertex3d::desc(), InstanceRaw::desc()],
                         shader,
@@ -752,7 +826,7 @@ impl MeshRenderResources {
                     create_render_pipeline(
                         &render_server.device,
                         &pipeline_layout,
-                        render_server.surface_config.format,
+                        Some(render_server.surface_config.format),
                         Some(Texture::DEPTH_FORMAT),
                         &[Vertex3d::desc(), InstanceRaw::desc()],
                         shader,
@@ -831,6 +905,7 @@ pub(crate) fn prepare_meshes(
     texture_cache: &TextureCache,
     shader_maker: &mut ShaderMaker,
     mesh_render_resources: &mut MeshRenderResources,
+    light_render_resources: &LightRenderResources,
     camera_render_resources: &CameraRenderResources,
     render_server: &RenderServer,
 ) {
@@ -856,7 +931,12 @@ pub(crate) fn prepare_meshes(
         );
     }
 
-    mesh_render_resources.prepare_lights(render_server, extracted_lights);
+    mesh_render_resources.prepare_lights(
+        render_server,
+        extracted_lights,
+        light_render_resources,
+        texture_cache,
+    );
 
     mesh_render_resources.prepare_instances(render_server, &extracted_meshes);
 }

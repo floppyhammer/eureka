@@ -37,7 +37,8 @@ fn main() {
 
         // Directional light.
         let mut light = DirectionalLight::new();
-        light.transform.rotation = Quaternion::from_angle_y(Deg(-90.0f32.to_radians()));
+        light.strength = 5.0;
+        light.transform.rotation = Quaternion::from_angle_y(Deg(0.0f32.to_radians()));
         world.add_node(Box::new(light), None);
 
         // Model 1.

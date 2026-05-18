@@ -112,7 +112,7 @@ pub(crate) fn prepare_sky(
             create_render_pipeline(
                 device,
                 &pipeline_layout,
-                render_server.surface_config.format,
+                Some(render_server.surface_config.format),
                 Some(Texture::DEPTH_FORMAT),
                 &[VertexSky::desc()],
                 shader,
