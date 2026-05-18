@@ -1,7 +1,7 @@
 use cgmath::{Deg, Quaternion, Rotation, Rotation3, Vector3};
 use eureka::core::App;
 use eureka::render::Texture;
-use eureka::scene::{AsNode3d, Camera3d, Model, PointLight, Sky};
+use eureka::scene::{AsNode3d, Camera3d, Model, PointLight, DirectionalLight, Sky};
 
 fn main() {
     let mut app = App::new();
@@ -29,10 +29,15 @@ fn main() {
         let sky = Sky::new(skybox_tex);
         world.add_node(Box::new(sky), None);
 
-        // Light 1.
-        let mut light = PointLight::new();
-        light.set_position(Vector3::new(4.0, 5.0, 0.0));
-        light.strength = 5.0;
+        // Point light.
+        // let mut light = PointLight::new();
+        // light.set_position(Vector3::new(4.0, 5.0, 0.0));
+        // light.strength = 5.0;
+        // world.add_node(Box::new(light), None);
+
+        // Directional light.
+        let mut light = DirectionalLight::new();
+        light.transform.rotation = Quaternion::from_angle_y(Deg(-90.0f32.to_radians()));
         world.add_node(Box::new(light), None);
 
         // Model 1.

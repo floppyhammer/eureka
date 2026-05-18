@@ -1,9 +1,8 @@
 use crate::render::render_server::RenderServer;
 use anyhow::*;
-use image::{DynamicImage, GenericImageView, ImageBuffer, Rgb};
+use image::{DynamicImage, GenericImageView, ImageBuffer};
 use std::collections::HashMap;
 use std::path::Path;
-use std::time::Instant;
 use uuid;
 use wgpu::Extent3d;
 
@@ -212,11 +211,21 @@ impl Texture {
         config: &wgpu::SurfaceConfiguration,
         label: Option<&str>,
     ) -> TextureId {
+        Self::create_depth_texture_with_size(device, cache, config.width, config.height, label)
+    }
+
+    pub fn create_depth_texture_with_size(
+        device: &wgpu::Device,
+        cache: &mut TextureCache,
+        width: u32,
+        height: u32,
+        label: Option<&str>,
+    ) -> TextureId {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label,
             size: wgpu::Extent3d {
-                width: config.width,
-                height: config.height,
+                width,
+                height,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -243,7 +252,7 @@ impl Texture {
         });
 
         let texture = Texture {
-            size: (config.width, config.height),
+            size: (width, height),
             texture,
             view,
             sampler,

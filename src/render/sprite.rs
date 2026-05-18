@@ -372,7 +372,7 @@ pub(crate) fn prepare_sprite(
             need_new_batch = true
         }
 
-        if (need_new_batch) {
+        if need_new_batch {
             if current_batch.texture_id.is_some() {
                 current_batch.index_range.end = all_indices.len() as u32;
                 batches.push(current_batch.clone());
