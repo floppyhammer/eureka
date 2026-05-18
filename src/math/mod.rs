@@ -14,5 +14,5 @@ pub fn rect_to_vector4(rect: RectF) -> Vector4<f32> {
 }
 
 pub fn alignup_u32(a: u32, base: u32) -> u32 {
-    return (a + base - 1) / base;
+    (a + base - 1) / base
 }

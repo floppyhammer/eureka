@@ -54,7 +54,7 @@ pub(crate) struct UnicodeCharacter {
 pub(crate) struct Glyph {
     /// Unique ID specific to a font.
     ///
-    /// Codepoint cannot be used as an unique key in the font atlas image due to ligature.
+    /// Codepoint cannot be used as a unique key in the font atlas image due to ligature.
     /// For example, ر in مر and ر in م ر obviously have different glyphs.
     pub(crate) index: u16,
     /// Text of this glyph. For debugging reason.
@@ -235,7 +235,7 @@ impl DynamicFont {
         //     println!("Character: {}", c);
         // }
 
-        let mut face = rustybuzz::Face::from_slice(&self.raw_font_data, 0).unwrap();
+        let face = rustybuzz::Face::from_slice(&self.raw_font_data, 0).unwrap();
 
         let units_per_em = face.units_per_em();
 
@@ -262,7 +262,7 @@ impl DynamicFont {
             let glyph_count = glyphs.len();
 
             for run in level_runs.iter() {
-                let mut run = run.clone();
+                let run = run.clone();
 
                 // Skip paragraph separator.
                 // if bidi_info.original_classes[run.end - 1] == BidiClass::B {

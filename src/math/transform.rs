@@ -1,4 +1,4 @@
-use cgmath::{Deg, InnerSpace, Point3, Quaternion, Rotation3, Vector2, Vector3, Zero};
+use cgmath::{Deg, InnerSpace, Quaternion, Rotation3, Vector2, Vector3, Zero};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Transform2d {
