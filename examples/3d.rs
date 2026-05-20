@@ -39,7 +39,7 @@ fn main() {
 
         // Directional light.
         let mut light = DirectionalLight::new();
-        light.color = ColorU::new(0, 255, 0, 255);
+        // light.color = ColorU::new(0, 255, 0, 255);
         light.strength = 5.0;
         light.transform.rotation = Quaternion::from_angle_x(Deg(-90.0f32));
         world.add_node(Box::new(light), None);
@@ -58,22 +58,6 @@ fn main() {
         .unwrap();
         obj_model.set_position(Vector3::new(0.0, 2.0, 0.0));
         world.add_node(Box::new(obj_model), None);
-
-        // Model 2.
-        let mut obj_model2 = Model::load(
-            &mut render_world.texture_cache,
-            &mut render_world.mesh_render_resources.material_cache,
-            &mut render_world.mesh_cache,
-            &singletons.render_server,
-            &singletons
-                .asset_server
-                .asset_dir
-                .join("models/viking_room/viking_room.obj"),
-        )
-        .unwrap();
-        obj_model2.set_position(Vector3::new(5.0, 1.0, 0.0));
-        obj_model2.set_rotation(Quaternion::from_angle_z(Deg(180.0)));
-        world.add_node(Box::new(obj_model2), None);
 
         // Model 3.
         let mut obj_model3 = Model::load(
