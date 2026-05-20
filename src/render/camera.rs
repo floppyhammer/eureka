@@ -56,7 +56,7 @@ impl CameraUniform {
         let offset_limit = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
         let multiplier = alignup_u32(mem::size_of::<CameraUniform>() as u32, offset_limit);
 
-        return multiplier * offset_limit;
+        multiplier * offset_limit
     }
 }
 
