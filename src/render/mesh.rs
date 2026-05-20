@@ -483,7 +483,7 @@ impl MeshRenderResources {
                             visibility: wgpu::ShaderStages::FRAGMENT,
                             ty: wgpu::BindingType::Texture {
                                 multisampled: false,
-                                view_dimension: wgpu::TextureViewDimension::D2,
+                                view_dimension: wgpu::TextureViewDimension::D2Array,
                                 sample_type: wgpu::TextureSampleType::Depth,
                             },
                             count: None,
@@ -631,7 +631,7 @@ impl MeshRenderResources {
 
         if self.light_bind_group.is_none()
             && light_render_resources.shadow_map.is_some()
-            && light_render_resources.light_camera_uniform_buffer.is_some()
+            && light_render_resources.cascade_uniform_buffer.is_some()
         {
             let shadow_map = texture_cache
                 .get(light_render_resources.shadow_map.unwrap())
@@ -669,7 +669,7 @@ impl MeshRenderResources {
                         wgpu::BindGroupEntry {
                             binding: 3,
                             resource: light_render_resources
-                                .light_camera_uniform_buffer
+                                .cascade_uniform_buffer
                                 .as_ref()
                                 .unwrap()
                                 .as_entire_binding(),

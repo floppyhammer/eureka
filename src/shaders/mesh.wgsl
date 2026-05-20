@@ -42,11 +42,15 @@ struct Lights {
 var<uniform> lights: Lights;
 
 @group(1) @binding(1)
-var t_shadow: texture_depth_2d;
+var t_shadow: texture_depth_2d_array;
 @group(1) @binding(2)
 var s_shadow: sampler_comparison;
+struct CascadeUniform {
+    view_proj: array<mat4x4<f32>, 3>,
+    splits: vec4<f32>,
+}
 @group(1) @binding(3)
-var<uniform> light_camera: Camera;
+var<uniform> cascade_uniform: CascadeUniform;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -185,8 +189,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let light_dir = normalize(-lights.directional_light.direction);
         let half_dir = normalize(view_dir + light_dir);
 
-        // 2. Shadow mapping
-        let shadow_coords = light_camera.view_proj * in.world_position;
+        // 2. CSM Shadow mapping
+        // Calculate depth in view space for cascade selection.
+        let view_pos = camera.view * in.world_position;
+        let depth = -view_pos.z;
+
+        var cascade_index: u32 = 2u;
+        if (depth < cascade_uniform.splits.x) {
+            cascade_index = 0u;
+        } else if (depth < cascade_uniform.splits.y) {
+            cascade_index = 1u;
+        }
+
+        let shadow_coords = cascade_uniform.view_proj[cascade_index] * in.world_position;
         let shadow_pos = shadow_coords.xyz / shadow_coords.w;
         let shadow_uv = shadow_pos.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
 
@@ -199,17 +214,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             shadow_pos.y >= -1.0 && shadow_pos.y <= 1.0 &&
             shadow_pos.z >= 0.0 && shadow_pos.z <= 1.0) {
 
-            // Slope-scaled Bias: more bias when the light is at a steep angle.
-            // This prevents "Shadow Acne" while minimizing "Peter Panning".
-            let bias = max(0.0015 * (1.0 - n_dot_l), 0.0002);
+            // Slope-scaled Bias
+            let bias = max(0.0005 * (1.0 - n_dot_l), 0.00005);
 
-            // 3x3 PCF (Percentage Closer Filtering)
+            // 3x3 PCF (Percentage Closer Filtering) for array textures
             var shadow_sum = 0.0;
-            let texel_size = 1.0 / vec2<f32>(textureDimensions(t_shadow));
-            for (var y: f32 = -1.1; y <= 1.1; y += 1.1) {
-                for (var x: f32 = -1.1; x <= 1.1; x += 1.1) {
+            let texel_size = 1.0 / vec2<f32>(textureDimensions(t_shadow).xy);
+            for (var y: f32 = -1.0; y <= 1.0; y += 1.0) {
+                for (var x: f32 = -1.0; x <= 1.0; x += 1.0) {
                     let offset = vec2<f32>(x, y) * texel_size;
-                    shadow_sum += textureSampleCompare(t_shadow, s_shadow, shadow_uv + offset, shadow_pos.z - bias);
+                    shadow_sum += textureSampleCompare(t_shadow, s_shadow, shadow_uv + offset, i32(cascade_index), shadow_pos.z - bias);
                 }
             }
             shadow_factor = shadow_sum / 9.0;

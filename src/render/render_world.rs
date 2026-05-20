@@ -155,8 +155,15 @@ impl RenderWorld {
                     &render_server,
                 );
 
+                let main_camera = if self.extracted.cameras.uniforms.len() > i {
+                    Some(&self.extracted.cameras.uniforms[i])
+                } else {
+                    None
+                };
+
                 prepare_shadow(
                     &self.extracted.lights,
+                    main_camera,
                     render_server,
                     &mut self.texture_cache,
                     &mut self.light_render_resources,

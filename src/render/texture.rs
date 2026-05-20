@@ -203,22 +203,12 @@ impl Texture {
         Ok(cache.add(texture))
     }
 
-    pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-
-    pub fn create_depth_texture(
-        device: &wgpu::Device,
-        cache: &mut TextureCache,
-        config: &wgpu::SurfaceConfiguration,
-        label: Option<&str>,
-    ) -> TextureId {
-        Self::create_depth_texture_with_size(device, cache, config.width, config.height, label)
-    }
-
     pub fn create_depth_texture_with_size(
         device: &wgpu::Device,
         cache: &mut TextureCache,
         width: u32,
         height: u32,
+        layers: u32,
         label: Option<&str>,
     ) -> TextureId {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -226,7 +216,7 @@ impl Texture {
             size: wgpu::Extent3d {
                 width,
                 height,
-                depth_or_array_layers: 1,
+                depth_or_array_layers: layers,
             },
             mip_level_count: 1,
             sample_count: 1,
@@ -236,7 +226,21 @@ impl Texture {
             view_formats: &[],
         });
 
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("depth texture view"),
+            format: Some(Self::DEPTH_FORMAT),
+            dimension: if layers > 1 {
+                Some(wgpu::TextureViewDimension::D2Array)
+            } else {
+                Some(wgpu::TextureViewDimension::D2)
+            },
+            usage: Some(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT),
+            aspect: wgpu::TextureAspect::DepthOnly,
+            base_mip_level: 0,
+            mip_level_count: None,
+            base_array_layer: 0,
+            array_layer_count: Some(layers),
+        });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -260,6 +264,17 @@ impl Texture {
         };
 
         cache.add(texture)
+    }
+
+    pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
+    pub fn create_depth_texture(
+        device: &wgpu::Device,
+        cache: &mut TextureCache,
+        config: &wgpu::SurfaceConfiguration,
+        label: Option<&str>,
+    ) -> TextureId {
+        Self::create_depth_texture_with_size(device, cache, config.width, config.height, 1, label)
     }
 
     /// Set a new sampler for this texture.
