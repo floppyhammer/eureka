@@ -202,7 +202,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             // Slope-scaled Bias: more bias when the light is at a steep angle.
             // This prevents "Shadow Acne" while minimizing "Peter Panning".
             let bias = max(0.0015 * (1.0 - n_dot_l), 0.0002);
-            shadow_factor = textureSampleCompare(t_shadow, s_shadow, shadow_uv, shadow_pos.z - bias);
+
+            // 3x3 PCF (Percentage Closer Filtering)
+            var shadow_sum = 0.0;
+            let texel_size = 1.0 / vec2<f32>(textureDimensions(t_shadow));
+            for (var y: f32 = -1.1; y <= 1.1; y += 1.1) {
+                for (var x: f32 = -1.1; x <= 1.1; x += 1.1) {
+                    let offset = vec2<f32>(x, y) * texel_size;
+                    shadow_sum += textureSampleCompare(t_shadow, s_shadow, shadow_uv + offset, shadow_pos.z - bias);
+                }
+            }
+            shadow_factor = shadow_sum / 9.0;
         }
 
         // 3. Lighting calculation

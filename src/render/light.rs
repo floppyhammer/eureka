@@ -183,10 +183,11 @@ pub(crate) fn prepare_shadow(
     }
 
     if render_resources.shadow_map.is_none() {
-        let depth_texture = Texture::create_depth_texture(
+        let depth_texture = Texture::create_depth_texture_with_size(
             &render_server.device,
             texture_cache,
-            &render_server.surface_config,
+            2048,
+            2048,
             Some("shadow map"),
         );
 
