@@ -1,28 +1,17 @@
-use crate::asset::AssetServer;
-use crate::core::engine::Engine;
-use crate::math::alignup_u32;
 use crate::render::atlas::{prepare_atlas, render_atlas, AtlasRenderResources, ExtractedAtlas};
-use crate::render::bind_group::BindGroupCache;
-use crate::render::camera::{CameraRenderResources, CameraType, CameraUniform, ExtractedCameras};
+use crate::render::camera::{CameraRenderResources, CameraType, ExtractedCameras};
 use crate::render::draw_command::DrawCommands;
 use crate::render::gizmo::GizmoRenderResources;
-use crate::render::light::{prepare_shadow, render_shadow, ExtractedLights, LightRenderResources, LightUniform};
+use crate::render::light::{prepare_shadow, render_shadow, ExtractedLights, LightRenderResources};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sky::{prepare_sky, render_sky, ExtractedSky, SkyRenderResources};
 use crate::render::sprite::{
     prepare_sprite, render_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
 };
 use crate::render::{
-    prepare_meshes, render_meshes, DrawModel, ExtractedMesh, MeshCache, MeshRenderResources,
+    prepare_meshes, render_meshes, ExtractedMesh, MeshCache, MeshRenderResources,
     RenderServer, Texture, TextureCache, TextureId,
 };
-use crate::scene::{Camera2d, World};
-use crate::window::InputServer;
-use cgmath::Point2;
-use std::mem;
-use wgpu::{BufferAddress, DynamicOffset, SamplerBindingType};
-use winit::event_loop::EventLoop;
-use winit::window::Window;
 
 #[derive(Default, Clone)]
 pub struct Extracted {

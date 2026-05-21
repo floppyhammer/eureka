@@ -209,6 +209,7 @@ impl Texture {
         width: u32,
         height: u32,
         layers: u32,
+        cube_view: bool,
         label: Option<&str>,
     ) -> TextureId {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -229,73 +230,18 @@ impl Texture {
         let view = texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("depth texture view"),
             format: Some(Self::DEPTH_FORMAT),
-            dimension: if layers > 1 {
-                Some(wgpu::TextureViewDimension::D2Array)
+            dimension: if cube_view {
+                if layers > 6 {
+                    Some(wgpu::TextureViewDimension::CubeArray)
+                } else {
+                    Some(wgpu::TextureViewDimension::Cube)
+                }
             } else {
-                Some(wgpu::TextureViewDimension::D2)
-            },
-            usage: Some(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT),
-            aspect: wgpu::TextureAspect::DepthOnly,
-            base_mip_level: 0,
-            mip_level_count: None,
-            base_array_layer: 0,
-            array_layer_count: Some(layers),
-        });
-
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            compare: Some(wgpu::CompareFunction::LessEqual),
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 100.0,
-            ..Default::default()
-        });
-
-        let texture = Texture {
-            size: (width, height),
-            texture,
-            view,
-            sampler,
-            format: Self::DEPTH_FORMAT,
-        };
-
-        cache.add(texture)
-    }
-
-    pub fn create_cube_depth_texture_with_size(
-        device: &wgpu::Device,
-        cache: &mut TextureCache,
-        width: u32,
-        height: u32,
-        layers: u32,
-        label: Option<&str>,
-    ) -> TextureId {
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label,
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: layers,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: Self::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("cube depth texture view"),
-            format: Some(Self::DEPTH_FORMAT),
-            dimension: if layers > 6 {
-                Some(wgpu::TextureViewDimension::CubeArray)
-            } else {
-                Some(wgpu::TextureViewDimension::Cube)
+                if layers > 1 {
+                    Some(wgpu::TextureViewDimension::D2Array)
+                } else {
+                    Some(wgpu::TextureViewDimension::D2)
+                }
             },
             usage: Some(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT),
             aspect: wgpu::TextureAspect::DepthOnly,
@@ -337,7 +283,7 @@ impl Texture {
         config: &wgpu::SurfaceConfiguration,
         label: Option<&str>,
     ) -> TextureId {
-        Self::create_depth_texture_with_size(device, cache, config.width, config.height, 1, label)
+        Self::create_depth_texture_with_size(device, cache, config.width, config.height, 1, false, label)
     }
 
     /// Set a new sampler for this texture.

@@ -1,11 +1,8 @@
 use crate::render::camera::{CameraRenderResources, CameraUniform};
-use crate::render::gizmo::GizmoRenderResources;
-use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, ExtractedMesh, InstanceRaw, MeshCache, MeshRenderResources, RenderServer, Texture, TextureCache, TextureId};
 use crate::scene::OPENGL_TO_WGPU_MATRIX;
-use cgmath::{EuclideanSpace, InnerSpace, Matrix, Matrix4, Point3, SquareMatrix, Vector3};
-use std::mem;
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, SquareMatrix, Vector3};
 use wgpu::BufferAddress;
 
 #[repr(C)]
@@ -143,7 +140,7 @@ pub(crate) fn prepare_shadow(
     if render_resources.cascade_uniform_buffer.is_none() {
         let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("cascade uniform buffer"),
-            size: mem::size_of::<CascadeUniform>() as BufferAddress,
+            size: size_of::<CascadeUniform>() as BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -170,7 +167,7 @@ pub(crate) fn prepare_shadow(
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &buffer,
                         offset: 0,
-                        size: Some(wgpu::BufferSize::new(mem::size_of::<CameraUniform>() as u64).unwrap()),
+                        size: Some(wgpu::BufferSize::new(size_of::<CameraUniform>() as u64).unwrap()),
                     }),
                 }],
                 label: Some("shadow camera bind group"),
@@ -302,7 +299,7 @@ pub(crate) fn prepare_shadow(
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &buffer,
                         offset: 0,
-                        size: Some(wgpu::BufferSize::new(mem::size_of::<CameraUniform>() as u64).unwrap()),
+                        size: Some(wgpu::BufferSize::new(size_of::<CameraUniform>() as u64).unwrap()),
                     }),
                 }],
                 label: Some("point shadow camera bind group"),
@@ -357,18 +354,20 @@ pub(crate) fn prepare_shadow(
             2048,
             2048,
             NUM_CASCADES as u32,
-            Some("shadow map array"),
+            false,
+            Some("directional shadow map array"),
         );
         render_resources.directional_shadow_map = Some(depth_texture);
     }
 
     if render_resources.point_shadow_map.is_none() {
-        let depth_texture = Texture::create_cube_depth_texture_with_size(
+        let depth_texture = Texture::create_depth_texture_with_size(
             &render_server.device,
             texture_cache,
             512,
             512,
             (MAX_POINT_LIGHTS * 6) as u32,
+            true,
             Some("point shadow map cube array"),
         );
         render_resources.point_shadow_map = Some(depth_texture);

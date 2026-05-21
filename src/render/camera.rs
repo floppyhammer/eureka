@@ -1,4 +1,3 @@
-use crate::math::alignup_u32;
 use crate::render::RenderServer;
 use crate::scene::OPENGL_TO_WGPU_MATRIX;
 use cgmath::{ortho, perspective, Matrix4, Rad, Vector2};
@@ -54,10 +53,8 @@ impl Default for CameraUniform {
 impl CameraUniform {
     pub(crate) fn get_uniform_offset_unit() -> u32 {
         let offset_alignment = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
-        let size = mem::size_of::<CameraUniform>() as u32;
+        let size = size_of::<CameraUniform>() as u32;
 
-        // 标准的向上对齐公式：(size + alignment - 1) & !(alignment - 1)
-        // 这才是纯正且最安全的对齐计算，不需要多加任何乘法
         (size + offset_alignment - 1) & !(offset_alignment - 1)
     }
 }

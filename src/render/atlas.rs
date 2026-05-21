@@ -1,4 +1,3 @@
-use crate::math::alignup_u32;
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::VertexBuffer;
 use crate::render::{InstanceRaw, RenderServer, Texture, TextureCache, TextureId};
@@ -6,6 +5,7 @@ use cgmath::{Vector2, Vector4};
 use std::collections::HashMap;
 use std::mem;
 use wgpu::{BufferAddress, DynamicOffset, RenderPass, SamplerBindingType};
+use crate::render::camera::CameraUniform;
 
 pub struct AtlasRenderResources {
     // Use dynamic offset.
@@ -198,6 +198,15 @@ pub(crate) struct AtlasParamsUniform {
     atlas_size: [f32; 2],
 }
 
+impl AtlasParamsUniform {
+    pub(crate) fn get_uniform_offset_unit() -> u32 {
+        let offset_alignment = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
+        let size = size_of::<AtlasParamsUniform>() as u32;
+
+        (size + offset_alignment - 1) & !(offset_alignment - 1)
+    }
+}
+
 #[derive(Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub(crate) enum AtlasMode {
     #[default]
@@ -365,9 +374,7 @@ pub fn prepare_atlas(
 
     // Prepare the params uniform buffer.
     {
-        let offset_limit = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
-        let offset =
-            alignup_u32(mem::size_of::<AtlasParamsUniform>() as u32, offset_limit) * offset_limit;
+        let offset = AtlasParamsUniform::get_uniform_offset_unit();
 
         if render_resources.params_buffer_capacity < atlas_count {
             render_resources.params_buffer_capacity = atlas_count;

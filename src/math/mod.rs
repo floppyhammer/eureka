@@ -12,7 +12,3 @@ pub fn rect_to_vector4(rect: RectF) -> Vector4<f32> {
         rect.lower_right().y(),
     )
 }
-
-pub fn alignup_u32(a: u32, base: u32) -> u32 {
-    (a + base - 1) / base
-}

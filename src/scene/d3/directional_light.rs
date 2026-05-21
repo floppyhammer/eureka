@@ -1,17 +1,11 @@
 use crate::core::singleton::Singletons;
 use crate::math::color::ColorU;
 use crate::math::transform::Transform3d;
-use cgmath::prelude::*;
-use naga::SwitchValue::Default;
 use std::any::Any;
-use std::ops::Range;
-use std::path::Path;
 use cgmath::Vector3;
-use wgpu::util::DeviceExt;
 
 use crate::render::draw_command::DrawCommands;
-use crate::render::light::{DirectionalLightUniform, LightUniform, PointLightUniform};
-use crate::render::{Mesh, RenderServer, Texture};
+use crate::render::light::{DirectionalLightUniform};
 use crate::scene::{AsNode, NodeType};
 // use crate::scene::sprite3d::Sprite3d;
 // use crate::scene::{AsNode, CameraInfo, NodeType};

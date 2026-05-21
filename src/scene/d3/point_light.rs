@@ -1,16 +1,11 @@
 use crate::core::singleton::Singletons;
 use crate::math::color::ColorU;
-use crate::math::transform::Transform3d;
-use cgmath::prelude::*;
 use cgmath::{Quaternion, Vector3};
 use std::any::Any;
-use std::ops::Range;
-use std::path::Path;
 
 use crate::render::draw_command::DrawCommands;
-use crate::render::light::{LightUniform, PointLightUniform};
-use crate::render::{Mesh, RenderServer, Texture};
-use crate::scene::{AsNode, AsNode3d, Model, Node3d, NodeType};
+use crate::render::light::{PointLightUniform};
+use crate::scene::{AsNode, AsNode3d, Node3d, NodeType};
 // use crate::scene::sprite3d::Sprite3d;
 // use crate::scene::{AsNode, CameraInfo, NodeType};
 
