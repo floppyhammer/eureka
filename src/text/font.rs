@@ -10,15 +10,12 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::ops::Range;
-use std::path::Path;
-use std::str::FromStr;
 use std::time::Instant;
-use unicode_bidi::{BidiClass, BidiInfo, Level};
+use unicode_bidi::{BidiInfo, Level};
 use unicode_linebreak::{
-    break_property, linebreaks, BreakClass,
+    break_property, BreakClass,
     BreakOpportunity::{Allowed, Mandatory},
 };
-use unicode_segmentation::UnicodeSegmentation;
 
 /// Only scripts in this enum are supported.
 #[derive(Clone)]

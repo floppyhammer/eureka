@@ -1,5 +1,5 @@
-use crate::render::bind_group::{BindGroupCache, BindGroupId};
-use crate::render::{Texture, TextureCache, TextureId};
+use crate::render::bind_group::BindGroupId;
+use crate::render::{TextureCache, TextureId};
 use bitflags::bitflags;
 use std::collections::HashMap;
 
@@ -25,35 +25,35 @@ impl MaterialStandard {
     pub fn get_flags(&self) -> u32 {
         let mut flags = 0;
 
-        if (self.color_texture.is_some()) {
+        if self.color_texture.is_some() {
             flags = flags | MaterialFlags::COLOR_TEXTURE.bits();
         }
 
-        if (self.normal_texture.is_some()) {
+        if self.normal_texture.is_some() {
             flags = flags | MaterialFlags::NORMAL_TEXTURE.bits();
         }
 
-        return flags;
+        flags
     }
 
     pub fn get_shader_defs(&self) -> Vec<&str> {
         let mut shader_defs = vec![];
 
-        if (self.color_texture.is_some()) {
+        if self.color_texture.is_some() {
             shader_defs.push("COLOR_MAP");
         }
 
-        if (self.normal_texture.is_some()) {
+        if self.normal_texture.is_some() {
             shader_defs.push("NORMAP_MAP");
         }
 
-        return shader_defs;
+        shader_defs
     }
 
     pub fn get_bind_group_entries<'a>(
         &'a self,
         texture_cache: &'a TextureCache,
-    ) -> Vec<wgpu::BindGroupEntry> {
+    ) -> Vec<wgpu::BindGroupEntry<'a>> {
         let mut bind_group_entries = vec![];
         let mut next_binding = 0;
 

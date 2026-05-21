@@ -8,7 +8,6 @@ use std::time::Instant;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
 
-use crate::math::transform::Transform3d;
 use crate::render::draw_command::DrawCommands;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::vertex::Vertex3d;

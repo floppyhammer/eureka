@@ -34,7 +34,7 @@ pub struct RenderWorld {
     pub(crate) surface_depth_texture: TextureId,
     pub texture_cache: TextureCache,
     pub(crate) shader_maker: ShaderMaker,
-    pub camera_render_resources: CameraRenderResources,
+    pub(crate) camera_render_resources: CameraRenderResources,
 
     // Sprites.
     pub(crate) sprite_render_resources: SpriteRenderResources,
@@ -159,7 +159,7 @@ impl RenderWorld {
                     &self.camera_render_resources,
                 );
 
-                if (self.extracted.sky.is_some()) {
+                if self.extracted.sky.is_some() {
                     prepare_sky(
                         &mut self.sky_render_resources,
                         render_server,
@@ -202,7 +202,7 @@ impl RenderWorld {
                     self.camera_render_resources.bind_group.as_ref().unwrap(),
                 );
             } else {
-                if (self.camera_render_resources.bind_group.is_some()) {
+                if self.camera_render_resources.bind_group.is_some() {
                     render_sky(
                         self.camera_render_resources.bind_group.as_ref().unwrap(),
                         &self.sky_render_resources,

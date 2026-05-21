@@ -1,5 +1,5 @@
 use naga_oil::compose::{
-    ComposableModuleDescriptor, Composer, ComposerError, NagaModuleDescriptor, ShaderDefValue,
+    ComposableModuleDescriptor, Composer, NagaModuleDescriptor, ShaderDefValue,
 };
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -51,7 +51,7 @@ impl ShaderMaker {
         &mut self,
         source: &str,
         shader_defs: &[&str],
-    ) -> Option<wgpu::ShaderSource> {
+    ) -> Option<wgpu::ShaderSource<'_>> {
         let mut shader_defs_map: HashMap<String, ShaderDefValue> = HashMap::new();
         for def in shader_defs.iter() {
             shader_defs_map.insert((*def).into(), Default::default());

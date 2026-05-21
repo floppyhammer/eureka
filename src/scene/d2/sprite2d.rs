@@ -1,12 +1,11 @@
 use crate::core::singleton::Singletons;
-use crate::math::transform::Transform2d;
 use crate::render::camera::CameraUniform;
 use crate::render::draw_command::DrawCommands;
 use crate::render::sprite::ExtractedSprite2d;
 use crate::render::view::ViewInfo;
-use crate::render::{Mesh, Texture, TextureCache, TextureId};
+use crate::render::{TextureCache, TextureId};
 use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
-use crate::scene::{AsNode, Label, NodeType};
+use crate::scene::{AsNode, NodeType};
 use std::any::Any;
 use glam::{Mat4, Vec2, Vec3, Vec4};
 

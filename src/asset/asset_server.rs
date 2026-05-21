@@ -1,5 +1,4 @@
-use assets_manager::{loader, Asset, AssetCache, Compound, Handle};
-use std::collections::HashMap;
+use assets_manager::{AssetCache, Compound, Handle};
 use std::path::PathBuf;
 
 pub struct AssetServer {

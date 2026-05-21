@@ -7,7 +7,7 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use glam::{UVec2, Vec2};
+use glam::UVec2;
 use indextree::NodeId;
 
 use crate::core::engine::Engine;

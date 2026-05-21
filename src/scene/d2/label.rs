@@ -1,15 +1,10 @@
 use crate::core::singleton::Singletons;
-use crate::math::transform::Transform2d;
-use crate::render::atlas::{Atlas, AtlasMode, DrawAtlas, ExtractedAtlas};
+use crate::render::atlas::{Atlas, ExtractedAtlas};
 use crate::render::draw_command::DrawCommands;
-use crate::render::{RenderServer, TextureCache};
 use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
 use crate::scene::{AsNode, NodeType};
-use crate::text::FONT_ATLAS_SIZE;
-use image::DynamicImage;
 use std::any::Any;
 use glam::Vec2;
-use usvg::Node;
 
 pub struct Label {
     node_ui: NodeUi,

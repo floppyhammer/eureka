@@ -1,5 +1,4 @@
 use crate::math::transform::Transform2d;
-use crate::render::bind_group::{BindGroupCache, BindGroupId};
 use crate::render::camera::CameraUniform;
 use crate::render::vertex::{Vertex2d, VertexBuffer};
 use crate::render::{create_render_pipeline, Mesh, RenderServer, Texture, TextureCache, TextureId};
@@ -7,7 +6,7 @@ use glam::Vec2;
 use std::collections::HashMap;
 use std::mem;
 use std::ops::Range;
-use wgpu::{BufferAddress, Device, DynamicOffset, SamplerBindingType};
+use wgpu::{BufferAddress, Device, SamplerBindingType};
 
 /// Minimal data for rendering a sprite.
 #[derive(Debug, Copy, Clone)]

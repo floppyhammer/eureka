@@ -1,17 +1,17 @@
 use crate::math::transform::Transform3d;
-use crate::render::camera::{CameraRenderResources, CameraUniform};
+use crate::render::camera::CameraRenderResources;
 use crate::render::gizmo::GizmoRenderResources;
 use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform, MAX_POINT_LIGHTS};
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
-use crate::render::{create_render_pipeline, RenderServer, Texture, TextureCache, TextureId};
+use crate::render::{create_render_pipeline, RenderServer, Texture, TextureCache};
 use glam::{Mat3, Mat4, Quat, Vec3};
 use std::collections::HashMap;
 use std::mem;
 use std::ops::Range;
 use wgpu::util::DeviceExt;
-use wgpu::{BufferAddress, Device, SamplerBindingType};
+use wgpu::{BufferAddress, SamplerBindingType};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MeshId(uuid::Uuid);
@@ -558,7 +558,7 @@ impl MeshRenderResources {
         self.texture_bind_group_layout_cache.get(&flags).unwrap()
     }
 
-    pub fn prepare_lights(
+    pub(crate) fn prepare_lights(
         &mut self,
         render_server: &RenderServer,
         lights: &ExtractedLights,

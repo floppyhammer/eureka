@@ -1,11 +1,10 @@
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasInstance, AtlasMode};
-use crate::render::{RenderServer, Texture, TextureCache};
-use crate::text::{DynamicFont, Glyph, Script, FONT_ATLAS_SIZE};
+use crate::render::{RenderServer, TextureCache};
+use crate::text::{DynamicFont, FONT_ATLAS_SIZE};
 use glam::{Vec2, Vec4};
 use font_kit::source::SystemSource;
 use std::collections::HashMap;
-use std::iter::Map;
 use std::time::Instant;
 use unicode_linebreak::BreakClass;
 use crate::math::rect_to_vec4;

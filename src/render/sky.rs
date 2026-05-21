@@ -68,7 +68,7 @@ pub(crate) fn prepare_sky(
 ) {
     let device = &render_server.device;
 
-    if (render_resources.texture.is_none() || render_resources.texture.unwrap() != *texture_id) {
+    if render_resources.texture.is_none() || render_resources.texture.unwrap() != *texture_id {
         render_resources.texture = Some(*texture_id);
 
         let texture = texture_cache.get(*texture_id).unwrap();

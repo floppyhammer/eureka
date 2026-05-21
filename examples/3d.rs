@@ -1,6 +1,5 @@
 use glam::{Quat, Vec3};
 use eureka::core::App;
-use eureka::math::color::ColorU;
 use eureka::render::Texture;
 use eureka::scene::{AsNode3d, Camera3d, Model, PointLight, DirectionalLight, Sky};
 

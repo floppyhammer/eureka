@@ -1,9 +1,4 @@
-use crate::core::Singletons;
 use crate::math::transform::Transform2d;
-use crate::render::draw_command::DrawCommands;
-use crate::scene::NodeType;
-use crate::window::{InputEvent, InputServer};
-use std::any::Any;
 use glam::Vec2;
 
 pub struct NodeUi {

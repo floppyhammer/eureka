@@ -1,20 +1,4 @@
-// use crate::render::atlas::{AtlasInstance, AtlasInstanceRaw, AtlasParamsUniform};
-use crate::render::texture::Texture;
-// use crate::render::vertex::{VectorVertex, Vertex2d, Vertex3d, VertexBuffer, VertexSky};
-// use crate::scene::CameraUniform;
-// use crate::{scene, Camera2d, Camera3d, Light, SamplerBindingType};
-
-use crate::render::bind_group::BindGroupCache;
-use crate::render::camera::CameraUniform;
-use crate::render::shader_maker::ShaderMaker;
-use crate::render::sprite::{DrawSprite2d, ExtractedSprite2d, SpriteRenderResources};
-use crate::render::TextureCache;
-use std::collections::HashMap;
-use std::mem;
 use std::time::Instant;
-use wgpu::util::DeviceExt;
-use wgpu::PolygonMode::Point;
-use wgpu::{BufferAddress, TextureFormat};
 
 /// Contains render context (but not GPU resources)
 pub struct RenderServer<'a> {
@@ -65,7 +49,7 @@ impl<'a> RenderServer<'a> {
         //     bind_group_layout_cache.insert(label, bind_group_layout);
         // }
 
-        let mut server = Self {
+        let server = Self {
             device,
             queue,
             surface,

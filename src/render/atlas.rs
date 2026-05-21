@@ -417,7 +417,7 @@ pub fn prepare_atlas(
             uniforms.push(atlas_params);
         }
 
-        if (render_resources.params_buffer.is_some()) {
+        if render_resources.params_buffer.is_some() {
             // Consider align-up.
             let mut aligned_up_data = vec![0u8; offset as usize * instance_count];
 
