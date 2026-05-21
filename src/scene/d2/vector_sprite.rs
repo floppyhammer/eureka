@@ -6,7 +6,7 @@
 // use crate::math::transform::Transform2d;
 // use crate::scene::{AsNode, NodeType};
 // use crate::{Camera2d, RenderServer, Singletons};
-// use cgmath::{Vector2, Vector3};
+// use glam::{Vec2, Vec3};
 // use lyon::math::point;
 // use lyon::path::Path;
 // use lyon::tessellation::*;
@@ -17,7 +17,7 @@
 //
 // pub struct VectorSprite {
 //     pub transform: Transform2d,
-//     pub size: cgmath::Vector2<f32>,
+//     pub size: Vec2,
 //
 //     svg_data: Option<usvg::Tree>,
 //
@@ -28,7 +28,7 @@
 //     pub fn default() -> Self {
 //         Self {
 //             transform: Transform2d::default(),
-//             size: Vector2::new(0.0, 0.0),
+//             size: Vec2::new(0.0, 0.0),
 //             svg_data: None,
 //             need_to_rebuild: false,
 //         }
@@ -41,7 +41,7 @@
 //
 //         Self {
 //             transform: Transform2d::default(),
-//             size: Vector2::new(tree.size.width() as f32, tree.size.height() as f32),
+//             size: Vec2::new(tree.size.width() as f32, tree.size.height() as f32),
 //             svg_data: Some(tree),
 //             need_to_rebuild: true,
 //         }
@@ -64,13 +64,13 @@
 //     fn ready(&mut self) {}
 //
 //     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-//         // let translation = cgmath::Matrix4::from_translation(Vector3::new(-1.0, 1.0, 0.0));
+//         // let translation = Mat4::from_translation(Vec3::new(-1.0, 1.0, 0.0));
 //         //
-//         // let scale = cgmath::Matrix4::from_nonuniform_scale(
+//         // let scale = Mat4::from_scale(Vec3::new(
 //         //     1.0 / camera_info.view_size.x as f32 * 2.0,
 //         //     -1.0 / camera_info.view_size.y as f32 * 2.0,
 //         //     1.0,
-//         // );
+//         // ));
 //         //
 //         // // Note the multiplication direction (left multiplication).
 //         // // So, scale first, translation second.

@@ -1,8 +1,8 @@
 use crate::render::{RenderServer, Texture, TextureCache, TextureId};
 use allsorts::pathfinder_geometry::rect::RectI;
 use allsorts::pathfinder_geometry::vector::Vector2I;
-use cgmath::{Point2, Vector2, Vector4};
 use fontdue;
+use glam::{IVec2, UVec2, Vec4};
 use image::{DynamicImage, Luma};
 use std::cmp::{max, min};
 use std::collections::HashMap;
@@ -61,10 +61,10 @@ pub(crate) struct Glyph {
     text: String,
     unicode_characters: Vec<UnicodeCharacter>,
     /// Glyph's baseline origin in its bitmap.
-    pub(crate) offset: Vector2<i32>,
-    pub(crate) bitmap_size: Vector2<i32>,
+    pub(crate) offset: IVec2,
+    pub(crate) bitmap_size: IVec2,
     /// Local bbox w.r.t. baseline.
-    pub(crate) bounds: Vector4<f32>,
+    pub(crate) bounds: Vec4,
     /// X advance.
     pub(crate) x_adv: i32,
     /// Region in the font atlas. None means there's no such a glyph in this font.
@@ -101,7 +101,7 @@ pub(crate) struct DynamicFont {
     updated_atlas_region: Option<RectI>,
 
     /// Where should we put the next glyph in the atlas.
-    next_glyph_position: Point2<u32>,
+    next_glyph_position: UVec2,
     /// Current row in the atlas.
     max_height_of_current_row: u32,
 
@@ -164,7 +164,7 @@ impl DynamicFont {
             atlas_image,
             atlas_texture,
             updated_atlas_region: None,
-            next_glyph_position: Point2::new(0, 0),
+            next_glyph_position: UVec2::new(0, 0),
             max_height_of_current_row: 0,
             glyph_cache: HashMap::new(),
         }
@@ -435,9 +435,9 @@ impl DynamicFont {
                         index,
                         text: glyph_text,
                         unicode_characters,
-                        offset: Vector2::new(metrics.xmin, -metrics.ymin),
-                        bitmap_size: Vector2::new(metrics.width as i32, metrics.height as i32),
-                        bounds: Vector4::new(
+                        offset: IVec2::new(metrics.xmin, -metrics.ymin),
+                        bitmap_size: IVec2::new(metrics.width as i32, metrics.height as i32),
+                        bounds: Vec4::new(
                             metrics.bounds.xmin,
                             metrics.bounds.ymin,
                             metrics.bounds.xmin + metrics.bounds.width,

@@ -1,4 +1,4 @@
-use cgmath::Vector2;
+use glam::Vec2;
 use eureka::core::App;
 use eureka::render::Texture;
 use eureka::scene::Sprite2d;
@@ -42,11 +42,11 @@ fn main() {
         world.add_node(Box::new(sprite1), None);
 
         let mut sprite2 = Sprite2d::new(&render_world.texture_cache, img_tex);
-        sprite2.set_position(Vector2::new(200f32, 200f32));
+        sprite2.set_position(Vec2::new(200f32, 200f32));
         world.add_node(Box::new(sprite2), None);
 
         let mut sprite3 = Sprite2d::new(&render_world.texture_cache, img_tex2);
-        sprite3.set_position(Vector2::new(400f32, 400f32));
+        sprite3.set_position(Vec2::new(400f32, 400f32));
         world.add_node(Box::new(sprite3), None);
     });
 

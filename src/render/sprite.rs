@@ -3,8 +3,7 @@ use crate::render::bind_group::{BindGroupCache, BindGroupId};
 use crate::render::camera::CameraUniform;
 use crate::render::vertex::{Vertex2d, VertexBuffer};
 use crate::render::{create_render_pipeline, Mesh, RenderServer, Texture, TextureCache, TextureId};
-use cgmath::{ElementWise, Vector2};
-use naga::TypeInner::Vector;
+use glam::Vec2;
 use std::collections::HashMap;
 use std::mem;
 use std::ops::Range;
@@ -258,18 +257,18 @@ where
 /// CCW is front.
 const QUAD_INDICES: [u32; 6] = [0, 2, 3, 0, 1, 2];
 
-const QUAD_VERTEX_POSITIONS: [Vector2<f32>; 4] = [
-    Vector2::new(-0.5, 0.5),
-    Vector2::new(0.5, 0.5),
-    Vector2::new(0.5, -0.5),
-    Vector2::new(-0.5, -0.5),
+const QUAD_VERTEX_POSITIONS: [Vec2; 4] = [
+    Vec2::new(-0.5, 0.5),
+    Vec2::new(0.5, 0.5),
+    Vec2::new(0.5, -0.5),
+    Vec2::new(-0.5, -0.5),
 ];
 
-const QUAD_UVS: [Vector2<f32>; 4] = [
-    Vector2::new(0., 1.),
-    Vector2::new(1., 1.),
-    Vector2::new(1., 0.),
-    Vector2::new(0., 0.),
+const QUAD_UVS: [Vec2; 4] = [
+    Vec2::new(0., 1.),
+    Vec2::new(1., 1.),
+    Vec2::new(1., 0.),
+    Vec2::new(0., 0.),
 ];
 
 pub(crate) fn prepare_sprite(
@@ -342,7 +341,7 @@ pub(crate) fn prepare_sprite(
         };
 
         // By default, the size of the quad is the size of the texture.
-        let quad_size = Vector2::new(size.0, size.1);
+        let quad_size = Vec2::new(size.0, size.1);
 
         let mut vertices = vec![];
         vertices.reserve(4);
@@ -351,9 +350,9 @@ pub(crate) fn prepare_sprite(
         for i in 0..QUAD_VERTEX_POSITIONS.len() {
             let mut quad_pos = QUAD_VERTEX_POSITIONS[i];
             if !e.centered {
-                quad_pos += Vector2::new(0.5, 0.5);
+                quad_pos += Vec2::new(0.5, 0.5);
             }
-            let new_pos = transform.transform_point(&quad_pos.mul_element_wise(quad_size));
+            let new_pos = transform.transform_point(&(quad_pos * quad_size));
 
             vertices.push(Vertex2d {
                 position: new_pos.into(),

@@ -7,7 +7,7 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
-use cgmath::{Vector2};
+use glam::{UVec2, Vec2};
 use indextree::NodeId;
 
 use crate::core::engine::Engine;
@@ -17,7 +17,7 @@ use winit::dpi::{LogicalSize, PhysicalSize, Size};
 use crate::asset::AssetServer;
 use crate::core::singleton::Singletons;
 use crate::render::render_world::RenderWorld;
-use crate::render::{RenderServer};
+use crate::render::RenderServer;
 use crate::scene::{AsNode, World};
 use crate::text::TextServer;
 use crate::window::InputServer;
@@ -49,7 +49,7 @@ impl<'a> App<'a> {
         let event_loop = EventLoop::new().unwrap();
 
         let window_size = LogicalSize::new(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
-        let world = World::new(Vector2::new(window_size.width, window_size.height));
+        let world = World::new(UVec2::new(window_size.width, window_size.height));
 
         Self {
             window: None,
@@ -153,7 +153,7 @@ impl<'a> App<'a> {
                 }
 
                 self.world
-                    .when_view_size_changes(Vector2::new(new_size.width, new_size.height))
+                    .when_view_size_changes(UVec2::new(new_size.width, new_size.height))
             }
         }
     }

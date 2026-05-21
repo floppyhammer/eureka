@@ -1,6 +1,5 @@
-use crate::math::transform::{Transform2d, Transform3d};
-use crate::scene::{AsNodeUi, Sprite2d};
-use cgmath::{Quaternion, Vector2, Vector3};
+use crate::math::transform::Transform3d;
+use glam::{Quat, Vec3};
 
 pub struct Node3d {
     pub transform: Transform3d,
@@ -15,15 +14,15 @@ impl Default for Node3d {
 }
 
 pub trait AsNode3d {
-    fn get_position(&self) -> Vector3<f32>;
+    fn get_position(&self) -> Vec3;
 
-    fn set_position(&mut self, position: Vector3<f32>);
+    fn set_position(&mut self, position: Vec3);
 
-    fn get_rotation(&self) -> Quaternion<f32>;
+    fn get_rotation(&self) -> Quat;
 
-    fn set_rotation(&mut self, rotation: Quaternion<f32>);
+    fn set_rotation(&mut self, rotation: Quat);
 
-    fn get_scale(&self) -> Vector3<f32>;
+    fn get_scale(&self) -> Vec3;
 
-    fn set_scale(&mut self, scale: Vector3<f32>);
+    fn set_scale(&mut self, scale: Vec3);
 }

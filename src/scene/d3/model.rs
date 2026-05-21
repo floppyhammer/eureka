@@ -1,6 +1,6 @@
 use anyhow::Context;
 use anyhow::*;
-use cgmath::*;
+use glam::{Quat, Vec2, Vec3};
 use std::any::Any;
 use std::path::Path;
 use std::result::Result::Ok;
@@ -13,7 +13,7 @@ use crate::render::draw_command::DrawCommands;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::vertex::Vertex3d;
 use crate::render::{
-    ExtractedMesh, Instance, Mesh, MeshCache, MeshId, RenderServer, Texture, TextureCache,
+    ExtractedMesh, Mesh, MeshCache, MeshId, RenderServer, Texture, TextureCache,
 };
 use crate::scene::d3::node_3d::{AsNode3d, Node3d};
 use crate::scene::{AsNode, NodeType};
@@ -26,10 +26,6 @@ pub struct Model {
 
     // Mesh materials. Same length as the meshes.
     pub materials: Vec<Option<MaterialId>>,
-
-    // // For instancing.
-    // instances: Vec<Instance>,
-    // instance_buffer: wgpu::Buffer,
 
     // For debugging.
     pub name: String,
@@ -137,7 +133,6 @@ impl Model {
                         m.mesh.positions[i * 3 + 2],
                     ],
                     // Flip the vertical component of the texture coordinates.
-                    // Cf. https://vulkan-tutorial.com/Loading_models
                     uv: [m.mesh.texcoords[i * 2], 1.0 - m.mesh.texcoords[i * 2 + 1]],
                     normal: [
                         m.mesh.normals[i * 3],
@@ -151,57 +146,46 @@ impl Model {
             }
 
             let indices = &m.mesh.indices;
-            let mut triangles_included = (0..vertices.len()).collect::<Vec<_>>();
+            let mut triangles_included = vec![0; vertices.len()];
 
-            // Calculate tangents and bi-tangets. We're going to
-            // use the triangles, so we need to loop through the
-            // indices in chunks of 3.
+            // Calculate tangents and bi-tangets.
             for c in indices.chunks(3) {
                 let v0 = vertices[c[0] as usize];
                 let v1 = vertices[c[1] as usize];
                 let v2 = vertices[c[2] as usize];
 
-                let pos0: Vector3<_> = v0.position.into();
-                let pos1: Vector3<_> = v1.position.into();
-                let pos2: Vector3<_> = v2.position.into();
+                let pos0 = Vec3::from_array(v0.position);
+                let pos1 = Vec3::from_array(v1.position);
+                let pos2 = Vec3::from_array(v2.position);
 
-                let uv0: Vector2<_> = v0.uv.into();
-                let uv1: Vector2<_> = v1.uv.into();
-                let uv2: Vector2<_> = v2.uv.into();
+                let uv0 = Vec2::from_array(v0.uv);
+                let uv1 = Vec2::from_array(v1.uv);
+                let uv2 = Vec2::from_array(v2.uv);
 
                 // Calculate the edges of the triangle.
                 let delta_pos1 = pos1 - pos0;
                 let delta_pos2 = pos2 - pos0;
 
-                // This will give us a direction to calculate the
-                // tangent and bi-tangent.
                 let delta_uv1 = uv1 - uv0;
                 let delta_uv2 = uv2 - uv0;
 
-                // Solving the following system of equations will
-                // give us the tangent and bi-tangent.
-                //     delta_pos1 = delta_uv1.x * T + delta_uv1.y * B
-                //     delta_pos2 = delta_uv2.x * T + delta_uv2.y * B
-                // Luckily, the place I found this equation provided the solution!
                 let r = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x);
                 let tangent = (delta_pos1 * delta_uv2.y - delta_pos2 * delta_uv1.y) * r;
-                // We flip the bi-tangent to enable right-handed normal
-                // maps with wgpu texture coordinate system.
                 let bi_tangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
 
                 // We'll use the same tangent/bi-tangent for each vertex in the triangle.
                 vertices[c[0] as usize].tangent =
-                    (tangent + Vector3::from(vertices[c[0] as usize].tangent)).into();
+                    (tangent + Vec3::from_array(vertices[c[0] as usize].tangent)).to_array();
                 vertices[c[1] as usize].tangent =
-                    (tangent + Vector3::from(vertices[c[1] as usize].tangent)).into();
+                    (tangent + Vec3::from_array(vertices[c[1] as usize].tangent)).to_array();
                 vertices[c[2] as usize].tangent =
-                    (tangent + Vector3::from(vertices[c[2] as usize].tangent)).into();
+                    (tangent + Vec3::from_array(vertices[c[2] as usize].tangent)).to_array();
                 vertices[c[0] as usize].bi_tangent =
-                    (bi_tangent + Vector3::from(vertices[c[0] as usize].bi_tangent)).into();
+                    (bi_tangent + Vec3::from_array(vertices[c[0] as usize].bi_tangent)).to_array();
                 vertices[c[1] as usize].bi_tangent =
-                    (bi_tangent + Vector3::from(vertices[c[1] as usize].bi_tangent)).into();
+                    (bi_tangent + Vec3::from_array(vertices[c[1] as usize].bi_tangent)).to_array();
                 vertices[c[2] as usize].bi_tangent =
-                    (bi_tangent + Vector3::from(vertices[c[2] as usize].bi_tangent)).into();
+                    (bi_tangent + Vec3::from_array(vertices[c[2] as usize].bi_tangent)).to_array();
 
                 // Used to average the tangents/bi-tangents.
                 triangles_included[c[0] as usize] += 1;
@@ -212,9 +196,9 @@ impl Model {
             // Average the tangents/bi-tangents.
             for (i, n) in triangles_included.into_iter().enumerate() {
                 let denom = 1.0 / n as f32;
-                let mut v = &mut vertices[i];
-                v.tangent = (Vector3::from(v.tangent) * denom).normalize().into();
-                v.bi_tangent = (Vector3::from(v.bi_tangent) * denom).normalize().into();
+                let v = &mut vertices[i];
+                v.tangent = (Vec3::from_array(v.tangent) * denom).normalize().to_array();
+                v.bi_tangent = (Vec3::from_array(v.bi_tangent) * denom).normalize().to_array();
             }
 
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -246,9 +230,6 @@ impl Model {
             }
         }
 
-        // Set instance data. Default number of instances is one.
-        // let instances = vec![{ Instance { position, rotation } }];
-
         let elapsed_time = now.elapsed();
         log::info!(
             "Loading model took {} milliseconds",
@@ -260,7 +241,6 @@ impl Model {
             meshes,
             materials,
             name: "".to_string(),
-            // instances,
         })
     }
 }
@@ -291,42 +271,31 @@ impl AsNode for Model {
 
             draw_cmds.extracted.meshes.push(extracted_mesh);
         }
-
-        // // Set vertex buffer for InstanceInput.
-        // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-        //
-        // render_pass.draw_model_instanced(
-        //     singletons,
-        //     &self,
-        //     0..self.instances.len() as u32,
-        //     &camera_info.bind_group.unwrap(),
-        //     &camera_info.bind_group.unwrap(), // FIXME
-        // );
     }
 }
 
 impl AsNode3d for Model {
-    fn get_position(&self) -> Vector3<f32> {
+    fn get_position(&self) -> Vec3 {
         self.node_3d.transform.position
     }
 
-    fn set_position(&mut self, position: Vector3<f32>) {
+    fn set_position(&mut self, position: Vec3) {
         self.node_3d.transform.position = position;
     }
 
-    fn get_rotation(&self) -> Quaternion<f32> {
+    fn get_rotation(&self) -> Quat {
         self.node_3d.transform.rotation
     }
 
-    fn set_rotation(&mut self, rotation: Quaternion<f32>) {
+    fn set_rotation(&mut self, rotation: Quat) {
         self.node_3d.transform.rotation = rotation;
     }
 
-    fn get_scale(&self) -> Vector3<f32> {
+    fn get_scale(&self) -> Vec3 {
         self.node_3d.transform.scale
     }
 
-    fn set_scale(&mut self, scale: Vector3<f32>) {
+    fn set_scale(&mut self, scale: Vec3) {
         self.node_3d.transform.scale = scale;
     }
 }

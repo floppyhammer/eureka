@@ -1,8 +1,7 @@
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, ExtractedMesh, InstanceRaw, MeshCache, MeshRenderResources, RenderServer, Texture, TextureCache, TextureId};
-use crate::scene::OPENGL_TO_WGPU_MATRIX;
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, SquareMatrix, Vector3};
+use glam::{Mat4, Vec3};
 use wgpu::BufferAddress;
 
 #[repr(C)]
@@ -36,14 +35,14 @@ pub(crate) struct ExtractedLights {
 pub(crate) const MAX_POINT_LIGHTS: usize = 4;
 pub(crate) const NUM_CASCADES: usize = 3;
 
-const POINT_SHADOW_FACES: [(Vector3<f32>, Vector3<f32>); 6] = [
+const POINT_SHADOW_FACES: [(Vec3, Vec3); 6] = [
     // 每一个面的 (Target, Up) 必须严格对应
-    (Vector3::new(1.0, 0.0, 0.0),  Vector3::new(0.0, -1.0, 0.0)), // +X
-    (Vector3::new(-1.0, 0.0, 0.0), Vector3::new(0.0, -1.0, 0.0)), // -X
-    (Vector3::new(0.0, 1.0, 0.0),  Vector3::new(0.0, 0.0, 1.0)),  // +Y (注意 Up 是 +Z)
-    (Vector3::new(0.0, -1.0, 0.0), Vector3::new(0.0, 0.0, -1.0)), // -Y (注意 Up 是 -Z)
-    (Vector3::new(0.0, 0.0, 1.0),  Vector3::new(0.0, -1.0, 0.0)), // +Z
-    (Vector3::new(0.0, 0.0, -1.0), Vector3::new(0.0, -1.0, 0.0)), // -Z
+    (Vec3::new(1.0, 0.0, 0.0),  Vec3::new(0.0, -1.0, 0.0)), // +X
+    (Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0)), // -X
+    (Vec3::new(0.0, 1.0, 0.0),  Vec3::new(0.0, 0.0, 1.0)),  // +Y (注意 Up 是 +Z)
+    (Vec3::new(0.0, -1.0, 0.0), Vec3::new(0.0, 0.0, -1.0)), // -Y (注意 Up 是 -Z)
+    (Vec3::new(0.0, 0.0, 1.0),  Vec3::new(0.0, -1.0, 0.0)), // +Z
+    (Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, -1.0, 0.0)), // -Z
 ];
 
 #[repr(C)]
@@ -179,16 +178,16 @@ pub(crate) fn prepare_shadow(
 
     // Directional shadow logic
     if let (Some(directional_light), Some(camera)) = (&extracted_lights.directional_light, main_camera) {
-        let light_dir = Vector3::from(directional_light.direction).normalize();
+        let light_dir = Vec3::from_array(directional_light.direction).normalize();
 
         // 视锥体分割距离
         let near = 0.1;
         let far = 100.0;
         let cascade_splits = [near, 10.0, 35.0, far];
 
-        let view_mat = Matrix4::from(camera.view);
-        let proj_mat = Matrix4::from(camera.proj);
-        let inv_cam = (proj_mat * view_mat).invert().expect("Main camera matrix should be invertible");
+        let view_mat = Mat4::from_cols_array_2d(&camera.view);
+        let proj_mat = Mat4::from_cols_array_2d(&camera.proj);
+        let inv_cam = (proj_mat * view_mat).inverse();
 
         let mut camera_uniforms = Vec::new();
         let mut cascade_uniform = CascadeUniform::default();
@@ -200,24 +199,23 @@ pub(crate) fn prepare_shadow(
 
             // WGPU NDC 空间 Z 是 0.0 到 1.0
             let corners = [
-                cgmath::Point3::new(-1.0, 1.0, 0.0),
-                cgmath::Point3::new(1.0, 1.0, 0.0),
-                cgmath::Point3::new(1.0, -1.0, 0.0),
-                cgmath::Point3::new(-1.0, -1.0, 0.0),
-                cgmath::Point3::new(-1.0, 1.0, 1.0),
-                cgmath::Point3::new(1.0, 1.0, 1.0),
-                cgmath::Point3::new(1.0, -1.0, 1.0),
-                cgmath::Point3::new(-1.0, -1.0, 1.0),
+                Vec3::new(-1.0, 1.0, 0.0),
+                Vec3::new(1.0, 1.0, 0.0),
+                Vec3::new(1.0, -1.0, 0.0),
+                Vec3::new(-1.0, -1.0, 0.0),
+                Vec3::new(-1.0, 1.0, 1.0),
+                Vec3::new(1.0, 1.0, 1.0),
+                Vec3::new(1.0, -1.0, 1.0),
+                Vec3::new(-1.0, -1.0, 1.0),
             ];
 
-            let mut world_corners = [cgmath::Point3::origin(); 8];
+            let mut world_corners = [Vec3::ZERO; 8];
             for j in 0..8 {
-                let pt = inv_cam * corners[j].to_vec().extend(1.0);
-                world_corners[j] = cgmath::Point3::from_vec(pt.truncate() / pt.w);
+                let pt = inv_cam.project_point3(corners[j]);
+                world_corners[j] = pt;
             }
 
             // 修正级联裁剪：根据分割距离重新计算世界坐标
-            // 线性插值虽然不完全准确，但对于正交光足够。更好的做法是重投影深度。
             for j in 0..4 {
                 let dir = world_corners[j + 4] - world_corners[j];
                 world_corners[j + 4] = world_corners[j] + dir * (split_far / far);
@@ -225,39 +223,46 @@ pub(crate) fn prepare_shadow(
             }
 
             // 稳定化级联：计算包围球中心
-            let mut center = cgmath::Vector3::new(0.0, 0.0, 0.0);
+            let mut center = Vec3::ZERO;
             for j in 0..8 {
-                center += world_corners[j].to_vec();
+                center += world_corners[j];
             }
             center /= 8.0;
 
-            // 计算包围球半径
+            // 稳定化级联：计算包围球半径
             let mut radius = 0.0f32;
             for j in 0..8 {
-                let distance = (world_corners[j] - Point3::from_vec(center)).magnitude();
+                let distance = (world_corners[j] - center).length();
                 radius = radius.max(distance);
             }
             radius = (radius * 1.1).ceil(); // 稍微扩大并取整以稳定像素
 
             // 灯光相机观察矩阵：将眼睛退后足够远，以防遮挡物被切
-            let light_view = Matrix4::look_at_rh(
-                cgmath::Point3::from_vec(center - light_dir * radius * 2.0),
-                cgmath::Point3::from_vec(center),
-                Vector3::unit_y(),
+            // 增加对垂直灯光方向的处理，防止 look_at_rh 产生 NaN
+            let mut light_up = Vec3::Y;
+            if light_dir.dot(light_up).abs() > 0.99 {
+                light_up = Vec3::Z;
+            }
+
+            let light_view = Mat4::look_at_rh(
+                center - light_dir * radius * 2.0,
+                center,
+                light_up,
             );
 
             // 使用包围球半径创建对称的正交矩阵
-            let light_proj = cgmath::ortho(-radius, radius, -radius, radius, 0.0, radius * 4.0);
-            let view_proj = OPENGL_TO_WGPU_MATRIX * light_proj * light_view;
+            // glam::Mat4::orthographic_rh maps Z to [0, 1]
+            let light_proj = Mat4::orthographic_rh(-radius, radius, -radius, radius, 0.0, radius * 4.0);
+            let view_proj = light_proj * light_view;
 
             camera_uniforms.push(CameraUniform {
                 view_position: [center.x, center.y, center.z, 1.0],
-                view: light_view.into(),
-                proj: light_proj.into(),
-                view_proj: view_proj.into(),
+                view: light_view.to_cols_array_2d(),
+                proj: light_proj.to_cols_array_2d(),
+                view_proj: view_proj.to_cols_array_2d(),
             });
 
-            cascade_uniform.view_proj[i] = view_proj.into();
+            cascade_uniform.view_proj[i] = view_proj.to_cols_array_2d();
         }
 
         // 写入缓冲区逻辑保持不变
@@ -316,18 +321,18 @@ pub(crate) fn prepare_shadow(
         if i >= MAX_POINT_LIGHTS {
             break;
         }
-        let light_pos = Point3::from(light.position);
+        let light_pos = Vec3::from_array(light.position);
 
         for face in 0..6 {
             let (target, up) = POINT_SHADOW_FACES[face];
-            let light_view = Matrix4::look_at_rh(light_pos, light_pos + target, up);
+            let light_view = Mat4::look_at_rh(light_pos, light_pos + target, up);
             let view_proj = point_light_proj * light_view;
 
             point_camera_uniforms[i * 6 + face] = CameraUniform {
                 view_position: [light_pos.x, light_pos.y, light_pos.z, 1.0],
-                view: light_view.into(),
-                proj: point_light_proj.into(),
-                view_proj: view_proj.into(),
+                view: light_view.to_cols_array_2d(),
+                proj: point_light_proj.to_cols_array_2d(),
+                view_proj: view_proj.to_cols_array_2d(),
             };
         }
     }
@@ -503,17 +508,12 @@ pub(crate) fn render_shadow(
     }
 }
 
-fn wgpu_perspective() -> Matrix4<f32> {
-    // 1. 使用 cgmath 内置的标准透视矩阵生成函数
-    // 点光源 CubeMap 的每个面必须严格满足：FOV 为 90 度，Aspect 宽高比为 1.0
-    let opengl_proj = cgmath::perspective(
-        cgmath::Deg(90.0f32),
+fn wgpu_perspective() -> Mat4 {
+    // glam::Mat4::perspective_rh maps Z to [0, 1]
+    Mat4::perspective_rh(
+        90.0f32.to_radians(),
         1.0f32,
         0.1f32,
         100.0f32
-    );
-
-    // 2. 将 OpenGL 默认的 [-1, 1] 深度直接纠正映射到 WGPU 的 [0, 1] 深度空间
-    // 这样做出来的矩阵其内存排布、正负号、深度平面会完全匹配你的场景
-    OPENGL_TO_WGPU_MATRIX * opengl_proj
+    )
 }

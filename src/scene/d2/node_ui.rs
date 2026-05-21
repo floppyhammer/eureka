@@ -3,32 +3,32 @@ use crate::math::transform::Transform2d;
 use crate::render::draw_command::DrawCommands;
 use crate::scene::NodeType;
 use crate::window::{InputEvent, InputServer};
-use cgmath::Vector2;
 use std::any::Any;
+use glam::Vec2;
 
 pub struct NodeUi {
     pub transform: Transform2d,
 
-    pub size: Vector2<f32>,
+    pub size: Vec2,
 }
 
 impl Default for NodeUi {
     fn default() -> Self {
         Self {
             transform: Transform2d::default(),
-            size: Vector2::new(128.0_f32, 128.0),
+            size: Vec2::new(128.0_f32, 128.0),
         }
     }
 }
 
 pub trait AsNodeUi {
-    fn get_size(&self) -> Vector2<f32>;
+    fn get_size(&self) -> Vec2;
 
-    fn set_size(&mut self, size: Vector2<f32>);
+    fn set_size(&mut self, size: Vec2);
 
-    fn get_position(&self) -> Vector2<f32>;
+    fn get_position(&self) -> Vec2;
 
-    fn set_position(&mut self, position: Vector2<f32>);
+    fn set_position(&mut self, position: Vec2);
 
     fn get_rotation(&self) -> f32;
 

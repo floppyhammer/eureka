@@ -7,8 +7,8 @@ use crate::render::view::ViewInfo;
 use crate::render::{Mesh, Texture, TextureCache, TextureId};
 use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
 use crate::scene::{AsNode, Label, NodeType};
-use cgmath::{Vector2, Vector3, Vector4};
 use std::any::Any;
+use glam::{Mat4, Vec2, Vec3, Vec4};
 
 pub struct SpriteSheet {
     h_frames: u32,
@@ -29,7 +29,7 @@ pub struct Sprite2d {
     pub name: String,
 
     // A portion of the texture to draw.
-    pub region: Vector4<f32>,
+    pub region: Vec4,
 
     pub sprite_sheet: SpriteSheet,
 
@@ -48,9 +48,9 @@ impl Sprite2d {
     pub fn new(texture_cache: &TextureCache, texture_id: TextureId) -> Sprite2d {
         let texture = texture_cache.get(texture_id).unwrap();
 
-        let size = Vector2::new(texture.size.0 as f32, texture.size.1 as f32);
+        let size = Vec2::new(texture.size.0 as f32, texture.size.1 as f32);
 
-        let region = Vector4::new(0.0, 0.0, 1.0, 1.0);
+        let region = Vec4::new(0.0, 0.0, 1.0, 1.0);
 
         Self {
             node_ui: NodeUi::default(),
@@ -85,7 +85,7 @@ impl Sprite2d {
         let view_size = view_info.view_size;
 
         let translation = if self.centered {
-            cgmath::Matrix4::from_translation(Vector3::new(
+            Mat4::from_translation(Vec3::new(
                 (transform.position.x / view_size.x as f32 - scaled_width * 0.5)
                     / view_size.x as f32
                     * 2.0
@@ -97,22 +97,22 @@ impl Sprite2d {
                 0.0,
             ))
         } else {
-            cgmath::Matrix4::from_translation(Vector3::new(
+            Mat4::from_translation(Vec3::new(
                 transform.position.x / view_size.x as f32 * 2.0 - 1.0,
                 transform.position.y / view_size.y as f32 * 2.0 + 1.0,
                 0.0,
             ))
         };
 
-        let scale = cgmath::Matrix4::from_nonuniform_scale(
+        let scale = Mat4::from_scale(Vec3::new(
             scaled_width / view_size.x as f32 * 2.0,
             scaled_height / view_size.y as f32 * 2.0,
             1.0,
-        );
+        ));
 
         // Note the multiplication direction (left multiplication).
         // So, scale first, translation second.
-        camera_uniform.proj = (translation * scale).into();
+        camera_uniform.proj = (translation * scale).to_cols_array_2d();
 
         camera_uniform
     }
@@ -162,19 +162,19 @@ impl AsNode for Sprite2d {
 }
 
 impl AsNodeUi for Sprite2d {
-    fn get_size(&self) -> Vector2<f32> {
+    fn get_size(&self) -> Vec2 {
         self.node_ui.size
     }
 
-    fn set_size(&mut self, size: Vector2<f32>) {
+    fn set_size(&mut self, size: Vec2) {
         self.node_ui.size = size;
     }
 
-    fn get_position(&self) -> Vector2<f32> {
+    fn get_position(&self) -> Vec2 {
         self.node_ui.transform.position
     }
 
-    fn set_position(&mut self, position: Vector2<f32>) {
+    fn set_position(&mut self, position: Vec2) {
         self.node_ui.transform.position = position;
     }
 

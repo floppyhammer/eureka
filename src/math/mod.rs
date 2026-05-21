@@ -2,10 +2,10 @@ pub mod color;
 pub mod transform;
 
 use allsorts::pathfinder_geometry::rect::RectF;
-use cgmath::Vector4;
+use glam::Vec4;
 
-pub fn rect_to_vector4(rect: RectF) -> Vector4<f32> {
-    Vector4::new(
+pub fn rect_to_vec4(rect: RectF) -> Vec4 {
+    Vec4::new(
         rect.min_x(),
         rect.min_y(),
         rect.lower_right().x(),

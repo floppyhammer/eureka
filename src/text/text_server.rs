@@ -1,14 +1,14 @@
-use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasInstance, AtlasMode};
 use crate::render::{RenderServer, Texture, TextureCache};
 use crate::text::{DynamicFont, Glyph, Script, FONT_ATLAS_SIZE};
-use cgmath::{Point2, Vector2, Vector4};
+use glam::{Vec2, Vec4};
 use font_kit::source::SystemSource;
 use std::collections::HashMap;
 use std::iter::Map;
 use std::time::Instant;
 use unicode_linebreak::BreakClass;
+use crate::math::rect_to_vec4;
 
 pub struct TextServer {
     fonts: HashMap<String, DynamicFont>,
@@ -88,9 +88,9 @@ impl TextServer {
         let mut instances = vec![];
 
         // Move origin from baseline to top-left.
-        let origin = xform.position + Vector2::new(0.0, ascent);
+        let origin = xform.position + Vec2::new(0.0, ascent);
 
-        let mut layout_pos = Vector2::new(0.0, 0.0);
+        let mut layout_pos = Vec2::new(0.0, 0.0);
 
         for para in paras {
             for i in para {
@@ -99,13 +99,13 @@ impl TextServer {
                 // We only draw valid glyphs.
                 if let Some(region) = g.region {
                     let instance = AtlasInstance {
-                        position: Vector2::new(
+                        position: Vec2::new(
                             layout_pos.x + g.offset.x as f32,
                             layout_pos.y + g.offset.y as f32,
                         ) + origin,
-                        size: Vector2::new(g.bitmap_size.x as f32, g.bitmap_size.y as f32),
-                        region: rect_to_vector4(region.to_f32()) / FONT_ATLAS_SIZE as f32,
-                        color: Vector4::new(1.0, 1.0, 1.0, 1.0),
+                        size: Vec2::new(g.bitmap_size.x as f32, g.bitmap_size.y as f32),
+                        region: rect_to_vec4(region.to_f32()) / FONT_ATLAS_SIZE as f32,
+                        color: Vec4::new(1.0, 1.0, 1.0, 1.0),
                     };
                     instances.push(instance);
                 }

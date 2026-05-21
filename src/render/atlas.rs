@@ -1,11 +1,10 @@
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::VertexBuffer;
 use crate::render::{InstanceRaw, RenderServer, Texture, TextureCache, TextureId};
-use cgmath::{Vector2, Vector4};
+use glam::{UVec2, Vec2, Vec4};
 use std::collections::HashMap;
 use std::mem;
 use wgpu::{BufferAddress, DynamicOffset, RenderPass, SamplerBindingType};
-use crate::render::camera::CameraUniform;
 
 pub struct AtlasRenderResources {
     // Use dynamic offset.
@@ -167,18 +166,18 @@ impl AtlasRenderResources {
 /// CPU data for drawing multiple sprites with an instanced draw call.
 #[derive(Clone)]
 pub struct AtlasInstance {
-    pub(crate) position: Vector2<f32>,
-    pub(crate) size: Vector2<f32>,
+    pub(crate) position: Vec2,
+    pub(crate) size: Vec2,
     // Region in the atlas.
-    pub(crate) region: Vector4<f32>,
+    pub(crate) region: Vec4,
     // Tint color.
-    pub(crate) color: Vector4<f32>,
+    pub(crate) color: Vec4,
 }
 
 #[derive(Clone)]
 pub struct ExtractedAtlas {
     pub(crate) atlas: Atlas,
-    pub(crate) view_size: Vector2<u32>,
+    pub(crate) view_size: UVec2,
 }
 
 /// GPU data.
@@ -216,7 +215,7 @@ pub(crate) enum AtlasMode {
 
 /// Parameters for atlas drawing control.
 impl AtlasParamsUniform {
-    pub(crate) fn new(atlas_size: Vector2<u32>, camera_view_size: Vector2<u32>) -> Self {
+    pub(crate) fn new(atlas_size: UVec2, camera_view_size: UVec2) -> Self {
         Self {
             camera_view_size: [camera_view_size.x as f32, camera_view_size.y as f32],
             atlas_size: [atlas_size.x as f32, atlas_size.y as f32],

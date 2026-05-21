@@ -6,8 +6,7 @@ use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
 use crate::render::{create_render_pipeline, RenderServer, Texture, TextureCache, TextureId};
-use cgmath::{Deg, InnerSpace, Matrix3, Matrix4, Quaternion, Rotation3, Vector3, Zero};
-use lyon::path::Position;
+use glam::{Mat3, Mat4, Quat, Vec3};
 use std::collections::HashMap;
 use std::mem;
 use std::ops::Range;
@@ -232,30 +231,27 @@ pub(crate) struct InstanceRaw {
 // Drawing thousands of [Model]s can be slow,
 // since each object is submitted to the GPU then drawn individually.
 pub(crate) struct Instance {
-    pub(crate) position: Vector3<f32>,
-    pub(crate) scale: Vector3<f32>,
-    pub(crate) rotation: Quaternion<f32>,
+    pub(crate) position: Vec3,
+    pub(crate) scale: Vec3,
+    pub(crate) rotation: Quat,
 }
 
 impl Instance {
     /// Convert Instance to InstanceRaw.
     pub(crate) fn to_raw(&self) -> InstanceRaw {
-        let model = Matrix4::from_translation(self.position)
-            * Matrix4::from(self.rotation)
-            * Matrix4::from_nonuniform_scale(self.scale.x, self.scale.y, self.scale.z);
+        let model = Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position);
 
         // Correct normal matrix: transpose(inverse(upper_left_3x3(model)))
-        // For efficiency, if there's no non-uniform scaling, Matrix3::from(rotation) works.
         // But to be safe with scaling:
-        let normal = Matrix3::from_cols(
-            self.rotation * Vector3::new(1.0 / self.scale.x, 0.0, 0.0),
-            self.rotation * Vector3::new(0.0, 1.0 / self.scale.y, 0.0),
-            self.rotation * Vector3::new(0.0, 0.0, 1.0 / self.scale.z),
+        let normal = Mat3::from_cols(
+            self.rotation * Vec3::new(1.0 / self.scale.x, 0.0, 0.0),
+            self.rotation * Vec3::new(0.0, 1.0 / self.scale.y, 0.0),
+            self.rotation * Vec3::new(0.0, 0.0, 1.0 / self.scale.z),
         );
 
         InstanceRaw {
-            model: model.into(),
-            normal: normal.into(),
+            model: model.to_cols_array_2d(),
+            normal: normal.to_cols_array_2d(),
         }
     }
 }
@@ -332,25 +328,6 @@ pub trait DrawModel<'a> {
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     );
-
-    // fn draw_meshes(
-    //     &mut self,
-    //     singletons: &'a mut Singletons,
-    //     meshes: &'a &[Mesh],
-    //     materials: &'a &[MaterialId],
-    //     camera_bind_group: &'a wgpu::BindGroup,
-    //     light_bind_group: &'a wgpu::BindGroup,
-    // );
-    //
-    // fn draw_meshes_instanced(
-    //     &mut self,
-    //     singletons: &'a mut Singletons,
-    //     meshes: &'a &[Mesh],
-    //     materials: &'a &[MaterialId],
-    //     instances: Range<u32>,
-    //     camera_bind_group: &'a wgpu::BindGroup,
-    //     light_bind_group: &'a wgpu::BindGroup,
-    // );
 }
 
 /// Rendering a mesh.
@@ -395,49 +372,12 @@ where
         self.set_bind_group(1, light_bind_group, &[]);
 
         // Set textures.
-        if (material_bind_group.is_some()) {
+        if material_bind_group.is_some() {
             self.set_bind_group(2, material_bind_group.unwrap(), &[]);
         }
 
         self.draw_indexed(0..mesh.index_count, 0, instances);
     }
-
-    // fn draw_meshes(
-    //     &mut self,
-    //     singletons: &'b mut Singletons,
-    //     meshes: &'b &[Mesh],
-    //     materials: &'b &[MaterialId],
-    //     camera_bind_group: &'b wgpu::BindGroup,
-    //     light_bind_group: &'b wgpu::BindGroup,
-    // ) {
-    //     self.draw_meshes_instanced(singletons, meshes, materials, 0..1, camera_bind_group, light_bind_group);
-    // }
-
-    // fn draw_meshes_instanced(
-    //     &mut self,
-    //     singletons: &'b mut Singletons,
-    //     meshes: &'b [&Mesh],
-    //     instances: Range<u32>,
-    //     texture_bind_groups: &'b [Option<&wgpu::BindGroup>],
-    //     camera_bind_group: &'b wgpu::BindGroup,
-    //     light_bind_group: &'b wgpu::BindGroup,
-    // ) {
-    //     // Draw every mesh in the model.
-    //     for i in 0..meshes.len() {
-    //         let mesh = &meshes[i];
-    //         let material = &materials[i];
-    //
-    //         self.set_pipeline(singletons.render_server.get_material_3d_pipeline(material));
-    //
-    //         self.draw_mesh_instanced(
-    //             mesh,
-    //             material,
-    //             instances.clone(),
-    //             camera_bind_group,
-    //             light_bind_group,
-    //         );
-    //     }
-    // }
 }
 
 /// All mesh related resources.
@@ -713,7 +653,7 @@ impl MeshRenderResources {
         }
 
         let mut light_uniform = LightUniform::default();
-        light_uniform.ambient_color = Vector3::new(1.0, 1.0, 1.0).into();
+        light_uniform.ambient_color = Vec3::ONE.to_array();
         light_uniform.ambient_strength = 0.01;
 
         light_uniform.point_light_count = lights.point_lights.len() as u32;
@@ -745,7 +685,7 @@ impl MeshRenderResources {
 
         // Prepare texture bind group layouts.
         for pair in &pairs {
-            if (pair.1.get_flags() == 0) {
+            if pair.1.get_flags() == 0 {
                 continue;
             }
 
@@ -754,7 +694,7 @@ impl MeshRenderResources {
             let bind_group_layout = self.get_texture_bind_group_layout(&pair.1);
 
             let bind_group = self.texture_bind_group_cache.get(&pair.0);
-            if (bind_group.is_some()) {
+            if bind_group.is_some() {
                 continue;
             }
 
@@ -780,7 +720,7 @@ impl MeshRenderResources {
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         material_id: Option<MaterialId>,
     ) {
-        if (material_id.is_none()) {
+        if material_id.is_none() {
             const PLAIN_MATERTIAL_FLAGS: u32 = 0;
 
             let pipeline = self.pipeline_cache.get(&PLAIN_MATERTIAL_FLAGS);
@@ -896,7 +836,7 @@ impl MeshRenderResources {
         for mesh in meshes {
             let metadata = self.instance_cache.get(&mesh.mesh_id);
 
-            if (metadata.is_none()) {
+            if metadata.is_none() {
                 // Create the instance buffer.
                 let instance_buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("model instance buffer"),
@@ -949,17 +889,6 @@ pub(crate) fn prepare_meshes(
     camera_render_resources: &CameraRenderResources,
     render_server: &RenderServer,
 ) {
-    //
-    // // Copy data from [Instance] to [InstanceRaw].
-    // let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-    //
-    // // Create the instance buffer.
-    // let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-    //     label: Some("model instance buffer"),
-    //     contents: bytemuck::cast_slice(&instance_data),
-    //     usage: wgpu::BufferUsages::VERTEX,
-    // });
-
     for mesh in extracted_meshes {
         mesh_render_resources.prepare_materials(&texture_cache, render_server);
 
@@ -989,10 +918,10 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
     gizmo_render_resources: &'b GizmoRenderResources,
     render_pass: &mut wgpu::RenderPass<'a>,
 ) {
-    if (camera_render_resources.bind_group.is_none()) {
+    if camera_render_resources.bind_group.is_none() {
         return;
     }
-    if (mesh_render_resources.light_bind_group.is_none()) {
+    if mesh_render_resources.light_bind_group.is_none() {
         return;
     }
 
@@ -1004,7 +933,7 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
         let mut texture_bind_group = None;
         let mut flags = 0;
 
-        if (extracted.material_id.is_some()) {
+        if extracted.material_id.is_some() {
             let material_id = &extracted.material_id.unwrap();
 
             texture_bind_group = Some(
@@ -1047,7 +976,7 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
         render_pass.set_bind_group(1, light_bind_group, &[]);
 
         // Set textures.
-        if (texture_bind_group.is_some()) {
+        if texture_bind_group.is_some() {
             render_pass.set_bind_group(2, texture_bind_group.unwrap(), &[]);
         }
 

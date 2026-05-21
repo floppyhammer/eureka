@@ -1,4 +1,4 @@
-use cgmath::{Deg, Quaternion, Rotation, Rotation3, Vector3};
+use glam::{Quat, Vec3};
 use eureka::core::App;
 use eureka::math::color::ColorU;
 use eureka::render::Texture;
@@ -14,9 +14,9 @@ fn main() {
         let world = &mut app.world;
 
         let camera3d = Camera3d::new(
-            (-10.0, 0.0, 0.0),
-            cgmath::Deg(0.0),
-            cgmath::Deg(0.0),
+            Vec3::new(-10.0, 0.0, 0.0),
+            0.0,
+            0.0,
             &singletons.render_server,
         );
         world.add_node(Box::new(camera3d), None);
@@ -33,7 +33,7 @@ fn main() {
         // Point light.
         let mut light = PointLight::new();
         // light.color = ColorU::new(0, 255, 0, 255);
-        light.set_position(Vector3::new(2.0, 5.0, 0.0));
+        light.set_position(Vec3::new(2.0, 5.0, 0.0));
         light.strength = 5.0;
         world.add_node(Box::new(light), None);
 
@@ -41,7 +41,7 @@ fn main() {
         let mut light = DirectionalLight::new();
         // light.color = ColorU::new(255, 0, 0, 255);
         light.strength = 0.5;
-        light.transform.rotation = Quaternion::from_angle_x(Deg(-90.0f32));
+        light.transform.rotation = Quat::from_rotation_x(-90.0f32.to_radians());
         world.add_node(Box::new(light), None);
 
         // Model 1.
@@ -56,7 +56,7 @@ fn main() {
                 .join("models/ferris/ferris3d_v1.0.obj"),
         )
         .unwrap();
-        obj_model.set_position(Vector3::new(0.0, 1.0, 0.0));
+        obj_model.set_position(Vec3::new(0.0, 1.0, 0.0));
         world.add_node(Box::new(obj_model), None);
 
         // Model 3.
@@ -71,7 +71,7 @@ fn main() {
                 .join("models/granite_ground/granite_ground.obj"),
         )
         .unwrap();
-        obj_model3.set_scale(Vector3::new(5.0, 1.0, 5.0));
+        obj_model3.set_scale(Vec3::new(5.0, 1.0, 5.0));
         world.add_node(Box::new(obj_model3), None);
     });
 

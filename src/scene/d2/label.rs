@@ -1,5 +1,4 @@
 use crate::core::singleton::Singletons;
-use crate::math::rect_to_vector4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasMode, DrawAtlas, ExtractedAtlas};
 use crate::render::draw_command::DrawCommands;
@@ -7,9 +6,9 @@ use crate::render::{RenderServer, TextureCache};
 use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
 use crate::scene::{AsNode, NodeType};
 use crate::text::FONT_ATLAS_SIZE;
-use cgmath::{EuclideanSpace, Point2, Vector2, Vector3, Vector4};
 use image::DynamicImage;
 use std::any::Any;
+use glam::Vec2;
 use usvg::Node;
 
 pub struct Label {
@@ -91,19 +90,19 @@ impl AsNode for Label {
 }
 
 impl AsNodeUi for Label {
-    fn get_size(&self) -> Vector2<f32> {
+    fn get_size(&self) -> Vec2 {
         self.node_ui.size
     }
 
-    fn set_size(&mut self, size: Vector2<f32>) {
+    fn set_size(&mut self, size: Vec2) {
         self.node_ui.size = size;
     }
 
-    fn get_position(&self) -> Vector2<f32> {
+    fn get_position(&self) -> Vec2 {
         self.node_ui.transform.position
     }
 
-    fn set_position(&mut self, position: Vector2<f32>) {
+    fn set_position(&mut self, position: Vec2) {
         self.node_ui.transform.position = position;
     }
 

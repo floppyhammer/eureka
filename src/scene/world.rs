@@ -2,7 +2,7 @@ use crate::core::singleton::Singletons;
 use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, Camera2d, Camera3d, NodeType};
 use crate::window::InputServer;
-use cgmath::Vector2;
+use glam::{UVec2, Vec2};
 use indextree::{Arena, NodeEdge, NodeId};
 
 pub struct World {
@@ -15,12 +15,12 @@ pub struct World {
     current_camera2d: Option<NodeId>,
     current_camera3d: Option<NodeId>,
 
-    view_size: Vector2<u32>,
+    view_size: UVec2,
 }
 
 impl World {
-    pub fn new(view_size: Vector2<u32>) -> Self {
-        let mut arena = Arena::new();
+    pub fn new(view_size: UVec2) -> Self {
+        let arena = Arena::new();
 
         Self {
             arena,
@@ -31,7 +31,7 @@ impl World {
         }
     }
 
-    pub fn add_node(&mut self, mut new_node: Box<dyn AsNode>, parent: Option<NodeId>) -> NodeId {
+    pub fn add_node(&mut self, new_node: Box<dyn AsNode>, parent: Option<NodeId>) -> NodeId {
         log::info!("Added node: {}", new_node.node_type().to_string());
 
         let node_type = new_node.node_type();
@@ -92,7 +92,7 @@ impl World {
                     }
                 });
 
-                ids = iter.map(|id| id).collect();
+                ids = iter.collect();
             }
         }
 
@@ -114,10 +114,7 @@ impl World {
         let node_ptr = self.arena[id].get();
 
         // Downcast it to the original type.
-        match node_ptr.as_any().downcast_ref::<T>() {
-            Some(node_ptr) => Some(node_ptr),
-            None => None,
-        }
+        node_ptr.as_any().downcast_ref::<T>()
     }
 
     /// Get a mutable reference to a node by its ID.
@@ -126,10 +123,7 @@ impl World {
         let node_ptr = self.arena[id].get_mut();
 
         // Downcast it to the original type.
-        match node_ptr.as_any_mut().downcast_mut::<T>() {
-            Some(node_ptr) => Some(node_ptr),
-            None => None,
-        }
+        node_ptr.as_any_mut().downcast_mut::<T>()
     }
 
     pub fn update(&mut self, dt: f32, singletons: &mut Singletons) {
@@ -153,19 +147,19 @@ impl World {
         draw_cmds
     }
 
-    pub fn when_view_size_changes(&mut self, new_size: Vector2<u32>) {
+    pub fn when_view_size_changes(&mut self, new_size: UVec2) {
         self.view_size = new_size;
 
         if let Some(node_id) = self.current_camera2d {
-            self.get_node_mut::<Camera2d>(node_id)
-                .unwrap()
-                .when_view_size_changes(new_size);
+            if let Some(camera) = self.get_node_mut::<Camera2d>(node_id) {
+                camera.when_view_size_changes(new_size);
+            }
         }
 
         if let Some(node_id) = self.current_camera3d {
-            self.get_node_mut::<Camera3d>(node_id)
-                .unwrap()
-                .when_view_size_changes(new_size);
+            if let Some(camera) = self.get_node_mut::<Camera3d>(node_id) {
+                camera.when_view_size_changes(new_size);
+            }
         }
     }
 }

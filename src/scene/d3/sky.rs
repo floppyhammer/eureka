@@ -1,30 +1,21 @@
-use anyhow::Context;
-use anyhow::*;
-use cgmath::InnerSpace;
-use cgmath::*;
 use std::any::Any;
-use std::error::Error;
-use std::ops::Range;
-use std::path::Path;
-use std::time::Instant;
-use wgpu::util::DeviceExt;
+use glam::Quat;
 
 use crate::render::draw_command::DrawCommands;
-use crate::render::material::MaterialId;
 use crate::render::sky::ExtractedSky;
-use crate::render::{Mesh, Texture, TextureId};
+use crate::render::TextureId;
 use crate::scene::{AsNode, NodeType};
 
 pub struct Sky {
     // TODO
-    pub rotation: Quaternion<f32>,
+    pub rotation: Quat,
 
     pub texture: TextureId,
 }
 
 impl Sky {
     pub fn new(texture: TextureId) -> Self {
-        let rotation = cgmath::Quaternion::new(0.0, 0.0, 0.0, 0.0);
+        let rotation = Quat::IDENTITY;
 
         Self { rotation, texture }
     }

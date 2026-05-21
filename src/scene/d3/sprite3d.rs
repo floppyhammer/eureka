@@ -2,7 +2,7 @@
 // use crate::render::{Mesh, Texture, TextureId};
 // use crate::scene::{AsNode, CameraInfo, CameraUniform, NodeType};
 // use crate::{Camera2d, RenderServer, SamplerBindingType, Singletons, Zero};
-// use cgmath::{InnerSpace, Rotation3, Vector3, Quaternion, Deg, Matrix4};
+// use glam::{Mat4, Quat, Vec3};
 // use std::any::Any;
 // use std::mem;
 // use wgpu::util::DeviceExt;
@@ -33,9 +33,9 @@
 // pub struct Sprite3d {
 //     pub name: String,
 //
-//     pub position: Vector3<f32>,
-//     pub rotation: Quaternion<f32>,
-//     pub scale: Vector3<f32>,
+//     pub position: Vec3,
+//     pub rotation: Quat,
+//     pub scale: Vec3,
 //
 //     pub billboard_mode: BillboardMode,
 //
@@ -53,15 +53,15 @@
 //     pub(crate) fn new(render_server: &RenderServer, texture_id: TextureId) -> Sprite3d {
 //         let device = &render_server.device;
 //
-//         let position = Vector3::new(0.0f32, 0.0, 0.0);
-//         let rotation = if position.is_zero() {
+//         let position = Vec3::new(0.0f32, 0.0, 0.0);
+//         let rotation = if position == Vec3::ZERO {
 //             // This is needed so an object at (0, 0, 0) won't get scaled to zero
 //             // as Quaternions can affect scale if they're not created correctly.
-//             Quaternion::from_axis_angle(Vector3::unit_z(), Deg(0.0))
+//             Quat::IDENTITY
 //         } else {
-//             Quaternion::from_axis_angle(position.normalize(), Deg(45.0))
+//             Quat::from_axis_angle(position.normalize(), 45.0f32.to_radians())
 //         };
-//         let scale = Vector3::new(1.0f32, 1.0, 1.0);
+//         let scale = Vec3::new(1.0f32, 1.0, 1.0);
 //
 //         let mesh = Mesh::default_3d(device);
 //
@@ -129,7 +129,7 @@
 //
 //     fn update(&mut self, dt: f32, camera_info: &CameraInfo, singletons: &mut Singletons) {
 //         self.params_uniform = SpriteParamsUniform {
-//             model_matrix: Matrix4::from_translation(self.position).into(),
+//             model_matrix: Mat4::from_translation(self.position).to_cols_array_2d(),
 //             billboard_mode: if self.billboard_mode == BillboardMode::Spherical {
 //                 1.0
 //             } else {

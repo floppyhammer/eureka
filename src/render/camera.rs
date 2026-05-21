@@ -1,6 +1,5 @@
 use crate::render::RenderServer;
-use crate::scene::OPENGL_TO_WGPU_MATRIX;
-use cgmath::{ortho, perspective, Matrix4, Rad, Vector2};
+use glam::Mat4;
 use std::mem;
 use wgpu::BufferAddress;
 
@@ -31,8 +30,6 @@ pub struct CameraUniform {
     // We're using Vector4 because of the uniforms 16 byte spacing requirement.
     pub(crate) view_position: [f32; 4],
     /// Multiplication of the view and projection matrices.
-    // We can't use cgmath with bytemuck directly, so we'll have
-    // to convert the Matrix4 into a 4x4 f32 array.
     pub(crate) view: [[f32; 4]; 4],
     pub(crate) proj: [[f32; 4]; 4],
     pub(crate) view_proj: [[f32; 4]; 4],
@@ -40,12 +37,11 @@ pub struct CameraUniform {
 
 impl Default for CameraUniform {
     fn default() -> Self {
-        use cgmath::SquareMatrix;
         Self {
             view_position: [0.0; 4],
-            view: Matrix4::identity().into(),
-            proj: Matrix4::identity().into(),
-            view_proj: Matrix4::identity().into(),
+            view: Mat4::IDENTITY.to_cols_array_2d(),
+            proj: Mat4::IDENTITY.to_cols_array_2d(),
+            view_proj: Mat4::IDENTITY.to_cols_array_2d(),
         }
     }
 }
@@ -184,7 +180,7 @@ impl Projection {
         }
     }
 
-    pub(crate) fn calc_matrix(&self) -> Matrix4<f32> {
+    pub(crate) fn calc_matrix(&self) -> Mat4 {
         match self {
             Projection::Perspective(projection) => projection.calc_matrix(),
             Projection::Orthographic(projection) => projection.calc_matrix(),
@@ -196,17 +192,17 @@ impl Projection {
 /// The projection needs to change if the window (or render target) resizes.
 pub struct PerspectiveProjection {
     aspect: f32,
-    fovy: Rad<f32>,
+    fovy: f32,
     // Note : near and far are always positive.
     near: f32,
     far: f32,
 }
 
 impl PerspectiveProjection {
-    pub fn new<F: Into<Rad<f32>>>(width: u32, height: u32, fovy: F, near: f32, far: f32) -> Self {
+    pub fn new(width: u32, height: u32, fovy_radians: f32, near: f32, far: f32) -> Self {
         Self {
             aspect: width as f32 / height as f32,
-            fovy: fovy.into(),
+            fovy: fovy_radians,
             near,
             far,
         }
@@ -216,8 +212,8 @@ impl PerspectiveProjection {
         self.aspect = width / height;
     }
 
-    pub fn calc_matrix(&self) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX * perspective(self.fovy, self.aspect, self.near, self.far)
+    pub fn calc_matrix(&self) -> Mat4 {
+        Mat4::perspective_rh(self.fovy, self.aspect, self.near, self.far)
     }
 }
 
@@ -265,15 +261,14 @@ impl OrthographicProjection {
     }
 
     /// Get projection matrix.
-    pub fn calc_matrix(&self) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX
-            * ortho(
-                self.left,
-                self.right,
-                self.bottom,
-                self.top,
-                self.near,
-                self.far,
-            )
+    pub fn calc_matrix(&self) -> Mat4 {
+        Mat4::orthographic_rh(
+            self.left,
+            self.right,
+            self.bottom,
+            self.top,
+            self.near,
+            self.far,
+        )
     }
 }

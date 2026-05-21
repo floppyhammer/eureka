@@ -5,7 +5,7 @@
 // use crate::scene::{CameraInfo, Label, NodeType};
 // use crate::window::{InputEvent, InputServer};
 // use crate::{AsNode, Atlas, AtlasInstance, Singletons, TextServer, Texture};
-// use cgmath::{Point2, Vector2, Vector3, Vector4};
+// use glam::{Vec2, Vec3, Vec4};
 // use image::DynamicImage;
 // use lyon::geom::Transform;
 // use std::any::Any;
@@ -15,7 +15,7 @@
 //
 //     pub transform: Transform2d,
 //
-//     pub(crate) size: Vector2<f32>,
+//     pub(crate) size: Vec2,
 //
 //     hovered: bool,
 //     pressed: bool,
@@ -25,7 +25,7 @@
 //
 // impl Button {
 //     pub fn new(render_server: &RenderServer) -> Button {
-//         let size = Vector2::new(128.0_f32, 128.0);
+//         let size = Vec2::new(128.0_f32, 128.0);
 //
 //         let mut label = Label::new(render_server);
 //         label.set_text("button".to_string());

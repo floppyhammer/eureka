@@ -1,6 +1,6 @@
 use crate::core::singleton::Singletons;
 use crate::math::color::ColorU;
-use cgmath::{Quaternion, Vector3};
+use glam::{Quat, Vec3};
 use std::any::Any;
 
 use crate::render::draw_command::DrawCommands;
@@ -57,13 +57,6 @@ impl AsNode for PointLight {
     }
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
-        // let old_position: cgmath::Vector3<_> = self.uniform.position.into();
-        // let new_position =
-        //     cgmath::Quaternion::from_axis_angle((0.0, 1.0, 0.0).into(), cgmath::Deg(60.0 * dt))
-        //         * old_position;
-        //
-        // self.uniform.position = new_position.into();
-
         let point_light = PointLightUniform {
             position: self.node_3d.transform.position.into(),
             strength: self.strength,
@@ -79,27 +72,27 @@ impl AsNode for PointLight {
 }
 
 impl AsNode3d for PointLight {
-    fn get_position(&self) -> Vector3<f32> {
+    fn get_position(&self) -> Vec3 {
         self.node_3d.transform.position
     }
 
-    fn set_position(&mut self, position: Vector3<f32>) {
+    fn set_position(&mut self, position: Vec3) {
         self.node_3d.transform.position = position;
     }
 
-    fn get_rotation(&self) -> Quaternion<f32> {
+    fn get_rotation(&self) -> Quat {
         self.node_3d.transform.rotation
     }
 
-    fn set_rotation(&mut self, rotation: Quaternion<f32>) {
+    fn set_rotation(&mut self, rotation: Quat) {
         self.node_3d.transform.rotation = rotation;
     }
 
-    fn get_scale(&self) -> Vector3<f32> {
+    fn get_scale(&self) -> Vec3 {
         self.node_3d.transform.scale
     }
 
-    fn set_scale(&mut self, scale: Vector3<f32>) {
+    fn set_scale(&mut self, scale: Vec3) {
         self.node_3d.transform.scale = scale;
     }
 }

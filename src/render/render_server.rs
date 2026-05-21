@@ -9,7 +9,6 @@ use crate::render::camera::CameraUniform;
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sprite::{DrawSprite2d, ExtractedSprite2d, SpriteRenderResources};
 use crate::render::TextureCache;
-use cgmath::Point2;
 use std::collections::HashMap;
 use std::mem;
 use std::time::Instant;
