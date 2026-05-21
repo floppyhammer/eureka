@@ -53,10 +53,12 @@ impl Default for CameraUniform {
 
 impl CameraUniform {
     pub(crate) fn get_uniform_offset_unit() -> u32 {
-        let offset_limit = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
-        let multiplier = alignup_u32(mem::size_of::<CameraUniform>() as u32, offset_limit);
+        let offset_alignment = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
+        let size = mem::size_of::<CameraUniform>() as u32;
 
-        multiplier * offset_limit
+        // 标准的向上对齐公式：(size + alignment - 1) & !(alignment - 1)
+        // 这才是纯正且最安全的对齐计算，不需要多加任何乘法
+        (size + offset_alignment - 1) & !(offset_alignment - 1)
     }
 }
 

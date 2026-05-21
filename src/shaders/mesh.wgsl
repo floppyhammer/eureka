@@ -28,7 +28,7 @@ struct DirectionalLight {
     _pad: f32,
 }
 
-const MAX_POINT_LIGHTS = 10;
+const MAX_POINT_LIGHTS = 4;
 
 struct Lights {
     ambient_color: vec3<f32>,
@@ -51,6 +51,9 @@ struct CascadeUniform {
 }
 @group(1) @binding(3)
 var<uniform> cascade_uniform: CascadeUniform;
+
+@group(1) @binding(4)
+var t_point_shadow: texture_depth_cube_array;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -169,6 +172,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let light_dir = normalize(light_vec);
         let half_dir = normalize(view_dir + light_dir);
 
+        // Point Shadow
+        let frag_to_light = light.position - in.world_position.xyz;
+        // 获取立方体贴图轴向上的最大绝对值距离
+        let dist_vec = abs(frag_to_light);
+        let dist_along_axis = max(dist_vec.x, max(dist_vec.y, dist_vec.z));
+
+        let near = 0.1;
+        let far = 100.0;
+
+        // 精准匹配投影矩阵的深度映射：将非线性的 NDC Z 还原
+        // 根据上面的矩阵：Z_ndc = (col2 * Z_view + col3) / -Z_view
+        // 因为 Z_view = -dist_along_axis (在右手系观察空间中物体在 -Z)
+        // 所以 Z_ndc = ( (far/(near-far))*(-d) + (near*far)/(near-far) ) / d
+        let shadow_z = (far / (far - near)) - ((far * near) / (far - near)) / dist_along_axis;
+        let final_shadow_z = clamp(shadow_z, 0.0, 1.0);
+
+        // 注意：传给 textureSampleCompare 的向量应该是由光源指向片元 (light_to_frag)
+        let light_to_frag = in.world_position.xyz - light.position;
+        let shadow_factor = textureSampleCompare(t_point_shadow, s_shadow, light_to_frag, i32(i), final_shadow_z - 0.002);
+
         // Diffuse
         let diffuse_strength = max(dot(world_normal, light_dir), 0.0);
         let diffuse_color = light.color * diffuse_strength * light.strength;
@@ -180,7 +203,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // Attenuation
         let attenuation = 1.0 / (light.constant + light.linear0 * distance + light.quadratic * (distance * distance));
 
-        point_lights_result += (diffuse_color + specular_color) * attenuation;
+        point_lights_result += (diffuse_color + specular_color) * attenuation * shadow_factor;
     }
 
     var directional_light_result = vec3<f32>(0.0, 0.0, 0.0);

@@ -188,6 +188,7 @@ impl RenderWorld {
             encoder,
             &self.texture_cache,
             &self.light_render_resources,
+            &self.extracted.lights,
             &self.extracted.meshes,
             &self.mesh_cache,
             &self.mesh_render_resources,

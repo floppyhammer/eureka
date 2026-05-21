@@ -1,7 +1,7 @@
 use crate::math::transform::Transform3d;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::gizmo::GizmoRenderResources;
-use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform};
+use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform, MAX_POINT_LIGHTS};
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
@@ -504,6 +504,16 @@ impl MeshRenderResources {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 4,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::CubeArray,
+                                sample_type: wgpu::TextureSampleType::Depth,
+                            },
+                            count: None,
+                        },
                     ],
                     label: Some("mesh light bind group layout"),
                 });
@@ -630,11 +640,16 @@ impl MeshRenderResources {
         }
 
         if self.light_bind_group.is_none()
-            && light_render_resources.shadow_map.is_some()
+            && light_render_resources.directional_shadow_map.is_some()
             && light_render_resources.cascade_uniform_buffer.is_some()
+            && light_render_resources.point_shadow_map.is_some()
         {
             let shadow_map = texture_cache
-                .get(light_render_resources.shadow_map.unwrap())
+                .get(light_render_resources.directional_shadow_map.unwrap())
+                .unwrap();
+
+            let point_shadow_map = texture_cache
+                .get(light_render_resources.point_shadow_map.unwrap())
                 .unwrap();
 
             let shadow_sampler = render_server.device.create_sampler(&wgpu::SamplerDescriptor {
@@ -647,6 +662,18 @@ impl MeshRenderResources {
                 mipmap_filter: wgpu::FilterMode::Nearest,
                 compare: Some(wgpu::CompareFunction::LessEqual),
                 ..Default::default()
+            });
+
+            let point_shadow_view = point_shadow_map.texture.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("point shadow cube array view"),
+                format: Some(Texture::DEPTH_FORMAT),
+                dimension: Some(wgpu::TextureViewDimension::CubeArray),
+                usage: Some(wgpu::TextureUsages::TEXTURE_BINDING),
+                aspect: wgpu::TextureAspect::DepthOnly,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: 0,
+                array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6), // lights * 6 faces
             });
 
             let bind_group = render_server
@@ -673,6 +700,10 @@ impl MeshRenderResources {
                                 .as_ref()
                                 .unwrap()
                                 .as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: wgpu::BindingResource::TextureView(&point_shadow_view),
                         },
                     ],
                     label: Some("light bind group with shadow"),
