@@ -324,9 +324,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let ambient_color = lights.ambient_color * lights.ambient_strength * object_color.xyz * ambient_ao;
     let result = ambient_color + point_lights_result + directional_light_result;
 
-    // HDR to LDR Tone mapping (Reinhard)
+    // Reinhard Tone Mapping
     let mapped = result / (result + vec3<f32>(1.0));
-    let final_color = pow(mapped, vec3<f32>(1.0 / 2.2));
 
-    return vec4<f32>(final_color, object_color.a);
+    return vec4<f32>(mapped, object_color.a);
 }
