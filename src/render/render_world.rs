@@ -204,10 +204,12 @@ impl RenderWorld {
         // Check if any camera wants SSAO.
         // For simplicity, we check the first 3D camera.
         let mut camera_wants_ssao = false;
+        let mut ssao_camera_index = 0;
         for i in 0..self.extracted.cameras.types.len() {
             if self.extracted.cameras.types[i] == CameraType::D3 {
                 if self.extracted.cameras.uniforms[i].ssao_enabled == 1 {
                     camera_wants_ssao = true;
+                    ssao_camera_index = i;
                     break;
                 }
             }
@@ -253,6 +255,8 @@ impl RenderWorld {
                 &self.mesh_cache,
                 &self.mesh_render_resources,
                 camera_bind_group,
+                ssao_camera_index,
+                &self.extracted.cameras.uniforms[ssao_camera_index],
             );
         }
 
@@ -339,6 +343,8 @@ impl RenderWorld {
                     &self.mesh_cache,
                     &self.mesh_render_resources,
                     &self.camera_render_resources,
+                    i,
+                    &self.extracted.cameras.uniforms[i],
                     &self.gizmo_render_resources,
                     render_pass,
                 );

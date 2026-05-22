@@ -1,6 +1,7 @@
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, ExtractedMesh, InstanceRaw, MeshCache, MeshRenderResources, RenderServer, Texture, TextureCache, TextureId};
+use crate::math::frustum::Frustum;
 use glam::{Mat4, Vec3};
 use wgpu::BufferAddress;
 
@@ -69,10 +70,12 @@ pub(crate) struct LightRenderResources {
     pub(crate) directional_shadow_camera_bind_group: Option<wgpu::BindGroup>,
     pub(crate) directional_shadow_camera_buffer: Option<wgpu::Buffer>,
     pub(crate) cascade_uniform_buffer: Option<wgpu::Buffer>,
+    pub(crate) cascade_view_projs: [Mat4; NUM_CASCADES],
 
     pub(crate) point_shadow_map: Option<TextureId>,
     pub(crate) point_shadow_camera_buffer: Option<wgpu::Buffer>,
     pub(crate) point_shadow_camera_bind_group: Option<wgpu::BindGroup>,
+    pub(crate) point_shadow_view_projs: Vec<Mat4>,
 }
 
 impl LightRenderResources {
@@ -83,9 +86,11 @@ impl LightRenderResources {
             directional_shadow_camera_bind_group: None,
             directional_shadow_camera_buffer: None,
             cascade_uniform_buffer: None,
+            cascade_view_projs: [Mat4::IDENTITY; NUM_CASCADES],
             point_shadow_map: None,
             point_shadow_camera_buffer: None,
             point_shadow_camera_bind_group: None,
+            point_shadow_view_projs: vec![],
         }
     }
 
@@ -266,6 +271,7 @@ pub(crate) fn prepare_shadow(
             });
 
             cascade_uniform.view_proj[i] = view_proj.to_cols_array_2d();
+            render_resources.cascade_view_projs[i] = view_proj;
         }
 
         // 写入缓冲区逻辑保持不变
@@ -319,6 +325,7 @@ pub(crate) fn prepare_shadow(
 
     let mut point_camera_uniforms = vec![CameraUniform::default(); MAX_POINT_LIGHTS * 6];
     let point_light_proj = wgpu_perspective();
+    render_resources.point_shadow_view_projs.clear();
 
     for (i, light) in extracted_lights.point_lights.iter().enumerate() {
         if i >= MAX_POINT_LIGHTS {
@@ -340,6 +347,7 @@ pub(crate) fn prepare_shadow(
                 ssao_enabled: 0,
                 _pad: [0; 3],
             };
+            render_resources.point_shadow_view_projs.push(view_proj);
         }
     }
 
@@ -440,8 +448,17 @@ pub(crate) fn render_shadow(
                 render_pass.set_bind_group(0, bind_group, &[dynamic_offset]);
             }
 
+            let frustum = Frustum::from_view_proj(render_resources.cascade_view_projs[i]);
+
             for extracted in extracted_meshes {
                 let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
+
+                // Frustum culling
+                let world_aabb = mesh.aabb.transform(&extracted.transform);
+                if !frustum.intersects_aabb(&world_aabb) {
+                    continue;
+                }
+
                 let instance = mesh_render_resources
                     .instance_cache
                     .get(&extracted.mesh_id)
@@ -497,8 +514,17 @@ pub(crate) fn render_shadow(
                 render_pass.set_bind_group(0, bind_group, &[dynamic_offset]);
             }
 
+            let frustum = Frustum::from_view_proj(render_resources.point_shadow_view_projs[i]);
+
             for extracted in extracted_meshes {
                 let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
+
+                // Frustum culling
+                let world_aabb = mesh.aabb.transform(&extracted.transform);
+                if !frustum.intersects_aabb(&world_aabb) {
+                    continue;
+                }
+
                 let instance = mesh_render_resources
                     .instance_cache
                     .get(&extracted.mesh_id)

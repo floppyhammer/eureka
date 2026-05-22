@@ -1,5 +1,7 @@
 pub mod color;
 pub mod transform;
+pub mod aabb;
+pub mod frustum;
 
 use allsorts::pathfinder_geometry::rect::RectF;
 use glam::Vec4;

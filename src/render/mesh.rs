@@ -1,5 +1,7 @@
 use crate::math::transform::Transform3d;
-use crate::render::camera::CameraRenderResources;
+use crate::math::aabb::Aabb;
+use crate::math::frustum::Frustum;
+use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::gizmo::GizmoRenderResources;
 use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform, MAX_POINT_LIGHTS};
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
@@ -53,6 +55,7 @@ pub struct Mesh {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub index_count: u32,
+    pub aabb: Aabb,
 }
 
 impl Mesh {
@@ -94,11 +97,19 @@ impl Mesh {
             usage: wgpu::BufferUsages::INDEX,
         });
 
+        let aabb = Aabb::from_points(
+            &vertices
+                .iter()
+                .map(|v| Vec3::new(v.position[0], v.position[1], 0.0))
+                .collect::<Vec<_>>(),
+        );
+
         Self {
             name: "default 2d mesh".to_string(),
             vertex_buffer,
             index_buffer,
             index_count: indices.len() as u32,
+            aabb,
         }
     }
 
@@ -148,11 +159,19 @@ impl Mesh {
             usage: wgpu::BufferUsages::INDEX,
         });
 
+        let aabb = Aabb::from_points(
+            &vertices
+                .iter()
+                .map(|v| Vec3::from_slice(&v.position))
+                .collect::<Vec<_>>(),
+        );
+
         Self {
             name: "default 3d mesh".to_string(),
             vertex_buffer,
             index_buffer,
             index_count: indices.len() as u32,
+            aabb,
         }
     }
 
@@ -201,11 +220,19 @@ impl Mesh {
             usage: wgpu::BufferUsages::INDEX,
         });
 
+        let aabb = Aabb::from_points(
+            &vertices
+                .iter()
+                .map(|v| Vec3::from_slice(&v.position))
+                .collect::<Vec<_>>(),
+        );
+
         Self {
             name: "default skybox mesh".to_string(),
             vertex_buffer,
             index_buffer,
             index_count: indices.len() as u32,
+            aabb,
         }
     }
 }
@@ -981,6 +1008,8 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
     mesh_cache: &'b MeshCache,
     mesh_render_resources: &'b MeshRenderResources,
     camera_render_resources: &'b CameraRenderResources,
+    camera_index: usize,
+    camera_uniform: &CameraUniform,
     gizmo_render_resources: &'b GizmoRenderResources,
     render_pass: &mut wgpu::RenderPass<'a>,
 ) {
@@ -995,7 +1024,17 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
 
     let light_bind_group = mesh_render_resources.light_bind_group.as_ref().unwrap();
 
+    let frustum = Frustum::from_view_proj(Mat4::from_cols_array_2d(&camera_uniform.view_proj));
+
     for extracted in extracted_meshes {
+        let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
+
+        // Frustum culling
+        let world_aabb = mesh.aabb.transform(&extracted.transform);
+        if !frustum.intersects_aabb(&world_aabb) {
+            continue;
+        }
+
         let mut texture_bind_group = None;
         let mut flags = 0;
 
@@ -1018,8 +1057,6 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
 
         let pipeline = mesh_render_resources.pipeline_cache.get(&flags).unwrap();
 
-        let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
-
         let instance = mesh_render_resources
             .instance_cache
             .get(&extracted.mesh_id)
@@ -1034,9 +1071,9 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
 
         render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-        // FIXME
-        // Set camera uniform.
-        render_pass.set_bind_group(0, camera_bind_group, &[0]);
+        // Set camera uniform with dynamic offset.
+        let offset = camera_index as u32 * CameraUniform::get_uniform_offset_unit();
+        render_pass.set_bind_group(0, camera_bind_group, &[offset]);
 
         // Set light uniform.
         render_pass.set_bind_group(1, light_bind_group, &[]);

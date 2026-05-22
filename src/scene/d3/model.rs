@@ -8,6 +8,7 @@ use std::time::Instant;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
 
+use crate::math::aabb::Aabb;
 use crate::render::draw_command::DrawCommands;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::vertex::Vertex3d;
@@ -25,6 +26,8 @@ pub struct Model {
 
     // Mesh materials. Same length as the meshes.
     pub materials: Vec<Option<MaterialId>>,
+
+    pub aabb: Aabb,
 
     // For debugging.
     pub name: String,
@@ -124,6 +127,8 @@ impl Model {
         // Handle meshes.
         let mut meshes = Vec::new();
         let mut materials = Vec::new();
+        let mut model_aabb = Aabb::default();
+        let mut first_mesh = true;
 
         for m in obj_meshes {
             let mut vertices = Vec::new();
@@ -215,11 +220,26 @@ impl Model {
                 usage: wgpu::BufferUsages::INDEX,
             });
 
+            let aabb = Aabb::from_points(
+                &vertices
+                    .iter()
+                    .map(|v| Vec3::from_slice(&v.position))
+                    .collect::<Vec<_>>(),
+            );
+
+            if first_mesh {
+                model_aabb = aabb;
+                first_mesh = false;
+            } else {
+                model_aabb = model_aabb.union(&aabb);
+            }
+
             let mesh = Mesh {
                 name: m.name,
                 vertex_buffer,
                 index_buffer,
                 index_count: m.mesh.indices.len() as u32,
+                aabb,
             };
 
             meshes.push(mesh_cache.add(mesh));
@@ -242,6 +262,7 @@ impl Model {
             node_3d: Node3d::default(),
             meshes,
             materials,
+            aabb: model_aabb,
             name: "".to_string(),
         })
     }
