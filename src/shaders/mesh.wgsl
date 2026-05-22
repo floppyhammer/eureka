@@ -139,6 +139,51 @@ var s_normal: sampler;
 #endif
 // -------------------------
 
+// -------------------------
+// PBR Core Functions
+// -------------------------
+
+const PI: f32 = 3.14159265359;
+
+// D: Trowbridge-Reitz GGX (Normal Distribution Function)
+fn distribution_ggx(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {
+    let a = roughness * roughness;
+    let a2 = a * a;
+    let n_dot_h = max(dot(N, H), 0.0);
+    let n_dot_h2 = n_dot_h * n_dot_h;
+
+    let num = a2;
+    var denom = (n_dot_h2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return num / max(denom, 0.000001);
+}
+
+// G: Smith's method with Schlick-GGX
+fn geometry_schlick_ggx(n_dot_v: f32, roughness: f32) -> f32 {
+    let r = (roughness + 1.0);
+    let k = (r * r) / 8.0;
+
+    let num = n_dot_v;
+    let denom = n_dot_v * (1.0 - k) + k;
+
+    return num / denom;
+}
+
+fn geometry_smith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32 {
+    let n_dot_v = max(dot(N, V), 0.0);
+    let n_dot_l = max(dot(N, L), 0.0);
+    let ggx2 = geometry_schlick_ggx(n_dot_v, roughness);
+    let ggx1 = geometry_schlick_ggx(n_dot_l, roughness);
+
+    return ggx1 * ggx2;
+}
+
+// F: Fresnel-Schlick Equation
+fn fresnel_schlick(cos_theta: f32, F0: vec3<f32>) -> vec3<f32> {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Sample diffuse texture.
@@ -165,12 +210,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let world_normal = world_normal_basis;
 #endif
 
+    // PBR Parameters (To be moved to Material uniforms later)
+    let metallic: f32 = 0.5;
+    let roughness: f32 = 0.5;
+
     var ambient_ao = 1.0;
     if (camera.ssao_enabled == 1u) {
         ambient_ao = textureLoad(t_ssao, vec2<i32>(in.clip_position.xy), 0).r;
     }
-    let ambient_color = lights.ambient_color * lights.ambient_strength * ambient_ao;
     let view_dir = normalize(camera.view_pos.xyz - in.world_position.xyz);
+
+    // F0: Surface reflection at zero incidence
+    // For non-metals, we use 0.04. For metals, we use the object color.
+    var F0 = vec3<f32>(0.04);
+    F0 = mix(F0, object_color.xyz, metallic);
 
     var point_lights_result = vec3<f32>(0.0, 0.0, 0.0);
     for (var i: u32 = 0; i < lights.point_light_count; i++) {
@@ -182,72 +235,61 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         // Point Shadow
         let frag_to_light = light.position - in.world_position.xyz;
-        // 获取立方体贴图轴向上的最大绝对值距离
         let dist_vec = abs(frag_to_light);
         let dist_along_axis = max(dist_vec.x, max(dist_vec.y, dist_vec.z));
-
         let near = 0.1;
         let far = 100.0;
-
-        // 精准匹配投影矩阵的深度映射：将非线性的 NDC Z 还原
-        // 根据上面的矩阵：Z_ndc = (col2 * Z_view + col3) / -Z_view
-        // 因为 Z_view = -dist_along_axis (在右手系观察空间中物体在 -Z)
-        // 所以 Z_ndc = ( (far/(near-far))*(-d) + (near*far)/(near-far) ) / d
         let shadow_z = (far / (far - near)) - ((far * near) / (far - near)) / dist_along_axis;
         let final_shadow_z = clamp(shadow_z, 0.0, 1.0);
-
-        // 注意：传给 textureSampleCompare 的向量应该是由光源指向片元 (light_to_frag)
         let light_to_frag = in.world_position.xyz - light.position;
         let shadow_factor = textureSampleCompare(t_point_shadow, s_shadow, light_to_frag, i32(i), final_shadow_z - 0.002);
 
-        // Diffuse
-        let diffuse_strength = max(dot(world_normal, light_dir), 0.0);
-        let diffuse_color = light.color * diffuse_strength * light.strength;
+        // Cook-Torrance BRDF
+        let NDF = distribution_ggx(world_normal, half_dir, roughness);
+        let G = geometry_smith(world_normal, view_dir, light_dir, roughness);
+        let F = fresnel_schlick(max(dot(half_dir, view_dir), 0.0), F0);
 
-        // Specular
-        let specular_strength = pow(max(dot(world_normal, half_dir), 0.0), 32.0);
-        let specular_color = light.color * specular_strength * light.strength;
+        let numerator = NDF * G * F;
+        let denominator = 4.0 * max(dot(world_normal, view_dir), 0.0) * max(dot(world_normal, light_dir), 0.0) + 0.0001;
+        let specular = numerator / denominator;
 
-        // Attenuation
+        let kS = F;
+        var kD = vec3<f32>(1.0) - kS;
+        kD *= 1.0 - metallic;
+
+        let n_dot_l = max(dot(world_normal, light_dir), 0.0);
         let attenuation = 1.0 / (light.constant + light.linear0 * distance + light.quadratic * (distance * distance));
+        let radiance = light.color * light.strength * attenuation;
 
-        point_lights_result += (diffuse_color + specular_color) * attenuation * shadow_factor;
+        point_lights_result += (kD * object_color.xyz / PI + specular) * radiance * n_dot_l * shadow_factor;
     }
 
     var directional_light_result = vec3<f32>(0.0, 0.0, 0.0);
     {
-        // 1. Calculate direction vectors
         let light_dir = normalize(-lights.directional_light.direction);
         let half_dir = normalize(view_dir + light_dir);
 
-        // 2. CSM Shadow mapping
-        // Calculate depth in view space for cascade selection.
+        // CSM Shadow mapping
         let view_pos = camera.view * in.world_position;
         let depth = -view_pos.z;
-
         var cascade_index: u32 = 2u;
         if (depth < cascade_uniform.splits.x) {
             cascade_index = 0u;
         } else if (depth < cascade_uniform.splits.y) {
             cascade_index = 1u;
         }
-
         let shadow_coords = cascade_uniform.view_proj[cascade_index] * in.world_position;
         let shadow_pos = shadow_coords.xyz / shadow_coords.w;
         let shadow_uv = shadow_pos.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
 
         var shadow_factor = 1.0;
         // Geometric back-face check: if the surface faces away from the light, it's in shadow.
-        let n_dot_l = dot(world_normal_basis, light_dir);
-        if (n_dot_l <= 0.0) {
+        let n_dot_l_geo = dot(world_normal_basis, light_dir);
+        if (n_dot_l_geo <= 0.0) {
             shadow_factor = 0.0;
-        } else if (shadow_pos.x >= -1.0 && shadow_pos.x <= 1.0 &&
-            shadow_pos.y >= -1.0 && shadow_pos.y <= 1.0 &&
-            shadow_pos.z >= 0.0 && shadow_pos.z <= 1.0) {
-
+        } else if (shadow_pos.x >= -1.0 && shadow_pos.x <= 1.0 && shadow_pos.y >= -1.0 && shadow_pos.y <= 1.0 && shadow_pos.z >= 0.0 && shadow_pos.z <= 1.0) {
             // Slope-scaled Bias
-            let bias = max(0.0005 * (1.0 - n_dot_l), 0.00005);
-
+            let bias = max(0.0005 * (1.0 - n_dot_l_geo), 0.00005);
             // 3x3 PCF (Percentage Closer Filtering) for array textures
             var shadow_sum = 0.0;
             let texel_size = 1.0 / vec2<f32>(textureDimensions(t_shadow).xy);
@@ -260,16 +302,31 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             shadow_factor = shadow_sum / 9.0;
         }
 
-        // 3. Lighting calculation
-        let diffuse_strength = max(dot(world_normal, light_dir), 0.0);
-        let diffuse_color = lights.directional_light.color * diffuse_strength;
+        // Cook-Torrance BRDF for Directional Light
+        let NDF = distribution_ggx(world_normal, half_dir, roughness);
+        let G = geometry_smith(world_normal, view_dir, light_dir, roughness);
+        let F = fresnel_schlick(max(dot(half_dir, view_dir), 0.0), F0);
 
-        let specular_strength = pow(max(dot(world_normal, half_dir), 0.0), 32.0);
-        let specular_color = lights.directional_light.color * specular_strength;
+        let numerator = NDF * G * F;
+        let denominator = 4.0 * max(dot(world_normal, view_dir), 0.0) * max(dot(world_normal, light_dir), 0.0) + 0.0001;
+        let specular = numerator / denominator;
 
-        directional_light_result = (diffuse_color + specular_color) * lights.directional_light.strength * shadow_factor;
+        let kS = F;
+        var kD = vec3<f32>(1.0) - kS;
+        kD *= 1.0 - metallic;
+
+        let n_dot_l = max(dot(world_normal, light_dir), 0.0);
+        let radiance = lights.directional_light.color * lights.directional_light.strength;
+
+        directional_light_result = (kD * object_color.xyz / PI + specular) * radiance * n_dot_l * shadow_factor;
     }
 
-    let result = (ambient_color + point_lights_result + directional_light_result) * object_color.xyz;
-    return vec4<f32>(result, object_color.a);
+    let ambient_color = lights.ambient_color * lights.ambient_strength * object_color.xyz * ambient_ao;
+    let result = ambient_color + point_lights_result + directional_light_result;
+
+    // HDR to LDR Tone mapping (Reinhard)
+    let mapped = result / (result + vec3<f32>(1.0));
+    let final_color = pow(mapped, vec3<f32>(1.0 / 2.2));
+
+    return vec4<f32>(final_color, object_color.a);
 }
