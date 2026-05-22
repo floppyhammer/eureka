@@ -388,6 +388,7 @@ pub struct MeshRenderResources {
 
     pub(crate) texture_bind_group_layout_cache: HashMap<u32, wgpu::BindGroupLayout>,
     pub(crate) texture_bind_group_cache: HashMap<MaterialId, wgpu::BindGroup>,
+    pub(crate) material_uniform_buffer_cache: HashMap<MaterialId, wgpu::Buffer>,
 
     pub(crate) pipeline_cache: HashMap<u32, wgpu::RenderPipeline>,
     pub material_cache: MaterialCache,
@@ -460,7 +461,7 @@ impl MeshRenderResources {
                             ty: wgpu::BindingType::Texture {
                                 multisampled: false,
                                 view_dimension: wgpu::TextureViewDimension::D2,
-                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                sample_type: wgpu::TextureSampleType::Float { filterable: false },
                             },
                             count: None,
                         },
@@ -474,6 +475,7 @@ impl MeshRenderResources {
             texture_bind_group_layout_cache: Default::default(),
             light_bind_group: None,
             texture_bind_group_cache: HashMap::new(),
+            material_uniform_buffer_cache: HashMap::new(),
 
             pipeline_cache: Default::default(),
             material_cache: MaterialCache::new(),
@@ -496,7 +498,20 @@ impl MeshRenderResources {
             let label = "mesh textures bind group layout";
 
             let mut bind_group_layout_entries = vec![];
-            let mut next_binding = 0;
+
+            // --- 必须有 Binding 0: Material Uniform ---
+            bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            });
+
+            let mut next_binding = 1;
 
             // Color texture.
             if material.color_texture.is_some() {
@@ -698,22 +713,56 @@ impl MeshRenderResources {
             pairs.push((*pair.0, pair.1.clone()));
         }
 
-        // Prepare texture bind group layouts.
+        // Prepare texture bind group layouts and buffers.
         for pair in &pairs {
-            if pair.1.get_flags() == 0 {
+            let material_id = pair.0;
+            let material = &pair.1;
+
+            // 1. Ensure Material Uniform Buffer exists.
+            if !self.material_uniform_buffer_cache.contains_key(&material_id) {
+                let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some(&format!("material uniform buffer: {}", material.name)),
+                    size: mem::size_of::<crate::render::material::MaterialUniform>() as u64,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                self.material_uniform_buffer_cache.insert(material_id, buffer);
+            }
+
+            // 2. Update buffer data.
+            let uniform_data = material.to_uniform();
+            render_server.queue.write_buffer(
+                self.material_uniform_buffer_cache.get(&material_id).unwrap(),
+                0,
+                bytemuck::bytes_of(&uniform_data),
+            );
+
+            // 3. Re-create BindGroup if not exists.
+            if self.texture_bind_group_cache.contains_key(&material_id) {
                 continue;
             }
 
-            self.add_texture_bind_group_layout(&render_server.device, &pair.1);
+            // Fetch layout only when needed, after potential mutable borrows of self.
+            self.add_texture_bind_group_layout(&render_server.device, material);
+            let flags = material.get_flags();
+            let bind_group_layout = self.texture_bind_group_layout_cache.get(&flags).unwrap();
 
-            let bind_group_layout = self.get_texture_bind_group_layout(&pair.1);
+            let mut bind_group_entries = vec![];
 
-            let bind_group = self.texture_bind_group_cache.get(&pair.0);
-            if bind_group.is_some() {
-                continue;
+            // Binding 0: Material Uniform
+            let uniform_buffer = self.material_uniform_buffer_cache.get(&material_id).unwrap();
+            bind_group_entries.push(wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform_buffer.as_entire_binding(),
+            });
+
+            // Rest: Textures (from binding 1)
+            let mut tex_entries = material.get_bind_group_entries(&texture_cache);
+            // We need to shift texture bindings by 1.
+            for entry in tex_entries.iter_mut() {
+                entry.binding += 1;
             }
-
-            let bind_group_entries = pair.1.get_bind_group_entries(&texture_cache);
+            bind_group_entries.extend(tex_entries);
 
             // Create a texture bind group for each material.
             let bind_group = render_server
@@ -721,10 +770,10 @@ impl MeshRenderResources {
                 .create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: bind_group_layout,
                     entries: bind_group_entries.as_slice(),
-                    label: None,
+                    label: Some(&format!("material bind group: {}", material.name)),
                 });
 
-            self.texture_bind_group_cache.insert(pair.0, bind_group);
+            self.texture_bind_group_cache.insert(material_id, bind_group);
         }
     }
 
@@ -736,9 +785,9 @@ impl MeshRenderResources {
         material_id: Option<MaterialId>,
     ) {
         if material_id.is_none() {
-            const PLAIN_MATERTIAL_FLAGS: u32 = 0;
+            const PLAIN_MATERIAL_FLAGS: u32 = 0;
 
-            let pipeline = self.pipeline_cache.get(&PLAIN_MATERTIAL_FLAGS);
+            let pipeline = self.pipeline_cache.get(&PLAIN_MATERIAL_FLAGS);
 
             // Create new pipeline.
             if pipeline.is_none() {
@@ -776,7 +825,7 @@ impl MeshRenderResources {
                     )
                 };
 
-                self.pipeline_cache.insert(PLAIN_MATERTIAL_FLAGS, pipeline);
+                self.pipeline_cache.insert(PLAIN_MATERIAL_FLAGS, pipeline);
             }
         } else {
             let material = self

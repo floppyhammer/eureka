@@ -124,17 +124,28 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
 
 // Texture bind group.
 // -------------------------
-#ifdef COLOR_MAP
+struct Material {
+    base_color: vec4<f32>,
+    metallic: f32,
+    roughness: f32,
+    _pad0: f32,
+    _pad1: f32,
+}
+
 @group(2) @binding(0)
-var t_diffuse: texture_2d<f32>;
+var<uniform> material: Material;
+
+#ifdef COLOR_MAP
 @group(2) @binding(1)
+var t_diffuse: texture_2d<f32>;
+@group(2) @binding(2)
 var s_diffuse: sampler;
 #endif
 
 #ifdef NORMAP_MAP
-@group(2) @binding(2)
-var t_normal: texture_2d<f32>;
 @group(2) @binding(3)
+var t_normal: texture_2d<f32>;
+@group(2) @binding(4)
 var s_normal: sampler;
 #endif
 // -------------------------
@@ -188,10 +199,11 @@ fn fresnel_schlick(cos_theta: f32, F0: vec3<f32>) -> vec3<f32> {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Sample diffuse texture.
 #ifdef COLOR_MAP
-    let object_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    let sampled_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
 #else
-    let object_color: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    let sampled_color: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
 #endif
+    let object_color = sampled_color * material.base_color;
 
     // Reconstruct TBN matrix (Tangent to World)
     let world_normal_basis = normalize(in.world_normal);
@@ -210,9 +222,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let world_normal = world_normal_basis;
 #endif
 
-    // PBR Parameters (To be moved to Material uniforms later)
-    let metallic: f32 = 0.5;
-    let roughness: f32 = 0.5;
+    // PBR Parameters (From Material Uniforms)
+    let metallic: f32 = material.metallic;
+    let roughness: f32 = material.roughness;
 
     var ambient_ao = 1.0;
     if (camera.ssao_enabled == 1u) {

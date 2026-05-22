@@ -109,6 +109,9 @@ impl Model {
 
             let material = MaterialStandard {
                 name: m.name,
+                base_color: [1.0, 1.0, 1.0, 1.0],
+                metallic: 0.0,
+                roughness: 0.0,
                 color_texture,
                 normal_texture,
                 texture_bind_group: None,

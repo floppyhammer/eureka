@@ -6,11 +6,49 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct MaterialStandard {
     pub name: String,
+    pub base_color: [f32; 4],
+    pub metallic: f32,
+    pub roughness: f32,
     pub color_texture: Option<TextureId>,
     pub normal_texture: Option<TextureId>,
     // Bind group for the textures.
     pub texture_bind_group: Option<BindGroupId>,
     pub transparent: bool,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct MaterialUniform {
+    pub base_color: [f32; 4],
+    pub metallic: f32,
+    pub roughness: f32,
+    pub _pad0: f32,
+    pub _pad1: f32,
+}
+
+impl MaterialStandard {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            base_color: [1.0, 1.0, 1.0, 1.0],
+            metallic: 0.5,
+            roughness: 0.5,
+            color_texture: None,
+            normal_texture: None,
+            texture_bind_group: None,
+            transparent: false,
+        }
+    }
+
+    pub fn to_uniform(&self) -> MaterialUniform {
+        MaterialUniform {
+            base_color: self.base_color,
+            metallic: self.metallic,
+            roughness: self.roughness,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        }
+    }
 }
 
 bitflags! {
