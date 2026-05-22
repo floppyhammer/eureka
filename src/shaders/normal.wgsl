@@ -50,8 +50,11 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     let world_normal = normalize(normal_matrix * vertex.normal);
     let view_normal = (camera.view * vec4<f32>(world_normal, 0.0)).xyz;
 
+    // Vertex's world position.
+    let vertex_world_position = model_matrix * vec4<f32>(vertex.position, 1.0);
+
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * model_matrix * vec4<f32>(vertex.position, 1.0);
+    out.clip_position = camera.view_proj * vertex_world_position;
     out.world_normal = world_normal;
     out.view_normal = view_normal;
 
