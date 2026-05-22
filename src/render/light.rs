@@ -260,6 +260,9 @@ pub(crate) fn prepare_shadow(
                 view: light_view.to_cols_array_2d(),
                 proj: light_proj.to_cols_array_2d(),
                 view_proj: view_proj.to_cols_array_2d(),
+                inv_proj: Mat4::IDENTITY.to_cols_array_2d(),
+                ssao_enabled: 0,
+                _pad: [0; 3],
             });
 
             cascade_uniform.view_proj[i] = view_proj.to_cols_array_2d();
@@ -333,6 +336,9 @@ pub(crate) fn prepare_shadow(
                 view: light_view.to_cols_array_2d(),
                 proj: point_light_proj.to_cols_array_2d(),
                 view_proj: view_proj.to_cols_array_2d(),
+                inv_proj: Mat4::IDENTITY.to_cols_array_2d(),
+                ssao_enabled: 0,
+                _pad: [0; 3],
             };
         }
     }

@@ -20,6 +20,8 @@ pub struct Camera3d {
 
     projection: Projection,
 
+    pub ssao_enabled: bool,
+
     controller: Camera3dController,
 }
 
@@ -50,6 +52,7 @@ impl Camera3d {
             pitch: pitch_radians,
             fov,
             projection: projection.into(),
+            ssao_enabled: true,
             controller,
         }
     }
@@ -309,8 +312,9 @@ impl AsNode for Camera3d {
         uniform.view_position = self.position.extend(1.0).to_array();
         uniform.view = view_mat.to_cols_array_2d();
         uniform.proj = proj_mat.to_cols_array_2d();
-
         uniform.view_proj = (proj_mat * view_mat).to_cols_array_2d();
+        uniform.inv_proj = proj_mat.inverse().to_cols_array_2d();
+        uniform.ssao_enabled = if self.ssao_enabled { 1 } else { 0 };
 
         draw_cmds.extracted.cameras.add(CameraType::D3, uniform);
     }

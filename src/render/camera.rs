@@ -33,6 +33,9 @@ pub struct CameraUniform {
     pub(crate) view: [[f32; 4]; 4],
     pub(crate) proj: [[f32; 4]; 4],
     pub(crate) view_proj: [[f32; 4]; 4],
+    pub(crate) inv_proj: [[f32; 4]; 4],
+    pub(crate) ssao_enabled: u32,
+    pub(crate) _pad: [u32; 3],
 }
 
 impl Default for CameraUniform {
@@ -42,6 +45,9 @@ impl Default for CameraUniform {
             view: Mat4::IDENTITY.to_cols_array_2d(),
             proj: Mat4::IDENTITY.to_cols_array_2d(),
             view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+            inv_proj: Mat4::IDENTITY.to_cols_array_2d(),
+            ssao_enabled: 0,
+            _pad: [0; 3],
         }
     }
 }

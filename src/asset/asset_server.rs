@@ -1,4 +1,4 @@
-use assets_manager::{AssetCache, Compound, Handle};
+use assets_manager::AssetCache;
 use std::path::PathBuf;
 
 pub struct AssetServer {

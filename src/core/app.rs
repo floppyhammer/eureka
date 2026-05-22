@@ -225,6 +225,8 @@ impl<'a> App<'a> {
 
         render_world.render_shadow(&mut encoder);
 
+        let ssao_ran = render_world.render_ssao(&mut encoder);
+
         // The RenderPass has all the methods to do the actual drawing.
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -249,7 +251,7 @@ impl<'a> App<'a> {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
+                        load: if ssao_ran { wgpu::LoadOp::Load } else { wgpu::LoadOp::Clear(1.0) },
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,

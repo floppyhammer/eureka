@@ -3,6 +3,7 @@ pub(crate) mod atlas;
 pub(crate) mod gizmo;
 pub(crate) mod mesh;
 pub(crate) mod render_server;
+pub(crate) mod ssao;
 pub(crate) mod texture;
 pub(crate) mod vertex;
 

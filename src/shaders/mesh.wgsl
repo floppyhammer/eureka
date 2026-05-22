@@ -5,6 +5,8 @@ struct Camera {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     view_proj: mat4x4<f32>,
+    inv_proj: mat4x4<f32>,
+    ssao_enabled: u32,
 }
 
 @group(0) @binding(0)
@@ -54,6 +56,8 @@ var<uniform> cascade_uniform: CascadeUniform;
 
 @group(1) @binding(4)
 var t_point_shadow: texture_depth_cube_array;
+@group(1) @binding(5)
+var t_ssao: texture_2d<f32>;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -161,7 +165,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let world_normal = world_normal_basis;
 #endif
 
-    let ambient_color = lights.ambient_color * lights.ambient_strength;
+    var ambient_ao = 1.0;
+    if (camera.ssao_enabled == 1u) {
+        ambient_ao = textureLoad(t_ssao, vec2<i32>(in.clip_position.xy), 0).r;
+    }
+    let ambient_color = lights.ambient_color * lights.ambient_strength * ambient_ao;
     let view_dir = normalize(camera.view_pos.xyz - in.world_position.xyz);
 
     var point_lights_result = vec3<f32>(0.0, 0.0, 0.0);

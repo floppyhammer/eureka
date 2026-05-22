@@ -5,6 +5,7 @@ use crate::render::gizmo::GizmoRenderResources;
 use crate::render::light::{prepare_shadow, render_shadow, ExtractedLights, LightRenderResources};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sky::{prepare_sky, render_sky, ExtractedSky, SkyRenderResources};
+use crate::render::ssao::SsaoRenderResources;
 use crate::render::sprite::{
     prepare_sprite, render_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
 };
@@ -60,6 +61,8 @@ pub struct RenderWorld {
     pub atlas_render_resources: AtlasRenderResources,
 
     pub sky_render_resources: SkyRenderResources,
+
+    pub ssao_render_resources: SsaoRenderResources,
 }
 
 impl RenderWorld {
@@ -89,6 +92,13 @@ impl RenderWorld {
 
         let light_render_resources = LightRenderResources::new();
 
+        let ssao_render_resources = SsaoRenderResources::new(
+            render_server,
+            &mut texture_cache,
+            &camera_render_resources,
+            depth_texture,
+        );
+
         Self {
             surface_depth_texture: depth_texture,
             texture_cache,
@@ -103,6 +113,7 @@ impl RenderWorld {
             gizmo_render_resources,
             atlas_render_resources,
             sky_render_resources,
+            ssao_render_resources,
         }
     }
 
@@ -142,6 +153,7 @@ impl RenderWorld {
                     &self.light_render_resources,
                     &self.camera_render_resources,
                     &render_server,
+                    self.ssao_render_resources.blur_texture,
                 );
 
                 let main_camera = if self.extracted.cameras.uniforms.len() > i {
@@ -182,6 +194,118 @@ impl RenderWorld {
             &self.mesh_cache,
             &self.mesh_render_resources,
         );
+    }
+
+    pub(crate) fn render_ssao(&self, encoder: &mut wgpu::CommandEncoder) -> bool {
+        if self.extracted.meshes.is_empty() {
+            return false;
+        }
+
+        // Check if any camera wants SSAO.
+        // For simplicity, we check the first 3D camera.
+        let mut camera_wants_ssao = false;
+        for i in 0..self.extracted.cameras.types.len() {
+            if self.extracted.cameras.types[i] == CameraType::D3 {
+                if self.extracted.cameras.uniforms[i].ssao_enabled == 1 {
+                    camera_wants_ssao = true;
+                    break;
+                }
+            }
+        }
+
+        if !camera_wants_ssao {
+            return false;
+        }
+
+        let camera_bind_group = self.camera_render_resources.bind_group.as_ref().unwrap();
+
+        let normal_view = &self.texture_cache.get(self.ssao_render_resources.normal_texture).unwrap().view;
+        let depth_view = &self.texture_cache.get(self.surface_depth_texture).unwrap().view;
+
+        // 1. Normal Pass
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("SSAO Normal Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: normal_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            self.ssao_render_resources.render_normal(
+                &mut render_pass,
+                &self.extracted.meshes,
+                &self.mesh_cache,
+                &self.mesh_render_resources,
+                camera_bind_group,
+            );
+        }
+
+        // 2. SSAO Pass
+        {
+            let ssao_view = &self.texture_cache.get(self.ssao_render_resources.ssao_texture).unwrap().view;
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("SSAO Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: ssao_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            render_pass.set_pipeline(&self.ssao_render_resources.ssao_pipeline);
+            render_pass.set_bind_group(0, camera_bind_group, &[0]);
+            render_pass.set_bind_group(1, &self.ssao_render_resources.ssao_bind_group, &[]);
+            render_pass.draw(0..3, 0..1);
+        }
+
+        // 3. Blur Pass
+        {
+            let blur_view = &self.texture_cache.get(self.ssao_render_resources.blur_texture).unwrap().view;
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("SSAO Blur Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: blur_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            render_pass.set_pipeline(&self.ssao_render_resources.blur_pipeline);
+            render_pass.set_bind_group(0, &self.ssao_render_resources.blur_bind_group, &[]);
+            render_pass.draw(0..3, 0..1);
+        }
+
+        true
     }
 
     // Send draw calls.
@@ -234,6 +358,14 @@ impl RenderWorld {
             &mut self.texture_cache,
             &render_server.surface_config,
             Some("surface depth texture"),
+        );
+
+        self.ssao_render_resources.on_resize(
+            &render_server.device,
+            &mut self.texture_cache,
+            render_server.surface_config.width,
+            render_server.surface_config.height,
+            self.surface_depth_texture,
         );
     }
 }

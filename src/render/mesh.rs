@@ -5,7 +5,7 @@ use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform, 
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
-use crate::render::{create_render_pipeline, RenderServer, Texture, TextureCache};
+use crate::render::{create_render_pipeline, RenderServer, Texture, TextureCache, TextureId};
 use glam::{Mat3, Mat4, Quat, Vec3};
 use std::collections::HashMap;
 use std::mem;
@@ -454,6 +454,16 @@ impl MeshRenderResources {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 5,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
+                        },
                     ],
                     label: Some("mesh light bind group layout"),
                 });
@@ -564,6 +574,7 @@ impl MeshRenderResources {
         lights: &ExtractedLights,
         light_render_resources: &LightRenderResources,
         texture_cache: &TextureCache,
+        ssao_texture_id: TextureId,
     ) {
         let light_uniform_size = mem::size_of::<LightUniform>();
 
@@ -644,6 +655,10 @@ impl MeshRenderResources {
                         wgpu::BindGroupEntry {
                             binding: 4,
                             resource: wgpu::BindingResource::TextureView(&point_shadow_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: wgpu::BindingResource::TextureView(&texture_cache.get(ssao_texture_id).unwrap().view),
                         },
                     ],
                     label: Some("light bind group with shadow"),
@@ -888,6 +903,7 @@ pub(crate) fn prepare_meshes(
     light_render_resources: &LightRenderResources,
     camera_render_resources: &CameraRenderResources,
     render_server: &RenderServer,
+    ssao_texture_id: TextureId,
 ) {
     for mesh in extracted_meshes {
         mesh_render_resources.prepare_materials(&texture_cache, render_server);
@@ -905,6 +921,7 @@ pub(crate) fn prepare_meshes(
         extracted_lights,
         light_render_resources,
         texture_cache,
+        ssao_texture_id,
     );
 
     mesh_render_resources.prepare_instances(render_server, &extracted_meshes);
