@@ -5,6 +5,7 @@ use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
 use crate::scene::{AsNode, NodeType};
 use glam::Vec2;
 use std::any::Any;
+use crate::math::transform::Transform2d;
 
 pub struct Label {
     node_ui: NodeUi,
@@ -63,12 +64,20 @@ impl AsNode for Label {
         NodeType::Label
     }
 
+    fn as_node_ui(&self) -> Option<&dyn AsNodeUi> {
+        Some(self)
+    }
+
+    fn as_node_ui_mut(&mut self) -> Option<&mut dyn AsNodeUi> {
+        Some(self)
+    }
+
     fn update(&mut self, _dt: f32, singletons: &mut Singletons) {
         if self.text_is_dirty || self.atlas.as_ref().map_or(true, |a| a.texture.is_none()) {
             let atlas = singletons.text_server.get_atlas(
                 self.text.as_str(),
                 self.font_id.clone(),
-                self.node_ui.transform,
+                self.node_ui.global_transform,
                 self.leading,
             );
 
@@ -110,5 +119,17 @@ impl AsNodeUi for Label {
 
     fn set_rotation(&mut self, rotation: f32) {
         self.node_ui.transform.rotation = rotation;
+    }
+
+    fn get_transform(&self) -> Transform2d {
+        self.node_ui.transform
+    }
+
+    fn get_global_transform(&self) -> Transform2d {
+        self.node_ui.global_transform
+    }
+
+    fn set_global_transform(&mut self, transform: Transform2d) {
+        self.node_ui.global_transform = transform;
     }
 }

@@ -1,5 +1,7 @@
 use crate::core::singleton::Singletons;
 use crate::render::draw_command::DrawCommands;
+use crate::scene::d2::AsNodeUi;
+use crate::scene::d3::AsNode3d;
 use crate::window::input_server::InputEvent;
 use crate::window::InputServer;
 use std::any::Any;
@@ -67,5 +69,21 @@ pub trait AsNode {
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         // Default implementation
+    }
+
+    fn as_node_ui(&self) -> Option<&dyn AsNodeUi> {
+        None
+    }
+
+    fn as_node_ui_mut(&mut self) -> Option<&mut dyn AsNodeUi> {
+        None
+    }
+
+    fn as_node_3d(&self) -> Option<&dyn AsNode3d> {
+        None
+    }
+
+    fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
+        None
     }
 }

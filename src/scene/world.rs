@@ -2,7 +2,7 @@ use crate::core::singleton::Singletons;
 use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, Camera2d, Camera3d, NodeType};
 use crate::window::InputServer;
-use glam::{UVec2, Vec2};
+use glam::UVec2;
 use indextree::{Arena, NodeEdge, NodeId};
 
 pub struct World {
@@ -127,7 +127,43 @@ impl World {
     }
 
     pub fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        for id in self.traverse() {
+        let ids = self.traverse();
+
+        for id in ids {
+            // 1. Propagate transforms
+            let parent_id = self.arena[id].parent();
+
+            // 2D Transform Propagation
+            let parent_global_transform2d = parent_id.and_then(|p_id| {
+                self.arena[p_id].get().as_node_ui().map(|p| p.get_global_transform())
+            });
+
+            if let Some(node2d) = self.arena[id].get_mut().as_node_ui_mut() {
+                let local = node2d.get_transform();
+                let global = if let Some(parent_global) = parent_global_transform2d {
+                    parent_global.combine(&local)
+                } else {
+                    local
+                };
+                node2d.set_global_transform(global);
+            }
+
+            // 3D Transform Propagation
+            let parent_global_transform3d = parent_id.and_then(|p_id| {
+                self.arena[p_id].get().as_node_3d().map(|p| p.get_global_transform())
+            });
+
+            if let Some(node3d) = self.arena[id].get_mut().as_node_3d_mut() {
+                let local = node3d.get_transform();
+                let global = if let Some(parent_global) = parent_global_transform3d {
+                    parent_global.combine(&local)
+                } else {
+                    local
+                };
+                node3d.set_global_transform(global);
+            }
+
+            // 2. Node update
             self.arena[id].get_mut().update(dt, singletons);
         }
 

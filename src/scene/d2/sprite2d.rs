@@ -9,6 +9,7 @@ use crate::scene::{AsNode, NodeType};
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use std::any::Any;
 use std::path::{Path, PathBuf};
+use crate::math::transform::Transform2d;
 
 pub struct SpriteSheet {
     h_frames: u32,
@@ -116,6 +117,15 @@ impl AsNode for Sprite2d {
     fn node_type(&self) -> NodeType {
         NodeType::Sprite2d
     }
+
+    fn as_node_ui(&self) -> Option<&dyn AsNodeUi> {
+        Some(self)
+    }
+
+    fn as_node_ui_mut(&mut self) -> Option<&mut dyn AsNodeUi> {
+        Some(self)
+    }
+
     fn ready(&mut self) {}
 
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
@@ -127,7 +137,7 @@ impl AsNode for Sprite2d {
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         if let Some(texture_id) = self.texture {
             let extracted = ExtractedSprite2d {
-                transform: self.node_ui.transform,
+                transform: self.node_ui.global_transform,
                 size: if self.use_original_size {
                     None
                 } else {
@@ -161,5 +171,17 @@ impl AsNodeUi for Sprite2d {
     }
     fn set_rotation(&mut self, rotation: f32) {
         self.node_ui.transform.rotation = rotation;
+    }
+
+    fn get_transform(&self) -> Transform2d {
+        self.node_ui.transform
+    }
+
+    fn get_global_transform(&self) -> Transform2d {
+        self.node_ui.global_transform
+    }
+
+    fn set_global_transform(&mut self, transform: Transform2d) {
+        self.node_ui.global_transform = transform;
     }
 }

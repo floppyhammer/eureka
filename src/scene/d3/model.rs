@@ -9,6 +9,7 @@ use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
 
 use crate::math::aabb::Aabb;
+use crate::math::transform::Transform3d;
 use crate::render::draw_command::DrawCommands;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::vertex::Vertex3d;
@@ -322,6 +323,14 @@ impl AsNode for Model {
         NodeType::Model
     }
 
+    fn as_node_3d(&self) -> Option<&dyn AsNode3d> {
+        Some(self)
+    }
+
+    fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
+        Some(self)
+    }
+
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         if self.asset_path.is_some() {
             return;
@@ -329,7 +338,7 @@ impl AsNode for Model {
 
         for i in 0..self.meshes.len() {
             let extracted_mesh = ExtractedMesh {
-                transform: self.node_3d.transform,
+                transform: self.node_3d.global_transform,
                 mesh_id: self.meshes[i],
                 material_id: self.materials[i],
             };
@@ -356,5 +365,17 @@ impl AsNode3d for Model {
     }
     fn set_scale(&mut self, scale: Vec3) {
         self.node_3d.transform.scale = scale;
+    }
+
+    fn get_transform(&self) -> Transform3d {
+        self.node_3d.transform
+    }
+
+    fn get_global_transform(&self) -> Transform3d {
+        self.node_3d.global_transform
+    }
+
+    fn set_global_transform(&mut self, transform: Transform3d) {
+        self.node_3d.global_transform = transform;
     }
 }

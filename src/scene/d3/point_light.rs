@@ -45,6 +45,14 @@ impl AsNode for PointLight {
         NodeType::PointLight
     }
 
+    fn as_node_3d(&self) -> Option<&dyn AsNode3d> {
+        Some(self)
+    }
+
+    fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
+        Some(self)
+    }
+
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         // let queue = &mut singletons.render_server.queue;
 
@@ -58,7 +66,7 @@ impl AsNode for PointLight {
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         let point_light = PointLightUniform {
-            position: self.node_3d.transform.position.into(),
+            position: self.node_3d.global_transform.position.into(),
             strength: self.strength,
             color: self.color.to_vec3().into(),
             constant: 1.0,
@@ -94,5 +102,17 @@ impl AsNode3d for PointLight {
 
     fn set_scale(&mut self, scale: Vec3) {
         self.node_3d.transform.scale = scale;
+    }
+
+    fn get_transform(&self) -> crate::math::transform::Transform3d {
+        self.node_3d.transform
+    }
+
+    fn get_global_transform(&self) -> crate::math::transform::Transform3d {
+        self.node_3d.global_transform
+    }
+
+    fn set_global_transform(&mut self, transform: crate::math::transform::Transform3d) {
+        self.node_3d.global_transform = transform;
     }
 }

@@ -19,8 +19,8 @@ impl Transform2d {
     pub fn transform_point(&self, point: &Vec2) -> Vec2 {
         let (sin, cos) = self.rotation.sin_cos();
         let m00 = cos * self.scale.x;
-        let m01 = -sin;
-        let m10 = sin;
+        let m01 = -sin * self.scale.y;
+        let m10 = sin * self.scale.x;
         let m11 = cos * self.scale.y;
 
         let mut new_point = Vec2::ZERO;
@@ -28,6 +28,14 @@ impl Transform2d {
         new_point.y = m10 * point.x + m11 * point.y;
 
         new_point + self.position
+    }
+
+    pub fn combine(&self, other: &Self) -> Self {
+        Self {
+            position: self.transform_point(&other.position),
+            rotation: self.rotation + other.rotation,
+            scale: self.scale * other.scale,
+        }
     }
 }
 
@@ -49,5 +57,13 @@ impl Transform3d {
 
     pub fn matrix(&self) -> glam::Mat4 {
         glam::Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position)
+    }
+
+    pub fn combine(&self, other: &Self) -> Self {
+        Self {
+            position: self.rotation * (self.scale * other.position) + self.position,
+            rotation: self.rotation * other.rotation,
+            scale: self.scale * other.scale,
+        }
     }
 }
