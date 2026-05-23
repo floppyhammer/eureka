@@ -3,6 +3,7 @@ use anyhow::*;
 use glam::{Quat, Vec2, Vec3};
 use std::any::Any;
 use std::path::Path;
+use std::thread;
 use std::result::Result::Ok;
 use std::time::Instant;
 use tobj::LoadOptions;
@@ -13,10 +14,33 @@ use crate::render::draw_command::DrawCommands;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::vertex::Vertex3d;
 use crate::render::{
-    ExtractedMesh, Mesh, MeshCache, MeshId, RenderServer, Texture, TextureCache,
+    ExtractedMesh, Mesh, MeshCache, MeshId, RenderServer, Texture, TextureCache, TextureId, RawTextureData
 };
 use crate::scene::d3::node_3d::{AsNode3d, Node3d};
 use crate::scene::{AsNode, NodeType};
+
+pub struct RawMeshData {
+    pub name: String,
+    pub vertices: Vec<Vertex3d>,
+    pub indices: Vec<u32>,
+    pub material_index: Option<usize>,
+    pub aabb: Aabb,
+}
+
+pub struct RawMaterialData {
+    pub name: String,
+    pub base_color: [f32; 4],
+    pub metallic: f32,
+    pub roughness: f32,
+    pub color_texture: Option<RawTextureData>,
+    pub normal_texture: Option<RawTextureData>,
+}
+
+pub struct RawModelData {
+    pub meshes: Vec<RawMeshData>,
+    pub materials: Vec<RawMaterialData>,
+    pub aabb: Aabb,
+}
 
 pub struct Model {
     node_3d: Node3d,
@@ -34,18 +58,9 @@ pub struct Model {
 }
 
 impl Model {
-    /// Load model from a wavefront file (.obj).
-    pub fn load<P: AsRef<Path>>(
-        texture_cache: &mut TextureCache,
-        material_cache: &mut MaterialCache,
-        mesh_cache: &mut MeshCache,
-        render_server: &RenderServer,
-        path: P,
-    ) -> Result<Self> {
-        let now = Instant::now();
-
-        let device = &render_server.device;
-        let queue = &render_server.queue;
+    /// Pure CPU: Load and parse model data from disk.
+    pub fn parse<P: AsRef<Path>>(path: P) -> Result<RawModelData> {
+        log::info!("Starting background parse for: {:?}", path.as_ref());
 
         let (obj_meshes, obj_materials) = tobj::load_obj(
             path.as_ref(),
@@ -56,79 +71,36 @@ impl Model {
             },
         )?;
 
-        // Unwrap Result.
         let obj_materials = obj_materials?;
-
-        // We're assuming that the texture files are stored in the same folder as the obj file.
         let containing_folder = path.as_ref().parent().context("Directory has no parent")?;
 
-        // Handle materials.
-        let mut local_materials = Vec::new();
-
+        let mut raw_materials = Vec::new();
         for m in obj_materials {
-            // Load color texture.
-            let mut color_texture = None;
+            let color_texture = if let Some(ref tex_path) = m.diffuse_texture {
+                Texture::decode_from_disk(containing_folder.join(tex_path)).ok()
+            } else {
+                None
+            };
 
-            if m.diffuse_texture.is_some() {
-                color_texture = match Texture::load(
-                    device,
-                    queue,
-                    texture_cache,
-                    containing_folder.join(&m.diffuse_texture.clone().unwrap()),
-                ) {
-                    Ok(i) => Some(i),
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to load diffuse texture {:?}: {}",
-                            m.diffuse_texture.clone().unwrap(),
-                            e
-                        );
-                        None
-                    }
-                };
-            }
+            let normal_texture = if let Some(ref tex_path) = m.normal_texture {
+                Texture::decode_from_disk(containing_folder.join(tex_path)).ok()
+            } else {
+                None
+            };
 
-            // Load normal texture.
-            let mut normal_texture = None;
-
-            if m.normal_texture.is_some() {
-                normal_texture = match Texture::load(
-                    device,
-                    queue,
-                    texture_cache,
-                    containing_folder.join(&m.normal_texture.clone().unwrap()),
-                ) {
-                    Ok(i) => Some(i),
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to load normal texture {:?}: {}",
-                            m.normal_texture.clone().unwrap(),
-                            e
-                        );
-                        None
-                    }
-                };
-            }
-
-            let material = MaterialStandard {
+            raw_materials.push(RawMaterialData {
                 name: m.name,
                 base_color: [1.0, 1.0, 1.0, 1.0],
                 metallic: 0.0,
                 roughness: 0.0,
                 color_texture,
                 normal_texture,
-                texture_bind_group: None,
-                transparent: false,
-            };
-
-            local_materials.push(material_cache.add(material));
+            });
         }
 
-        // Handle meshes.
-        let mut meshes = Vec::new();
-        let mut materials = Vec::new();
+        let mut raw_meshes = Vec::new();
         let mut model_aabb = Aabb::default();
-        let mut first_mesh = true;
+        let mut first = true;
 
         for m in obj_meshes {
             let mut vertices = Vec::new();
@@ -152,119 +124,128 @@ impl Model {
                 });
             }
 
+            // Calculate tangents (same logic as before)
             let indices = &m.mesh.indices;
             let mut triangles_included = vec![0; vertices.len()];
-
-            // Calculate tangents and bi-tangets.
             for c in indices.chunks(3) {
                 let v0 = vertices[c[0] as usize];
                 let v1 = vertices[c[1] as usize];
                 let v2 = vertices[c[2] as usize];
-
                 let pos0 = Vec3::from_array(v0.position);
                 let pos1 = Vec3::from_array(v1.position);
                 let pos2 = Vec3::from_array(v2.position);
-
                 let uv0 = Vec2::from_array(v0.uv);
                 let uv1 = Vec2::from_array(v1.uv);
                 let uv2 = Vec2::from_array(v2.uv);
-
-                // Calculate the edges of the triangle.
                 let delta_pos1 = pos1 - pos0;
                 let delta_pos2 = pos2 - pos0;
-
                 let delta_uv1 = uv1 - uv0;
                 let delta_uv2 = uv2 - uv0;
-
                 let r = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x);
                 let tangent = (delta_pos1 * delta_uv2.y - delta_pos2 * delta_uv1.y) * r;
                 let bi_tangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
-
-                // We'll use the same tangent/bi-tangent for each vertex in the triangle.
-                vertices[c[0] as usize].tangent =
-                    (tangent + Vec3::from_array(vertices[c[0] as usize].tangent)).to_array();
-                vertices[c[1] as usize].tangent =
-                    (tangent + Vec3::from_array(vertices[c[1] as usize].tangent)).to_array();
-                vertices[c[2] as usize].tangent =
-                    (tangent + Vec3::from_array(vertices[c[2] as usize].tangent)).to_array();
-                vertices[c[0] as usize].bi_tangent =
-                    (bi_tangent + Vec3::from_array(vertices[c[0] as usize].bi_tangent)).to_array();
-                vertices[c[1] as usize].bi_tangent =
-                    (bi_tangent + Vec3::from_array(vertices[c[1] as usize].bi_tangent)).to_array();
-                vertices[c[2] as usize].bi_tangent =
-                    (bi_tangent + Vec3::from_array(vertices[c[2] as usize].bi_tangent)).to_array();
-
-                // Used to average the tangents/bi-tangents.
-                triangles_included[c[0] as usize] += 1;
-                triangles_included[c[1] as usize] += 1;
-                triangles_included[c[2] as usize] += 1;
+                for &idx in c {
+                    vertices[idx as usize].tangent = (tangent + Vec3::from_array(vertices[idx as usize].tangent)).to_array();
+                    vertices[idx as usize].bi_tangent = (bi_tangent + Vec3::from_array(vertices[idx as usize].bi_tangent)).to_array();
+                    triangles_included[idx as usize] += 1;
+                }
             }
-
-            // Average the tangents/bi-tangents.
             for (i, n) in triangles_included.into_iter().enumerate() {
-                let denom = 1.0 / n as f32;
-                let v = &mut vertices[i];
-                v.tangent = (Vec3::from_array(v.tangent) * denom).normalize().to_array();
-                v.bi_tangent = (Vec3::from_array(v.bi_tangent) * denom).normalize().to_array();
+                if n > 0 {
+                    let denom = 1.0 / n as f32;
+                    vertices[i].tangent = (Vec3::from_array(vertices[i].tangent) * denom).normalize().to_array();
+                    vertices[i].bi_tangent = (Vec3::from_array(vertices[i].bi_tangent) * denom).normalize().to_array();
+                }
             }
 
-            let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("{:?} Vertex Buffer", path.as_ref())),
-                contents: bytemuck::cast_slice(&vertices),
+            let aabb = Aabb::from_points(&vertices.iter().map(|v| Vec3::from_slice(&v.position)).collect::<Vec<_>>());
+            if first { model_aabb = aabb; first = false; } else { model_aabb = model_aabb.union(&aabb); }
+
+            raw_meshes.push(RawMeshData {
+                name: m.name,
+                vertices,
+                indices: m.mesh.indices,
+                material_index: m.mesh.material_id,
+                aabb,
+            });
+        }
+
+        Ok(RawModelData {
+            meshes: raw_meshes,
+            materials: raw_materials,
+            aabb: model_aabb,
+        })
+    }
+
+    /// GPU Side: Upload raw data to GPU and populate caches.
+    pub fn from_raw(
+        raw: RawModelData,
+        render_server: &RenderServer,
+        texture_cache: &mut TextureCache,
+        material_cache: &mut MaterialCache,
+        mesh_cache: &mut MeshCache,
+    ) -> Self {
+        let mut material_ids = Vec::new();
+        for m in raw.materials {
+            let color_texture = m.color_texture.map(|raw_tex| Texture::from_raw(&render_server.device, &render_server.queue, texture_cache, raw_tex));
+            let normal_texture = m.normal_texture.map(|raw_tex| Texture::from_raw(&render_server.device, &render_server.queue, texture_cache, raw_tex));
+
+            material_ids.push(material_cache.add(MaterialStandard {
+                name: m.name,
+                base_color: m.base_color,
+                metallic: m.metallic,
+                roughness: m.roughness,
+                color_texture,
+                normal_texture,
+                texture_bind_group: None,
+                transparent: false,
+            }));
+        }
+
+        let mut meshes = Vec::new();
+        let mut materials = Vec::new();
+        for m in raw.meshes {
+            let vertex_buffer = render_server.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("{} Vertex Buffer", m.name)),
+                contents: bytemuck::cast_slice(&m.vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             });
-
-            let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("{:?} Index Buffer", path.as_ref())),
-                contents: bytemuck::cast_slice(&m.mesh.indices),
+            let index_buffer = render_server.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("{} Index Buffer", m.name)),
+                contents: bytemuck::cast_slice(&m.indices),
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-            let aabb = Aabb::from_points(
-                &vertices
-                    .iter()
-                    .map(|v| Vec3::from_slice(&v.position))
-                    .collect::<Vec<_>>(),
-            );
-
-            if first_mesh {
-                model_aabb = aabb;
-                first_mesh = false;
-            } else {
-                model_aabb = model_aabb.union(&aabb);
-            }
-
-            let mesh = Mesh {
+            let mesh_id = mesh_cache.add(Mesh {
                 name: m.name,
                 vertex_buffer,
                 index_buffer,
-                index_count: m.mesh.indices.len() as u32,
-                aabb,
-            };
-
-            meshes.push(mesh_cache.add(mesh));
-
-            // Prepare a material id for each mesh.
-            if m.mesh.material_id.is_some() {
-                materials.push(Some(local_materials[m.mesh.material_id.unwrap()]));
-            } else {
-                materials.push(None);
-            }
+                index_count: m.indices.len() as u32,
+                aabb: m.aabb,
+            });
+            meshes.push(mesh_id);
+            materials.push(m.material_index.map(|idx| material_ids[idx]));
         }
 
-        let elapsed_time = now.elapsed();
-        log::info!(
-            "Loading model took {} milliseconds",
-            elapsed_time.as_millis()
-        );
-
-        Ok(Self {
+        Self {
             node_3d: Node3d::default(),
             meshes,
             materials,
-            aabb: model_aabb,
+            aabb: raw.aabb,
             name: "".to_string(),
-        })
+        }
+    }
+
+    /// Keep old load for compatibility, but implement using new flow.
+    pub fn load<P: AsRef<Path>>(
+        texture_cache: &mut TextureCache,
+        material_cache: &mut MaterialCache,
+        mesh_cache: &mut MeshCache,
+        render_server: &RenderServer,
+        path: P,
+    ) -> Result<Self> {
+        let raw = Self::parse(path)?;
+        Ok(Self::from_raw(raw, render_server, texture_cache, material_cache, mesh_cache))
     }
 
     pub fn get_world_aabb(&self) -> Aabb {

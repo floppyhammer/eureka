@@ -18,7 +18,7 @@ use crate::asset::AssetServer;
 use crate::core::singleton::Singletons;
 use crate::render::render_world::RenderWorld;
 use crate::render::RenderServer;
-use crate::scene::{AsNode, World};
+use crate::scene::{AsNode, World, Model};
 use crate::text::TextServer;
 use crate::window::InputServer;
 
@@ -172,7 +172,30 @@ impl<'a> App<'a> {
     }
 
     fn update(&mut self) {
-        if let Some(singletons) = &mut self.singletons {
+        if let (Some(singletons), Some(render_world)) = (&mut self.singletons, &mut self.render_world) {
+            // Update asset server (collects background loads)
+            singletons.asset_server.update();
+
+            // Process one loaded model per frame to avoid large frame time spikes
+            let mut model_to_spawn = None;
+            if let Some(path) = singletons.asset_server.loaded_raw_models.keys().next().cloned() {
+                if let Some(raw) = singletons.asset_server.loaded_raw_models.remove(&path) {
+                    model_to_spawn = Some((path, raw));
+                }
+            }
+
+            if let Some((path, raw)) = model_to_spawn {
+                log::info!("Uploading model to GPU: {:?}", path);
+                let model = Model::from_raw(
+                    raw,
+                    &singletons.render_server,
+                    &mut render_world.texture_cache,
+                    &mut render_world.mesh_render_resources.material_cache,
+                    &mut render_world.mesh_cache,
+                );
+                self.world.add_node(Box::new(model), None);
+            }
+
             singletons.engine.tick();
             self.world.update(
                 singletons.engine.get_delta() as f32,

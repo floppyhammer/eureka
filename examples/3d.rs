@@ -43,35 +43,13 @@ fn main() {
         light.transform.rotation = Quat::from_rotation_x(-90.0f32.to_radians());
         world.add_node(Box::new(light), None);
 
-        // Model 1.
-        let mut obj_model = Model::load(
-            &mut render_world.texture_cache,
-            &mut render_world.mesh_render_resources.material_cache,
-            &mut render_world.mesh_cache,
-            &singletons.render_server,
-            &singletons
-                .asset_server
-                .asset_dir
-                .join("models/ferris/ferris3d_v1.0.obj"),
-        )
-        .unwrap();
-        obj_model.set_position(Vec3::new(0.0, 1.0, 0.0));
-        world.add_node(Box::new(obj_model), None);
+        // Request models asynchronously.
+        // They will be picked up by App::update when ready.
+        let ferris_path = singletons.asset_server.asset_dir.join("models/ferris/ferris3d_v1.0.obj");
+        singletons.asset_server.request_model(ferris_path);
 
-        // Model 3.
-        let mut obj_model3 = Model::load(
-            &mut render_world.texture_cache,
-            &mut render_world.mesh_render_resources.material_cache,
-            &mut render_world.mesh_cache,
-            &singletons.render_server,
-            &singletons
-                .asset_server
-                .asset_dir
-                .join("models/granite_ground/granite_ground.obj"),
-        )
-        .unwrap();
-        obj_model3.set_scale(Vec3::new(5.0, 1.0, 5.0));
-        world.add_node(Box::new(obj_model3), None);
+        let ground_path = singletons.asset_server.asset_dir.join("models/granite_ground/granite_ground.obj");
+        singletons.asset_server.request_model(ground_path);
     });
 
     app.run();

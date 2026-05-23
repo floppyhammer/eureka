@@ -6,6 +6,14 @@ use std::path::Path;
 use uuid;
 use wgpu::Extent3d;
 
+pub struct RawTextureData {
+    pub name: String,
+    pub pixels: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    pub format: wgpu::TextureFormat,
+}
+
 pub struct Texture {
     pub(crate) size: (u32, u32),
     // Actual data.
@@ -289,6 +297,98 @@ impl Texture {
     /// Set a new sampler for this texture.
     pub fn set_sampler(&mut self, new_sampler: wgpu::Sampler) {
         self.sampler = new_sampler;
+    }
+
+    pub fn decode_from_disk<P: AsRef<Path>>(path: P) -> Result<RawTextureData> {
+        let path_ref = path.as_ref();
+        let name = path_ref.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let img = image::open(path_ref).context("Invalid image path")?;
+        let (width, height) = img.dimensions();
+
+        let mut pixels = Vec::new();
+        let format;
+
+        match img {
+            DynamicImage::ImageLuma8(gray) => {
+                pixels = gray.into_raw();
+                format = wgpu::TextureFormat::R8Unorm;
+            }
+            _ => {
+                pixels = img.to_rgba8().into_raw();
+                format = wgpu::TextureFormat::Rgba8UnormSrgb;
+            }
+        }
+
+        Ok(RawTextureData {
+            name,
+            pixels,
+            width,
+            height,
+            format,
+        })
+    }
+
+    pub fn from_raw(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        cache: &mut TextureCache,
+        raw: RawTextureData,
+    ) -> TextureId {
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(&raw.name),
+            size: wgpu::Extent3d {
+                width: raw.width,
+                height: raw.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: raw.format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            &raw.pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(raw.pixels.len() as u32 / raw.height),
+                rows_per_image: Some(raw.height),
+            },
+            Extent3d {
+                width: raw.width,
+                height: raw.height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        cache.add(Texture {
+            size: (raw.width, raw.height),
+            texture,
+            view,
+            sampler,
+            format: raw.format,
+        })
     }
 
     pub fn load_cube<P: AsRef<Path>>(
