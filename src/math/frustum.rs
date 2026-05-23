@@ -1,5 +1,5 @@
-use glam::{Mat4, Vec3, Vec4};
 use crate::math::aabb::Aabb;
+use glam::{Mat4, Vec3, Vec4};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Plane {
@@ -54,9 +54,21 @@ impl Frustum {
     pub fn intersects_aabb(&self, aabb: &Aabb) -> bool {
         for plane in &self.planes {
             let p = Vec3::new(
-                if plane.normal.x > 0.0 { aabb.max.x } else { aabb.min.x },
-                if plane.normal.y > 0.0 { aabb.max.y } else { aabb.min.y },
-                if plane.normal.z > 0.0 { aabb.max.z } else { aabb.min.z },
+                if plane.normal.x > 0.0 {
+                    aabb.max.x
+                } else {
+                    aabb.min.x
+                },
+                if plane.normal.y > 0.0 {
+                    aabb.max.y
+                } else {
+                    aabb.min.y
+                },
+                if plane.normal.z > 0.0 {
+                    aabb.max.z
+                } else {
+                    aabb.min.z
+                },
             );
 
             if plane.dot_point(p) < 0.0 {

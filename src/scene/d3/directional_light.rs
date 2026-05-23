@@ -1,8 +1,8 @@
 use crate::core::singleton::Singletons;
 use crate::math::color::ColorU;
 use crate::math::transform::Transform3d;
-use std::any::Any;
 use glam::Vec3;
+use std::any::Any;
 
 use crate::render::draw_command::DrawCommands;
 use crate::render::light::DirectionalLightUniform;
@@ -37,8 +37,7 @@ impl AsNode for DirectionalLight {
         self
     }
 
-    fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {
-    }
+    fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {}
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         let direction = self.transform.rotation * Vec3::NEG_Z;

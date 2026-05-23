@@ -1,13 +1,13 @@
+use crate::math::rect_to_vec4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasInstance, AtlasMode};
 use crate::render::{RenderServer, TextureCache};
 use crate::text::{DynamicFont, FONT_ATLAS_SIZE};
-use glam::{Vec2, Vec4};
 use font_kit::source::SystemSource;
+use glam::{Vec2, Vec4};
 use std::collections::HashMap;
 use std::time::Instant;
 use unicode_linebreak::BreakClass;
-use crate::math::rect_to_vec4;
 
 pub struct TextServer {
     fonts: HashMap<String, DynamicFont>,

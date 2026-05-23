@@ -261,7 +261,9 @@ impl Texture {
                     Some(wgpu::TextureViewDimension::D2)
                 }
             },
-            usage: Some(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT),
+            usage: Some(
+                wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            ),
             aspect: wgpu::TextureAspect::DepthOnly,
             base_mip_level: 0,
             mip_level_count: None,
@@ -301,7 +303,15 @@ impl Texture {
         config: &wgpu::SurfaceConfiguration,
         label: Option<&str>,
     ) -> TextureId {
-        Self::create_depth_texture_with_size(device, cache, config.width, config.height, 1, false, label)
+        Self::create_depth_texture_with_size(
+            device,
+            cache,
+            config.width,
+            config.height,
+            1,
+            false,
+            label,
+        )
     }
 
     /// Set a new sampler for this texture.
@@ -311,7 +321,11 @@ impl Texture {
 
     pub fn decode_from_disk<P: AsRef<Path>>(path: P) -> Result<RawTextureData> {
         let path_ref = path.as_ref();
-        let name = path_ref.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let name = path_ref
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
         let img = image::open(path_ref).context("Invalid image path")?;
         let (width, height) = img.dimensions();
 
@@ -403,7 +417,11 @@ impl Texture {
 
     pub fn decode_cube_from_disk<P: AsRef<Path>>(path: P) -> Result<RawCubeTextureData> {
         let path_ref = path.as_ref();
-        let name = path_ref.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let name = path_ref
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
         let img = image::open(path_ref).context("Invalid image path")?;
         let dimensions = img.dimensions();
         let rgba = img.to_rgba8();

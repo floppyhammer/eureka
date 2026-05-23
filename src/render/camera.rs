@@ -54,7 +54,8 @@ impl Default for CameraUniform {
 
 impl CameraUniform {
     pub(crate) fn get_uniform_offset_unit() -> u32 {
-        let offset_alignment = wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
+        let offset_alignment =
+            wgpu::Limits::downlevel_defaults().min_uniform_buffer_offset_alignment;
         let size = size_of::<CameraUniform>() as u32;
 
         (size + offset_alignment - 1) & !(offset_alignment - 1)

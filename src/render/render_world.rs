@@ -5,13 +5,13 @@ use crate::render::gizmo::GizmoRenderResources;
 use crate::render::light::{prepare_shadow, render_shadow, ExtractedLights, LightRenderResources};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sky::{prepare_sky, render_sky, ExtractedSky, SkyRenderResources};
-use crate::render::ssao::SsaoRenderResources;
 use crate::render::sprite::{
     prepare_sprite, render_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
 };
+use crate::render::ssao::SsaoRenderResources;
 use crate::render::{
-    prepare_meshes, render_meshes, ExtractedMesh, MeshCache, MeshRenderResources,
-    RenderServer, Texture, TextureCache, TextureId,
+    prepare_meshes, render_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderServer,
+    Texture, TextureCache, TextureId,
 };
 use crate::scene::Bvh;
 
@@ -237,8 +237,16 @@ impl RenderWorld {
 
         let camera_bind_group = self.camera_render_resources.bind_group.as_ref().unwrap();
 
-        let normal_view = &self.texture_cache.get(self.ssao_render_resources.normal_texture).unwrap().view;
-        let depth_view = &self.texture_cache.get(self.surface_depth_texture).unwrap().view;
+        let normal_view = &self
+            .texture_cache
+            .get(self.ssao_render_resources.normal_texture)
+            .unwrap()
+            .view;
+        let depth_view = &self
+            .texture_cache
+            .get(self.surface_depth_texture)
+            .unwrap()
+            .view;
 
         // 1. Normal Pass
         {
@@ -279,7 +287,11 @@ impl RenderWorld {
 
         // 2. SSAO Pass
         {
-            let ssao_view = &self.texture_cache.get(self.ssao_render_resources.ssao_texture).unwrap().view;
+            let ssao_view = &self
+                .texture_cache
+                .get(self.ssao_render_resources.ssao_texture)
+                .unwrap()
+                .view;
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("SSAO Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -304,7 +316,11 @@ impl RenderWorld {
 
         // 3. Blur Pass
         {
-            let blur_view = &self.texture_cache.get(self.ssao_render_resources.blur_texture).unwrap().view;
+            let blur_view = &self
+                .texture_cache
+                .get(self.ssao_render_resources.blur_texture)
+                .unwrap()
+                .view;
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("SSAO Blur Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {

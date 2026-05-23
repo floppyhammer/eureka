@@ -1,9 +1,9 @@
-use assets_manager::AssetCache;
-use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use crate::render::{RawCubeTextureData, RawTextureData, Texture};
 use crate::scene::d3::{Model, RawModelData};
-use crate::render::{RawTextureData, RawCubeTextureData, Texture};
+use assets_manager::AssetCache;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 pub enum AssetMessage {
     Model(PathBuf, RawModelData),
@@ -46,51 +46,63 @@ impl AssetServer {
 
     pub fn request_load<P: AsRef<Path>>(&mut self, path: P) {
         let path_buf = path.as_ref().to_path_buf();
-        if self.loading_paths.contains_key(&path_buf) || self.loaded_raw_models.contains_key(&path_buf) {
+        if self.loading_paths.contains_key(&path_buf)
+            || self.loaded_raw_models.contains_key(&path_buf)
+        {
             return;
         }
 
         self.loading_paths.insert(path_buf.clone(), true);
         let tx = self.tx.clone();
 
-        std::thread::spawn(move || {
-            match Model::parse(&path_buf) {
-                Ok(raw) => { let _ = tx.send(AssetMessage::Model(path_buf, raw)); }
-                Err(e) => { log::error!("Failed to parse model: {}", e); }
+        std::thread::spawn(move || match Model::parse(&path_buf) {
+            Ok(raw) => {
+                let _ = tx.send(AssetMessage::Model(path_buf, raw));
+            }
+            Err(e) => {
+                log::error!("Failed to parse model: {}", e);
             }
         });
     }
 
     pub fn request_texture<P: AsRef<Path>>(&mut self, path: P) {
         let path_buf = path.as_ref().to_path_buf();
-        if self.loading_paths.contains_key(&path_buf) || self.loaded_raw_textures.contains_key(&path_buf) {
+        if self.loading_paths.contains_key(&path_buf)
+            || self.loaded_raw_textures.contains_key(&path_buf)
+        {
             return;
         }
 
         self.loading_paths.insert(path_buf.clone(), true);
         let tx = self.tx.clone();
 
-        std::thread::spawn(move || {
-            match Texture::decode_from_disk(&path_buf) {
-                Ok(raw) => { let _ = tx.send(AssetMessage::Texture(path_buf, raw)); }
-                Err(e) => { log::error!("Failed to decode texture: {}", e); }
+        std::thread::spawn(move || match Texture::decode_from_disk(&path_buf) {
+            Ok(raw) => {
+                let _ = tx.send(AssetMessage::Texture(path_buf, raw));
+            }
+            Err(e) => {
+                log::error!("Failed to decode texture: {}", e);
             }
         });
     }
 
     pub fn request_cubemap<P: AsRef<Path>>(&mut self, path: P) {
         let path_buf = path.as_ref().to_path_buf();
-        if self.loading_paths.contains_key(&path_buf) || self.loaded_raw_cubemaps.contains_key(&path_buf) {
+        if self.loading_paths.contains_key(&path_buf)
+            || self.loaded_raw_cubemaps.contains_key(&path_buf)
+        {
             return;
         }
 
         self.loading_paths.insert(path_buf.clone(), true);
         let tx = self.tx.clone();
 
-        std::thread::spawn(move || {
-            match Texture::decode_cube_from_disk(&path_buf) {
-                Ok(raw) => { let _ = tx.send(AssetMessage::CubeTexture(path_buf, raw)); }
-                Err(e) => { log::error!("Failed to decode cubemap: {}", e); }
+        std::thread::spawn(move || match Texture::decode_cube_from_disk(&path_buf) {
+            Ok(raw) => {
+                let _ = tx.send(AssetMessage::CubeTexture(path_buf, raw));
+            }
+            Err(e) => {
+                log::error!("Failed to decode cubemap: {}", e);
             }
         });
     }

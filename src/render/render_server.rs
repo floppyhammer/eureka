@@ -184,11 +184,13 @@ pub fn create_render_pipeline(
     });
 
     // 2. 创建一个拥有所有权的目标状态数组（如果有颜色格式的话）
-    let targets = color_format.map(|format| [Some(wgpu::ColorTargetState {
-        format,
-        blend,
-        write_mask: wgpu::ColorWrites::ALL,
-    })]);
+    let targets = color_format.map(|format| {
+        [Some(wgpu::ColorTargetState {
+            format,
+            blend,
+            write_mask: wgpu::ColorWrites::ALL,
+        })]
+    });
 
     // 3. 将数组引用映射到 FragmentState
     let fragment = targets.as_ref().map(|targets| wgpu::FragmentState {

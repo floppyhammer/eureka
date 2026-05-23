@@ -4,7 +4,7 @@ use crate::render::draw_command::DrawCommands;
 use crate::render::RenderServer;
 use crate::scene::{AsNode, NodeType};
 use crate::window::{InputEvent, InputServer};
-use glam::{Mat4, Vec2, Vec3, UVec2};
+use glam::{Mat4, UVec2, Vec2, Vec3};
 use std::any::Any;
 use std::f32::consts::FRAC_PI_2;
 use winit::event::*;

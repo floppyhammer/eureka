@@ -3,12 +3,12 @@ use crate::render::camera::CameraUniform;
 use crate::render::draw_command::DrawCommands;
 use crate::render::sprite::ExtractedSprite2d;
 use crate::render::view::ViewInfo;
-use crate::render::{TextureCache, TextureId, RawTextureData, Texture, RenderServer};
+use crate::render::{RawTextureData, RenderServer, Texture, TextureCache, TextureId};
 use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
 use crate::scene::{AsNode, NodeType};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 use std::any::Any;
 use std::path::{Path, PathBuf};
-use glam::{Mat4, Vec2, Vec3, Vec4};
 
 pub struct SpriteSheet {
     h_frames: u32,
@@ -45,7 +45,11 @@ impl Sprite2d {
             use_original_size: true,
             name: "".to_string(),
             region: Vec4::new(0.0, 0.0, 1.0, 1.0),
-            sprite_sheet: SpriteSheet { h_frames: 0, v_frames: 0, frame: 0 },
+            sprite_sheet: SpriteSheet {
+                h_frames: 0,
+                v_frames: 0,
+                frame: 0,
+            },
             texture: Some(texture_id),
             centered: false,
             flip_x: false,
@@ -61,7 +65,11 @@ impl Sprite2d {
             use_original_size: true,
             name: path.as_ref().to_string_lossy().into_owned(),
             region: Vec4::new(0.0, 0.0, 1.0, 1.0),
-            sprite_sheet: SpriteSheet { h_frames: 0, v_frames: 0, frame: 0 },
+            sprite_sheet: SpriteSheet {
+                h_frames: 0,
+                v_frames: 0,
+                frame: 0,
+            },
             texture: None,
             centered: false,
             flip_x: false,
@@ -77,7 +85,12 @@ impl Sprite2d {
         render_server: &RenderServer,
         texture_cache: &mut TextureCache,
     ) {
-        let texture_id = Texture::from_raw(&render_server.device, &render_server.queue, texture_cache, raw);
+        let texture_id = Texture::from_raw(
+            &render_server.device,
+            &render_server.queue,
+            texture_cache,
+            raw,
+        );
         let texture = texture_cache.get(texture_id).unwrap();
 
         if self.use_original_size {
@@ -94,9 +107,15 @@ impl Sprite2d {
 }
 
 impl AsNode for Sprite2d {
-    fn as_any(&self) -> &dyn Any { self }
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
-    fn node_type(&self) -> NodeType { NodeType::Sprite2d }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+    fn node_type(&self) -> NodeType {
+        NodeType::Sprite2d
+    }
     fn ready(&mut self) {}
 
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
@@ -109,7 +128,11 @@ impl AsNode for Sprite2d {
         if let Some(texture_id) = self.texture {
             let extracted = ExtractedSprite2d {
                 transform: self.node_ui.transform,
-                size: if self.use_original_size { None } else { Some(self.node_ui.size.into()) },
+                size: if self.use_original_size {
+                    None
+                } else {
+                    Some(self.node_ui.size.into())
+                },
                 texture_id,
                 centered: self.centered,
                 flip_x: self.flip_x,
@@ -121,10 +144,22 @@ impl AsNode for Sprite2d {
 }
 
 impl AsNodeUi for Sprite2d {
-    fn get_size(&self) -> Vec2 { self.node_ui.size }
-    fn set_size(&mut self, size: Vec2) { self.node_ui.size = size; }
-    fn get_position(&self) -> Vec2 { self.node_ui.transform.position }
-    fn set_position(&mut self, position: Vec2) { self.node_ui.transform.position = position; }
-    fn get_rotation(&self) -> f32 { self.node_ui.transform.rotation }
-    fn set_rotation(&mut self, rotation: f32) { self.node_ui.transform.rotation = rotation; }
+    fn get_size(&self) -> Vec2 {
+        self.node_ui.size
+    }
+    fn set_size(&mut self, size: Vec2) {
+        self.node_ui.size = size;
+    }
+    fn get_position(&self) -> Vec2 {
+        self.node_ui.transform.position
+    }
+    fn set_position(&mut self, position: Vec2) {
+        self.node_ui.transform.position = position;
+    }
+    fn get_rotation(&self) -> f32 {
+        self.node_ui.transform.rotation
+    }
+    fn set_rotation(&mut self, rotation: f32) {
+        self.node_ui.transform.rotation = rotation;
+    }
 }

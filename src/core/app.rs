@@ -18,7 +18,7 @@ use crate::asset::AssetServer;
 use crate::core::singleton::Singletons;
 use crate::render::render_world::RenderWorld;
 use crate::render::RenderServer;
-use crate::scene::{AsNode, World, Model, Sky, Sprite2d};
+use crate::scene::{AsNode, Model, Sky, Sprite2d, World};
 use crate::text::TextServer;
 use crate::window::InputServer;
 
@@ -109,7 +109,10 @@ impl<'a> App<'a> {
             .expect("Surface unsupported by adapter!");
 
         let surface_capabilities = surface.get_capabilities(&adapter);
-        let present_mode = if surface_capabilities.present_modes.contains(&wgpu::PresentMode::Mailbox) {
+        let present_mode = if surface_capabilities
+            .present_modes
+            .contains(&wgpu::PresentMode::Mailbox)
+        {
             wgpu::PresentMode::Mailbox
         } else {
             wgpu::PresentMode::Fifo // 保底使用 Fifo
@@ -162,9 +165,7 @@ impl<'a> App<'a> {
     fn input(&mut self, event: &WindowEvent) -> bool {
         if let (Some(window), Some(singletons)) = (&self.window, &mut self.singletons) {
             // Convert to our own input events.
-            singletons
-                .input_server
-                .prepare_input_event(window, event);
+            singletons.input_server.prepare_input_event(window, event);
 
             return true;
         }
@@ -172,7 +173,9 @@ impl<'a> App<'a> {
     }
 
     fn update(&mut self) {
-        if let (Some(singletons), Some(render_world)) = (&mut self.singletons, &mut self.render_world) {
+        if let (Some(singletons), Some(render_world)) =
+            (&mut self.singletons, &mut self.render_world)
+        {
             // Update asset server (collects background loads)
             singletons.asset_server.update();
 
@@ -185,14 +188,25 @@ impl<'a> App<'a> {
                     if let Some(path) = &model.asset_path {
                         singletons.asset_server.request_load(path);
                         if singletons.asset_server.loaded_raw_models.contains_key(path) {
-                             model_raw_path = Some(path.clone());
+                            model_raw_path = Some(path.clone());
                         }
                     }
                 }
                 if let Some(path) = model_raw_path {
                     if let Some(model) = self.world.get_node_mut::<Model>(id) {
-                        let raw = singletons.asset_server.loaded_raw_models.get(&path).unwrap().clone();
-                        model.finalize(raw, &singletons.render_server, &mut render_world.texture_cache, &mut render_world.mesh_render_resources.material_cache, &mut render_world.mesh_cache);
+                        let raw = singletons
+                            .asset_server
+                            .loaded_raw_models
+                            .get(&path)
+                            .unwrap()
+                            .clone();
+                        model.finalize(
+                            raw,
+                            &singletons.render_server,
+                            &mut render_world.texture_cache,
+                            &mut render_world.mesh_render_resources.material_cache,
+                            &mut render_world.mesh_cache,
+                        );
                     }
                 }
 
@@ -201,15 +215,28 @@ impl<'a> App<'a> {
                 if let Some(sky) = self.world.get_node::<Sky>(id) {
                     if let Some(path) = &sky.asset_path {
                         singletons.asset_server.request_cubemap(path);
-                        if singletons.asset_server.loaded_raw_cubemaps.contains_key(path) {
+                        if singletons
+                            .asset_server
+                            .loaded_raw_cubemaps
+                            .contains_key(path)
+                        {
                             sky_raw_path = Some(path.clone());
                         }
                     }
                 }
                 if let Some(path) = sky_raw_path {
                     if let Some(sky) = self.world.get_node_mut::<Sky>(id) {
-                        let raw = singletons.asset_server.loaded_raw_cubemaps.get(&path).unwrap().clone();
-                        sky.finalize(raw, &singletons.render_server, &mut render_world.texture_cache);
+                        let raw = singletons
+                            .asset_server
+                            .loaded_raw_cubemaps
+                            .get(&path)
+                            .unwrap()
+                            .clone();
+                        sky.finalize(
+                            raw,
+                            &singletons.render_server,
+                            &mut render_world.texture_cache,
+                        );
                     }
                 }
 
@@ -218,29 +245,41 @@ impl<'a> App<'a> {
                 if let Some(sprite) = self.world.get_node::<Sprite2d>(id) {
                     if let Some(path) = &sprite.asset_path {
                         singletons.asset_server.request_texture(path);
-                        if singletons.asset_server.loaded_raw_textures.contains_key(path) {
+                        if singletons
+                            .asset_server
+                            .loaded_raw_textures
+                            .contains_key(path)
+                        {
                             sprite_raw_path = Some(path.clone());
                         }
                     }
                 }
                 if let Some(path) = sprite_raw_path {
                     if let Some(sprite) = self.world.get_node_mut::<Sprite2d>(id) {
-                        let raw = singletons.asset_server.loaded_raw_textures.get(&path).unwrap().clone();
-                        sprite.finalize(raw, &singletons.render_server, &mut render_world.texture_cache);
+                        let raw = singletons
+                            .asset_server
+                            .loaded_raw_textures
+                            .get(&path)
+                            .unwrap()
+                            .clone();
+                        sprite.finalize(
+                            raw,
+                            &singletons.render_server,
+                            &mut render_world.texture_cache,
+                        );
                     }
                 }
             }
 
             singletons.engine.tick();
-            self.world.update(
-                singletons.engine.get_delta() as f32,
-                singletons,
-            );
+            self.world
+                .update(singletons.engine.get_delta() as f32, singletons);
         }
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let (Some(singletons), Some(render_world)) = (&mut self.singletons, &mut self.render_world) else {
+        let (Some(singletons), Some(render_world)) = (&mut self.singletons, &mut self.render_world)
+        else {
             return Ok(());
         };
 
@@ -255,10 +294,9 @@ impl<'a> App<'a> {
         render_world.prepare(render_server);
 
         // Update server GPU resources.
-        singletons.text_server.prepare(
-            &singletons.render_server,
-            &mut render_world.texture_cache,
-        );
+        singletons
+            .text_server
+            .prepare(&singletons.render_server, &mut render_world.texture_cache);
 
         // First we need to get a frame to draw to.
         let surface_texture = render_server.surface.get_current_texture()?;
@@ -309,7 +347,11 @@ impl<'a> App<'a> {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
-                        load: if ssao_ran { wgpu::LoadOp::Load } else { wgpu::LoadOp::Clear(1.0) }, // Z-Prepass
+                        load: if ssao_ran {
+                            wgpu::LoadOp::Load
+                        } else {
+                            wgpu::LoadOp::Clear(1.0)
+                        }, // Z-Prepass
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
@@ -376,7 +418,12 @@ impl<'a> ApplicationHandler for App<'a> {
         }
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
         // Clone the Arc to release the borrow on self and satisfy the borrow checker.
         let window = match &self.window {
             Some(w) if w.id() == window_id => w.clone(),
@@ -390,10 +437,7 @@ impl<'a> ApplicationHandler for App<'a> {
                 log::info!("Window resized to {:?}", physical_size);
             }
             // Scale factor changed.
-            WindowEvent::ScaleFactorChanged {
-                scale_factor,
-                ..
-            } => {
+            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.scale_factor = scale_factor;
 
                 let new_physical_size = self.window_size.to_physical(scale_factor);
@@ -438,7 +482,12 @@ impl<'a> ApplicationHandler for App<'a> {
         }
     }
 
-    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: DeviceId, event: DeviceEvent) {
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
         if let Some(singletons) = &mut self.singletons {
             singletons.input_server.handle_device_event(&event);
         }

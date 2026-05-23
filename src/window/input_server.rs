@@ -1,4 +1,4 @@
-use winit::dpi::{PhysicalPosition};
+use winit::dpi::PhysicalPosition;
 use winit::event::*;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window};
@@ -68,7 +68,8 @@ impl InputServer {
             window.set_cursor_visible(!self.cursor_captured);
             if self.cursor_captured {
                 // 现代 winit 推荐使用 Locked 模式，这会自动处理原始增量
-                let _ = window.set_cursor_grab(CursorGrabMode::Locked)
+                let _ = window
+                    .set_cursor_grab(CursorGrabMode::Locked)
                     .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined));
             } else {
                 let _ = window.set_cursor_grab(CursorGrabMode::None);
@@ -104,9 +105,14 @@ impl InputServer {
             WindowEvent::MouseWheel { delta, .. } => {
                 let scroll = match delta {
                     MouseScrollDelta::LineDelta(_, scroll) => scroll * 100.0,
-                    MouseScrollDelta::PixelDelta(PhysicalPosition { y: scroll, .. }) => *scroll as f32,
+                    MouseScrollDelta::PixelDelta(PhysicalPosition { y: scroll, .. }) => {
+                        *scroll as f32
+                    }
                 };
-                InputEvent::MouseScroll(MouseScroll { delta: scroll, consumed: false })
+                InputEvent::MouseScroll(MouseScroll {
+                    delta: scroll,
+                    consumed: false,
+                })
             }
             WindowEvent::MouseInput { button, state, .. } => InputEvent::MouseButton(MouseButton {
                 button: *button,
@@ -121,7 +127,10 @@ impl InputServer {
                 // 如果光标未被捕获，则作为 UI 移动处理
                 if !self.cursor_captured {
                     InputEvent::MouseMotion(MouseMotion {
-                        delta: (self.mouse_position.0 - last_pos.0, self.mouse_position.1 - last_pos.1),
+                        delta: (
+                            self.mouse_position.0 - last_pos.0,
+                            self.mouse_position.1 - last_pos.1,
+                        ),
                         position: self.mouse_position,
                         consumed: false,
                     })

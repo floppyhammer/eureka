@@ -3,8 +3,8 @@ use crate::render::atlas::{Atlas, ExtractedAtlas};
 use crate::render::draw_command::DrawCommands;
 use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
 use crate::scene::{AsNode, NodeType};
-use std::any::Any;
 use glam::Vec2;
+use std::any::Any;
 
 pub struct Label {
     node_ui: NodeUi,

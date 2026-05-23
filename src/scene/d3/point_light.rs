@@ -4,7 +4,7 @@ use glam::{Quat, Vec3};
 use std::any::Any;
 
 use crate::render::draw_command::DrawCommands;
-use crate::render::light::{PointLightUniform};
+use crate::render::light::PointLightUniform;
 use crate::scene::{AsNode, AsNode3d, Node3d, NodeType};
 // use crate::scene::sprite3d::Sprite3d;
 // use crate::scene::{AsNode, CameraInfo, NodeType};
