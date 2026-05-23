@@ -5,6 +5,7 @@ mod node_3d;
 pub(crate) mod point_light;
 pub(crate) mod sky;
 pub(crate) mod sprite3d;
+pub(crate) mod bvh;
 
 pub use camera3d::*;
 pub use directional_light::*;
@@ -12,3 +13,4 @@ pub use model::*;
 pub use node_3d::*;
 pub use point_light::*;
 pub use sky::*;
+pub use bvh::*;

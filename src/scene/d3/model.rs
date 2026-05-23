@@ -266,6 +266,10 @@ impl Model {
             name: "".to_string(),
         })
     }
+
+    pub fn get_world_aabb(&self) -> Aabb {
+        self.aabb.transform(&self.node_3d.transform)
+    }
 }
 
 impl AsNode for Model {

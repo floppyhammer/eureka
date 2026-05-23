@@ -28,12 +28,10 @@ impl Aabb {
     }
 
     pub fn transform(&self, transform: &crate::math::transform::Transform3d) -> Self {
-        let matrix = glam::Mat4::from_scale_rotation_translation(
-            transform.scale,
-            transform.rotation,
-            transform.position,
-        );
+        self.transform_by_matrix(&transform.matrix())
+    }
 
+    pub fn transform_by_matrix(&self, matrix: &glam::Mat4) -> Self {
         let corners = [
             Vec3::new(self.min.x, self.min.y, self.min.z),
             Vec3::new(self.min.x, self.min.y, self.max.z),
@@ -65,5 +63,9 @@ impl Aabb {
             min: self.min.min(other.min),
             max: self.max.max(other.max),
         }
+    }
+
+    pub fn center(&self) -> Vec3 {
+        (self.min + self.max) * 0.5
     }
 }

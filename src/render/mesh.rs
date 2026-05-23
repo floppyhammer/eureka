@@ -2,6 +2,7 @@ use crate::math::transform::Transform3d;
 use crate::math::aabb::Aabb;
 use crate::math::frustum::Frustum;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
+use crate::scene::Bvh;
 use crate::render::gizmo::GizmoRenderResources;
 use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform, MAX_POINT_LIGHTS};
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
@@ -1012,6 +1013,7 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
     camera_uniform: &CameraUniform,
     gizmo_render_resources: &'b GizmoRenderResources,
     render_pass: &mut wgpu::RenderPass<'a>,
+    bvh: &'b Bvh,
 ) {
     if camera_render_resources.bind_group.is_none() {
         return;
@@ -1026,13 +1028,24 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
 
     let frustum = Frustum::from_view_proj(Mat4::from_cols_array_2d(&camera_uniform.view_proj));
 
-    for extracted in extracted_meshes {
+    let mut visible_indices = Vec::new();
+    if bvh.root.is_some() {
+        bvh.query(&frustum, &mut visible_indices);
+    } else {
+        visible_indices = (0..extracted_meshes.len()).collect();
+    }
+
+    for idx in visible_indices {
+        let extracted = &extracted_meshes[idx];
         let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
 
-        // Frustum culling
-        let world_aabb = mesh.aabb.transform(&extracted.transform);
-        if !frustum.intersects_aabb(&world_aabb) {
-            continue;
+        // No need for Frustum culling here if we used BVH,
+        // but if we didn't use BVH (fallback), we still need it.
+        if bvh.root.is_none() {
+            let world_aabb = mesh.aabb.transform(&extracted.transform);
+            if !frustum.intersects_aabb(&world_aabb) {
+                continue;
+            }
         }
 
         let mut texture_bind_group = None;

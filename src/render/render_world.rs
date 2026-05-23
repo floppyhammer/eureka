@@ -13,12 +13,15 @@ use crate::render::{
     prepare_meshes, render_meshes, ExtractedMesh, MeshCache, MeshRenderResources,
     RenderServer, Texture, TextureCache, TextureId,
 };
+use crate::scene::Bvh;
 
 #[derive(Default, Clone)]
 pub struct Extracted {
     pub(crate) sprites: Vec<ExtractedSprite2d>,
 
     pub(crate) meshes: Vec<ExtractedMesh>,
+
+    pub(crate) bvh: Bvh,
 
     pub(crate) cameras: ExtractedCameras,
 
@@ -126,6 +129,18 @@ impl RenderWorld {
         self.camera_render_resources
             .prepare_cameras(render_server, &self.extracted.cameras);
 
+        // Build BVH for 3D meshes once per frame.
+        if !self.extracted.meshes.is_empty() {
+            let mut bvh_objects = Vec::with_capacity(self.extracted.meshes.len());
+            for (i, extracted) in self.extracted.meshes.iter().enumerate() {
+                if let Some(mesh) = self.mesh_cache.get(extracted.mesh_id) {
+                    let world_aabb = mesh.aabb.transform(&extracted.transform);
+                    bvh_objects.push((world_aabb, i));
+                }
+            }
+            self.extracted.bvh = Bvh::build(bvh_objects);
+        }
+
         for i in 0..self.extracted.cameras.uniforms.len() {
             if self.extracted.cameras.types[i] == CameraType::D2 {
                 self.sprite_batches = prepare_sprite(
@@ -193,6 +208,7 @@ impl RenderWorld {
             &self.extracted.meshes,
             &self.mesh_cache,
             &self.mesh_render_resources,
+            &self.extracted.bvh,
         );
     }
 
@@ -257,6 +273,7 @@ impl RenderWorld {
                 camera_bind_group,
                 ssao_camera_index,
                 &self.extracted.cameras.uniforms[ssao_camera_index],
+                &self.extracted.bvh,
             );
         }
 
@@ -347,6 +364,7 @@ impl RenderWorld {
                     &self.extracted.cameras.uniforms[i],
                     &self.gizmo_render_resources,
                     render_pass,
+                    &self.extracted.bvh,
                 );
             }
         }

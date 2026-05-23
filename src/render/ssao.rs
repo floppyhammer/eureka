@@ -3,6 +3,7 @@ use crate::render::mesh::{InstanceRaw, MeshCache, MeshRenderResources, Extracted
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, RenderServer, Texture, TextureCache, TextureId};
 use crate::math::frustum::Frustum;
+use crate::scene::Bvh;
 use glam::{Mat4, Vec3, vec3, vec4};
 use wgpu::util::DeviceExt;
 
@@ -391,6 +392,7 @@ impl SsaoRenderResources {
         camera_bind_group: &'a wgpu::BindGroup,
         camera_index: usize,
         camera_uniform: &CameraUniform,
+        bvh: &'a Bvh,
     ) {
         render_pass.set_pipeline(&self.normal_pipeline);
         let offset = camera_index as u32 * CameraUniform::get_uniform_offset_unit();
@@ -398,13 +400,23 @@ impl SsaoRenderResources {
 
         let frustum = Frustum::from_view_proj(Mat4::from_cols_array_2d(&camera_uniform.view_proj));
 
-        for extracted in extracted_meshes {
+        let mut visible_indices = Vec::new();
+        if bvh.root.is_some() {
+            bvh.query(&frustum, &mut visible_indices);
+        } else {
+            visible_indices = (0..extracted_meshes.len()).collect();
+        }
+
+        for idx in visible_indices {
+            let extracted = &extracted_meshes[idx];
             let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
 
             // Frustum culling
-            let world_aabb = mesh.aabb.transform(&extracted.transform);
-            if !frustum.intersects_aabb(&world_aabb) {
-                continue;
+            if bvh.root.is_none() {
+                let world_aabb = mesh.aabb.transform(&extracted.transform);
+                if !frustum.intersects_aabb(&world_aabb) {
+                    continue;
+                }
             }
 
             let instance = mesh_render_resources.instance_cache.get(&extracted.mesh_id).unwrap();

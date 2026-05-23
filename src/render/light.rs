@@ -2,6 +2,7 @@ use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, ExtractedMesh, InstanceRaw, MeshCache, MeshRenderResources, RenderServer, Texture, TextureCache, TextureId};
 use crate::math::frustum::Frustum;
+use crate::scene::Bvh;
 use glam::{Mat4, Vec3};
 use wgpu::BufferAddress;
 
@@ -403,6 +404,7 @@ pub(crate) fn render_shadow(
     extracted_meshes: &Vec<ExtractedMesh>,
     mesh_cache: &MeshCache,
     mesh_render_resources: &MeshRenderResources,
+    bvh: &Bvh,
 ) {
     if render_resources.pipeline.is_none() {
         return;
@@ -450,13 +452,23 @@ pub(crate) fn render_shadow(
 
             let frustum = Frustum::from_view_proj(render_resources.cascade_view_projs[i]);
 
-            for extracted in extracted_meshes {
+            let mut visible_indices = Vec::new();
+            if bvh.root.is_some() {
+                bvh.query(&frustum, &mut visible_indices);
+            } else {
+                visible_indices = (0..extracted_meshes.len()).collect();
+            }
+
+            for idx in visible_indices {
+                let extracted = &extracted_meshes[idx];
                 let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
 
                 // Frustum culling
-                let world_aabb = mesh.aabb.transform(&extracted.transform);
-                if !frustum.intersects_aabb(&world_aabb) {
-                    continue;
+                if bvh.root.is_none() {
+                    let world_aabb = mesh.aabb.transform(&extracted.transform);
+                    if !frustum.intersects_aabb(&world_aabb) {
+                        continue;
+                    }
                 }
 
                 let instance = mesh_render_resources
@@ -516,13 +528,24 @@ pub(crate) fn render_shadow(
 
             let frustum = Frustum::from_view_proj(render_resources.point_shadow_view_projs[i]);
 
-            for extracted in extracted_meshes {
+            // BVH frustum culling
+            let mut visible_indices = Vec::new();
+            if bvh.root.is_some() {
+                bvh.query(&frustum, &mut visible_indices);
+            } else {
+                visible_indices = (0..extracted_meshes.len()).collect();
+            }
+
+            for idx in visible_indices {
+                let extracted = &extracted_meshes[idx];
                 let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
 
-                // Frustum culling
-                let world_aabb = mesh.aabb.transform(&extracted.transform);
-                if !frustum.intersects_aabb(&world_aabb) {
-                    continue;
+                // Simple frustum culling (if BVH is not available)
+                if bvh.root.is_none() {
+                    let world_aabb = mesh.aabb.transform(&extracted.transform);
+                    if !frustum.intersects_aabb(&world_aabb) {
+                        continue;
+                    }
                 }
 
                 let instance = mesh_render_resources

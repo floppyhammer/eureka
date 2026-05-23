@@ -46,4 +46,8 @@ impl Transform3d {
             scale: Vec3::ONE,
         }
     }
+
+    pub fn matrix(&self) -> glam::Mat4 {
+        glam::Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position)
+    }
 }
