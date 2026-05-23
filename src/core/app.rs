@@ -18,7 +18,7 @@ use crate::asset::AssetServer;
 use crate::core::singleton::Singletons;
 use crate::render::render_world::RenderWorld;
 use crate::render::RenderServer;
-use crate::scene::{AsNode, World, Model};
+use crate::scene::{AsNode, World, Model, Sky, Sprite2d};
 use crate::text::TextServer;
 use crate::window::InputServer;
 
@@ -179,28 +179,54 @@ impl<'a> App<'a> {
             // Reconcile pending models.
             let ids = self.world.traverse();
             for id in ids {
-                let mut raw_to_finalize = None;
+                // 1. Reconcile Models
+                let mut model_raw_path = None;
                 if let Some(model) = self.world.get_node::<Model>(id) {
                     if let Some(path) = &model.asset_path {
-                        // Ensure it's requested.
                         singletons.asset_server.request_load(path);
-                        // Check if ready.
-                        if let Some(_) = singletons.asset_server.loaded_raw_data.get(path) {
-                             raw_to_finalize = Some(path.clone());
+                        if singletons.asset_server.loaded_raw_models.contains_key(path) {
+                             model_raw_path = Some(path.clone());
                         }
                     }
                 }
-
-                if let Some(path) = raw_to_finalize {
+                if let Some(path) = model_raw_path {
                     if let Some(model) = self.world.get_node_mut::<Model>(id) {
-                        let raw = singletons.asset_server.loaded_raw_data.get(&path).unwrap().clone();
-                        model.finalize(
-                            raw,
-                            &singletons.render_server,
-                            &mut render_world.texture_cache,
-                            &mut render_world.mesh_render_resources.material_cache,
-                            &mut render_world.mesh_cache,
-                        );
+                        let raw = singletons.asset_server.loaded_raw_models.get(&path).unwrap().clone();
+                        model.finalize(raw, &singletons.render_server, &mut render_world.texture_cache, &mut render_world.mesh_render_resources.material_cache, &mut render_world.mesh_cache);
+                    }
+                }
+
+                // 2. Reconcile Sky
+                let mut sky_raw_path = None;
+                if let Some(sky) = self.world.get_node::<Sky>(id) {
+                    if let Some(path) = &sky.asset_path {
+                        singletons.asset_server.request_cubemap(path);
+                        if singletons.asset_server.loaded_raw_cubemaps.contains_key(path) {
+                            sky_raw_path = Some(path.clone());
+                        }
+                    }
+                }
+                if let Some(path) = sky_raw_path {
+                    if let Some(sky) = self.world.get_node_mut::<Sky>(id) {
+                        let raw = singletons.asset_server.loaded_raw_cubemaps.get(&path).unwrap().clone();
+                        sky.finalize(raw, &singletons.render_server, &mut render_world.texture_cache);
+                    }
+                }
+
+                // 3. Reconcile Sprite2d
+                let mut sprite_raw_path = None;
+                if let Some(sprite) = self.world.get_node::<Sprite2d>(id) {
+                    if let Some(path) = &sprite.asset_path {
+                        singletons.asset_server.request_texture(path);
+                        if singletons.asset_server.loaded_raw_textures.contains_key(path) {
+                            sprite_raw_path = Some(path.clone());
+                        }
+                    }
+                }
+                if let Some(path) = sprite_raw_path {
+                    if let Some(sprite) = self.world.get_node_mut::<Sprite2d>(id) {
+                        let raw = singletons.asset_server.loaded_raw_textures.get(&path).unwrap().clone();
+                        sprite.finalize(raw, &singletons.render_server, &mut render_world.texture_cache);
                     }
                 }
             }

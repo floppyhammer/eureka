@@ -15,6 +15,15 @@ pub struct RawTextureData {
     pub format: wgpu::TextureFormat,
 }
 
+#[derive(Clone)]
+pub struct RawCubeTextureData {
+    pub name: String,
+    pub pixels: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    pub format: wgpu::TextureFormat,
+}
+
 pub struct Texture {
     pub(crate) size: (u32, u32),
     // Actual data.
@@ -385,6 +394,92 @@ impl Texture {
 
         cache.add(Texture {
             size: (raw.width, raw.height),
+            texture,
+            view,
+            sampler,
+            format: raw.format,
+        })
+    }
+
+    pub fn decode_cube_from_disk<P: AsRef<Path>>(path: P) -> Result<RawCubeTextureData> {
+        let path_ref = path.as_ref();
+        let name = path_ref.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let img = image::open(path_ref).context("Invalid image path")?;
+        let dimensions = img.dimensions();
+        let rgba = img.to_rgba8();
+
+        Ok(RawCubeTextureData {
+            name,
+            pixels: rgba.into_raw(),
+            width: dimensions.0,
+            height: dimensions.1,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        })
+    }
+
+    pub fn from_raw_cube(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        cache: &mut TextureCache,
+        raw: RawCubeTextureData,
+    ) -> TextureId {
+        let size = wgpu::Extent3d {
+            width: raw.width,
+            height: raw.height / 6,
+            depth_or_array_layers: 6,
+        };
+
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(&raw.name),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: raw.format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            &raw.pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * size.width),
+                rows_per_image: Some(size.height),
+            },
+            size,
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("cubemap texture view"),
+            format: Some(raw.format),
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            usage: None,
+            aspect: wgpu::TextureAspect::default(),
+            base_mip_level: 0,
+            mip_level_count: Some(1),
+            base_array_layer: 0,
+            array_layer_count: Some(6),
+        });
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        cache.add(Texture {
+            size: (0, 0),
             texture,
             view,
             sampler,

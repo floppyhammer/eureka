@@ -20,13 +20,9 @@ fn main() {
         );
         world.add_node(Box::new(camera3d), None);
 
-        let skybox_tex = Texture::load_cube(
-            &singletons.render_server,
-            &mut render_world.texture_cache,
-            &singletons.asset_server.asset_dir.join("images/skybox.jpg"),
-        )
-        .unwrap();
-        let sky = Sky::new(skybox_tex);
+        // 异步加载天空盒
+        let skybox_path = singletons.asset_server.asset_dir.join("images/skybox.jpg");
+        let sky = Sky::at_path(skybox_path);
         world.add_node(Box::new(sky), None);
 
         // Point light.

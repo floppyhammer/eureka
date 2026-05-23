@@ -1,23 +1,44 @@
 use std::any::Any;
 use glam::Quat;
+use std::path::{Path, PathBuf};
 
 use crate::render::draw_command::DrawCommands;
 use crate::render::sky::ExtractedSky;
-use crate::render::TextureId;
+use crate::render::{TextureId, TextureCache, RawCubeTextureData, Texture, RenderServer};
 use crate::scene::{AsNode, NodeType};
 
 pub struct Sky {
-    // TODO
     pub rotation: Quat,
-
-    pub texture: TextureId,
+    pub texture: Option<TextureId>,
+    pub asset_path: Option<PathBuf>,
 }
 
 impl Sky {
     pub fn new(texture: TextureId) -> Self {
-        let rotation = Quat::IDENTITY;
+        Self {
+            rotation: Quat::IDENTITY,
+            texture: Some(texture),
+            asset_path: None,
+        }
+    }
 
-        Self { rotation, texture }
+    pub fn at_path<P: AsRef<Path>>(path: P) -> Self {
+        Self {
+            rotation: Quat::IDENTITY,
+            texture: None,
+            asset_path: Some(path.as_ref().to_path_buf()),
+        }
+    }
+
+    pub fn finalize(
+        &mut self,
+        raw: RawCubeTextureData,
+        render_server: &RenderServer,
+        texture_cache: &mut TextureCache,
+    ) {
+        let texture_id = Texture::from_raw_cube(&render_server.device, &render_server.queue, texture_cache, raw);
+        self.texture = Some(texture_id);
+        self.asset_path = None;
     }
 }
 
@@ -35,8 +56,10 @@ impl AsNode for Sky {
     }
 
     fn draw(&self, draw_commands: &mut DrawCommands) {
-        draw_commands.extracted.sky = Some(ExtractedSky {
-            texture: self.texture,
-        });
+        if let Some(texture) = self.texture {
+            draw_commands.extracted.sky = Some(ExtractedSky {
+                texture,
+            });
+        }
     }
 }
