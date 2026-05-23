@@ -31,25 +31,34 @@ fn main() {
 
         // Point light.
         let mut light = PointLight::new();
-        // light.color = ColorU::new(0, 255, 0, 255);
         light.set_position(Vec3::new(2.0, 5.0, 0.0));
         light.strength = 5.0;
         world.add_node(Box::new(light), None);
 
         // Directional light.
         let mut light = DirectionalLight::new();
-        // light.color = ColorU::new(255, 0, 0, 255);
         light.strength = 0.5;
         light.transform.rotation = Quat::from_rotation_x(-90.0f32.to_radians());
         world.add_node(Box::new(light), None);
 
-        // Request models asynchronously.
-        // They will be picked up by App::update when ready.
-        let ferris_path = singletons.asset_server.asset_dir.join("models/ferris/ferris3d_v1.0.obj");
-        singletons.asset_server.request_model(ferris_path);
+        // --- 现在的用法非常自然且丝滑 ---
 
+        // 1. 直接创建“代理”模型
+        let ferris_path = singletons.asset_server.asset_dir.join("models/ferris/ferris3d_v1.0.obj");
+        let mut ferris = Model::at_path(ferris_path);
+
+        // 2. 立刻设置你想要的任何变换，不需要等待
+        ferris.set_position(Vec3::new(0.0, 1.0, 0.0));
+        ferris.set_scale(Vec3::new(1.2, 1.2, 1.2));
+
+        // 3. 直接加入场景
+        world.add_node(Box::new(ferris), None);
+
+        // 地面模型同理
         let ground_path = singletons.asset_server.asset_dir.join("models/granite_ground/granite_ground.obj");
-        singletons.asset_server.request_model(ground_path);
+        let mut ground = Model::at_path(ground_path);
+        ground.set_scale(Vec3::new(5.0, 1.0, 5.0));
+        world.add_node(Box::new(ground), None);
     });
 
     app.run();

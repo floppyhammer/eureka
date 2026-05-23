@@ -6,6 +6,7 @@ use std::path::Path;
 use uuid;
 use wgpu::Extent3d;
 
+#[derive(Clone)]
 pub struct RawTextureData {
     pub name: String,
     pub pixels: Vec<u8>,

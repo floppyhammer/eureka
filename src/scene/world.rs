@@ -66,7 +66,7 @@ impl World {
         id
     }
 
-    fn traverse(&self) -> Vec<NodeId> {
+    pub fn traverse(&self) -> Vec<NodeId> {
         let mut ids: Vec<NodeId> = vec![];
 
         // Node depth in the tree.

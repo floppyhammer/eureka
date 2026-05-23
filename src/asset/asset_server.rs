@@ -11,7 +11,11 @@ pub struct AssetServer {
     // Background loading
     tx: Sender<(PathBuf, RawModelData)>,
     rx: Receiver<(PathBuf, RawModelData)>,
-    pub loaded_raw_models: HashMap<PathBuf, RawModelData>,
+
+    // Registry of raw data waiting to be picked up by models.
+    pub loaded_raw_data: HashMap<PathBuf, RawModelData>,
+    // Track which paths are currently being loaded to avoid duplicates.
+    loading_paths: HashMap<PathBuf, bool>,
 }
 
 impl AssetServer {
@@ -30,17 +34,23 @@ impl AssetServer {
             asset_cache: cache,
             tx,
             rx,
-            loaded_raw_models: HashMap::new(),
+            loaded_raw_data: HashMap::new(),
+            loading_paths: HashMap::new(),
         }
     }
 
-    /// Request a model to be loaded in the background.
-    pub fn request_model<P: AsRef<Path>>(&self, path: P) {
+    /// Mark a path for loading if not already loading or loaded.
+    pub fn request_load<P: AsRef<Path>>(&mut self, path: P) {
         let path_buf = path.as_ref().to_path_buf();
+
+        if self.loading_paths.contains_key(&path_buf) || self.loaded_raw_data.contains_key(&path_buf) {
+            return;
+        }
+
+        self.loading_paths.insert(path_buf.clone(), true);
         let tx = self.tx.clone();
 
         std::thread::spawn(move || {
-            log::info!("Starting background load: {:?}", path_buf);
             match Model::parse(&path_buf) {
                 Ok(raw) => {
                     let _ = tx.send((path_buf, raw));
@@ -59,7 +69,8 @@ impl AssetServer {
         // Collect all finished background loads.
         while let Ok((path, raw)) = self.rx.try_recv() {
             log::info!("Background load finished: {:?}", path);
-            self.loaded_raw_models.insert(path, raw);
+            self.loading_paths.remove(&path);
+            self.loaded_raw_data.insert(path, raw);
         }
     }
 }

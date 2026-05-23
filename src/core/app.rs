@@ -176,24 +176,33 @@ impl<'a> App<'a> {
             // Update asset server (collects background loads)
             singletons.asset_server.update();
 
-            // Process one loaded model per frame to avoid large frame time spikes
-            let mut model_to_spawn = None;
-            if let Some(path) = singletons.asset_server.loaded_raw_models.keys().next().cloned() {
-                if let Some(raw) = singletons.asset_server.loaded_raw_models.remove(&path) {
-                    model_to_spawn = Some((path, raw));
+            // Reconcile pending models.
+            let ids = self.world.traverse();
+            for id in ids {
+                let mut raw_to_finalize = None;
+                if let Some(model) = self.world.get_node::<Model>(id) {
+                    if let Some(path) = &model.asset_path {
+                        // Ensure it's requested.
+                        singletons.asset_server.request_load(path);
+                        // Check if ready.
+                        if let Some(_) = singletons.asset_server.loaded_raw_data.get(path) {
+                             raw_to_finalize = Some(path.clone());
+                        }
+                    }
                 }
-            }
 
-            if let Some((path, raw)) = model_to_spawn {
-                log::info!("Uploading model to GPU: {:?}", path);
-                let model = Model::from_raw(
-                    raw,
-                    &singletons.render_server,
-                    &mut render_world.texture_cache,
-                    &mut render_world.mesh_render_resources.material_cache,
-                    &mut render_world.mesh_cache,
-                );
-                self.world.add_node(Box::new(model), None);
+                if let Some(path) = raw_to_finalize {
+                    if let Some(model) = self.world.get_node_mut::<Model>(id) {
+                        let raw = singletons.asset_server.loaded_raw_data.get(&path).unwrap().clone();
+                        model.finalize(
+                            raw,
+                            &singletons.render_server,
+                            &mut render_world.texture_cache,
+                            &mut render_world.mesh_render_resources.material_cache,
+                            &mut render_world.mesh_cache,
+                        );
+                    }
+                }
             }
 
             singletons.engine.tick();
