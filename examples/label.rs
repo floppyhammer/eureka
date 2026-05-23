@@ -7,7 +7,6 @@ fn main() {
 
     app.setup(|app| {
         let singletons = app.singletons.as_mut().unwrap();
-        let render_world = app.render_world.as_mut().unwrap();
         let world = &mut app.world;
 
         world.add_node(Box::new(Camera2d::default()), None);
@@ -22,8 +21,7 @@ fn main() {
 
         singletons.text_server.load_font(
             &font_path,
-            &mut singletons.render_server,
-            &mut render_world.texture_cache,
+            &mut singletons.asset_server,
         );
 
         let mut text = "".to_string();

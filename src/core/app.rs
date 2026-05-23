@@ -179,6 +179,13 @@ impl<'a> App<'a> {
             // Update asset server (collects background loads)
             singletons.asset_server.update();
 
+            // Reconcile fonts.
+            singletons.text_server.update(
+                &singletons.render_server,
+                &mut render_world.texture_cache,
+                &singletons.asset_server,
+            );
+
             // Reconcile pending models.
             let ids = self.world.traverse();
             for id in ids {
@@ -397,9 +404,9 @@ impl<'a> ApplicationHandler for App<'a> {
         let render_server = pollster::block_on(Self::init_render(window.clone()));
 
         let engine = Engine::new();
-        let asset_server = AssetServer::new();
-        let mut render_world = RenderWorld::new(&render_server);
-        let text_server = TextServer::new(&render_server, &mut render_world.texture_cache);
+        let mut asset_server = AssetServer::new();
+        let render_world = RenderWorld::new(&render_server);
+        let text_server = TextServer::new(&mut asset_server);
 
         self.singletons = Some(Singletons {
             engine,

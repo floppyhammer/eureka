@@ -1,53 +1,60 @@
+use crate::asset::AssetServer;
 use crate::math::rect_to_vec4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasInstance, AtlasMode};
 use crate::render::{RenderServer, TextureCache};
 use crate::text::{DynamicFont, FONT_ATLAS_SIZE};
-use font_kit::source::SystemSource;
 use glam::{Vec2, Vec4};
 use std::collections::HashMap;
-use std::time::Instant;
+use std::path::PathBuf;
 use unicode_linebreak::BreakClass;
 
 pub struct TextServer {
     fonts: HashMap<String, DynamicFont>,
-    // fallback_fonts: Map<Script, DynamicFont>,
 }
 
 impl TextServer {
-    pub(crate) fn new(render_server: &RenderServer, texture_cache: &mut TextureCache) -> Self {
-        let now = Instant::now();
-
+    pub(crate) fn new(asset_server: &mut AssetServer) -> Self {
         #[cfg(target_family = "windows")]
-        let default_font_data = find_system_font("arial");
+        let default_font_name = "arial";
 
         #[cfg(not(target_family = "windows"))]
-        let default_font_data = find_system_font("Droid Sans Fallback");
+        let default_font_name = "Droid Sans Fallback";
 
-        let font =
-            DynamicFont::load_from_memory(default_font_data.unwrap(), render_server, texture_cache);
+        asset_server.request_font(format!("system://{}", default_font_name));
 
-        let elapsed_time = now.elapsed();
-        log::info!(
-            "Text server setup took {} milliseconds",
-            elapsed_time.as_millis()
-        );
-
-        let mut fonts = HashMap::new();
-        fonts.insert("default".to_string(), font);
-
-        Self { fonts }
+        Self {
+            fonts: HashMap::new(),
+        }
     }
 
-    /// Load a new font from disk.
-    pub fn load_font(
+    /// Load a new font from disk asynchronously.
+    pub fn load_font(&mut self, font_path: &String, asset_server: &mut AssetServer) {
+        asset_server.request_font(font_path);
+    }
+
+    pub(crate) fn update(
         &mut self,
-        font_path: &String,
         render_server: &RenderServer,
         texture_cache: &mut TextureCache,
+        asset_server: &AssetServer,
     ) {
-        let font = DynamicFont::load_from_file(&font_path[..], render_server, texture_cache);
-        self.fonts.insert(font_path.clone(), font);
+        for (path, buffer) in &asset_server.loaded_raw_fonts {
+            let path_str = path.to_string_lossy().to_string();
+
+            // Map system font back to "default" key.
+            let key = if path_str.starts_with("system://") {
+                "default".to_string()
+            } else {
+                path_str.clone()
+            };
+
+            if !self.fonts.contains_key(&key) {
+                let font =
+                    DynamicFont::load_from_memory(buffer.clone(), render_server, texture_cache);
+                self.fonts.insert(key, font);
+            }
+        }
     }
 
     pub(crate) fn prepare(
@@ -55,13 +62,13 @@ impl TextServer {
         render_server: &RenderServer,
         texture_cache: &mut TextureCache,
     ) {
-        for (key, font) in &mut self.fonts {
+        for (_key, font) in &mut self.fonts {
             font.upload(render_server, texture_cache);
         }
     }
 
-    pub(crate) fn get_default_font(&self) -> &DynamicFont {
-        self.fonts.get("default").unwrap()
+    pub(crate) fn get_default_font(&self) -> Option<&DynamicFont> {
+        self.fonts.get("default")
     }
 
     pub(crate) fn get_atlas(
@@ -71,13 +78,23 @@ impl TextServer {
         xform: Transform2d,
         leading: f32,
     ) -> Atlas {
-        let font;
-
-        if font_id.is_some() {
-            font = self.fonts.get_mut(&*font_id.unwrap()).unwrap();
+        let font = if let Some(id) = font_id {
+            self.fonts.get_mut(&id)
         } else {
-            font = self.fonts.get_mut("default").unwrap();
-        }
+            self.fonts.get_mut("default")
+        };
+
+        let font = match font {
+            Some(f) => f,
+            None => {
+                return Atlas {
+                    texture: None,
+                    instances: vec![],
+                    texture_size: (FONT_ATLAS_SIZE, FONT_ATLAS_SIZE),
+                    mode: AtlasMode::Text,
+                };
+            }
+        };
 
         let (glyphs, paras) = font.get_glyphs(text);
 
@@ -128,55 +145,4 @@ impl TextServer {
             mode: AtlasMode::Text,
         }
     }
-}
-
-fn find_system_font(font_name: &str) -> Option<Vec<u8>> {
-    let result = std::panic::catch_unwind(|| {
-        let mut font = None;
-
-        if !font_name.is_empty() {
-            let res = SystemSource::new().select_by_postscript_name(font_name);
-
-            if res.is_ok() {
-                font = Some(res.unwrap().load().unwrap());
-            }
-        }
-
-        if font.is_none() {
-            let family_names = [font_kit::family_name::FamilyName::Serif];
-            let properties = font_kit::properties::Properties::default();
-
-            let res = SystemSource::new().select_best_match(&family_names, &properties);
-
-            if res.is_ok() {
-                font = Some(res.unwrap().load().unwrap());
-            }
-        }
-
-        if font.is_none() {
-            let handle = SystemSource::new()
-                .all_fonts()
-                .unwrap()
-                .first()
-                .unwrap()
-                .clone();
-
-            font = Some(handle.load().unwrap());
-        }
-
-        let font_data = font
-            .take()
-            .expect("Font fallback failed!")
-            .copy_font_data()
-            .unwrap();
-        let font_data = (*font_data).clone();
-
-        Some(font_data)
-    });
-    if result.is_err() {
-        eprintln!("ERROR: failed to find font: {}", font_name);
-        return None;
-    }
-
-    result.unwrap()
 }

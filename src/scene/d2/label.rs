@@ -63,16 +63,19 @@ impl AsNode for Label {
         NodeType::Label
     }
 
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        if self.text_is_dirty {
-            self.atlas = Some(singletons.text_server.get_atlas(
+    fn update(&mut self, _dt: f32, singletons: &mut Singletons) {
+        if self.text_is_dirty || self.atlas.as_ref().map_or(true, |a| a.texture.is_none()) {
+            let atlas = singletons.text_server.get_atlas(
                 self.text.as_str(),
                 self.font_id.clone(),
                 self.node_ui.transform,
                 self.leading,
-            ));
+            );
 
-            self.text_is_dirty = false;
+            if atlas.texture.is_some() {
+                self.text_is_dirty = false;
+            }
+            self.atlas = Some(atlas);
         }
     }
 
