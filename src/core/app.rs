@@ -10,7 +10,7 @@ use winit::{
 use glam::UVec2;
 use indextree::NodeId;
 
-use crate::core::engine::Engine;
+use crate::core::time::Time;
 use winit::dpi::{LogicalSize, PhysicalSize, Size};
 
 // Import local crates.
@@ -41,11 +41,13 @@ pub struct App<'a> {
 
 impl<'a> App<'a> {
     pub fn new() -> Self {
+        // Config logger
         let env = env_logger::Env::default()
             .filter_or("EUREKA_LOG_LEVEL", "info")
             .write_style_or("EUREKA_LOG_STYLE", "always");
         let _ = env_logger::try_init_from_env(env);
 
+        // New winit event loop
         let event_loop = EventLoop::new().unwrap();
 
         let window_size = LogicalSize::new(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
@@ -71,7 +73,7 @@ impl<'a> App<'a> {
         self.setup_callback = Some(Box::new(f));
     }
 
-    // Creating some of the wgpu types requires async code.
+    /// Creating some of the wgpu types requires async code.
     async fn init_render(window: Arc<Window>) -> RenderServer<'a> {
         // Context for all other wgpu objects.
         let instance = wgpu::Instance::default();
@@ -108,16 +110,16 @@ impl<'a> App<'a> {
             .get_default_config(&adapter, size.width, size.height)
             .expect("Surface unsupported by adapter!");
 
+        // Enable vsync.
         let surface_capabilities = surface.get_capabilities(&adapter);
-        let present_mode = if surface_capabilities
+        surface_config.present_mode= if surface_capabilities
             .present_modes
             .contains(&wgpu::PresentMode::Mailbox)
         {
             wgpu::PresentMode::Mailbox
         } else {
-            wgpu::PresentMode::Fifo // 保底使用 Fifo
+            wgpu::PresentMode::Fifo
         };
-        surface_config.present_mode = present_mode;
 
         surface.configure(&device, &surface_config);
 
@@ -278,9 +280,9 @@ impl<'a> App<'a> {
                 }
             }
 
-            singletons.engine.tick();
+            singletons.time.tick();
             self.world
-                .update(singletons.engine.get_delta() as f32, singletons);
+                .update(singletons.time.get_delta() as f32, singletons);
         }
     }
 
@@ -403,13 +405,13 @@ impl<'a> ApplicationHandler for App<'a> {
         // App::init_render uses async code, so we're going to wait for it to finish.
         let render_server = pollster::block_on(Self::init_render(window.clone()));
 
-        let engine = Engine::new();
+        let time = Time::new();
         let mut asset_server = AssetServer::new();
         let render_world = RenderWorld::new(&render_server);
         let text_server = TextServer::new(&mut asset_server);
 
         self.singletons = Some(Singletons {
-            engine,
+            time,
             render_server,
             input_server: InputServer::new(),
             text_server,

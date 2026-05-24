@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-pub struct Engine {
+pub struct Time {
     startup_time: SystemTime,
 
     last_frame_time: SystemTime,
@@ -12,7 +12,7 @@ pub struct Engine {
     last_time_updated_fps: SystemTime,
 }
 
-impl Engine {
+impl Time {
     pub fn new() -> Self {
         Self {
             startup_time: SystemTime::now(),
