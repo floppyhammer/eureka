@@ -42,9 +42,9 @@ impl Frustum {
             Plane::new((row3 + row1).truncate(), row3.w + row1.w),
             // Top
             Plane::new((row3 - row1).truncate(), row3.w - row1.w),
-            // Near
+            // Near (WGPU [0, 1] range: row2 is the near plane)
             Plane::new(row2.truncate(), row2.w),
-            // Far
+            // Far (WGPU [0, 1] range: row3 - row2 is the far plane)
             Plane::new((row3 - row2).truncate(), row3.w - row2.w),
         ];
 

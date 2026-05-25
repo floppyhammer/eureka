@@ -259,7 +259,6 @@ pub(crate) fn prepare_shadow(
 
             let light_view = Mat4::look_at_rh(center - light_dir * radius * 2.0, center, light_up);
 
-            // 使用包围球半径创建对称的正交矩阵
             // glam::Mat4::orthographic_rh maps Z to [0, 1]
             let light_proj =
                 Mat4::orthographic_rh(-radius, radius, -radius, radius, 0.0, radius * 4.0);
@@ -487,12 +486,14 @@ pub(crate) fn render_shadow(
                     .get(&extracted.mesh_id)
                     .unwrap();
 
+                let instance_offset = *mesh_render_resources.instance_offsets.get(&idx).unwrap();
+
                 render_pass.set_pipeline(pipeline);
                 render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass
                     .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                render_pass.draw_indexed(0..mesh.index_count, 0, instance_offset..instance_offset + 1);
             }
         }
     }
@@ -567,12 +568,14 @@ pub(crate) fn render_shadow(
                     .get(&extracted.mesh_id)
                     .unwrap();
 
+                let instance_offset = *mesh_render_resources.instance_offsets.get(&idx).unwrap();
+
                 render_pass.set_pipeline(pipeline);
                 render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass
                     .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                render_pass.draw_indexed(0..mesh.index_count, 0, instance_offset..instance_offset + 1);
             }
         }
     }

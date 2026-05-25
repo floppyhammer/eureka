@@ -423,6 +423,7 @@ pub struct MeshRenderResources {
 
     // For mesh batching.
     pub(crate) instance_cache: HashMap<MeshId, InstanceMetadata>,
+    pub(crate) instance_offsets: HashMap<usize, u32>,
 }
 
 pub(crate) struct InstanceMetadata {
@@ -508,6 +509,7 @@ impl MeshRenderResources {
             pipeline_cache: Default::default(),
             material_cache: MaterialCache::new(),
             instance_cache: HashMap::new(),
+            instance_offsets: HashMap::new(),
         }
     }
 
@@ -945,47 +947,59 @@ impl MeshRenderResources {
         render_server: &RenderServer,
         meshes: &Vec<ExtractedMesh>,
     ) {
-        for mesh in meshes {
-            let metadata = self.instance_cache.get(&mesh.mesh_id);
+        // Group instances by mesh_id
+        let mut grouped_instances: HashMap<MeshId, Vec<InstanceRaw>> = HashMap::new();
+        // Track the instance index for each extracted mesh
+        self.instance_offsets.clear();
 
-            if metadata.is_none() {
-                // Create the instance buffer.
+        for (i, mesh) in meshes.iter().enumerate() {
+            let instances = grouped_instances.entry(mesh.mesh_id).or_default();
+            self.instance_offsets.insert(i, instances.len() as u32);
+
+            let instance = Instance {
+                position: mesh.transform.position,
+                scale: mesh.transform.scale,
+                rotation: mesh.transform.rotation,
+            };
+            instances.push(instance.to_raw());
+        }
+
+        for (mesh_id, instance_data) in grouped_instances {
+            let buffer_size = (instance_data.len() * mem::size_of::<InstanceRaw>()) as BufferAddress;
+
+            if let Some(metadata) = self.instance_cache.get_mut(&mesh_id) {
+                if (metadata.instance_count as usize) < instance_data.len() {
+                    // Recreate buffer if too small
+                    metadata.buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("model instance buffer"),
+                        size: buffer_size,
+                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    });
+                }
+                metadata.instance_count = instance_data.len() as u64;
+            } else {
                 let instance_buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("model instance buffer"),
-                    size: mem::size_of::<InstanceRaw>() as BufferAddress,
+                    size: buffer_size,
                     usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 });
 
                 self.instance_cache.insert(
-                    mesh.mesh_id,
+                    mesh_id,
                     InstanceMetadata {
                         buffer: instance_buffer,
-                        instance_count: 1,
+                        instance_count: instance_data.len() as u64,
                     },
                 );
             }
 
-            let metadata = self.instance_cache.get(&mesh.mesh_id).unwrap();
-
-            let mut instances = vec![];
-
-            let transform = &mesh.transform;
-
-            instances.push(Instance {
-                position: transform.position,
-                scale: transform.scale,
-                rotation: transform.rotation,
-            });
-
-            // Copy data from [Instance] to [InstanceRaw].
-            let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
-
-            // Update buffer.
+            let metadata = self.instance_cache.get(&mesh_id).unwrap();
             render_server.queue.write_buffer(
                 &metadata.buffer,
                 0,
-                bytemuck::cast_slice(&instance_data[..]),
+                bytemuck::cast_slice(&instance_data),
             );
         }
     }
@@ -1116,7 +1130,8 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
             render_pass.set_bind_group(2, texture_bind_group.unwrap(), &[]);
         }
 
-        render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+        let instance_offset = *mesh_render_resources.instance_offsets.get(&idx).unwrap();
+        render_pass.draw_indexed(0..mesh.index_count, 0, instance_offset..instance_offset + 1);
     }
 
     gizmo_render_resources.render(
