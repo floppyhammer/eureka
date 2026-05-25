@@ -1,7 +1,15 @@
 use eureka::core::App;
 use eureka::render::Texture;
-use eureka::scene::{AsNode3d, Camera3d, DirectionalLight, Model, PointLight, Sky};
+use eureka::scene::{AsNode3d, Camera3d, DirectionalLight, Model, PointLight, Sky, Sprite2d};
 use glam::{Quat, Vec3};
+
+fn custom_update(dt: f32, model: &mut Model) {
+    let rotation_delta = Quat::from_rotation_y(dt);
+
+    let new_rotation = rotation_delta * model.get_rotation();
+
+    model.set_rotation(new_rotation);
+}
 
 fn main() {
     let mut app = App::new();
@@ -31,10 +39,10 @@ fn main() {
         world.add_node(Box::new(light), None);
 
         // Add a directional light
-        let mut light = DirectionalLight::new();
-        light.strength = 0.5;
-        light.transform.rotation = Quat::from_rotation_x(-90.0f32.to_radians());
-        world.add_node(Box::new(light), None);
+        // let mut light = DirectionalLight::new();
+        // light.strength = 1.5;
+        // light.transform.rotation = Quat::from_rotation_x(-135.0f32.to_radians());
+        // world.add_node(Box::new(light), None);
 
         // Add a crab
         let ferris_path = singletons
@@ -42,9 +50,19 @@ fn main() {
             .asset_dir
             .join("models/ferris/ferris3d_v1.0.obj");
         let mut ferris = Model::at_path(ferris_path);
-        ferris.set_position(Vec3::new(0.0, 1.0, 0.0));
-        ferris.set_scale(Vec3::new(1.2, 1.2, 1.2));
+        ferris.set_position(Vec3::new(0.0, 0.1, 0.0));
+        ferris.set_scale(Vec3::new(1.0, 1.0, 1.0));
         world.add_node(Box::new(ferris), None);
+
+        // let cube = singletons
+        //     .asset_server
+        //     .asset_dir
+        //     .join("models/cube/cube.obj");
+        // let mut cube = Model::at_path(cube);
+        // cube.set_position(Vec3::new(2.0, 1.2, 2.0));
+        // cube.set_scale(Vec3::new(0.5, 0.5, 0.5));
+        // cube.custom_update = Some(custom_update);
+        // world.add_node(Box::new(cube), None);
 
         // Add ground
         let ground_path = singletons

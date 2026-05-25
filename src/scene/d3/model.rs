@@ -7,7 +7,7 @@ use std::result::Result::Ok;
 use std::time::Instant;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
-
+use crate::core::Singletons;
 use crate::math::aabb::Aabb;
 use crate::math::transform::Transform3d;
 use crate::render::draw_command::DrawCommands;
@@ -54,6 +54,7 @@ pub struct Model {
     pub name: String,
     // New: Track if this model is still waiting for its asset.
     pub asset_path: Option<PathBuf>,
+    pub custom_update: Option<fn(f32, &mut Self)>,
 }
 
 impl Model {
@@ -66,6 +67,7 @@ impl Model {
             aabb: Aabb::default(),
             name: path.as_ref().to_string_lossy().into_owned(),
             asset_path: Some(path.as_ref().to_path_buf()),
+            custom_update: None,
         }
     }
 
@@ -295,6 +297,7 @@ impl Model {
             aabb: Aabb::default(),
             name: "".to_string(),
             asset_path: None,
+            custom_update: None,
         };
         model.finalize(raw, rs, tc, mc, msc);
         model
@@ -343,6 +346,12 @@ impl AsNode for Model {
                 material_id: self.materials[i],
             };
             draw_cmds.extracted.meshes.push(extracted_mesh);
+        }
+    }
+
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+        if self.custom_update.is_some() {
+            self.custom_update.unwrap()(dt, self);
         }
     }
 }
