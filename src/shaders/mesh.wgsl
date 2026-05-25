@@ -244,17 +244,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let distance = length(light_vec);
         let light_dir = normalize(light_vec);
         let half_dir = normalize(view_dir + light_dir);
+        let n_dot_l = max(dot(world_normal, light_dir), 0.0);
 
-        // Point Shadow
-        let frag_to_light = light.position - in.world_position.xyz;
-        let dist_vec = abs(frag_to_light);
+        // Adaptive Bias: Using dot product to increase bias at grazing angles
+        let bias = max(0.005 * (1.0 - n_dot_l), 0.0005);
+
+        let dist_vec = abs(light_vec);
         let dist_along_axis = max(dist_vec.x, max(dist_vec.y, dist_vec.z));
         let near = light.shadow_near;
         let far = light.shadow_far;
         let shadow_z = (far / (far - near)) - ((far * near) / (far - near)) / dist_along_axis;
         let final_shadow_z = clamp(shadow_z, 0.0, 1.0);
         let light_to_frag = in.world_position.xyz - light.position;
-        let shadow_factor = textureSampleCompare(t_point_shadow, s_shadow, light_to_frag, i32(i), final_shadow_z - 0.002);
+        let shadow_factor = textureSampleCompare(t_point_shadow, s_shadow, light_to_frag, i32(i), final_shadow_z - bias);
 
         // Cook-Torrance BRDF
         let NDF = distribution_ggx(world_normal, half_dir, roughness);
@@ -269,7 +271,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         var kD = vec3<f32>(1.0) - kS;
         kD *= 1.0 - metallic;
 
-        let n_dot_l = max(dot(world_normal, light_dir), 0.0);
         let attenuation = 1.0 / (light.constant + light.linear0 * distance + light.quadratic * (distance * distance));
         let radiance = light.color * light.strength * attenuation;
 

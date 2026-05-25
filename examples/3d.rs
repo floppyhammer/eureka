@@ -11,6 +11,23 @@ fn custom_update(dt: f32, model: &mut Model) {
     model.set_rotation(new_rotation);
 }
 
+fn custom_update2(dt: f32, model: &mut Model) {
+    static mut TIME_ELAPSED: f32 = 0.0;
+
+    // 修改和读取必须在 unsafe 块中进行
+    unsafe {
+        TIME_ELAPSED += dt;
+
+        let speed = 2.0;
+        let amplitude = 0.5;
+        let new_y = (TIME_ELAPSED * speed).sin() * amplitude;
+
+        let mut current_pos = model.get_position();
+        current_pos.y = new_y;
+        model.set_position(current_pos);
+    }
+}
+
 fn main() {
     let mut app = App::new();
 
@@ -52,6 +69,7 @@ fn main() {
         let mut ferris = Model::at_path(ferris_path);
         ferris.set_position(Vec3::new(0.0, 0.1, 0.0));
         ferris.set_scale(Vec3::new(1.0, 1.0, 1.0));
+        ferris.custom_update = Some(custom_update2);
         world.add_node(Box::new(ferris), None);
 
         // let cube = singletons
