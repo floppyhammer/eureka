@@ -18,8 +18,8 @@ pub(crate) struct PointLightUniform {
     pub(crate) constant: f32,
     pub(crate) linear: f32,
     pub(crate) quadratic: f32,
-    pub(crate) _pad0: f32,
-    pub(crate) _pad1: f32,
+    pub(crate) shadow_near: f32,
+    pub(crate) shadow_far: f32,
 }
 
 #[repr(C)]
@@ -334,7 +334,6 @@ pub(crate) fn prepare_shadow(
     }
 
     let mut point_camera_uniforms = vec![CameraUniform::default(); MAX_POINT_LIGHTS * 6];
-    let point_light_proj = wgpu_perspective();
     render_resources.point_shadow_view_projs.clear();
 
     for (i, light) in extracted_lights.point_lights.iter().enumerate() {
@@ -342,6 +341,7 @@ pub(crate) fn prepare_shadow(
             break;
         }
         let light_pos = Vec3::from_array(light.position);
+        let point_light_proj = wgpu_perspective(light.shadow_near, light.shadow_far);
 
         for face in 0..6 {
             let (target, up) = POINT_SHADOW_FACES[face];
@@ -578,7 +578,7 @@ pub(crate) fn render_shadow(
     }
 }
 
-fn wgpu_perspective() -> Mat4 {
+fn wgpu_perspective(near: f32, far: f32) -> Mat4 {
     // glam::Mat4::perspective_rh maps Z to [0, 1]
-    Mat4::perspective_rh(90.0f32.to_radians(), 1.0f32, 0.1f32, 100.0f32)
+    Mat4::perspective_rh(90.0f32.to_radians(), 1.0f32, near, far)
 }

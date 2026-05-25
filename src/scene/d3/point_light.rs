@@ -13,6 +13,8 @@ pub struct PointLight {
     pub node_3d: Node3d,
     pub color: ColorU,
     pub strength: f32,
+    pub shadow_near: f32,
+    pub shadow_far: f32,
     // pub(crate) sprite: Sprite3d,
     pub custom_update: Option<fn(f32, &mut Self)>,
 }
@@ -26,6 +28,8 @@ impl PointLight {
             node_3d: Node3d::default(),
             color: ColorU::white(),
             strength: 1.0,
+            shadow_near: 0.1,
+            shadow_far: 100.0,
             // sprite: sprite3d,
             custom_update: None,
         }
@@ -72,7 +76,8 @@ impl AsNode for PointLight {
             constant: 1.0,
             linear: 0.09,
             quadratic: 0.032,
-            ..Default::default()
+            shadow_near: self.shadow_near,
+            shadow_far: self.shadow_far,
         };
 
         draw_cmds.extracted.lights.point_lights.push(point_light);

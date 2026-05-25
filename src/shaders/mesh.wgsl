@@ -19,8 +19,8 @@ struct PointLight {
     constant: f32,
     linear0: f32,
     quadratic: f32,
-    _pad0: f32,
-    _pad1: f32,
+    shadow_near: f32,
+    shadow_far: f32,
 }
 
 struct DirectionalLight {
@@ -249,8 +249,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let frag_to_light = light.position - in.world_position.xyz;
         let dist_vec = abs(frag_to_light);
         let dist_along_axis = max(dist_vec.x, max(dist_vec.y, dist_vec.z));
-        let near = 0.1;
-        let far = 100.0;
+        let near = light.shadow_near;
+        let far = light.shadow_far;
         let shadow_z = (far / (far - near)) - ((far * near) / (far - near)) / dist_along_axis;
         let final_shadow_z = clamp(shadow_z, 0.0, 1.0);
         let light_to_frag = in.world_position.xyz - light.position;
