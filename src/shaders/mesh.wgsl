@@ -174,7 +174,8 @@ fn distribution_ggx(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {
     var denom = (n_dot_h2 * (a2 - 1.0) + 1.0);
     denom = PI * denom * denom;
 
-    return num / max(denom, 0.000001);
+    // Use a slightly larger epsilon for the denominator
+    return num / max(denom, 0.00001);
 }
 
 // G: Smith's method with Schlick-GGX
@@ -239,6 +240,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     metallic *= mr_sample.b;
     roughness *= mr_sample.g;
 #endif
+
+    // Clamp roughness to a safe minimum to prevent specular highlight disappearing
+    // and avoid division by zero in BRDF equations.
+    roughness = max(roughness, 0.045);
 
     var ambient_ao = 1.0;
     if (camera.ssao_enabled == 1u) {
