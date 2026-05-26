@@ -188,96 +188,10 @@ impl<'a> App<'a> {
                 &singletons.asset_server,
             );
 
-            // Reconcile pending models.
+            // Reconcile pending assets.
             let ids = self.world.traverse();
             for id in ids {
-                // 1. Reconcile Models
-                let mut model_raw_path = None;
-                if let Some(model) = self.world.get_node::<Model>(id) {
-                    if let Some(path) = &model.asset_path {
-                        singletons.asset_server.request_load(path);
-                        if singletons.asset_server.loaded_raw_models.contains_key(path) {
-                            model_raw_path = Some(path.clone());
-                        }
-                    }
-                }
-                if let Some(path) = model_raw_path {
-                    if let Some(model) = self.world.get_node_mut::<Model>(id) {
-                        let raw = singletons
-                            .asset_server
-                            .loaded_raw_models
-                            .get(&path)
-                            .unwrap()
-                            .clone();
-                        model.finalize(
-                            raw,
-                            &singletons.render_server,
-                            &mut render_world.texture_cache,
-                            &mut render_world.mesh_render_resources.material_cache,
-                            &mut render_world.mesh_cache,
-                        );
-                    }
-                }
-
-                // 2. Reconcile Sky
-                let mut sky_raw_path = None;
-                if let Some(sky) = self.world.get_node::<Sky>(id) {
-                    if let Some(path) = &sky.asset_path {
-                        singletons.asset_server.request_cubemap(path);
-                        if singletons
-                            .asset_server
-                            .loaded_raw_cubemaps
-                            .contains_key(path)
-                        {
-                            sky_raw_path = Some(path.clone());
-                        }
-                    }
-                }
-                if let Some(path) = sky_raw_path {
-                    if let Some(sky) = self.world.get_node_mut::<Sky>(id) {
-                        let raw = singletons
-                            .asset_server
-                            .loaded_raw_cubemaps
-                            .get(&path)
-                            .unwrap()
-                            .clone();
-                        sky.finalize(
-                            raw,
-                            &singletons.render_server,
-                            &mut render_world.texture_cache,
-                        );
-                    }
-                }
-
-                // 3. Reconcile Sprite2d
-                let mut sprite_raw_path = None;
-                if let Some(sprite) = self.world.get_node::<Sprite2d>(id) {
-                    if let Some(path) = &sprite.asset_path {
-                        singletons.asset_server.request_texture(path);
-                        if singletons
-                            .asset_server
-                            .loaded_raw_textures
-                            .contains_key(path)
-                        {
-                            sprite_raw_path = Some(path.clone());
-                        }
-                    }
-                }
-                if let Some(path) = sprite_raw_path {
-                    if let Some(sprite) = self.world.get_node_mut::<Sprite2d>(id) {
-                        let raw = singletons
-                            .asset_server
-                            .loaded_raw_textures
-                            .get(&path)
-                            .unwrap()
-                            .clone();
-                        sprite.finalize(
-                            raw,
-                            &singletons.render_server,
-                            &mut render_world.texture_cache,
-                        );
-                    }
-                }
+                self.world.arena[id].get_mut().reconcile(singletons, render_world);
             }
 
             singletons.time.tick();

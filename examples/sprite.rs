@@ -1,12 +1,12 @@
-use eureka::core::App;
-use eureka::scene::AsNodeUi;
+use std::any::Any;
+use std::path::PathBuf;
+use eureka::core::{App, Singletons};
+use eureka::scene::{AsNode, AsNodeUi, NodeType};
 use eureka::scene::Camera2d;
 use eureka::scene::Sprite2d;
 use glam::Vec2;
-
-fn custom_update(dt: f32, sprite: &mut Sprite2d) {
-    sprite.set_rotation(sprite.get_rotation() + dt);
-}
+use eureka::render::draw_command::DrawCommands;
+use eureka::render::render_world::RenderWorld;
 
 fn main() {
     let mut app = App::new();
@@ -27,9 +27,8 @@ fn main() {
         let texture_path = singletons.asset_server.asset_dir.join("images/texture.jpg");
 
         // Add a sprite with texture
-        let mut sprite1 = Sprite2d::at_path(tree_path.clone());
+        let mut sprite1 = MySprite::at_path(tree_path.clone());
         sprite1.set_position(Vec2::new(200f32, 200f32));
-        sprite1.custom_update = Some(custom_update);
         let sprite1_id = world.add_node(Box::new(sprite1), None);
 
         // Add another sprite with the same texture (only loaded once)
@@ -44,4 +43,55 @@ fn main() {
     });
 
     app.run();
+}
+
+pub struct MySprite {
+    pub sprite2d: Sprite2d,
+}
+
+impl MySprite {
+    pub fn new(sprite2d: Sprite2d) -> Self {
+        Self {
+            sprite2d,
+        }
+    }
+
+    pub fn at_path(path: PathBuf) -> Self {
+        Self {
+            sprite2d: Sprite2d::at_path(path),
+        }
+    }
+
+    pub fn set_position(&mut self, p: Vec2) {
+        self.sprite2d.set_position(p);
+    }
+}
+
+impl AsNode for MySprite {
+    fn as_any(&self) -> &dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn node_type(&self) -> NodeType { NodeType::Sprite2d }
+
+    fn as_node_ui(&self) -> Option<&dyn AsNodeUi> {
+        self.sprite2d.as_node_ui()
+    }
+
+    fn as_node_ui_mut(&mut self) -> Option<&mut dyn AsNodeUi> {
+        self.sprite2d.as_node_ui_mut()
+    }
+
+    fn reconcile(&mut self, singletons: &mut Singletons, render_world: &mut RenderWorld) {
+        self.sprite2d.reconcile(singletons, render_world);
+    }
+
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+        self.sprite2d.set_rotation(self.sprite2d.get_rotation() + dt);
+
+        // Base update
+        self.sprite2d.update(dt, singletons);
+    }
+
+    fn draw(&self, draw_cmds: &mut DrawCommands) {
+        self.sprite2d.draw(draw_cmds);
+    }
 }

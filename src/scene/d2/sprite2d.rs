@@ -27,7 +27,6 @@ pub struct Sprite2d {
     pub centered: bool,
     pub flip_x: bool,
     pub flip_y: bool,
-    pub custom_update: Option<fn(f32, &mut Self)>,
 
     // Asynchronous loading
     pub asset_path: Option<PathBuf>,
@@ -55,7 +54,6 @@ impl Sprite2d {
             centered: false,
             flip_x: false,
             flip_y: false,
-            custom_update: None,
             asset_path: None,
         }
     }
@@ -75,7 +73,6 @@ impl Sprite2d {
             centered: false,
             flip_x: false,
             flip_y: false,
-            custom_update: None,
             asset_path: Some(path.as_ref().to_path_buf()),
         }
     }
@@ -126,13 +123,23 @@ impl AsNode for Sprite2d {
         Some(self)
     }
 
-    fn ready(&mut self) {}
-
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        if self.custom_update.is_some() {
-            self.custom_update.unwrap()(dt, self);
+    fn reconcile(&mut self, singletons: &mut Singletons, render_world: &mut crate::render::render_world::RenderWorld) {
+        if let Some(path) = &self.asset_path {
+            singletons.asset_server.request_texture(path);
+            if let Some(raw) = singletons.asset_server.loaded_raw_textures.get(path) {
+                let raw = raw.clone();
+                self.finalize(
+                    raw,
+                    &singletons.render_server,
+                    &mut render_world.texture_cache,
+                );
+            }
         }
     }
+
+    fn ready(&mut self) {}
+
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {}
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         if let Some(texture_id) = self.texture {

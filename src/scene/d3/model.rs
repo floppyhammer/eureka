@@ -58,7 +58,6 @@ pub struct Model {
     pub name: String,
     // New: Track if this model is still waiting for its asset.
     pub asset_path: Option<PathBuf>,
-    pub custom_update: Option<fn(f32, &mut Self)>,
 }
 
 impl Model {
@@ -72,7 +71,6 @@ impl Model {
             aabb: Aabb::default(),
             name: path.as_ref().to_string_lossy().into_owned(),
             asset_path: Some(path.as_ref().to_path_buf()),
-            custom_update: None,
         }
     }
 
@@ -539,7 +537,6 @@ impl Model {
             aabb: Aabb::default(),
             name: "".to_string(),
             asset_path: None,
-            custom_update: None,
         };
         model.finalize(raw, rs, tc, mc, msc);
         model
@@ -576,6 +573,22 @@ impl AsNode for Model {
         Some(self)
     }
 
+    fn reconcile(&mut self, singletons: &mut Singletons, render_world: &mut crate::render::render_world::RenderWorld) {
+        if let Some(path) = &self.asset_path {
+            singletons.asset_server.request_load(path);
+            if let Some(raw) = singletons.asset_server.loaded_raw_models.get(path) {
+                let raw = raw.clone();
+                self.finalize(
+                    raw,
+                    &singletons.render_server,
+                    &mut render_world.texture_cache,
+                    &mut render_world.mesh_render_resources.material_cache,
+                    &mut render_world.mesh_cache,
+                );
+            }
+        }
+    }
+
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         if self.asset_path.is_some() {
             return;
@@ -594,11 +607,7 @@ impl AsNode for Model {
         }
     }
 
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
-        if self.custom_update.is_some() {
-            self.custom_update.unwrap()(dt, self);
-        }
-    }
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {}
 }
 
 impl AsNode3d for Model {

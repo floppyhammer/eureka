@@ -16,7 +16,6 @@ pub struct PointLight {
     pub shadow_near: f32,
     pub shadow_far: f32,
     // pub(crate) sprite: Sprite3d,
-    pub custom_update: Option<fn(f32, &mut Self)>,
 }
 
 impl PointLight {
@@ -31,7 +30,6 @@ impl PointLight {
             shadow_near: 0.1,
             shadow_far: 100.0,
             // sprite: sprite3d,
-            custom_update: None,
         }
     }
 }
@@ -62,10 +60,6 @@ impl AsNode for PointLight {
 
         // self.sprite.position = new_position;
         // self.sprite.update(dt, camera_info, singletons);
-
-        if self.custom_update.is_some() {
-            self.custom_update.unwrap()(dt, self);
-        }
     }
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {

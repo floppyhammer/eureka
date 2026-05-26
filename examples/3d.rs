@@ -1,32 +1,10 @@
-use eureka::core::App;
-use eureka::render::Texture;
-use eureka::scene::{AsNode3d, Camera3d, DirectionalLight, Model, PointLight, Sky, Sprite2d};
+use std::any::Any;
+use std::path::PathBuf;
+use eureka::core::{App, Singletons};
+use eureka::render::render_world::RenderWorld;
+use eureka::scene::{AsNode, AsNode3d, Camera3d, DirectionalLight, Model, NodeType, PointLight, Sky, Sprite2d};
 use glam::{Quat, Vec3};
-
-fn custom_update(dt: f32, model: &mut Model) {
-    let rotation_delta = Quat::from_rotation_y(dt);
-
-    let new_rotation = rotation_delta * model.get_rotation();
-
-    model.set_rotation(new_rotation);
-}
-
-fn custom_update2(dt: f32, model: &mut Model) {
-    static mut TIME_ELAPSED: f32 = 0.0;
-
-    // 修改和读取必须在 unsafe 块中进行
-    unsafe {
-        TIME_ELAPSED += dt;
-
-        let speed = 2.0;
-        let amplitude = 0.5;
-        let new_y = (TIME_ELAPSED * speed).sin() * amplitude;
-
-        let mut current_pos = model.get_position();
-        current_pos.y = new_y;
-        model.set_position(current_pos);
-    }
-}
+use eureka::render::draw_command::DrawCommands;
 
 fn main() {
     let mut app = App::new();
@@ -66,20 +44,18 @@ fn main() {
             .asset_server
             .asset_dir
             .join("models/ferris/ferris3d_v1.0.obj");
-        let mut ferris = Model::at_path(ferris_path);
+        let mut ferris = Ferris::at_path(ferris_path);
         ferris.set_position(Vec3::new(0.0, 0.1, 0.0));
         ferris.set_scale(Vec3::new(1.0, 1.0, 1.0));
-        ferris.custom_update = Some(custom_update2);
         world.add_node(Box::new(ferris), None);
 
         let cube = singletons
             .asset_server
             .asset_dir
             .join("models/cube/cube.obj");
-        let mut cube = Model::at_path(cube);
+        let mut cube = MyCube::at_path(cube);
         cube.set_position(Vec3::new(2.0, 1.2, 2.0));
         cube.set_scale(Vec3::new(0.5, 0.5, 0.5));
-        cube.custom_update = Some(custom_update);
         world.add_node(Box::new(cube), None);
 
         let spheres = singletons
@@ -104,4 +80,128 @@ fn main() {
     });
 
     app.run();
+}
+
+pub struct MyCube {
+    pub model: Model,
+}
+
+impl MyCube {
+    pub fn new(model: Model) -> Self {
+        Self {
+            model,
+        }
+    }
+
+    pub fn at_path(path: PathBuf) -> Self {
+        Self {
+            model: Model::at_path(path),
+        }
+    }
+
+    pub fn set_position(&mut self, p: Vec3) {
+        self.model.set_position(p);
+    }
+
+    pub fn set_scale(&mut self, s: Vec3) {
+        self.model.set_scale(s);
+    }
+}
+
+impl AsNode for MyCube {
+    fn as_any(&self) -> &dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn node_type(&self) -> NodeType { NodeType::Model }
+
+    fn reconcile(&mut self, singletons: &mut Singletons, render_world: &mut RenderWorld) {
+        self.model.reconcile(singletons, render_world);
+    }
+
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+        let rotation_delta = Quat::from_rotation_y(dt);
+
+        let new_rotation = rotation_delta * self.model.get_rotation();
+
+        self.model.set_rotation(new_rotation);
+
+        // Base model update
+        self.model.update(dt, singletons);
+    }
+
+    fn draw(&self, draw_cmds: &mut DrawCommands) {
+        self.model.draw(draw_cmds);
+    }
+
+    fn as_node_3d(&self) -> Option<&dyn AsNode3d> {
+        self.model.as_node_3d()
+    }
+
+    fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
+        self.model.as_node_3d_mut()
+    }
+}
+
+pub struct Ferris {
+    pub model: Model,
+    pub speed: f32,
+    pub timer: f32,
+}
+
+impl Ferris {
+    pub fn new(model: Model, speed: f32) -> Self {
+        Self {
+            model,
+            speed,
+            timer: 0.0,
+        }
+    }
+
+    pub fn at_path(path: PathBuf) -> Self {
+        Self {
+            model: Model::at_path(path),
+            speed: 1.0,
+            timer: 0.0,
+        }
+    }
+
+    pub fn set_position(&mut self, p: Vec3) {
+        self.model.set_position(p);
+    }
+
+    pub fn set_scale(&mut self, s: Vec3) {
+        self.model.set_scale(s);
+    }
+}
+
+impl AsNode for Ferris {
+    fn as_any(&self) -> &dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn node_type(&self) -> NodeType { NodeType::Model }
+
+    fn reconcile(&mut self, singletons: &mut Singletons, render_world: &mut RenderWorld) {
+        self.model.reconcile(singletons, render_world);
+    }
+
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+        self.timer += dt * self.speed;
+
+        let mut pos = self.model.get_position();
+        pos.y = 1.0 + self.timer.sin() * 1.0;
+        self.model.set_position(pos);
+
+        // Base model update
+        self.model.update(dt, singletons);
+    }
+
+    fn draw(&self, draw_cmds: &mut DrawCommands) {
+        self.model.draw(draw_cmds);
+    }
+
+    fn as_node_3d(&self) -> Option<&dyn AsNode3d> {
+        self.model.as_node_3d()
+    }
+
+    fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
+        self.model.as_node_3d_mut()
+    }
 }

@@ -57,7 +57,12 @@ pub trait AsNode {
     }
 
     // In a single frame, node functions will be called in the following order:
-    // INPUT -> UPDATE -> DRAW
+    // RECONCILE -> INPUT -> UPDATE -> DRAW
+
+    /// Used for asset loading and resource finalization.
+    fn reconcile(&mut self, _singletons: &mut Singletons, _render_world: &mut crate::render::render_world::RenderWorld) {
+        // Default implementation
+    }
 
     fn input(&mut self, input_event: &mut InputEvent, input_server: &mut InputServer) {
         // Default implementation
