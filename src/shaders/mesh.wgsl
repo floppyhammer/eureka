@@ -142,11 +142,18 @@ var t_diffuse: texture_2d<f32>;
 var s_diffuse: sampler;
 #endif
 
-#ifdef NORMAP_MAP
+#ifdef NORMAL_MAP
 @group(2) @binding(3)
 var t_normal: texture_2d<f32>;
 @group(2) @binding(4)
 var s_normal: sampler;
+#endif
+
+#ifdef METALLIC_ROUGHNESS_MAP
+@group(2) @binding(5)
+var t_metallic_roughness: texture_2d<f32>;
+@group(2) @binding(6)
+var s_metallic_roughness: sampler;
 #endif
 // -------------------------
 
@@ -215,7 +222,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         world_normal_basis
     );
 
-#ifdef NORMAP_MAP
+#ifdef NORMAL_MAP
     let normal_map = textureSample(t_normal, s_normal, in.tex_coords).xyz * 2.0 - 1.0;
     let world_normal = normalize(tbn_to_world * normal_map);
 #else
@@ -223,8 +230,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 #endif
 
     // PBR Parameters (From Material Uniforms)
-    let metallic: f32 = material.metallic;
-    let roughness: f32 = material.roughness;
+    var metallic: f32 = material.metallic;
+    var roughness: f32 = material.roughness;
+
+#ifdef METALLIC_ROUGHNESS_MAP
+    let mr_sample = textureSample(t_metallic_roughness, s_metallic_roughness, in.tex_coords);
+    // glTF standard: Metallic is B channel, Roughness is G channel
+    metallic *= mr_sample.b;
+    roughness *= mr_sample.g;
+#endif
 
     var ambient_ao = 1.0;
     if (camera.ssao_enabled == 1u) {

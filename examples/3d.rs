@@ -56,10 +56,10 @@ fn main() {
         world.add_node(Box::new(light), None);
 
         // Add a directional light
-        // let mut light = DirectionalLight::new();
-        // light.strength = 1.5;
-        // light.transform.rotation = Quat::from_rotation_x(-135.0f32.to_radians());
-        // world.add_node(Box::new(light), None);
+        let mut light = DirectionalLight::new();
+        light.strength = 1.5;
+        light.transform.rotation = Quat::from_rotation_x(-135.0f32.to_radians());
+        world.add_node(Box::new(light), None);
 
         // Add a crab
         let ferris_path = singletons

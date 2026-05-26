@@ -1,6 +1,6 @@
 use anyhow::Context;
 use anyhow::*;
-use glam::{Quat, Vec2, Vec3};
+use glam::{Mat4, Quat, Vec2, Vec3};
 use std::any::Any;
 use std::path::{Path, PathBuf};
 use std::result::Result::Ok;
@@ -28,6 +28,7 @@ pub struct RawMeshData {
     pub indices: Vec<u32>,
     pub material_index: Option<usize>,
     pub aabb: Aabb,
+    pub local_transform: Transform3d,
 }
 
 #[derive(Clone)]
@@ -38,6 +39,7 @@ pub struct RawMaterialData {
     pub roughness: f32,
     pub color_texture: Option<RawTextureData>,
     pub normal_texture: Option<RawTextureData>,
+    pub metallic_roughness_texture: Option<RawTextureData>,
 }
 
 #[derive(Clone)]
@@ -51,6 +53,7 @@ pub struct Model {
     pub node_3d: Node3d,
     pub meshes: Vec<MeshId>,
     pub materials: Vec<Option<MaterialId>>,
+    pub mesh_transforms: Vec<Transform3d>,
     pub aabb: Aabb,
     pub name: String,
     // New: Track if this model is still waiting for its asset.
@@ -65,6 +68,7 @@ impl Model {
             node_3d: Node3d::default(),
             meshes: Vec::new(),
             materials: Vec::new(),
+            mesh_transforms: Vec::new(),
             aabb: Aabb::default(),
             name: path.as_ref().to_string_lossy().into_owned(),
             asset_path: Some(path.as_ref().to_path_buf()),
@@ -122,6 +126,7 @@ impl Model {
                 roughness: 1.0,
                 color_texture,
                 normal_texture,
+                metallic_roughness_texture: None,
             });
         }
 
@@ -204,6 +209,7 @@ impl Model {
                 indices: m.mesh.indices,
                 material_index: m.mesh.material_id,
                 aabb,
+                local_transform: Transform3d::default(),
             });
         }
 
@@ -274,6 +280,31 @@ impl Model {
                 }
             });
 
+            let metallic_roughness_texture = m.pbr_metallic_roughness().metallic_roughness_texture().map(|t| {
+                let img = &images[t.texture().source().index()];
+                let (data, format) = match img.format {
+                    gltf::image::Format::R8G8B8 => {
+                        let mut rgba = Vec::with_capacity(img.width as usize * img.height as usize * 4);
+                        for chunk in img.pixels.chunks_exact(3) {
+                            rgba.push(chunk[0]);
+                            rgba.push(chunk[1]);
+                            rgba.push(chunk[2]);
+                            rgba.push(255);
+                        }
+                        (rgba, wgpu::TextureFormat::Rgba8Unorm)
+                    }
+                    gltf::image::Format::R8G8B8A8 => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
+                    _ => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
+                };
+                RawTextureData {
+                    name: format!("{}_metallic_roughness", m.name().unwrap_or("")),
+                    pixels: data,
+                    width: img.width,
+                    height: img.height,
+                    format,
+                }
+            });
+
             raw_materials.push(RawMaterialData {
                 name: m.name().unwrap_or("").to_string(),
                 base_color: base_color_factor,
@@ -281,10 +312,10 @@ impl Model {
                 roughness: pbr.roughness_factor(),
                 color_texture,
                 normal_texture,
+                metallic_roughness_texture,
             });
         }
 
-        // Add a default material at the end for primitives without one.
         let default_material_index = raw_materials.len();
         raw_materials.push(RawMaterialData {
             name: "Default glTF Material".to_string(),
@@ -293,19 +324,50 @@ impl Model {
             roughness: 1.0,
             color_texture: None,
             normal_texture: None,
+            metallic_roughness_texture: None,
         });
 
         let mut raw_meshes = Vec::new();
         let mut model_aabb = Aabb::default();
         let mut first = true;
 
-        for mesh in document.meshes() {
+        for scene in document.scenes() {
+            for node in scene.nodes() {
+                Self::process_node(&node, &buffers, &images, &mut raw_meshes, &mut model_aabb, &mut first, Mat4::IDENTITY, default_material_index);
+            }
+        }
+
+        Ok(RawModelData {
+            meshes: raw_meshes,
+            materials: raw_materials,
+            aabb: model_aabb,
+        })
+    }
+
+    fn process_node(
+        node: &gltf::Node,
+        buffers: &[gltf::buffer::Data],
+        images: &[gltf::image::Data],
+        raw_meshes: &mut Vec<RawMeshData>,
+        model_aabb: &mut Aabb,
+        first: &mut bool,
+        parent_transform: Mat4,
+        default_material_index: usize,
+    ) {
+        let (translation, rotation, scale) = node.transform().decomposed();
+        let local_mat = Mat4::from_scale_rotation_translation(
+            Vec3::from_array(scale),
+            Quat::from_array(rotation),
+            Vec3::from_array(translation),
+        );
+        let world_mat = parent_transform * local_mat;
+
+        if let Some(mesh) = node.mesh() {
             for primitive in mesh.primitives() {
                 let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
                 let mut vertices = Vec::new();
-                let positions = reader.read_positions();
-                if let Some(positions) = positions {
+                if let Some(positions) = reader.read_positions() {
                     let mut normals = reader.read_normals();
                     let mut tex_coords = reader.read_tex_coords(0).map(|v| v.into_f32());
                     let mut tangents = reader.read_tangents();
@@ -315,7 +377,6 @@ impl Model {
                         let uv = tex_coords.as_mut().and_then(|tc| tc.next()).unwrap_or([0.0, 0.0]);
                         let tangent = tangents.as_mut().and_then(|t| t.next()).unwrap_or([1.0, 0.0, 0.0, 1.0]);
 
-                        // glTF tangents are vec4 (xyz and w for handedness)
                         let tangent_vec3 = [tangent[0], tangent[1], tangent[2]];
                         let bitangent = Vec3::from_array(normal).cross(Vec3::from_array(tangent_vec3)) * tangent[3];
 
@@ -344,11 +405,19 @@ impl Model {
                         .collect::<Vec<_>>(),
                 );
 
-                if first {
-                    model_aabb = aabb;
-                    first = false;
+                let (s, r, t) = world_mat.to_scale_rotation_translation();
+                let transform = Transform3d {
+                    position: t,
+                    rotation: r,
+                    scale: s,
+                };
+
+                let world_aabb = aabb.transform(&transform);
+                if *first {
+                    *model_aabb = world_aabb;
+                    *first = false;
                 } else {
-                    model_aabb = model_aabb.union(&aabb);
+                    *model_aabb = model_aabb.union(&world_aabb);
                 }
 
                 raw_meshes.push(RawMeshData {
@@ -357,15 +426,14 @@ impl Model {
                     indices,
                     material_index: Some(primitive.material().index().unwrap_or(default_material_index)),
                     aabb,
+                    local_transform: transform,
                 });
             }
         }
 
-        Ok(RawModelData {
-            meshes: raw_meshes,
-            materials: raw_materials,
-            aabb: model_aabb,
-        })
+        for child in node.children() {
+            Self::process_node(&child, buffers, images, raw_meshes, model_aabb, first, world_mat, default_material_index);
+        }
     }
 
     /// Fill this model with actual GPU data.
@@ -395,6 +463,14 @@ impl Model {
                     raw_tex,
                 )
             });
+            let metallic_roughness_texture = m.metallic_roughness_texture.map(|raw_tex| {
+                Texture::from_raw(
+                    &render_server.device,
+                    &render_server.queue,
+                    texture_cache,
+                    raw_tex,
+                )
+            });
 
             material_ids.push(material_cache.add(MaterialStandard {
                 name: m.name,
@@ -403,6 +479,7 @@ impl Model {
                 roughness: m.roughness,
                 color_texture,
                 normal_texture,
+                metallic_roughness_texture,
                 texture_bind_group: None,
                 transparent: false,
             }));
@@ -436,6 +513,7 @@ impl Model {
             self.meshes.push(mesh_id);
             self.materials
                 .push(m.material_index.map(|idx| material_ids[idx]));
+            self.mesh_transforms.push(m.local_transform);
         }
 
         self.aabb = raw.aabb;
@@ -457,6 +535,7 @@ impl Model {
             node_3d: Node3d::default(),
             meshes: Vec::new(),
             materials: Vec::new(),
+            mesh_transforms: Vec::new(),
             aabb: Aabb::default(),
             name: "".to_string(),
             asset_path: None,
@@ -503,8 +582,11 @@ impl AsNode for Model {
         }
 
         for i in 0..self.meshes.len() {
+            let local_transform = self.mesh_transforms[i];
+            let combined_transform = self.node_3d.global_transform.combine(&local_transform);
+
             let extracted_mesh = ExtractedMesh {
-                transform: self.node_3d.global_transform,
+                transform: combined_transform,
                 mesh_id: self.meshes[i],
                 material_id: self.materials[i],
             };

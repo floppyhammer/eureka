@@ -541,12 +541,10 @@ impl MeshRenderResources {
                 count: None,
             });
 
-            let mut next_binding = 1;
-
             // Color texture.
             if material.color_texture.is_some() {
                 bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: next_binding,
+                    binding: 1,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
@@ -555,23 +553,21 @@ impl MeshRenderResources {
                     },
                     count: None,
                 });
-                next_binding += 1;
 
                 bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: next_binding,
+                    binding: 2,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Sampler {
                         0: SamplerBindingType::Filtering,
                     },
                     count: None,
                 });
-                next_binding += 1;
             }
 
             // Normal texture.
             if material.normal_texture.is_some() {
                 bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: next_binding,
+                    binding: 3,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
@@ -580,17 +576,38 @@ impl MeshRenderResources {
                     },
                     count: None,
                 });
-                next_binding += 1;
 
                 bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: next_binding,
+                    binding: 4,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Sampler {
                         0: SamplerBindingType::Filtering,
                     },
                     count: None,
                 });
-                next_binding += 1;
+            }
+
+            // Metallic Roughness texture.
+            if material.metallic_roughness_texture.is_some() {
+                bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                });
+
+                bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler {
+                        0: SamplerBindingType::Filtering,
+                    },
+                    count: None,
+                });
             }
 
             let mesh_textures_bind_group_layout =
@@ -1016,9 +1033,9 @@ pub(crate) fn prepare_meshes(
     render_server: &RenderServer,
     ssao_texture_id: TextureId,
 ) {
-    for mesh in extracted_meshes {
-        mesh_render_resources.prepare_materials(&texture_cache, render_server);
+    mesh_render_resources.prepare_materials(&texture_cache, render_server);
 
+    for mesh in extracted_meshes {
         mesh_render_resources.prepare_pipeline(
             render_server,
             shader_maker,

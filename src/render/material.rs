@@ -11,6 +11,7 @@ pub struct MaterialStandard {
     pub roughness: f32,
     pub color_texture: Option<TextureId>,
     pub normal_texture: Option<TextureId>,
+    pub metallic_roughness_texture: Option<TextureId>,
     // Bind group for the textures.
     pub texture_bind_group: Option<BindGroupId>,
     pub transparent: bool,
@@ -35,6 +36,7 @@ impl MaterialStandard {
             roughness: 0.5,
             color_texture: None,
             normal_texture: None,
+            metallic_roughness_texture: None,
             texture_bind_group: None,
             transparent: false,
         }
@@ -55,7 +57,8 @@ bitflags! {
     pub struct MaterialFlags: u32 {
         const COLOR_TEXTURE = 1 << 0;
         const NORMAL_TEXTURE = 1 << 1;
-        const TRANSPARENT = 1 << 2;
+        const METALLIC_ROUGHNESS_TEXTURE = 1 << 2;
+        const TRANSPARENT = 1 << 3;
     }
 }
 
@@ -71,6 +74,10 @@ impl MaterialStandard {
             flags = flags | MaterialFlags::NORMAL_TEXTURE.bits();
         }
 
+        if self.metallic_roughness_texture.is_some() {
+            flags = flags | MaterialFlags::METALLIC_ROUGHNESS_TEXTURE.bits();
+        }
+
         flags
     }
 
@@ -82,7 +89,11 @@ impl MaterialStandard {
         }
 
         if self.normal_texture.is_some() {
-            shader_defs.push("NORMAP_MAP");
+            shader_defs.push("NORMAL_MAP");
+        }
+
+        if self.metallic_roughness_texture.is_some() {
+            shader_defs.push("METALLIC_ROUGHNESS_MAP");
         }
 
         shader_defs
@@ -93,38 +104,46 @@ impl MaterialStandard {
         texture_cache: &'a TextureCache,
     ) -> Vec<wgpu::BindGroupEntry<'a>> {
         let mut bind_group_entries = vec![];
-        let mut next_binding = 0;
 
         if self.color_texture.is_some() {
             let color_texture = texture_cache.get(self.color_texture.unwrap()).unwrap();
 
             bind_group_entries.push(wgpu::BindGroupEntry {
-                binding: next_binding,
+                binding: 0, // 纹理逻辑内使用 0, 1，外面会偏移
                 resource: wgpu::BindingResource::TextureView(&color_texture.view),
             });
-            next_binding += 1;
-
             bind_group_entries.push(wgpu::BindGroupEntry {
-                binding: next_binding,
+                binding: 1,
                 resource: wgpu::BindingResource::Sampler(&color_texture.sampler),
             });
-            next_binding += 1;
         }
 
         if self.normal_texture.is_some() {
             let normal_texture = texture_cache.get(self.normal_texture.unwrap()).unwrap();
 
             bind_group_entries.push(wgpu::BindGroupEntry {
-                binding: next_binding,
+                binding: 2,
                 resource: wgpu::BindingResource::TextureView(&normal_texture.view),
             });
-            next_binding += 1;
-
             bind_group_entries.push(wgpu::BindGroupEntry {
-                binding: next_binding,
+                binding: 3,
                 resource: wgpu::BindingResource::Sampler(&normal_texture.sampler),
             });
-            next_binding += 1;
+        }
+
+        if self.metallic_roughness_texture.is_some() {
+            let mr_texture = texture_cache
+                .get(self.metallic_roughness_texture.unwrap())
+                .unwrap();
+
+            bind_group_entries.push(wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::TextureView(&mr_texture.view),
+            });
+            bind_group_entries.push(wgpu::BindGroupEntry {
+                binding: 5,
+                resource: wgpu::BindingResource::Sampler(&mr_texture.sampler),
+            });
         }
 
         bind_group_entries
