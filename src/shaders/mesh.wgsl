@@ -207,6 +207,11 @@ fn fresnel_schlick(cos_theta: f32, F0: vec3<f32>) -> vec3<f32> {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
 }
 
+// Fresnel Schlick with roughness (Lagarde's modification for indirect lighting)
+fn fresnel_schlick_roughness(cos_theta: f32, F0: vec3<f32>, roughness: f32) -> vec3<f32> {
+    return F0 + (max(vec3<f32>(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Sample diffuse texture.
@@ -373,17 +378,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let reflect_dir = reflect(-view_dir, world_normal);
 
     // Sample from the skybox.
-    // To truly simulate roughness, we'd need mipmaps.
-    let env_reflection = textureSampleLevel(t_skybox, s_skybox, reflect_dir, 0.0).rgb;
+    // We use roughness * 9.0 to simulate blurring (requires mipmaps)
+    let env_reflection = textureSampleLevel(t_skybox, s_skybox, reflect_dir, roughness * 9.0).rgb;
 
-    // Fresnel for indirect lighting
-    let F_env = fresnel_schlick(max(dot(world_normal, view_dir), 0.0), F0);
+    // Use the roughness-aware Fresnel for indirect specular
+    let F_env = fresnel_schlick_roughness(max(dot(world_normal, view_dir), 0.0), F0, roughness);
 
     // Specular part of indirect lighting
-    let indirect_specular = env_reflection * F_env * ambient_ao;
+    // Faking the "blurring" effect by reducing intensity if mips are not available
+    let env_intensity = 1.0 - (roughness * 0.7);
+    let indirect_specular = env_reflection * F_env * ambient_ao * env_intensity;
 
     // Diffuse part of indirect lighting (Ambient)
-    // Metals have no diffuse reflection, so we multiply by (1.0 - metallic)
     let kS_env = F_env;
     var kD_env = vec3<f32>(1.0) - kS_env;
     kD_env *= 1.0 - metallic;
