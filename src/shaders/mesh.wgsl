@@ -58,6 +58,10 @@ var<uniform> cascade_uniform: CascadeUniform;
 var t_point_shadow: texture_depth_cube_array;
 @group(1) @binding(5)
 var t_ssao: texture_2d<f32>;
+@group(1) @binding(6)
+var t_skybox: texture_cube<f32>;
+@group(1) @binding(7)
+var s_skybox: sampler;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -353,8 +357,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         directional_light_result = (kD * object_color.xyz / PI + specular) * radiance * n_dot_l * shadow_factor;
     }
 
-    let ambient_color = lights.ambient_color * lights.ambient_strength * object_color.xyz * ambient_ao;
-    let result = ambient_color + point_lights_result + directional_light_result;
+    // --- Simple IBL (Environmental Reflection) ---
+    let reflect_dir = reflect(-view_dir, world_normal);
+
+    // Sample from the skybox.
+    // To truly simulate roughness, we'd need mipmaps.
+    let env_reflection = textureSampleLevel(t_skybox, s_skybox, reflect_dir, 0.0).rgb;
+
+    // Fresnel for indirect lighting
+    let F_env = fresnel_schlick(max(dot(world_normal, view_dir), 0.0), F0);
+
+    // Specular part of indirect lighting
+    let indirect_specular = env_reflection * F_env * ambient_ao;
+
+    // Diffuse part of indirect lighting (Ambient)
+    // Metals have no diffuse reflection, so we multiply by (1.0 - metallic)
+    let kS_env = F_env;
+    var kD_env = vec3<f32>(1.0) - kS_env;
+    kD_env *= 1.0 - metallic;
+
+    let indirect_diffuse = kD_env * lights.ambient_color * lights.ambient_strength * object_color.xyz * ambient_ao;
+    // --- End Simple IBL ---
+
+    let result = indirect_diffuse + indirect_specular + point_lights_result + directional_light_result;
 
     // Reinhard Tone Mapping
     let mapped = result / (result + vec3<f32>(1.0));

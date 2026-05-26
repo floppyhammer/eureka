@@ -159,6 +159,8 @@ impl RenderWorld {
                     &mut self.shader_maker,
                 );
             } else {
+                let skybox_texture_id = self.extracted.sky.as_ref().map(|sky| sky.texture);
+
                 prepare_meshes(
                     &self.extracted.meshes,
                     &self.extracted.lights,
@@ -169,6 +171,7 @@ impl RenderWorld {
                     &self.camera_render_resources,
                     &render_server,
                     self.ssao_render_resources.blur_texture,
+                    skybox_texture_id,
                 );
 
                 let main_camera = if self.extracted.cameras.uniforms.len() > i {

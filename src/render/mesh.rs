@@ -414,6 +414,10 @@ pub struct MeshRenderResources {
     pub(crate) light_bind_group: Option<wgpu::BindGroup>,
     pub(crate) light_uniform_buffer: Option<wgpu::Buffer>,
 
+    pub(crate) dummy_cube_view: wgpu::TextureView,
+    pub(crate) dummy_sampler: wgpu::Sampler,
+    pub(crate) current_skybox: Option<TextureId>,
+
     pub(crate) texture_bind_group_layout_cache: HashMap<u32, wgpu::BindGroupLayout>,
     pub(crate) texture_bind_group_cache: HashMap<MaterialId, wgpu::BindGroup>,
     pub(crate) material_uniform_buffer_cache: HashMap<MaterialId, wgpu::Buffer>,
@@ -494,13 +498,60 @@ impl MeshRenderResources {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 6,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::Cube,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 7,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
                     ],
                     label: Some("mesh light bind group layout"),
                 });
 
+        let dummy_cube_view = {
+            let size = wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 6,
+            };
+            let texture = render_server.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("dummy cube texture"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            texture.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("dummy cube view"),
+                dimension: Some(wgpu::TextureViewDimension::Cube),
+                ..Default::default()
+            })
+        };
+
+        let dummy_sampler = render_server.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("dummy sampler"),
+            ..Default::default()
+        });
+
         Self {
             light_bind_group_layout,
             light_uniform_buffer: None,
+            dummy_cube_view,
+            dummy_sampler,
+            current_skybox: None,
             texture_bind_group_layout_cache: Default::default(),
             light_bind_group: None,
             texture_bind_group_cache: HashMap::new(),
@@ -637,6 +688,7 @@ impl MeshRenderResources {
         light_render_resources: &LightRenderResources,
         texture_cache: &TextureCache,
         ssao_texture_id: TextureId,
+        skybox_texture_id: Option<TextureId>,
     ) {
         let light_uniform_size = mem::size_of::<LightUniform>();
 
@@ -651,11 +703,16 @@ impl MeshRenderResources {
                 }));
         }
 
-        if self.light_bind_group.is_none()
+        // Recreate bind group if skybox changed or it doesn't exist yet
+        let needs_recreate = self.light_bind_group.is_none() || self.current_skybox != skybox_texture_id;
+
+        if needs_recreate
             && light_render_resources.directional_shadow_map.is_some()
             && light_render_resources.cascade_uniform_buffer.is_some()
             && light_render_resources.point_shadow_map.is_some()
         {
+            self.current_skybox = skybox_texture_id;
+
             let shadow_map = texture_cache
                 .get(light_render_resources.directional_shadow_map.unwrap())
                 .unwrap();
@@ -693,6 +750,15 @@ impl MeshRenderResources {
                         array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6), // lights * 6 faces
                     });
 
+            let ssao_texture = texture_cache.get(ssao_texture_id).unwrap();
+
+            let (skybox_view, skybox_sampler) = if let Some(id) = skybox_texture_id {
+                let sky_tex = texture_cache.get(id).unwrap();
+                (&sky_tex.view, &sky_tex.sampler)
+            } else {
+                (&self.dummy_cube_view, &self.dummy_sampler)
+            };
+
             let bind_group = render_server
                 .device
                 .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -728,12 +794,18 @@ impl MeshRenderResources {
                         },
                         wgpu::BindGroupEntry {
                             binding: 5,
-                            resource: wgpu::BindingResource::TextureView(
-                                &texture_cache.get(ssao_texture_id).unwrap().view,
-                            ),
+                            resource: wgpu::BindingResource::TextureView(&ssao_texture.view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: wgpu::BindingResource::TextureView(skybox_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: wgpu::BindingResource::Sampler(skybox_sampler),
                         },
                     ],
-                    label: Some("light bind group with shadow"),
+                    label: Some("light bind group with shadow and skybox"),
                 });
 
             self.light_bind_group = Some(bind_group);
@@ -1032,6 +1104,7 @@ pub(crate) fn prepare_meshes(
     camera_render_resources: &CameraRenderResources,
     render_server: &RenderServer,
     ssao_texture_id: TextureId,
+    skybox_texture_id: Option<TextureId>,
 ) {
     mesh_render_resources.prepare_materials(&texture_cache, render_server);
 
@@ -1050,6 +1123,7 @@ pub(crate) fn prepare_meshes(
         light_render_resources,
         texture_cache,
         ssao_texture_id,
+        skybox_texture_id,
     );
 
     mesh_render_resources.prepare_instances(render_server, &extracted_meshes);
