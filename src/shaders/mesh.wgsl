@@ -229,9 +229,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
 #ifdef NORMAL_MAP
     let normal_map = textureSample(t_normal, s_normal, in.tex_coords).xyz * 2.0 - 1.0;
-    let world_normal = normalize(tbn_to_world * normal_map);
+    var world_normal = normalize(tbn_to_world * normal_map);
 #else
-    let world_normal = world_normal_basis;
+    var world_normal = world_normal_basis;
 #endif
 
     // PBR Parameters (From Material Uniforms)
@@ -251,9 +251,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var ambient_ao = 1.0;
     if (camera.ssao_enabled == 1u) {
-        ambient_ao = textureLoad(t_ssao, vec2<i32>(in.clip_position.xy), 0).r;
+        // Ensure we stay within bounds and handle potential fractional pixel offsets
+        let ssao_coords = vec2<i32>(in.clip_position.xy);
+        ambient_ao = textureLoad(t_ssao, ssao_coords, 0).r;
     }
-    let view_dir = normalize(camera.view_pos.xyz - in.world_position.xyz);
+
+    let view_to_frag = camera.view_pos.xyz - in.world_position.xyz;
+    let view_dir = normalize(view_to_frag + vec3<f32>(0.00001)); // Add epsilon to prevent NaN
+
+    // Ensure normal is always facing towards the camera (fixes back-facing artifacts on spheres)
+    if (dot(world_normal, view_dir) < 0.0) {
+        world_normal = world_normal - 2.0 * dot(world_normal, view_dir) * view_dir;
+        world_normal = normalize(world_normal);
+    }
 
     // F0: Surface reflection at zero incidence
     // For non-metals, we use 0.04. For metals, we use the object color.
@@ -319,14 +329,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let shadow_uv = shadow_pos.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
 
         var shadow_factor = 1.0;
-        // Geometric back-face check: if the surface faces away from the light, it's in shadow.
         let n_dot_l_geo = dot(world_normal_basis, light_dir);
-        if (n_dot_l_geo <= 0.0) {
-            shadow_factor = 0.0;
-        } else if (shadow_pos.x >= -1.0 && shadow_pos.x <= 1.0 && shadow_pos.y >= -1.0 && shadow_pos.y <= 1.0 && shadow_pos.z >= 0.0 && shadow_pos.z <= 1.0) {
-            // Slope-scaled Bias
-            let bias = max(0.0005 * (1.0 - n_dot_l_geo), 0.00005);
-            // 3x3 PCF (Percentage Closer Filtering) for array textures
+
+        if (shadow_pos.x >= -1.0 && shadow_pos.x <= 1.0 && shadow_pos.y >= -1.0 && shadow_pos.y <= 1.0 && shadow_pos.z >= 0.0 && shadow_pos.z <= 1.0) {
+            // Adaptive bias to prevent shadow acne and moving stripes
+            let bias = max(0.002 * (1.0 - n_dot_l_geo), 0.0005);
+
+            // 3x3 PCF (Percentage Closer Filtering)
             var shadow_sum = 0.0;
             let texel_size = 1.0 / vec2<f32>(textureDimensions(t_shadow).xy);
             for (var y: f32 = -1.0; y <= 1.0; y += 1.0) {
@@ -336,6 +345,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 }
             }
             shadow_factor = shadow_sum / 9.0;
+
+            // Smoothly fade out shadows at the terminator to prevent hard black stripes on spheres
+            shadow_factor *= saturate(n_dot_l_geo * 5.0);
         }
 
         // Cook-Torrance BRDF for Directional Light

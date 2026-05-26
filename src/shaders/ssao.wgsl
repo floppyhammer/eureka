@@ -43,8 +43,13 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 }
 
 fn get_view_pos(uv: vec2<f32>) -> vec3<f32> {
-    let depth = textureLoad(t_depth, vec2<i32>(uv * vec2<f32>(textureDimensions(t_depth))), 0);
-    let clip_pos = vec4<f32>(uv * 2.0 - 1.0, depth, 1.0);
+    // Correctly map UV to NDC space: Y must be flipped (UV 0 is top, NDC 1 is top)
+    let clip_pos = vec4<f32>(
+        uv.x * 2.0 - 1.0,
+        (1.0 - uv.y) * 2.0 - 1.0,
+        textureSampleLevel(t_depth, s_normal, uv, 0),
+        1.0
+    );
     let view_pos_h = camera.inv_proj * clip_pos;
     return view_pos_h.xyz / view_pos_h.w;
 }
@@ -55,6 +60,7 @@ fn fs_main(in: VertexOutput) -> @location(0) f32 {
     let noise_scale = screen_size / 4.0; // Noise texture is 4x4
 
     let frag_pos = get_view_pos(in.uv);
+    // Reconstruct view-space normal from the G-Buffer
     let normal = normalize(textureSample(t_normal, s_normal, in.uv).xyz * 2.0 - 1.0);
     let random_vec = normalize(textureSample(t_noise, s_noise, in.uv * noise_scale).xyz * 2.0 - 1.0);
 
@@ -65,7 +71,7 @@ fn fs_main(in: VertexOutput) -> @location(0) f32 {
 
     var occlusion = 0.0;
     let radius = 0.5;
-    let bias = 0.025;
+    let bias = 0.05; // Increased bias to prevent moving stripes on flat surfaces
 
     for (var i = 0; i < 64; i = i + 1) {
         // From tangent to view-space
@@ -77,18 +83,24 @@ fn fs_main(in: VertexOutput) -> @location(0) f32 {
         offset = camera.proj * offset;
         offset.x = offset.x / offset.w;
         offset.y = offset.y / offset.w;
-        let sample_uv = offset.xy * vec2<f32>(0.5, -0.5) + 0.5;
+        // Project to UV: NDC (-1, 1) -> UV (0, 1)
+        let sample_uv = vec2<f32>(offset.x * 0.5 + 0.5, 0.5 - offset.y * 0.5);
 
-        // Get sample depth
-        let sample_depth_view = get_view_pos(sample_uv).z;
+        // Get actual depth at the sample's UV location
+        let actual_pos_view = get_view_pos(sample_uv);
+        let sample_depth_view = actual_pos_view.z;
 
-        // Range check to avoid occlusion from objects far away
+        // Range check to avoid "dark halos" behind objects far away
         let range_check = smoothstep(0.0, 1.0, radius / abs(frag_pos.z - sample_depth_view));
+
+        // In View Space (Right Handed), Camera looks at -Z.
+        // Higher Z value means closer to camera.
+        // We add occlusion if the actual geometry is closer to camera than our sample point.
         if (sample_depth_view >= sample_pos_view.z + bias) {
-            occlusion = occlusion + (1.0 * range_check);
+            occlusion = occlusion + range_check;
         }
     }
 
     occlusion = 1.0 - (occlusion / 64.0);
-    return occlusion;
+    return pow(occlusion, 2.0); // Increase contrast
 }
