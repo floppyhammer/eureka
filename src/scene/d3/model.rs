@@ -7,6 +7,7 @@ use std::result::Result::Ok;
 use std::time::Instant;
 use tobj::LoadOptions;
 use wgpu::util::DeviceExt;
+use gltf::mesh::util::ReadIndices;
 use crate::core::Singletons;
 use crate::math::aabb::Aabb;
 use crate::math::transform::Transform3d;
@@ -73,8 +74,21 @@ impl Model {
 
     /// Pure CPU: Load and parse model data from disk.
     pub fn parse<P: AsRef<Path>>(path: P) -> Result<RawModelData> {
-        log::info!("Starting background parse for: {:?}", path.as_ref());
+        let extension = path
+            .as_ref()
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
 
+        match extension.as_str() {
+            "obj" => Self::parse_obj(path),
+            "gltf" | "glb" => Self::parse_gltf(path),
+            _ => Err(anyhow!("Unsupported model extension: {}", extension)),
+        }
+    }
+
+    fn parse_obj<P: AsRef<Path>>(path: P) -> Result<RawModelData> {
         let (obj_meshes, obj_materials) = tobj::load_obj(
             path.as_ref(),
             &LoadOptions {
@@ -105,7 +119,7 @@ impl Model {
                 name: m.name,
                 base_color: [1.0, 1.0, 1.0, 1.0],
                 metallic: 0.0,
-                roughness: 0.0,
+                roughness: 1.0,
                 color_texture,
                 normal_texture,
             });
@@ -137,43 +151,38 @@ impl Model {
 
             // Calculate tangents...
             let indices = &m.mesh.indices;
-            let mut triangles_included = vec![0; vertices.len()];
             for c in indices.chunks(3) {
-                let v0 = vertices[c[0] as usize];
-                let v1 = vertices[c[1] as usize];
-                let v2 = vertices[c[2] as usize];
-                let pos0 = Vec3::from_array(v0.position);
-                let pos1 = Vec3::from_array(v1.position);
-                let pos2 = Vec3::from_array(v2.position);
-                let uv0 = Vec2::from_array(v0.uv);
-                let uv1 = Vec2::from_array(v1.uv);
-                let uv2 = Vec2::from_array(v2.uv);
+                let v0_idx = c[0] as usize;
+                let v1_idx = c[1] as usize;
+                let v2_idx = c[2] as usize;
+                let pos0 = Vec3::from_array(vertices[v0_idx].position);
+                let pos1 = Vec3::from_array(vertices[v1_idx].position);
+                let pos2 = Vec3::from_array(vertices[v2_idx].position);
+                let uv0 = Vec2::from_array(vertices[v0_idx].uv);
+                let uv1 = Vec2::from_array(vertices[v1_idx].uv);
+                let uv2 = Vec2::from_array(vertices[v2_idx].uv);
+
                 let delta_pos1 = pos1 - pos0;
                 let delta_pos2 = pos2 - pos0;
                 let delta_uv1 = uv1 - uv0;
                 let delta_uv2 = uv2 - uv0;
+
                 let r = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x);
                 let tangent = (delta_pos1 * delta_uv2.y - delta_pos2 * delta_uv1.y) * r;
                 let bi_tangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
-                for &idx in c {
-                    vertices[idx as usize].tangent =
-                        (tangent + Vec3::from_array(vertices[idx as usize].tangent)).to_array();
-                    vertices[idx as usize].bi_tangent = (bi_tangent
-                        + Vec3::from_array(vertices[idx as usize].bi_tangent))
-                    .to_array();
-                    triangles_included[idx as usize] += 1;
-                }
+
+                vertices[v0_idx].tangent = (Vec3::from_array(vertices[v0_idx].tangent) + tangent).to_array();
+                vertices[v1_idx].tangent = (Vec3::from_array(vertices[v1_idx].tangent) + tangent).to_array();
+                vertices[v2_idx].tangent = (Vec3::from_array(vertices[v2_idx].tangent) + tangent).to_array();
+
+                vertices[v0_idx].bi_tangent = (Vec3::from_array(vertices[v0_idx].bi_tangent) + bi_tangent).to_array();
+                vertices[v1_idx].bi_tangent = (Vec3::from_array(vertices[v1_idx].bi_tangent) + bi_tangent).to_array();
+                vertices[v2_idx].bi_tangent = (Vec3::from_array(vertices[v2_idx].bi_tangent) + bi_tangent).to_array();
             }
-            for (i, n) in triangles_included.into_iter().enumerate() {
-                if n > 0 {
-                    let denom = 1.0 / n as f32;
-                    vertices[i].tangent = (Vec3::from_array(vertices[i].tangent) * denom)
-                        .normalize()
-                        .to_array();
-                    vertices[i].bi_tangent = (Vec3::from_array(vertices[i].bi_tangent) * denom)
-                        .normalize()
-                        .to_array();
-                }
+
+            for v in &mut vertices {
+                v.tangent = Vec3::from_array(v.tangent).normalize().to_array();
+                v.bi_tangent = Vec3::from_array(v.bi_tangent).normalize().to_array();
             }
 
             let aabb = Aabb::from_points(
@@ -196,6 +205,160 @@ impl Model {
                 material_index: m.mesh.material_id,
                 aabb,
             });
+        }
+
+        Ok(RawModelData {
+            meshes: raw_meshes,
+            materials: raw_materials,
+            aabb: model_aabb,
+        })
+    }
+
+    fn parse_gltf<P: AsRef<Path>>(path: P) -> Result<RawModelData> {
+        log::info!("Starting background parse for glTF: {:?}", path.as_ref());
+        let (document, buffers, images) = gltf::import(path.as_ref())?;
+
+        let mut raw_materials = Vec::new();
+        for m in document.materials() {
+            let pbr = m.pbr_metallic_roughness();
+            let base_color_factor = pbr.base_color_factor();
+
+            let color_texture = pbr.base_color_texture().map(|t| {
+                let img = &images[t.texture().source().index()];
+                let (data, format) = match img.format {
+                    gltf::image::Format::R8G8B8 => {
+                        let mut rgba = Vec::with_capacity(img.width as usize * img.height as usize * 4);
+                        for chunk in img.pixels.chunks_exact(3) {
+                            rgba.push(chunk[0]);
+                            rgba.push(chunk[1]);
+                            rgba.push(chunk[2]);
+                            rgba.push(255);
+                        }
+                        (rgba, wgpu::TextureFormat::Rgba8UnormSrgb)
+                    }
+                    gltf::image::Format::R8G8B8A8 => (img.pixels.clone(), wgpu::TextureFormat::Rgba8UnormSrgb),
+                    _ => (img.pixels.clone(), wgpu::TextureFormat::Rgba8UnormSrgb),
+                };
+
+                RawTextureData {
+                    name: format!("{}_color", m.name().unwrap_or("")),
+                    pixels: data,
+                    width: img.width,
+                    height: img.height,
+                    format,
+                }
+            });
+
+            let normal_texture = m.normal_texture().map(|t| {
+                let img = &images[t.texture().source().index()];
+                let (data, format) = match img.format {
+                    gltf::image::Format::R8G8B8 => {
+                        let mut rgba = Vec::with_capacity(img.width as usize * img.height as usize * 4);
+                        for chunk in img.pixels.chunks_exact(3) {
+                            rgba.push(chunk[0]);
+                            rgba.push(chunk[1]);
+                            rgba.push(chunk[2]);
+                            rgba.push(255);
+                        }
+                        (rgba, wgpu::TextureFormat::Rgba8Unorm)
+                    }
+                    gltf::image::Format::R8G8B8A8 => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
+                    _ => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
+                };
+                RawTextureData {
+                    name: format!("{}_normal", m.name().unwrap_or("")),
+                    pixels: data,
+                    width: img.width,
+                    height: img.height,
+                    format,
+                }
+            });
+
+            raw_materials.push(RawMaterialData {
+                name: m.name().unwrap_or("").to_string(),
+                base_color: base_color_factor,
+                metallic: pbr.metallic_factor(),
+                roughness: pbr.roughness_factor(),
+                color_texture,
+                normal_texture,
+            });
+        }
+
+        // Add a default material at the end for primitives without one.
+        let default_material_index = raw_materials.len();
+        raw_materials.push(RawMaterialData {
+            name: "Default glTF Material".to_string(),
+            base_color: [1.0, 1.0, 1.0, 1.0],
+            metallic: 0.0,
+            roughness: 1.0,
+            color_texture: None,
+            normal_texture: None,
+        });
+
+        let mut raw_meshes = Vec::new();
+        let mut model_aabb = Aabb::default();
+        let mut first = true;
+
+        for mesh in document.meshes() {
+            for primitive in mesh.primitives() {
+                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+
+                let mut vertices = Vec::new();
+                let positions = reader.read_positions();
+                if let Some(positions) = positions {
+                    let mut normals = reader.read_normals();
+                    let mut tex_coords = reader.read_tex_coords(0).map(|v| v.into_f32());
+                    let mut tangents = reader.read_tangents();
+
+                    for pos in positions {
+                        let normal = normals.as_mut().and_then(|n| n.next()).unwrap_or([0.0, 1.0, 0.0]);
+                        let uv = tex_coords.as_mut().and_then(|tc| tc.next()).unwrap_or([0.0, 0.0]);
+                        let tangent = tangents.as_mut().and_then(|t| t.next()).unwrap_or([1.0, 0.0, 0.0, 1.0]);
+
+                        // glTF tangents are vec4 (xyz and w for handedness)
+                        let tangent_vec3 = [tangent[0], tangent[1], tangent[2]];
+                        let bitangent = Vec3::from_array(normal).cross(Vec3::from_array(tangent_vec3)) * tangent[3];
+
+                        vertices.push(Vertex3d {
+                            position: pos,
+                            normal,
+                            uv,
+                            tangent: tangent_vec3,
+                            bi_tangent: bitangent.to_array(),
+                        });
+                    }
+                }
+
+                let indices = reader.read_indices().map(|indices| {
+                    match indices {
+                        gltf::mesh::util::ReadIndices::U8(it) => it.map(|x| x as u32).collect(),
+                        gltf::mesh::util::ReadIndices::U16(it) => it.map(|x| x as u32).collect(),
+                        gltf::mesh::util::ReadIndices::U32(it) => it.collect(),
+                    }
+                }).unwrap_or_else(|| (0..vertices.len() as u32).collect());
+
+                let aabb = Aabb::from_points(
+                    &vertices
+                        .iter()
+                        .map(|v| Vec3::from_slice(&v.position))
+                        .collect::<Vec<_>>(),
+                );
+
+                if first {
+                    model_aabb = aabb;
+                    first = false;
+                } else {
+                    model_aabb = model_aabb.union(&aabb);
+                }
+
+                raw_meshes.push(RawMeshData {
+                    name: mesh.name().unwrap_or("").to_string(),
+                    vertices,
+                    indices,
+                    material_index: Some(primitive.material().index().unwrap_or(default_material_index)),
+                    aabb,
+                });
+            }
         }
 
         Ok(RawModelData {

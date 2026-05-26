@@ -72,15 +72,26 @@ fn main() {
         ferris.custom_update = Some(custom_update2);
         world.add_node(Box::new(ferris), None);
 
-        // let cube = singletons
-        //     .asset_server
-        //     .asset_dir
-        //     .join("models/cube/cube.obj");
-        // let mut cube = Model::at_path(cube);
-        // cube.set_position(Vec3::new(2.0, 1.2, 2.0));
-        // cube.set_scale(Vec3::new(0.5, 0.5, 0.5));
-        // cube.custom_update = Some(custom_update);
-        // world.add_node(Box::new(cube), None);
+        let cube = singletons
+            .asset_server
+            .asset_dir
+            .join("models/cube/cube.obj");
+        let mut cube = Model::at_path(cube);
+        cube.set_position(Vec3::new(2.0, 1.2, 2.0));
+        cube.set_scale(Vec3::new(0.5, 0.5, 0.5));
+        cube.custom_update = Some(custom_update);
+        world.add_node(Box::new(cube), None);
+
+        let spheres = singletons
+            .asset_server
+            .asset_dir
+            .join("models/MetalRoughSpheres.gltf");
+        let mut spheres = Model::at_path(spheres);
+        spheres.set_position(Vec3::new(-2.0, 2.0, -2.0));
+        spheres.set_scale(Vec3::new(0.1, 0.1, 0.1));
+        let rotation_delta = Quat::from_rotation_z(90.0_f32.to_radians());
+        spheres.set_rotation(rotation_delta);
+        world.add_node(Box::new(spheres), None);
 
         // Add ground
         let ground_path = singletons
