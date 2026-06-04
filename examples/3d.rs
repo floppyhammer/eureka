@@ -2,7 +2,7 @@ use std::any::Any;
 use std::path::PathBuf;
 use eureka::core::{App, Singletons};
 use eureka::render::render_world::RenderWorld;
-use eureka::scene::{AsNode, AsNode3d, Camera3d, DirectionalLight, Model, NodeType, PointLight, Sky, Sprite2d};
+use eureka::scene::{AsNode, AsNode3d, Camera3d, DirectionalLight, Model, NodeType, PointLight, Sky};
 use glam::{Quat, Vec3};
 use eureka::render::draw_command::DrawCommands;
 

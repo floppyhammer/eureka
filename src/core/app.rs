@@ -229,11 +229,6 @@ impl<'a> App<'a> {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let depth_texture = render_world
-            .texture_cache
-            .get(render_world.surface_depth_texture)
-            .unwrap();
-
         // Builds a command buffer that we can then send to the GPU.
         let mut encoder =
             render_server
@@ -242,49 +237,11 @@ impl<'a> App<'a> {
                     label: Some("main render encoder"),
                 });
 
-        render_world.render_shadow(&mut encoder);
-
-        let ssao_ran = render_world.render_ssao(&mut encoder);
-
-        // The RenderPass has all the methods to do the actual drawing.
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("main render pass"),
-                color_attachments: &[
-                    // This is what @location(0) in the fragment shader targets.
-                    Some(wgpu::RenderPassColorAttachment {
-                        view: &view, // Change this to change where to draw.
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.1,
-                                g: 0.2,
-                                b: 0.3,
-                                a: 1.0,
-                            }),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    }),
-                ],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: if ssao_ran {
-                            wgpu::LoadOp::Load
-                        } else {
-                            wgpu::LoadOp::Clear(1.0)
-                        }, // Z-Prepass
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            render_world.render(&mut render_pass);
-        }
+        render_world.run_graph(
+            render_server,
+            &mut encoder,
+            &view,
+        );
 
         // Finish the command encoder to generate a command buffer,
         // then submit it for execution.
