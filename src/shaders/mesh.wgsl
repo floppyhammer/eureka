@@ -1,4 +1,3 @@
-// Vertex shader //
 
 struct Camera {
     view_pos: vec4<f32>,
@@ -82,6 +81,8 @@ struct InstanceInput {
     @location(9) normal_matrix_0: vec3<f32>,
     @location(10) normal_matrix_1: vec3<f32>,
     @location(11) normal_matrix_2: vec3<f32>,
+
+    @location(12) material_idx: u32,
 }
 
 struct VertexOutput {
@@ -91,6 +92,7 @@ struct VertexOutput {
     @location(2) world_tangent: vec3<f32>,
     @location(3) world_bitangent: vec3<f32>,
     @location(4) world_normal: vec3<f32>,
+    @location(5) @interpolate(flat) material_idx: u32,
 }
 
 @vertex
@@ -120,45 +122,34 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     out.world_tangent = world_tangent;
     out.world_bitangent = world_bitangent;
     out.world_normal = world_normal;
+    out.material_idx = instance.material_idx;
 
     return out;
 }
 
 // Fragment shader //
 
-// Texture bind group.
+// Texture bind group (Bindless).
 // -------------------------
 struct Material {
     base_color: vec4<f32>,
     metallic: f32,
     roughness: f32,
-    _pad0: f32,
-    _pad1: f32,
+    color_texture_idx: i32,
+    normal_texture_idx: i32,
+    metallic_roughness_texture_idx: i32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 }
 
 @group(2) @binding(0)
-var<uniform> material: Material;
+var<storage, read> materials: array<Material>;
 
-#ifdef COLOR_MAP
 @group(2) @binding(1)
-var t_diffuse: texture_2d<f32>;
+var t_textures: binding_array<texture_2d<f32>>;
 @group(2) @binding(2)
-var s_diffuse: sampler;
-#endif
-
-#ifdef NORMAL_MAP
-@group(2) @binding(3)
-var t_normal: texture_2d<f32>;
-@group(2) @binding(4)
-var s_normal: sampler;
-#endif
-
-#ifdef METALLIC_ROUGHNESS_MAP
-@group(2) @binding(5)
-var t_metallic_roughness: texture_2d<f32>;
-@group(2) @binding(6)
-var s_metallic_roughness: sampler;
-#endif
+var s_sampler: sampler;
 // -------------------------
 
 // -------------------------
@@ -214,12 +205,13 @@ fn fresnel_schlick_roughness(cos_theta: f32, F0: vec3<f32>, roughness: f32) -> v
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let material = materials[in.material_idx];
+
     // Sample diffuse texture.
-#ifdef COLOR_MAP
-    let sampled_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
-#else
-    let sampled_color: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
-#endif
+    var sampled_color: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    if (material.color_texture_idx >= 0) {
+        sampled_color = textureSample(t_textures[u32(material.color_texture_idx)], s_sampler, in.tex_coords);
+    }
     let object_color = sampled_color * material.base_color;
 
     // Reconstruct TBN matrix (Tangent to World)
@@ -232,23 +224,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         world_normal_basis
     );
 
-#ifdef NORMAL_MAP
-    let normal_map = textureSample(t_normal, s_normal, in.tex_coords).xyz * 2.0 - 1.0;
-    var world_normal = normalize(tbn_to_world * normal_map);
-#else
     var world_normal = world_normal_basis;
-#endif
+    if (material.normal_texture_idx >= 0) {
+        let normal_map = textureSample(t_textures[u32(material.normal_texture_idx)], s_sampler, in.tex_coords).xyz * 2.0 - 1.0;
+        world_normal = normalize(tbn_to_world * normal_map);
+    }
 
     // PBR Parameters (From Material Uniforms)
     var metallic: f32 = material.metallic;
     var roughness: f32 = material.roughness;
 
-#ifdef METALLIC_ROUGHNESS_MAP
-    let mr_sample = textureSample(t_metallic_roughness, s_metallic_roughness, in.tex_coords);
-    // glTF standard: Metallic is B channel, Roughness is G channel
-    metallic *= mr_sample.b;
-    roughness *= mr_sample.g;
-#endif
+    if (material.metallic_roughness_texture_idx >= 0) {
+        let mr_sample = textureSample(t_textures[u32(material.metallic_roughness_texture_idx)], s_sampler, in.tex_coords);
+        // glTF standard: Metallic is B channel, Roughness is G channel
+        metallic *= mr_sample.b;
+        roughness *= mr_sample.g;
+    }
 
     // Clamp roughness to a safe minimum to prevent specular highlight disappearing
     // and avoid division by zero in BRDF equations.

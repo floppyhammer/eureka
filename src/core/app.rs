@@ -95,8 +95,13 @@ impl<'a> App<'a> {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: Default::default(),
+                required_features: wgpu::Features::TEXTURE_BINDING_ARRAY
+                    | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
+                    | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY,
+                required_limits: wgpu::Limits {
+                    max_binding_array_elements_per_shader_stage: 1024,
+                    ..Default::default()
+                },
                 memory_hints: Default::default(),
                 trace: Default::default(),
             })

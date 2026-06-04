@@ -49,9 +49,7 @@ impl MeshCache {
     }
 }
 
-/// Shared by 2D/3D meshes.
 pub struct Mesh {
-    // Mesh name for debugging reason. Not unique.
     pub name: String,
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
@@ -238,7 +236,6 @@ impl Mesh {
     }
 }
 
-/// Minimal data for rendering a mesh.
 #[derive(Debug, Copy, Clone)]
 pub struct ExtractedMesh {
     pub(crate) transform: Transform3d,
@@ -246,31 +243,25 @@ pub struct ExtractedMesh {
     pub(crate) material_id: Option<MaterialId>,
 }
 
-/// Used to store Instance in a format that shaders can easily understand.
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct InstanceRaw {
     model: [[f32; 4]; 4],
-    // Normal matrix to correct the normal direction.
     normal: [[f32; 3]; 3],
+    material_idx: u32,
+    _pad: [u32; 3],
 }
 
-// [Instance] provides model instancing.
-// Drawing thousands of [Model]s can be slow,
-// since each object is submitted to the GPU then drawn individually.
 pub(crate) struct Instance {
     pub(crate) position: Vec3,
     pub(crate) scale: Vec3,
     pub(crate) rotation: Quat,
+    pub(crate) material_idx: u32,
 }
 
 impl Instance {
-    /// Convert Instance to InstanceRaw.
     pub(crate) fn to_raw(&self) -> InstanceRaw {
         let model = Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position);
-
-        // Correct normal matrix: transpose(inverse(upper_left_3x3(model)))
-        // But to be safe with scaling:
         let normal = Mat3::from_cols(
             self.rotation * Vec3::new(1.0 / self.scale.x, 0.0, 0.0),
             self.rotation * Vec3::new(0.0, 1.0 / self.scale.y, 0.0),
@@ -280,6 +271,8 @@ impl Instance {
         InstanceRaw {
             model: model.to_cols_array_2d(),
             normal: normal.to_cols_array_2d(),
+            material_idx: self.material_idx,
+            _pad: [0; 3],
         }
     }
 }
@@ -289,21 +282,13 @@ impl InstanceRaw {
         use std::mem;
         wgpu::VertexBufferLayout {
             array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
-            // We need to switch from using a step mode of Vertex to Instance
-            // This means that our shaders will only change to use the next
-            // instance when the shader starts processing a new instance.
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
                 wgpu::VertexAttribute {
                     offset: 0,
-                    // While our vertex shader only uses locations 0, and 1 now, in later tutorials we'll
-                    // be using 2, 3, and 4, for Vertex. We'll start at slot 5 not conflict with them later
                     shader_location: 5,
                     format: wgpu::VertexFormat::Float32x4,
                 },
-                // A mat4 takes up 4 vertex slots as it is technically 4 vec4s. We need to define a slot
-                // for each vec4. We'll have to reassemble the mat4 in
-                // the shader.
                 wgpu::VertexAttribute {
                     offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
                     shader_location: 6,
@@ -334,98 +319,36 @@ impl InstanceRaw {
                     shader_location: 11,
                     format: wgpu::VertexFormat::Float32x3,
                 },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 25]>() as wgpu::BufferAddress,
+                    shader_location: 12,
+                    format: wgpu::VertexFormat::Uint32,
+                },
             ],
         }
     }
 }
 
-pub trait DrawModel<'a> {
-    fn draw_mesh(
-        &mut self,
-        mesh: &'a Mesh,
-        material_bind_group: Option<&'a wgpu::BindGroup>,
-        camera_bind_group: &'a wgpu::BindGroup,
-        light_bind_group: &'a wgpu::BindGroup,
-    );
-
-    fn draw_mesh_instanced(
-        &mut self,
-        mesh: &'a Mesh,
-        material_bind_group: Option<&'a wgpu::BindGroup>,
-        instances: Range<u32>,
-        camera_bind_group: &'a wgpu::BindGroup,
-        light_bind_group: &'a wgpu::BindGroup,
-    );
-}
-
-/// Rendering a mesh.
-impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a,
-{
-    fn draw_mesh(
-        &mut self,
-        mesh: &'b Mesh,
-        material_bind_group: Option<&'b wgpu::BindGroup>,
-        camera_bind_group: &'b wgpu::BindGroup,
-        light_bind_group: &'b wgpu::BindGroup,
-    ) {
-        self.draw_mesh_instanced(
-            mesh,
-            material_bind_group,
-            0..1,
-            camera_bind_group,
-            light_bind_group,
-        );
-    }
-
-    /// Draw a single mesh.
-    fn draw_mesh_instanced(
-        &mut self,
-        mesh: &'b Mesh,
-        material_bind_group: Option<&'b wgpu::BindGroup>,
-        instances: Range<u32>,
-        camera_bind_group: &'b wgpu::BindGroup,
-        light_bind_group: &'b wgpu::BindGroup,
-    ) {
-        // Set vertex buffer for VertexInput.
-        self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-
-        self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-        // Set camera uniform.
-        self.set_bind_group(0, camera_bind_group, &[]);
-
-        // Set light uniform.
-        self.set_bind_group(1, light_bind_group, &[]);
-
-        // Set textures.
-        if material_bind_group.is_some() {
-            self.set_bind_group(2, material_bind_group.unwrap(), &[]);
-        }
-
-        self.draw_indexed(0..mesh.index_count, 0, instances);
-    }
-}
-
-/// All mesh related resources.
 pub struct MeshRenderResources {
     pub(crate) light_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) light_bind_group: Option<wgpu::BindGroup>,
     pub(crate) light_uniform_buffer: Option<wgpu::Buffer>,
 
+    pub(crate) dummy_2d_view: wgpu::TextureView,
     pub(crate) dummy_cube_view: wgpu::TextureView,
     pub(crate) dummy_sampler: wgpu::Sampler,
     pub(crate) current_skybox: Option<TextureId>,
 
-    pub(crate) texture_bind_group_layout_cache: HashMap<u32, wgpu::BindGroupLayout>,
-    pub(crate) texture_bind_group_cache: HashMap<MaterialId, wgpu::BindGroup>,
-    pub(crate) material_uniform_buffer_cache: HashMap<MaterialId, wgpu::Buffer>,
+    // Bindless resources
+    pub(crate) bindless_bind_group_layout: wgpu::BindGroupLayout,
+    pub(crate) bindless_bind_group: Option<wgpu::BindGroup>,
+    pub(crate) materials_storage_buffer: Option<wgpu::Buffer>,
+    pub(crate) texture_index_map: HashMap<TextureId, u32>,
+    pub(crate) material_index_map: HashMap<MaterialId, u32>,
 
     pub(crate) pipeline_cache: HashMap<u32, wgpu::RenderPipeline>,
     pub material_cache: MaterialCache,
 
-    // For mesh batching.
     pub(crate) instance_cache: HashMap<MeshId, InstanceMetadata>,
     pub(crate) instance_offsets: HashMap<usize, u32>,
 }
@@ -518,6 +441,64 @@ impl MeshRenderResources {
                     label: Some("mesh light bind group layout"),
                 });
 
+        let bindless_bind_group_layout =
+            render_server
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: std::num::NonZeroU32::new(1024),
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                    ],
+                    label: Some("bindless bind group layout"),
+                });
+
+        let dummy_2d_view = {
+            let size = wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            };
+            let texture = render_server.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("dummy 2d texture"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            texture.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("dummy 2d view"),
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                ..Default::default()
+            })
+        };
+
         let dummy_cube_view = {
             let size = wgpu::Extent3d {
                 width: 1,
@@ -549,13 +530,18 @@ impl MeshRenderResources {
         Self {
             light_bind_group_layout,
             light_uniform_buffer: None,
+            dummy_2d_view,
             dummy_cube_view,
             dummy_sampler,
             current_skybox: None,
-            texture_bind_group_layout_cache: Default::default(),
+
+            bindless_bind_group_layout,
+            bindless_bind_group: None,
+            materials_storage_buffer: None,
+            texture_index_map: HashMap::new(),
+            material_index_map: HashMap::new(),
+
             light_bind_group: None,
-            texture_bind_group_cache: HashMap::new(),
-            material_uniform_buffer_cache: HashMap::new(),
 
             pipeline_cache: Default::default(),
             material_cache: MaterialCache::new(),
@@ -564,121 +550,206 @@ impl MeshRenderResources {
         }
     }
 
-    pub fn add_texture_bind_group_layout(
+    pub fn prepare_materials(
         &mut self,
-        device: &wgpu::Device,
-        material: &MaterialStandard,
+        texture_cache: &TextureCache,
+        render_server: &RenderServer,
     ) {
-        let flags = material.get_flags();
+        self.texture_index_map.clear();
+        let mut texture_views = Vec::new();
 
-        // Try find layout from cache.
-        let layout = self.texture_bind_group_layout_cache.get(&flags);
+        let mut sorted_materials: Vec<_> = self.material_cache.storage.iter().collect();
+        // Use name for stable sorting if Uuid is not directly accessible
+        sorted_materials.sort_by(|(id1, m1), (id2, m2)| m1.name.cmp(&m2.name).then(id1.0.cmp(&id2.0)));
 
-        // Create new layout.
-        if layout.is_none() {
-            let label = "mesh textures bind group layout";
+        for (_, material) in &sorted_materials {
+            let tex_ids = [
+                material.color_texture,
+                material.normal_texture,
+                material.metallic_roughness_texture,
+            ];
 
-            let mut bind_group_layout_entries = vec![];
+            for id in tex_ids.into_iter().flatten() {
+                if !self.texture_index_map.contains_key(&id) {
+                    if let Some(texture) = texture_cache.get(id) {
+                        self.texture_index_map
+                            .insert(id, texture_views.len() as u32);
+                        texture_views.push(&texture.view);
+                    }
+                }
+            }
+        }
 
-            // --- 必须有 Binding 0: Material Uniform ---
-            bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+        let placeholder_view = if !texture_views.is_empty() {
+            texture_views[0]
+        } else {
+            &self.dummy_2d_view
+        };
+
+        let mut final_views = vec![placeholder_view; 1024];
+        for (i, view) in texture_views.iter().enumerate() {
+            final_views[i] = view;
+        }
+
+        self.material_index_map.clear();
+        let mut material_uniforms = Vec::new();
+
+        for (id, material) in &sorted_materials {
+            self.material_index_map
+                .insert(**id, material_uniforms.len() as u32);
+            material_uniforms.push(material.to_uniform(&self.texture_index_map));
+        }
+
+        if material_uniforms.is_empty() {
+            material_uniforms.push(MaterialStandard::new("dummy").to_uniform(&HashMap::new()));
+        }
+
+        let buffer_size = (material_uniforms.len() * mem::size_of::<crate::render::material::MaterialUniform>()) as u64;
+
+        if self.materials_storage_buffer.is_none() || self.materials_storage_buffer.as_ref().unwrap().size() < buffer_size {
+            self.materials_storage_buffer = Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("materials storage buffer"),
+                size: buffer_size,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+        }
+
+        render_server.queue.write_buffer(
+            self.materials_storage_buffer.as_ref().unwrap(),
+            0,
+            bytemuck::cast_slice(&material_uniforms),
+        );
+
+        self.bindless_bind_group = Some(render_server.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.bindless_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.materials_storage_buffer.as_ref().unwrap().as_entire_binding(),
                 },
-                count: None,
-            });
-
-            // Color texture.
-            if material.color_texture.is_some() {
-                bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                wgpu::BindGroupEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                });
-
-                bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+                    resource: wgpu::BindingResource::TextureViewArray(&final_views),
+                },
+                wgpu::BindGroupEntry {
                     binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler {
-                        0: SamplerBindingType::Filtering,
-                    },
-                    count: None,
-                });
-            }
+                    resource: wgpu::BindingResource::Sampler(&self.dummy_sampler),
+                },
+            ],
+            label: Some("bindless bind group"),
+        }));
+    }
 
-            // Normal texture.
-            if material.normal_texture.is_some() {
-                bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                    },
-                    count: None,
-                });
+    pub fn prepare_pipeline(
+        &mut self,
+        render_server: &RenderServer,
+        shader_maker: &mut ShaderMaker,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
+    ) {
+        const PIPELINE_KEY: u32 = 0;
 
-                bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler {
-                        0: SamplerBindingType::Filtering,
-                    },
-                    count: None,
-                });
-            }
+        if !self.pipeline_cache.contains_key(&PIPELINE_KEY) {
+            let pipeline_layout = render_server.device.create_pipeline_layout(
+                &wgpu::PipelineLayoutDescriptor {
+                    label: Some("mesh bindless pipeline layout"),
+                    bind_group_layouts: &[
+                        camera_bind_group_layout,
+                        &self.light_bind_group_layout,
+                        &self.bindless_bind_group_layout,
+                    ],
+                    push_constant_ranges: &[],
+                },
+            );
 
-            // Metallic Roughness texture.
-            if material.metallic_roughness_texture.is_some() {
-                bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                    },
-                    count: None,
-                });
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("standard bindless shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/mesh.wgsl").into()),
+            };
 
-                bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler {
-                        0: SamplerBindingType::Filtering,
-                    },
-                    count: None,
-                });
-            }
+            let pipeline = create_render_pipeline(
+                &render_server.device,
+                &pipeline_layout,
+                Some(render_server.surface_config.format),
+                Some(Texture::DEPTH_FORMAT),
+                &[Vertex3d::desc(), InstanceRaw::desc()],
+                shader,
+                "standard bindless pipeline",
+                false,
+                Some(wgpu::Face::Back),
+            );
 
-            let mesh_textures_bind_group_layout =
-                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: bind_group_layout_entries.as_slice(),
-                    label: Some(label),
-                });
-
-            self.texture_bind_group_layout_cache
-                .insert(flags, mesh_textures_bind_group_layout);
+            self.pipeline_cache.insert(PIPELINE_KEY, pipeline);
         }
     }
 
-    pub fn get_texture_bind_group_layout(
-        &self,
-        material: &MaterialStandard,
-    ) -> &wgpu::BindGroupLayout {
-        let flags = material.get_flags();
+    pub fn get_pipeline(&self) -> &wgpu::RenderPipeline {
+        self.pipeline_cache.get(&0).unwrap()
+    }
 
-        self.texture_bind_group_layout_cache.get(&flags).unwrap()
+    pub(crate) fn prepare_instances(
+        &mut self,
+        render_server: &RenderServer,
+        meshes: &Vec<ExtractedMesh>,
+    ) {
+        let mut grouped_instances: HashMap<MeshId, Vec<InstanceRaw>> = HashMap::new();
+        self.instance_offsets.clear();
+
+        for (i, mesh) in meshes.iter().enumerate() {
+            let instances = grouped_instances.entry(mesh.mesh_id).or_default();
+            self.instance_offsets.insert(i, instances.len() as u32);
+
+            let material_idx = mesh.material_id
+                .and_then(|id| self.material_index_map.get(&id))
+                .cloned()
+                .unwrap_or(0); // Use 0 for default
+
+            let instance = Instance {
+                position: mesh.transform.position,
+                scale: mesh.transform.scale,
+                rotation: mesh.transform.rotation,
+                material_idx,
+            };
+            instances.push(instance.to_raw());
+        }
+
+        for (mesh_id, instance_data) in grouped_instances {
+            let buffer_size = (instance_data.len() * mem::size_of::<InstanceRaw>()) as BufferAddress;
+
+            if let Some(metadata) = self.instance_cache.get_mut(&mesh_id) {
+                if (metadata.instance_count as usize) < instance_data.len() {
+                    metadata.buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("model instance buffer"),
+                        size: buffer_size,
+                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    });
+                }
+                metadata.instance_count = instance_data.len() as u64;
+            } else {
+                let instance_buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("model instance buffer"),
+                    size: buffer_size,
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+
+                self.instance_cache.insert(
+                    mesh_id,
+                    InstanceMetadata {
+                        buffer: instance_buffer,
+                        instance_count: instance_data.len() as u64,
+                    },
+                );
+            }
+
+            let metadata = self.instance_cache.get(&mesh_id).unwrap();
+            render_server.queue.write_buffer(
+                &metadata.buffer,
+                0,
+                bytemuck::cast_slice(&instance_data),
+            );
+        }
     }
 
     pub(crate) fn prepare_lights(
@@ -693,7 +764,6 @@ impl MeshRenderResources {
         let light_uniform_size = mem::size_of::<LightUniform>();
 
         if self.light_uniform_buffer.is_none() {
-            // We'll want to update our lights position, so we use COPY_DST.
             self.light_uniform_buffer =
                 Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("light uniform buffer"),
@@ -703,7 +773,6 @@ impl MeshRenderResources {
                 }));
         }
 
-        // Recreate bind group if skybox changed or it doesn't exist yet
         let needs_recreate = self.light_bind_group.is_none() || self.current_skybox != skybox_texture_id;
 
         if needs_recreate
@@ -747,7 +816,7 @@ impl MeshRenderResources {
                         base_mip_level: 0,
                         mip_level_count: None,
                         base_array_layer: 0,
-                        array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6), // lights * 6 faces
+                        array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6),
                     });
 
             let ssao_texture = texture_cache.get(ssao_texture_id).unwrap();
@@ -830,268 +899,6 @@ impl MeshRenderResources {
             bytemuck::cast_slice(&[light_uniform]),
         );
     }
-
-    /// Prepare texture bind group and its layout for each material.
-    pub fn prepare_materials(
-        &mut self,
-        texture_cache: &TextureCache,
-        render_server: &RenderServer,
-    ) {
-        let mut pairs: Vec<(MaterialId, MaterialStandard)> = vec![];
-        for pair in &self.material_cache.storage {
-            pairs.push((*pair.0, pair.1.clone()));
-        }
-
-        // Prepare texture bind group layouts and buffers.
-        for pair in &pairs {
-            let material_id = pair.0;
-            let material = &pair.1;
-
-            // 1. Ensure Material Uniform Buffer exists.
-            if !self
-                .material_uniform_buffer_cache
-                .contains_key(&material_id)
-            {
-                let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some(&format!("material uniform buffer: {}", material.name)),
-                    size: mem::size_of::<crate::render::material::MaterialUniform>() as u64,
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-                self.material_uniform_buffer_cache
-                    .insert(material_id, buffer);
-            }
-
-            // 2. Update buffer data.
-            let uniform_data = material.to_uniform();
-            render_server.queue.write_buffer(
-                self.material_uniform_buffer_cache
-                    .get(&material_id)
-                    .unwrap(),
-                0,
-                bytemuck::bytes_of(&uniform_data),
-            );
-
-            // 3. Re-create BindGroup if not exists.
-            if self.texture_bind_group_cache.contains_key(&material_id) {
-                continue;
-            }
-
-            // Fetch layout only when needed, after potential mutable borrows of self.
-            self.add_texture_bind_group_layout(&render_server.device, material);
-            let flags = material.get_flags();
-            let bind_group_layout = self.texture_bind_group_layout_cache.get(&flags).unwrap();
-
-            let mut bind_group_entries = vec![];
-
-            // Binding 0: Material Uniform
-            let uniform_buffer = self
-                .material_uniform_buffer_cache
-                .get(&material_id)
-                .unwrap();
-            bind_group_entries.push(wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            });
-
-            // Rest: Textures (from binding 1)
-            let mut tex_entries = material.get_bind_group_entries(&texture_cache);
-            // We need to shift texture bindings by 1.
-            for entry in tex_entries.iter_mut() {
-                entry.binding += 1;
-            }
-            bind_group_entries.extend(tex_entries);
-
-            // Create a texture bind group for each material.
-            let bind_group = render_server
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: bind_group_layout,
-                    entries: bind_group_entries.as_slice(),
-                    label: Some(&format!("material bind group: {}", material.name)),
-                });
-
-            self.texture_bind_group_cache
-                .insert(material_id, bind_group);
-        }
-    }
-
-    pub fn prepare_pipeline(
-        &mut self,
-        render_server: &RenderServer,
-        shader_maker: &mut ShaderMaker,
-        camera_bind_group_layout: &wgpu::BindGroupLayout,
-        material_id: Option<MaterialId>,
-    ) {
-        if material_id.is_none() {
-            const PLAIN_MATERIAL_FLAGS: u32 = 0;
-
-            let pipeline = self.pipeline_cache.get(&PLAIN_MATERIAL_FLAGS);
-
-            // Create new pipeline.
-            if pipeline.is_none() {
-                let pipeline = {
-                    // Set up resource pipeline layout using bind group layouts.
-                    let pipeline_layout = render_server.device.create_pipeline_layout(
-                        &wgpu::PipelineLayoutDescriptor {
-                            label: Some("mesh pipeline layout"),
-                            bind_group_layouts: &[
-                                camera_bind_group_layout,
-                                &self.light_bind_group_layout,
-                            ],
-                            push_constant_ranges: &[],
-                        },
-                    );
-
-                    // Shader descriptor, not a shader module yet.
-                    let shader = wgpu::ShaderModuleDescriptor {
-                        label: Some("standard material shader"),
-                        source: shader_maker
-                            .make_shader(include_str!("../shaders/mesh.wgsl"), &[])
-                            .unwrap(),
-                    };
-
-                    create_render_pipeline(
-                        &render_server.device,
-                        &pipeline_layout,
-                        Some(render_server.surface_config.format),
-                        Some(Texture::DEPTH_FORMAT),
-                        &[Vertex3d::desc(), InstanceRaw::desc()],
-                        shader,
-                        "standard material pipeline",
-                        false,
-                        Some(wgpu::Face::Back),
-                    )
-                };
-
-                self.pipeline_cache.insert(PLAIN_MATERIAL_FLAGS, pipeline);
-            }
-        } else {
-            let material = self
-                .material_cache
-                .get(&material_id.unwrap())
-                .unwrap()
-                .clone();
-
-            let flags = material.get_flags();
-
-            self.add_texture_bind_group_layout(&render_server.device, &material);
-
-            let pipeline = self.pipeline_cache.get(&flags);
-
-            // Create new pipeline.
-            if pipeline.is_none() {
-                let pipeline = {
-                    // Set up resource pipeline layout using bind group layouts.
-                    let pipeline_layout = render_server.device.create_pipeline_layout(
-                        &wgpu::PipelineLayoutDescriptor {
-                            label: Some("mesh pipeline layout"),
-                            bind_group_layouts: &[
-                                camera_bind_group_layout,
-                                &self.light_bind_group_layout,
-                                self.get_texture_bind_group_layout(&material),
-                            ],
-                            push_constant_ranges: &[],
-                        },
-                    );
-
-                    // Shader descriptor, not a shader module yet.
-                    let shader = wgpu::ShaderModuleDescriptor {
-                        label: Some("standard material shader"),
-                        source: shader_maker
-                            .make_shader(
-                                include_str!("../shaders/mesh.wgsl"),
-                                material.get_shader_defs().as_slice(),
-                            )
-                            .unwrap(),
-                    };
-
-                    create_render_pipeline(
-                        &render_server.device,
-                        &pipeline_layout,
-                        Some(render_server.surface_config.format),
-                        Some(Texture::DEPTH_FORMAT),
-                        &[Vertex3d::desc(), InstanceRaw::desc()],
-                        shader,
-                        "standard material pipeline",
-                        false,
-                        Some(wgpu::Face::Back),
-                    )
-                };
-
-                self.pipeline_cache.insert(flags, pipeline);
-            }
-        }
-    }
-
-    pub fn get_pipeline(&self, material: &MaterialStandard) -> &wgpu::RenderPipeline {
-        let flags = material.get_flags();
-
-        self.pipeline_cache.get(&flags).unwrap()
-    }
-
-    /// Draw multiple models.
-    pub(crate) fn prepare_instances(
-        &mut self,
-        render_server: &RenderServer,
-        meshes: &Vec<ExtractedMesh>,
-    ) {
-        // Group instances by mesh_id
-        let mut grouped_instances: HashMap<MeshId, Vec<InstanceRaw>> = HashMap::new();
-        // Track the instance index for each extracted mesh
-        self.instance_offsets.clear();
-
-        for (i, mesh) in meshes.iter().enumerate() {
-            let instances = grouped_instances.entry(mesh.mesh_id).or_default();
-            self.instance_offsets.insert(i, instances.len() as u32);
-
-            let instance = Instance {
-                position: mesh.transform.position,
-                scale: mesh.transform.scale,
-                rotation: mesh.transform.rotation,
-            };
-            instances.push(instance.to_raw());
-        }
-
-        for (mesh_id, instance_data) in grouped_instances {
-            let buffer_size = (instance_data.len() * mem::size_of::<InstanceRaw>()) as BufferAddress;
-
-            if let Some(metadata) = self.instance_cache.get_mut(&mesh_id) {
-                if (metadata.instance_count as usize) < instance_data.len() {
-                    // Recreate buffer if too small
-                    metadata.buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                        label: Some("model instance buffer"),
-                        size: buffer_size,
-                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                        mapped_at_creation: false,
-                    });
-                }
-                metadata.instance_count = instance_data.len() as u64;
-            } else {
-                let instance_buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("model instance buffer"),
-                    size: buffer_size,
-                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-
-                self.instance_cache.insert(
-                    mesh_id,
-                    InstanceMetadata {
-                        buffer: instance_buffer,
-                        instance_count: instance_data.len() as u64,
-                    },
-                );
-            }
-
-            let metadata = self.instance_cache.get(&mesh_id).unwrap();
-            render_server.queue.write_buffer(
-                &metadata.buffer,
-                0,
-                bytemuck::cast_slice(&instance_data),
-            );
-        }
-    }
 }
 
 pub(crate) fn prepare_meshes(
@@ -1107,15 +914,11 @@ pub(crate) fn prepare_meshes(
     skybox_texture_id: Option<TextureId>,
 ) {
     mesh_render_resources.prepare_materials(&texture_cache, render_server);
-
-    for mesh in extracted_meshes {
-        mesh_render_resources.prepare_pipeline(
-            render_server,
-            shader_maker,
-            &camera_render_resources.bind_group_layout,
-            mesh.material_id,
-        );
-    }
+    mesh_render_resources.prepare_pipeline(
+        render_server,
+        shader_maker,
+        &camera_render_resources.bind_group_layout,
+    );
 
     mesh_render_resources.prepare_lights(
         render_server,
@@ -1146,10 +949,13 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
     if mesh_render_resources.light_bind_group.is_none() {
         return;
     }
+    if mesh_render_resources.bindless_bind_group.is_none() {
+        return;
+    }
 
     let camera_bind_group = camera_render_resources.bind_group.as_ref().unwrap();
-
     let light_bind_group = mesh_render_resources.light_bind_group.as_ref().unwrap();
+    let bindless_bind_group = mesh_render_resources.bindless_bind_group.as_ref().unwrap();
 
     let frustum = Frustum::from_view_proj(Mat4::from_cols_array_2d(&camera_uniform.view_proj));
 
@@ -1160,12 +966,16 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
         visible_indices = (0..extracted_meshes.len()).collect();
     }
 
+    let pipeline = mesh_render_resources.get_pipeline();
+    render_pass.set_pipeline(pipeline);
+    render_pass.set_bind_group(0, camera_bind_group, &[camera_index as u32 * CameraUniform::get_uniform_offset_unit()]);
+    render_pass.set_bind_group(1, light_bind_group, &[]);
+    render_pass.set_bind_group(2, bindless_bind_group, &[]);
+
     for idx in visible_indices {
         let extracted = &extracted_meshes[idx];
         let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
 
-        // No need for Frustum culling here if we used BVH,
-        // but if we didn't use BVH (fallback), we still need it.
         if bvh.root.is_none() {
             let world_aabb = mesh.aabb.transform(&extracted.transform);
             if !frustum.intersects_aabb(&world_aabb) {
@@ -1173,53 +983,14 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
             }
         }
 
-        let mut texture_bind_group = None;
-        let mut flags = 0;
-
-        if extracted.material_id.is_some() {
-            let material_id = &extracted.material_id.unwrap();
-
-            texture_bind_group = Some(
-                mesh_render_resources
-                    .texture_bind_group_cache
-                    .get(material_id)
-                    .unwrap(),
-            );
-
-            let material = mesh_render_resources
-                .material_cache
-                .get(material_id)
-                .unwrap();
-            flags = material.get_flags();
-        }
-
-        let pipeline = mesh_render_resources.pipeline_cache.get(&flags).unwrap();
-
         let instance = mesh_render_resources
             .instance_cache
             .get(&extracted.mesh_id)
             .unwrap();
 
-        render_pass.set_pipeline(pipeline);
-        // Set vertex buffer for InstanceInput.
-        render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
-
-        // Set vertex buffer for VertexInput.
         render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-
+        render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
         render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-        // Set camera uniform with dynamic offset.
-        let offset = camera_index as u32 * CameraUniform::get_uniform_offset_unit();
-        render_pass.set_bind_group(0, camera_bind_group, &[offset]);
-
-        // Set light uniform.
-        render_pass.set_bind_group(1, light_bind_group, &[]);
-
-        // Set textures.
-        if texture_bind_group.is_some() {
-            render_pass.set_bind_group(2, texture_bind_group.unwrap(), &[]);
-        }
 
         let instance_offset = *mesh_render_resources.instance_offsets.get(&idx).unwrap();
         render_pass.draw_indexed(0..mesh.index_count, 0, instance_offset..instance_offset + 1);

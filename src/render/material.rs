@@ -23,8 +23,10 @@ pub struct MaterialUniform {
     pub base_color: [f32; 4],
     pub metallic: f32,
     pub roughness: f32,
-    pub _pad0: f32,
-    pub _pad1: f32,
+    pub color_texture_idx: i32,
+    pub normal_texture_idx: i32,
+    pub metallic_roughness_texture_idx: i32,
+    pub _pad0: [u32; 3],
 }
 
 impl MaterialStandard {
@@ -42,13 +44,21 @@ impl MaterialStandard {
         }
     }
 
-    pub fn to_uniform(&self) -> MaterialUniform {
+    pub fn to_uniform(&self, texture_indices: &HashMap<TextureId, u32>) -> MaterialUniform {
+        let get_idx = |id: Option<TextureId>| {
+            id.and_then(|id| texture_indices.get(&id).cloned())
+                .map(|idx| idx as i32)
+                .unwrap_or(-1)
+        };
+
         MaterialUniform {
             base_color: self.base_color,
             metallic: self.metallic,
             roughness: self.roughness,
-            _pad0: 0.0,
-            _pad1: 0.0,
+            color_texture_idx: get_idx(self.color_texture),
+            normal_texture_idx: get_idx(self.normal_texture),
+            metallic_roughness_texture_idx: get_idx(self.metallic_roughness_texture),
+            _pad0: [0; 3],
         }
     }
 }
@@ -151,7 +161,7 @@ impl MaterialStandard {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct MaterialId(uuid::Uuid);
+pub struct MaterialId(pub(crate) uuid::Uuid);
 
 pub struct MaterialCache {
     pub storage: HashMap<MaterialId, MaterialStandard>,
