@@ -13,6 +13,7 @@ use crate::render::{
     prepare_meshes, render_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderServer,
     Texture, TextureCache, TextureId,
 };
+use crate::render::render_graph::{MainPassNode, RenderGraph, ShadowNode, SsaoNode};
 use crate::scene::Bvh;
 
 #[derive(Default, Clone)]
@@ -66,6 +67,8 @@ pub struct RenderWorld {
     pub sky_render_resources: SkyRenderResources,
 
     pub ssao_render_resources: SsaoRenderResources,
+
+    pub render_graph: RenderGraph,
 }
 
 impl RenderWorld {
@@ -117,7 +120,30 @@ impl RenderWorld {
             atlas_render_resources,
             sky_render_resources,
             ssao_render_resources,
+            render_graph: Self::default_graph(),
         }
+    }
+
+    pub fn run_graph(
+        &mut self,
+        render_server: &RenderServer,
+        encoder: &mut wgpu::CommandEncoder,
+        output_view: &wgpu::TextureView,
+    ) {
+        let mut graph = std::mem::take(&mut self.render_graph);
+        graph.run(render_server, self, encoder, output_view);
+        self.render_graph = graph;
+    }
+
+    fn default_graph() -> RenderGraph {
+        let mut graph = RenderGraph::new();
+        graph.add_node("shadow", ShadowNode);
+        graph.add_node("ssao", SsaoNode);
+        graph.add_node("main", MainPassNode);
+
+        graph.add_node_edge("shadow", "main");
+        graph.add_node_edge("ssao", "main");
+        graph
     }
 
     pub fn extract(&mut self, draw_commands: &DrawCommands) {
@@ -198,193 +224,6 @@ impl RenderWorld {
                         &self.camera_render_resources.bind_group_layout,
                     );
                 }
-            }
-        }
-    }
-
-    pub(crate) fn render_shadow(&self, encoder: &mut wgpu::CommandEncoder) {
-        render_shadow(
-            encoder,
-            &self.texture_cache,
-            &self.light_render_resources,
-            &self.extracted.lights,
-            &self.extracted.meshes,
-            &self.mesh_cache,
-            &self.mesh_render_resources,
-            &self.extracted.bvh,
-        );
-    }
-
-    pub(crate) fn render_ssao(&self, encoder: &mut wgpu::CommandEncoder) -> bool {
-        if self.extracted.meshes.is_empty() {
-            return false;
-        }
-
-        // Check if any camera wants SSAO.
-        // For simplicity, we check the first 3D camera.
-        let mut camera_wants_ssao = false;
-        let mut ssao_camera_index = 0;
-        for i in 0..self.extracted.cameras.types.len() {
-            if self.extracted.cameras.types[i] == CameraType::D3 {
-                if self.extracted.cameras.uniforms[i].ssao_enabled == 1 {
-                    camera_wants_ssao = true;
-                    ssao_camera_index = i;
-                    break;
-                }
-            }
-        }
-
-        if !camera_wants_ssao {
-            return false;
-        }
-
-        let camera_bind_group = self.camera_render_resources.bind_group.as_ref().unwrap();
-
-        let normal_view = &self
-            .texture_cache
-            .get(self.ssao_render_resources.normal_texture)
-            .unwrap()
-            .view;
-        let depth_view = &self
-            .texture_cache
-            .get(self.surface_depth_texture)
-            .unwrap()
-            .view;
-
-        // 1. Normal Pass
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Normal Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: normal_view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            self.ssao_render_resources.render_normal(
-                &mut render_pass,
-                &self.extracted.meshes,
-                &self.mesh_cache,
-                &self.mesh_render_resources,
-                camera_bind_group,
-                ssao_camera_index,
-                &self.extracted.cameras.uniforms[ssao_camera_index],
-                &self.extracted.bvh,
-            );
-        }
-
-        // 2. SSAO Pass
-        {
-            let ssao_view = &self
-                .texture_cache
-                .get(self.ssao_render_resources.ssao_texture)
-                .unwrap()
-                .view;
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: ssao_view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            render_pass.set_pipeline(&self.ssao_render_resources.ssao_pipeline);
-            render_pass.set_bind_group(0, camera_bind_group, &[0]);
-            render_pass.set_bind_group(1, &self.ssao_render_resources.ssao_bind_group, &[]);
-            render_pass.draw(0..3, 0..1);
-        }
-
-        // 3. Blur Pass
-        {
-            let blur_view = &self
-                .texture_cache
-                .get(self.ssao_render_resources.blur_texture)
-                .unwrap()
-                .view;
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Blur Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: blur_view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            render_pass.set_pipeline(&self.ssao_render_resources.blur_pipeline);
-            render_pass.set_bind_group(0, &self.ssao_render_resources.blur_bind_group, &[]);
-            render_pass.draw(0..3, 0..1);
-        }
-
-        true
-    }
-
-    // Send draw calls.
-    pub(crate) fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
-        for i in 0..self.extracted.cameras.uniforms.len() {
-            if self.extracted.cameras.types[i] == CameraType::D2 {
-                render_atlas(
-                    &self.extracted.atlases,
-                    &self.atlas_render_resources,
-                    render_pass,
-                );
-
-                // Draw sprites.
-                render_sprite(
-                    &self.sprite_batches,
-                    &self.sprite_render_resources,
-                    render_pass,
-                    self.camera_render_resources.bind_group.as_ref().unwrap(),
-                );
-            } else {
-                if self.camera_render_resources.bind_group.is_some() {
-                    render_sky(
-                        self.camera_render_resources.bind_group.as_ref().unwrap(),
-                        &self.sky_render_resources,
-                        render_pass,
-                    );
-                }
-
-                render_meshes(
-                    &self.extracted.meshes,
-                    &self.mesh_cache,
-                    &self.mesh_render_resources,
-                    &self.camera_render_resources,
-                    i,
-                    &self.extracted.cameras.uniforms[i],
-                    &self.gizmo_render_resources,
-                    render_pass,
-                    &self.extracted.bvh,
-                );
             }
         }
     }
