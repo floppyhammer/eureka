@@ -70,7 +70,6 @@ pub(crate) struct CascadeUniform {
 
 pub(crate) struct LightRenderResources {
     pub(crate) directional_shadow_map: Option<TextureId>,
-    pub(crate) pipeline: Option<wgpu::RenderPipeline>,
     pub(crate) directional_shadow_camera_bind_group: Option<wgpu::BindGroup>,
     pub(crate) directional_shadow_camera_buffer: Option<wgpu::Buffer>,
     pub(crate) cascade_uniform_buffer: Option<wgpu::Buffer>,
@@ -86,7 +85,6 @@ impl LightRenderResources {
     pub(crate) fn new() -> Self {
         Self {
             directional_shadow_map: None,
-            pipeline: None,
             directional_shadow_camera_bind_group: None,
             directional_shadow_camera_buffer: None,
             cascade_uniform_buffer: None,
@@ -96,44 +94,6 @@ impl LightRenderResources {
             point_shadow_camera_bind_group: None,
             point_shadow_view_projs: vec![],
         }
-    }
-
-    pub fn prepare_pipeline(
-        &mut self,
-        render_server: &RenderServer,
-        camera_render_resources: &CameraRenderResources,
-    ) {
-        if self.pipeline.is_some() {
-            return;
-        }
-
-        let pipeline_layout =
-            render_server
-                .device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("shadow pipeline layout"),
-                    bind_group_layouts: &[&camera_render_resources.bind_group_layout],
-                    push_constant_ranges: &[],
-                });
-
-        let shader = wgpu::ShaderModuleDescriptor {
-            label: Some("shadow shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/shadow.wgsl").into()),
-        };
-
-        let pipeline = create_render_pipeline(
-            &render_server.device,
-            &pipeline_layout,
-            None,
-            Some(Texture::DEPTH_FORMAT),
-            &[Vertex3d::desc(), InstanceRaw::desc()],
-            shader,
-            "shadow pipeline",
-            false,
-            Some(wgpu::Face::Front),
-        );
-
-        self.pipeline = Some(pipeline);
     }
 }
 
@@ -400,8 +360,6 @@ pub(crate) fn prepare_shadow(
         );
         render_resources.point_shadow_map = Some(depth_texture);
     }
-
-    render_resources.prepare_pipeline(render_server, camera_render_resources);
 }
 
 pub(crate) fn render_shadow(
@@ -413,12 +371,12 @@ pub(crate) fn render_shadow(
     mesh_cache: &MeshCache,
     mesh_render_resources: &MeshRenderResources,
     bvh: &Bvh,
+    pipeline: &wgpu::RenderPipeline,
 ) {
-    if render_resources.pipeline.is_none() || mesh_render_resources.global_instance_buffer.is_none() {
+    if mesh_render_resources.global_instance_buffer.is_none() {
         return;
     }
 
-    let pipeline = render_resources.pipeline.as_ref().unwrap();
     let offset_unit = CameraUniform::get_uniform_offset_unit();
 
     // Directional Shadow

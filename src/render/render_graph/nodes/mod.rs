@@ -5,20 +5,60 @@ use crate::render::atlas::render_atlas;
 use crate::render::sprite::render_sprite;
 use crate::render::sky::render_sky;
 use crate::render::{render_meshes, prepare_meshes};
+use crate::render::vertex::VertexBuffer;
 
-pub struct CullingNode;
+pub struct CullingNode {
+    pipeline: Option<wgpu::ComputePipeline>,
+}
+
+impl Default for CullingNode {
+    fn default() -> Self {
+        Self { pipeline: None }
+    }
+}
 
 impl Node for CullingNode {
+    fn prepare(&mut self, context: &mut RenderContext) {
+        if self.pipeline.is_some() {
+            return;
+        }
+
+        let world = context.render_world;
+        let resources = &world.mesh_render_resources;
+        let device = &context.render_server.device;
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("cull layout"),
+            bind_group_layouts: &[&resources.cull_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("cull shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/cull.wgsl").into()),
+        });
+
+        self.pipeline = Some(device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("cull pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: Some("main"),
+            cache: None,
+            compilation_options: Default::default(),
+        }));
+    }
+
     fn run(&mut self, context: &mut RenderContext) {
         let world = context.render_world;
         let resources = &world.mesh_render_resources;
 
-        if let Some(pipeline) = &resources.cull_pipeline {
+        if let Some(pipeline) = &self.pipeline {
             if let Some(bind_group) = &resources.cull_bind_group {
-                let mut compute_pass = context.encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: Some("Global Culling Pass"),
-                    timestamp_writes: None,
-                });
+                let mut compute_pass =
+                    context.encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                        label: Some("Global Culling Pass"),
+                        timestamp_writes: None,
+                    });
                 compute_pass.set_pipeline(pipeline);
                 compute_pass.set_bind_group(0, bind_group, &[0]); // Camera offset
 
@@ -33,27 +73,214 @@ impl Node for CullingNode {
     }
 }
 
-pub struct ShadowNode;
+pub struct ShadowNode {
+    pipeline: Option<wgpu::RenderPipeline>,
+}
 
-impl Node for ShadowNode {
-    fn run(&mut self, context: &mut RenderContext) {
-        let world = context.render_world;
-        render_shadow(
-            context.encoder,
-            &world.texture_cache,
-            &world.light_render_resources,
-            &world.extracted.lights,
-            &world.extracted.meshes,
-            &world.mesh_cache,
-            &world.mesh_render_resources,
-            &world.extracted.bvh,
-        );
+impl Default for ShadowNode {
+    fn default() -> Self {
+        Self { pipeline: None }
     }
 }
 
-pub struct SsaoNode;
+impl Node for ShadowNode {
+    fn prepare(&mut self, context: &mut RenderContext) {
+        if self.pipeline.is_some() {
+            return;
+        }
+
+        let device = &context.render_server.device;
+        let camera_resources = &context.render_world.camera_render_resources;
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("shadow pipeline layout"),
+            bind_group_layouts: &[&camera_resources.bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let shader = wgpu::ShaderModuleDescriptor {
+            label: Some("shadow shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/shadow.wgsl").into()),
+        };
+
+        use crate::render::vertex::Vertex3d;
+        use crate::render::{create_render_pipeline, InstanceRaw, Texture};
+
+        let pipeline = create_render_pipeline(
+            device,
+            &pipeline_layout,
+            None,
+            Some(Texture::DEPTH_FORMAT),
+            &[Vertex3d::desc(), InstanceRaw::desc()],
+            shader,
+            "shadow pipeline",
+            false,
+            Some(wgpu::Face::Front),
+        );
+
+        self.pipeline = Some(pipeline);
+    }
+
+    fn run(&mut self, context: &mut RenderContext) {
+        let world = context.render_world;
+        if let Some(pipeline) = &self.pipeline {
+            render_shadow(
+                context.encoder,
+                &world.texture_cache,
+                &world.light_render_resources,
+                &world.extracted.lights,
+                &world.extracted.meshes,
+                &world.mesh_cache,
+                &world.mesh_render_resources,
+                &world.extracted.bvh,
+                pipeline,
+            );
+        }
+    }
+}
+
+pub struct SsaoNode {
+    normal_pipeline: Option<wgpu::RenderPipeline>,
+    ssao_pipeline: Option<wgpu::RenderPipeline>,
+    blur_pipeline: Option<wgpu::RenderPipeline>,
+}
+
+impl Default for SsaoNode {
+    fn default() -> Self {
+        Self {
+            normal_pipeline: None,
+            ssao_pipeline: None,
+            blur_pipeline: None,
+        }
+    }
+}
 
 impl Node for SsaoNode {
+    fn prepare(&mut self, context: &mut RenderContext) {
+        if self.normal_pipeline.is_some() {
+            return;
+        }
+
+        let device = &context.render_server.device;
+        let world = context.render_world;
+        let camera_resources = &world.camera_render_resources;
+
+        use crate::render::vertex::Vertex3d;
+        use crate::render::{create_render_pipeline, InstanceRaw, Texture};
+
+        // 1. Normal Pipeline
+        let normal_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("SSAO Normal Pipeline Layout"),
+                bind_group_layouts: &[&camera_resources.bind_group_layout],
+                push_constant_ranges: &[],
+            });
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("SSAO Normal Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/normal.wgsl").into()),
+            };
+            create_render_pipeline(
+                device,
+                &layout,
+                Some(wgpu::TextureFormat::Rgba16Float),
+                Some(Texture::DEPTH_FORMAT),
+                &[Vertex3d::desc(), InstanceRaw::desc()],
+                shader,
+                "SSAO Normal Pipeline",
+                false,
+                Some(wgpu::Face::Back),
+            )
+        };
+
+        // 2. SSAO Pipeline
+        let ssao_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("SSAO Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
+                    wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None },
+                    wgpu::BindGroupLayoutEntry { binding: 2, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
+                    wgpu::BindGroupLayoutEntry { binding: 3, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None },
+                    wgpu::BindGroupLayoutEntry { binding: 4, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None },
+                    wgpu::BindGroupLayoutEntry { binding: 5, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering), count: None },
+                ],
+            });
+
+        let ssao_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("SSAO Pipeline Layout"),
+                bind_group_layouts: &[&camera_resources.bind_group_layout, &ssao_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("SSAO Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/ssao.wgsl").into()),
+            };
+            create_render_pipeline(
+                device,
+                &layout,
+                Some(wgpu::TextureFormat::R8Unorm),
+                None,
+                &[],
+                shader,
+                "SSAO Pipeline",
+                false,
+                None,
+            )
+        };
+
+        // 3. Blur Pipeline
+        let blur_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("SSAO Blur Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
+
+        let blur_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("SSAO Blur Pipeline Layout"),
+                bind_group_layouts: &[&blur_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("SSAO Blur Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/ssao_blur.wgsl").into()),
+            };
+            create_render_pipeline(
+                device,
+                &layout,
+                Some(wgpu::TextureFormat::R8Unorm),
+                None,
+                &[],
+                shader,
+                "SSAO Blur Pipeline",
+                false,
+                None,
+            )
+        };
+
+        self.normal_pipeline = Some(normal_pipeline);
+        self.ssao_pipeline = Some(ssao_pipeline);
+        self.blur_pipeline = Some(blur_pipeline);
+    }
+
     fn run(&mut self, context: &mut RenderContext) {
         let world = context.render_world;
         if world.extracted.meshes.is_empty() {
@@ -124,6 +351,7 @@ impl Node for SsaoNode {
                 ssao_camera_index,
                 &world.extracted.cameras.uniforms[ssao_camera_index],
                 &world.extracted.bvh,
+                self.normal_pipeline.as_ref().unwrap(),
             );
         }
 
@@ -150,7 +378,7 @@ impl Node for SsaoNode {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(&world.ssao_render_resources.ssao_pipeline);
+            render_pass.set_pipeline(self.ssao_pipeline.as_ref().unwrap());
             render_pass.set_bind_group(0, camera_bind_group, &[0]);
             render_pass.set_bind_group(1, &world.ssao_render_resources.ssao_bind_group, &[]);
             render_pass.draw(0..3, 0..1);
@@ -179,7 +407,7 @@ impl Node for SsaoNode {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(&world.ssao_render_resources.blur_pipeline);
+            render_pass.set_pipeline(self.blur_pipeline.as_ref().unwrap());
             render_pass.set_bind_group(0, &world.ssao_render_resources.blur_bind_group, &[]);
             render_pass.draw(0..3, 0..1);
         }

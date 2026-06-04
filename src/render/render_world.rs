@@ -137,9 +137,9 @@ impl RenderWorld {
 
     fn default_graph() -> RenderGraph {
         let mut graph = RenderGraph::new();
-        graph.add_node("cull", CullingNode);
-        graph.add_node("shadow", ShadowNode);
-        graph.add_node("ssao", SsaoNode);
+        graph.add_node("cull", CullingNode::default());
+        graph.add_node("shadow", ShadowNode::default());
+        graph.add_node("ssao", SsaoNode::default());
         graph.add_node("main", MainPassNode);
 
         graph.add_node_edge("cull", "shadow");

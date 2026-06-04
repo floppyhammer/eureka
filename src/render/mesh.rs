@@ -159,7 +159,6 @@ pub struct MeshRenderResources {
     pub(crate) materials_storage_buffer: Option<wgpu::Buffer>,
     pub(crate) texture_index_map: HashMap<TextureId, u32>,
     pub(crate) material_index_map: HashMap<MaterialId, u32>,
-    pub(crate) cull_pipeline: Option<wgpu::ComputePipeline>,
     pub(crate) cull_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) pipeline_cache: HashMap<u32, wgpu::RenderPipeline>,
     pub material_cache: MaterialCache,
@@ -232,7 +231,7 @@ impl MeshRenderResources {
             light_bind_group: None,
             light_uniform_buffer: None, dummy_2d_view, dummy_cube_view, dummy_sampler, current_skybox: None,
             bindless_bind_group_layout, bindless_bind_group: None, materials_storage_buffer: None, texture_index_map: HashMap::new(), material_index_map: HashMap::new(),
-            cull_pipeline: None, cull_bind_group_layout, pipeline_cache: HashMap::new(), material_cache: MaterialCache::new(),
+            cull_bind_group_layout, pipeline_cache: HashMap::new(), material_cache: MaterialCache::new(),
             mesh_allocator: MeshAllocator::new(&render_server.device), global_instance_buffer: None, global_visible_instance_buffer: None, global_indirect_buffer: None,
             mesh_metadata_buffer: None, cull_bind_group: None, mesh_id_to_index: HashMap::new(), draw_counts: Vec::new(),
             mesh_infos: Vec::new(),
@@ -286,12 +285,6 @@ impl MeshRenderResources {
     }
 
     pub fn prepare_pipeline(&mut self, render_server: &RenderServer, _shader_maker: &mut ShaderMaker, camera_bind_group_layout: &wgpu::BindGroupLayout) {
-        if self.cull_pipeline.is_none() {
-            let pipeline_layout = render_server.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("cull layout"), bind_group_layouts: &[&self.cull_bind_group_layout], push_constant_ranges: &[] });
-            let shader = render_server.device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("cull shader"), source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/cull.wgsl").into()) });
-            self.cull_pipeline = Some(render_server.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some("cull pipeline"), layout: Some(&pipeline_layout), module: &shader, entry_point: Some("main"), cache: None, compilation_options: Default::default() }));
-        }
-
         if !self.pipeline_cache.contains_key(&0) {
             let pipeline_layout = render_server.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("mesh layout"), bind_group_layouts: &[camera_bind_group_layout, &self.light_bind_group_layout, &self.bindless_bind_group_layout], push_constant_ranges: &[] });
             let shader = wgpu::ShaderModuleDescriptor { label: Some("mesh shader"), source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/mesh.wgsl").into()) };
