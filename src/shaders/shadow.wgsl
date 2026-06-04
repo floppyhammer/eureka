@@ -25,14 +25,13 @@ struct InstanceInput {
     @location(7) model_matrix_2: vec4<f32>,
     @location(8) model_matrix_3: vec4<f32>,
 
-    // Normal matrix.
-    @location(9) normal_matrix_0: vec3<f32>,
-    @location(10) normal_matrix_1: vec3<f32>,
-    @location(11) normal_matrix_2: vec3<f32>,
+    // Normal matrix (Aligned to 16 bytes per row)
+    @location(9) normal_matrix_0: vec4<f32>,
+    @location(10) normal_matrix_1: vec4<f32>,
+    @location(11) normal_matrix_2: vec4<f32>,
 }
 
 struct VertexOutput {
-    // Analogous to GLSL's gl_Position.
     @builtin(position) clip_position: vec4<f32>,
 }
 

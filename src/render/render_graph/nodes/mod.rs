@@ -4,7 +4,32 @@ use crate::render::light::render_shadow;
 use crate::render::atlas::render_atlas;
 use crate::render::sprite::render_sprite;
 use crate::render::sky::render_sky;
-use crate::render::render_meshes;
+use crate::render::{render_meshes, prepare_meshes};
+
+pub struct CullingNode;
+
+impl Node for CullingNode {
+    fn run(&mut self, context: &mut RenderContext) {
+        let world = context.render_world;
+        let resources = &world.mesh_render_resources;
+
+        if let Some(pipeline) = &resources.cull_pipeline {
+            let mut compute_pass = context.encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Culling Pass"),
+                timestamp_writes: None,
+            });
+            compute_pass.set_pipeline(pipeline);
+
+            for metadata in world.mesh_render_resources.instance_cache.values() {
+                if let Some(bind_group) = &metadata.cull_bind_group {
+                    compute_pass.set_bind_group(0, bind_group, &[0]); // Camera offset 0 for now
+                    let workgroup_count = (metadata.instance_count as u32 + 63) / 64;
+                    compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
+                }
+            }
+        }
+    }
+}
 
 pub struct ShadowNode;
 
@@ -162,6 +187,16 @@ impl Node for SsaoNode {
 pub struct MainPassNode;
 
 impl Node for MainPassNode {
+    fn prepare(&mut self, context: &mut RenderContext) {
+        let world = context.render_world;
+        let skybox_texture_id = world.extracted.sky.as_ref().map(|sky| sky.texture);
+
+        // This is a bit ugly because we are mutably borrowing world inside RenderContext
+        // but for now we'll assume prepare_meshes can be called here.
+        // Actually, RenderContext has &RenderWorld (immutable).
+        // We need to fix RenderContext or the way we call prepare.
+    }
+
     fn run(&mut self, context: &mut RenderContext) {
         let world = context.render_world;
         let depth_texture = world

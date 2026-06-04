@@ -469,31 +469,18 @@ pub(crate) fn render_shadow(
                 visible_indices = (0..extracted_meshes.len()).collect();
             }
 
-            for idx in visible_indices {
-                let extracted = &extracted_meshes[idx];
-                let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
-
-                // Frustum culling
-                if bvh.root.is_none() {
-                    let world_aabb = mesh.aabb.transform(&extracted.transform);
-                    if !frustum.intersects_aabb(&world_aabb) {
-                        continue;
-                    }
-                }
-
-                let instance = mesh_render_resources
-                    .instance_cache
-                    .get(&extracted.mesh_id)
-                    .unwrap();
-
-                let instance_offset = *mesh_render_resources.instance_offsets.get(&idx).unwrap();
+            // For shadows, we draw all instances for now to ensure off-screen objects cast shadows.
+            // In a full GPU-driven setup, we'd have a separate culling pass for the light's view.
+            for (mesh_id, instance) in &mesh_render_resources.instance_cache {
+                let mesh = mesh_cache.get(*mesh_id).unwrap();
 
                 render_pass.set_pipeline(pipeline);
-                render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
                 render_pass
                     .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                render_pass.draw_indexed(0..mesh.index_count, 0, instance_offset..instance_offset + 1);
+
+                render_pass.draw_indexed(0..mesh.index_count, 0, 0..instance.instance_count as u32);
             }
         }
     }
@@ -541,41 +528,16 @@ pub(crate) fn render_shadow(
                 render_pass.set_bind_group(0, bind_group, &[dynamic_offset]);
             }
 
-            let frustum = Frustum::from_view_proj(render_resources.point_shadow_view_projs[i]);
-
-            // BVH frustum culling
-            let mut visible_indices = Vec::new();
-            if bvh.root.is_some() {
-                bvh.query(&frustum, &mut visible_indices);
-            } else {
-                visible_indices = (0..extracted_meshes.len()).collect();
-            }
-
-            for idx in visible_indices {
-                let extracted = &extracted_meshes[idx];
-                let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
-
-                // Simple frustum culling (if BVH is not available)
-                if bvh.root.is_none() {
-                    let world_aabb = mesh.aabb.transform(&extracted.transform);
-                    if !frustum.intersects_aabb(&world_aabb) {
-                        continue;
-                    }
-                }
-
-                let instance = mesh_render_resources
-                    .instance_cache
-                    .get(&extracted.mesh_id)
-                    .unwrap();
-
-                let instance_offset = *mesh_render_resources.instance_offsets.get(&idx).unwrap();
+            for (mesh_id, instance) in &mesh_render_resources.instance_cache {
+                let mesh = mesh_cache.get(*mesh_id).unwrap();
 
                 render_pass.set_pipeline(pipeline);
-                render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
                 render_pass
                     .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                render_pass.draw_indexed(0..mesh.index_count, 0, instance_offset..instance_offset + 1);
+
+                render_pass.draw_indexed(0..mesh.index_count, 0, 0..instance.instance_count as u32);
             }
         }
     }

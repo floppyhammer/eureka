@@ -12,8 +12,8 @@ pub use nodes::*;
 #[derive(Default)]
 pub struct RenderGraph {
     nodes: HashMap<String, NodeState>,
-    // Adjacency list for dependencies
     dependencies: HashMap<String, Vec<String>>,
+    cached_execution_order: Option<Vec<String>>,
 }
 
 struct NodeState {
@@ -26,6 +26,7 @@ impl RenderGraph {
         Self {
             nodes: HashMap::new(),
             dependencies: HashMap::new(),
+            cached_execution_order: None,
         }
     }
 
@@ -37,6 +38,7 @@ impl RenderGraph {
             name: name.clone(),
         });
         self.dependencies.entry(name).or_default();
+        self.cached_execution_order = None;
     }
 
     /// Adds a dependency edge between two nodes. Node `to` will run after node `from`.
@@ -44,6 +46,7 @@ impl RenderGraph {
         let from = from.into();
         let to = to.into();
         self.dependencies.entry(to).or_default().push(from);
+        self.cached_execution_order = None;
     }
 
     pub fn run(
@@ -61,7 +64,10 @@ impl RenderGraph {
         };
 
         // Simple topological sort for execution order
-        let execution_order = self.topological_sort();
+        if self.cached_execution_order.is_none() {
+            self.cached_execution_order = Some(self.topological_sort());
+        }
+        let execution_order = self.cached_execution_order.as_ref().unwrap().clone();
 
         for node_name in &execution_order {
             if let Some(node_state) = self.nodes.get_mut(node_name) {

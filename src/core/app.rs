@@ -97,7 +97,9 @@ impl<'a> App<'a> {
                 label: None,
                 required_features: wgpu::Features::TEXTURE_BINDING_ARRAY
                     | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
-                    | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY,
+                    | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY
+                    | wgpu::Features::INDIRECT_FIRST_INSTANCE
+                    | wgpu::Features::MULTI_DRAW_INDIRECT,
                 required_limits: wgpu::Limits {
                     max_binding_array_elements_per_shader_stage: 1024,
                     ..Default::default()

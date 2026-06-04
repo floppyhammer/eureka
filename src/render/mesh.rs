@@ -247,7 +247,7 @@ pub struct ExtractedMesh {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct InstanceRaw {
     model: [[f32; 4]; 4],
-    normal: [[f32; 3]; 3],
+    normal: [[f32; 4]; 3], // Each row of 3x3 matrix padded to 4 floats
     material_idx: u32,
     _pad: [u32; 3],
 }
@@ -268,9 +268,14 @@ impl Instance {
             self.rotation * Vec3::new(0.0, 0.0, 1.0 / self.scale.z),
         );
 
+        let n = normal.to_cols_array_2d();
         InstanceRaw {
             model: model.to_cols_array_2d(),
-            normal: normal.to_cols_array_2d(),
+            normal: [
+                [n[0][0], n[0][1], n[0][2], 0.0],
+                [n[1][0], n[1][1], n[1][2], 0.0],
+                [n[2][0], n[2][1], n[2][2], 0.0],
+            ],
             material_idx: self.material_idx,
             _pad: [0; 3],
         }
@@ -307,20 +312,20 @@ impl InstanceRaw {
                 wgpu::VertexAttribute {
                     offset: mem::size_of::<[f32; 16]>() as wgpu::BufferAddress,
                     shader_location: 9,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: wgpu::VertexFormat::Float32x4,
                 },
                 wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 19]>() as wgpu::BufferAddress,
+                    offset: mem::size_of::<[f32; 20]>() as wgpu::BufferAddress,
                     shader_location: 10,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: wgpu::VertexFormat::Float32x4,
                 },
                 wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 22]>() as wgpu::BufferAddress,
+                    offset: mem::size_of::<[f32; 24]>() as wgpu::BufferAddress,
                     shader_location: 11,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: wgpu::VertexFormat::Float32x4,
                 },
                 wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 25]>() as wgpu::BufferAddress,
+                    offset: mem::size_of::<[f32; 28]>() as wgpu::BufferAddress,
                     shader_location: 12,
                     format: wgpu::VertexFormat::Uint32,
                 },
@@ -346,6 +351,10 @@ pub struct MeshRenderResources {
     pub(crate) texture_index_map: HashMap<TextureId, u32>,
     pub(crate) material_index_map: HashMap<MaterialId, u32>,
 
+    // GPU Culling resources
+    pub(crate) cull_pipeline: Option<wgpu::ComputePipeline>,
+    pub(crate) cull_bind_group_layout: wgpu::BindGroupLayout,
+
     pub(crate) pipeline_cache: HashMap<u32, wgpu::RenderPipeline>,
     pub material_cache: MaterialCache,
 
@@ -354,7 +363,11 @@ pub struct MeshRenderResources {
 }
 
 pub(crate) struct InstanceMetadata {
-    pub(crate) buffer: wgpu::Buffer,
+    pub(crate) buffer: wgpu::Buffer,                  // Source instances (Storage)
+    pub(crate) visible_buffer: wgpu::Buffer,          // Culled instances (Vertex/Storage)
+    pub(crate) indirect_buffer: wgpu::Buffer,         // Indirect draw command
+    pub(crate) mesh_aabb_buffer: wgpu::Buffer,        // Mesh AABB for culling
+    pub(crate) cull_bind_group: Option<wgpu::BindGroup>,
     pub(crate) instance_count: u64,
 }
 
@@ -527,6 +540,70 @@ impl MeshRenderResources {
             ..Default::default()
         });
 
+        let cull_bind_group_layout =
+            render_server
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[
+                        // Camera
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: true,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        // Mesh AABB
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        // All Instances
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        // Visible Instances
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        // Indirect Buffer
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 4,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                    ],
+                    label: Some("cull bind group layout"),
+                });
+
         Self {
             light_bind_group_layout,
             light_uniform_buffer: None,
@@ -540,6 +617,9 @@ impl MeshRenderResources {
             materials_storage_buffer: None,
             texture_index_map: HashMap::new(),
             material_index_map: HashMap::new(),
+
+            cull_pipeline: None,
+            cull_bind_group_layout,
 
             light_bind_group: None,
 
@@ -647,6 +727,28 @@ impl MeshRenderResources {
         shader_maker: &mut ShaderMaker,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
     ) {
+        if self.cull_pipeline.is_none() {
+            let pipeline_layout = render_server.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("cull pipeline layout"),
+                bind_group_layouts: &[&self.cull_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let shader = render_server.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("cull shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/cull.wgsl").into()),
+            });
+
+            self.cull_pipeline = Some(render_server.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("cull pipeline"),
+                layout: Some(&pipeline_layout),
+                module: &shader,
+                entry_point: Some("main"),
+                cache: None,
+                compilation_options: Default::default(),
+            }));
+        }
+
         const PIPELINE_KEY: u32 = 0;
 
         if !self.pipeline_cache.contains_key(&PIPELINE_KEY) {
@@ -691,6 +793,8 @@ impl MeshRenderResources {
         &mut self,
         render_server: &RenderServer,
         meshes: &Vec<ExtractedMesh>,
+        mesh_cache: &MeshCache,
+        camera_uniform_buffer: &wgpu::Buffer,
     ) {
         let mut grouped_instances: HashMap<MeshId, Vec<InstanceRaw>> = HashMap::new();
         self.instance_offsets.clear();
@@ -714,41 +818,111 @@ impl MeshRenderResources {
         }
 
         for (mesh_id, instance_data) in grouped_instances {
+            let mesh = mesh_cache.get(mesh_id).unwrap();
             let buffer_size = (instance_data.len() * mem::size_of::<InstanceRaw>()) as BufferAddress;
 
-            if let Some(metadata) = self.instance_cache.get_mut(&mesh_id) {
-                if (metadata.instance_count as usize) < instance_data.len() {
-                    metadata.buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                        label: Some("model instance buffer"),
-                        size: buffer_size,
-                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                        mapped_at_creation: false,
-                    });
-                }
-                metadata.instance_count = instance_data.len() as u64;
-            } else {
-                let instance_buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
+            let metadata = self.instance_cache.entry(mesh_id).or_insert_with(|| {
+                let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("model instance buffer"),
                     size: buffer_size,
-                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 });
 
-                self.instance_cache.insert(
-                    mesh_id,
-                    InstanceMetadata {
-                        buffer: instance_buffer,
-                        instance_count: instance_data.len() as u64,
-                    },
-                );
-            }
+                let visible_buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("visible instance buffer"),
+                    size: buffer_size,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
 
-            let metadata = self.instance_cache.get(&mesh_id).unwrap();
+                let indirect_buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("indirect buffer"),
+                    size: 20,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+
+                let mesh_aabb_buffer = render_server.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("mesh aabb buffer"),
+                    contents: bytemuck::cast_slice(&[mesh.aabb.min.extend(0.0).to_array(), mesh.aabb.max.extend(0.0).to_array()]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+
+                InstanceMetadata {
+                    buffer,
+                    visible_buffer,
+                    indirect_buffer,
+                    mesh_aabb_buffer,
+                    cull_bind_group: None,
+                    instance_count: instance_data.len() as u64,
+                }
+            });
+
+            if (metadata.instance_count as usize) < instance_data.len() {
+                metadata.buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("model instance buffer"),
+                    size: buffer_size,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                metadata.visible_buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("visible instance buffer"),
+                    size: buffer_size,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                metadata.cull_bind_group = None;
+            }
+            metadata.instance_count = instance_data.len() as u64;
+
             render_server.queue.write_buffer(
                 &metadata.buffer,
                 0,
                 bytemuck::cast_slice(&instance_data),
             );
+
+            let indirect_data = [
+                mesh.index_count,
+                0,
+                0,
+                0,
+                0,
+            ];
+            render_server.queue.write_buffer(&metadata.indirect_buffer, 0, bytemuck::cast_slice(&indirect_data));
+
+            if metadata.cull_bind_group.is_none() {
+                metadata.cull_bind_group = Some(render_server.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &self.cull_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                buffer: camera_uniform_buffer,
+                                offset: 0,
+                                size: Some(wgpu::BufferSize::new(mem::size_of::<CameraUniform>() as u64).unwrap()),
+                            }),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: metadata.mesh_aabb_buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: metadata.buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: metadata.visible_buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: metadata.indirect_buffer.as_entire_binding(),
+                        },
+                    ],
+                    label: Some("cull bind group"),
+                }));
+            }
         }
     }
 
@@ -910,6 +1084,7 @@ pub(crate) fn prepare_meshes(
     light_render_resources: &LightRenderResources,
     camera_render_resources: &CameraRenderResources,
     render_server: &RenderServer,
+    mesh_cache: &MeshCache,
     ssao_texture_id: TextureId,
     skybox_texture_id: Option<TextureId>,
 ) {
@@ -929,7 +1104,12 @@ pub(crate) fn prepare_meshes(
         skybox_texture_id,
     );
 
-    mesh_render_resources.prepare_instances(render_server, &extracted_meshes);
+    mesh_render_resources.prepare_instances(
+        render_server,
+        &extracted_meshes,
+        mesh_cache,
+        camera_render_resources.uniform_buffer.as_ref().unwrap(),
+    );
 }
 
 pub(crate) fn render_meshes<'a, 'b: 'a>(
@@ -972,28 +1152,15 @@ pub(crate) fn render_meshes<'a, 'b: 'a>(
     render_pass.set_bind_group(1, light_bind_group, &[]);
     render_pass.set_bind_group(2, bindless_bind_group, &[]);
 
-    for idx in visible_indices {
-        let extracted = &extracted_meshes[idx];
-        let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
-
-        if bvh.root.is_none() {
-            let world_aabb = mesh.aabb.transform(&extracted.transform);
-            if !frustum.intersects_aabb(&world_aabb) {
-                continue;
-            }
-        }
-
-        let instance = mesh_render_resources
-            .instance_cache
-            .get(&extracted.mesh_id)
-            .unwrap();
+    // Grouping by mesh_id is now intrinsic because we use indirect buffers per mesh
+    for (mesh_id, metadata) in &mesh_render_resources.instance_cache {
+        let mesh = mesh_cache.get(*mesh_id).unwrap();
 
         render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-        render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
+        render_pass.set_vertex_buffer(1, metadata.visible_buffer.slice(..));
         render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-        let instance_offset = *mesh_render_resources.instance_offsets.get(&idx).unwrap();
-        render_pass.draw_indexed(0..mesh.index_count, 0, instance_offset..instance_offset + 1);
+        render_pass.draw_indexed_indirect(&metadata.indirect_buffer, 0);
     }
 
     gizmo_render_resources.render(

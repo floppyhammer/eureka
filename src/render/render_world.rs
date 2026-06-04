@@ -13,7 +13,7 @@ use crate::render::{
     prepare_meshes, render_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderServer,
     Texture, TextureCache, TextureId,
 };
-use crate::render::render_graph::{MainPassNode, RenderGraph, ShadowNode, SsaoNode};
+use crate::render::render_graph::{MainPassNode, RenderGraph, ShadowNode, SsaoNode, CullingNode};
 use crate::scene::Bvh;
 
 #[derive(Default, Clone)]
@@ -137,10 +137,13 @@ impl RenderWorld {
 
     fn default_graph() -> RenderGraph {
         let mut graph = RenderGraph::new();
+        graph.add_node("cull", CullingNode);
         graph.add_node("shadow", ShadowNode);
         graph.add_node("ssao", SsaoNode);
         graph.add_node("main", MainPassNode);
 
+        graph.add_node_edge("cull", "shadow");
+        graph.add_node_edge("cull", "main");
         graph.add_node_edge("shadow", "main");
         graph.add_node_edge("ssao", "main");
         graph
@@ -196,6 +199,7 @@ impl RenderWorld {
                     &self.light_render_resources,
                     &self.camera_render_resources,
                     &render_server,
+                    &self.mesh_cache,
                     self.ssao_render_resources.blur_texture,
                     skybox_texture_id,
                 );
