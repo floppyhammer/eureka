@@ -4,7 +4,7 @@ use crate::render::light::render_shadow;
 use crate::render::atlas::render_atlas;
 use crate::render::sprite::render_sprite;
 use crate::render::sky::render_sky;
-use crate::render::{render_meshes, prepare_meshes};
+use crate::render::{render_meshes};
 use crate::render::vertex::VertexBuffer;
 
 pub struct CullingNode {
@@ -62,8 +62,6 @@ impl Node for CullingNode {
                 compute_pass.set_pipeline(pipeline);
                 compute_pass.set_bind_group(0, bind_group, &[0]); // Camera offset
 
-                // Dispatch based on total instance count across all meshes
-                // We'll calculate total instances in prepare_instances or just use a large enough number
                 let total_instances: u32 = world.extracted.meshes.len() as u32;
                 if total_instances > 0 {
                     compute_pass.dispatch_workgroups((total_instances + 63) / 64, 1, 1);
@@ -168,7 +166,6 @@ impl Node for SsaoNode {
         use crate::render::vertex::Vertex3d;
         use crate::render::{create_render_pipeline, InstanceRaw, Texture};
 
-        // 1. Normal Pipeline
         let normal_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("SSAO Normal Pipeline Layout"),
@@ -192,7 +189,6 @@ impl Node for SsaoNode {
             )
         };
 
-        // 2. SSAO Pipeline
         let ssao_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("SSAO Bind Group Layout"),
@@ -229,7 +225,6 @@ impl Node for SsaoNode {
             )
         };
 
-        // 3. Blur Pipeline
         let blur_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("SSAO Blur Bind Group Layout"),
@@ -287,7 +282,6 @@ impl Node for SsaoNode {
             return;
         }
 
-        // Check if any camera wants SSAO.
         let mut camera_wants_ssao = false;
         let mut ssao_camera_index = 0;
         for i in 0..world.extracted.cameras.types.len() {
@@ -317,7 +311,6 @@ impl Node for SsaoNode {
             .unwrap()
             .view;
 
-        // 1. Normal Pass
         {
             let mut render_pass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("SSAO Normal Pass"),
@@ -355,7 +348,6 @@ impl Node for SsaoNode {
             );
         }
 
-        // 2. SSAO Pass
         {
             let ssao_view = &world
                 .texture_cache
@@ -384,7 +376,6 @@ impl Node for SsaoNode {
             render_pass.draw(0..3, 0..1);
         }
 
-        // 3. Blur Pass
         {
             let blur_view = &world
                 .texture_cache
@@ -414,25 +405,12 @@ impl Node for SsaoNode {
     }
 }
 
-pub struct MainPassNode;
+pub struct ClearNode;
 
-impl Node for MainPassNode {
-    fn prepare(&mut self, context: &mut RenderContext) {
-        let world = context.render_world;
-        let skybox_texture_id = world.extracted.sky.as_ref().map(|sky| sky.texture);
-
-        // This is a bit ugly because we are mutably borrowing world inside RenderContext
-        // but for now we'll assume prepare_meshes can be called here.
-        // Actually, RenderContext has &RenderWorld (immutable).
-        // We need to fix RenderContext or the way we call prepare.
-    }
-
+impl Node for ClearNode {
     fn run(&mut self, context: &mut RenderContext) {
         let world = context.render_world;
-        let depth_texture = world
-            .texture_cache
-            .get(world.surface_depth_texture)
-            .unwrap();
+        let depth_texture = world.texture_cache.get(world.surface_depth_texture).unwrap();
 
         let ssao_ran = {
             let mut wants_ssao = false;
@@ -447,30 +425,21 @@ impl Node for MainPassNode {
             wants_ssao && !world.extracted.meshes.is_empty()
         };
 
-        let mut render_pass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("main render pass"),
+        let _render_pass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("clear pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: context.output_view,
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
-                        a: 1.0,
-                    }),
+                    load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.1, g: 0.2, b: 0.3, a: 1.0 }),
                     store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &depth_texture.view,
                 depth_ops: Some(wgpu::Operations {
-                    load: if ssao_ran {
-                        wgpu::LoadOp::Load
-                    } else {
-                        wgpu::LoadOp::Clear(1.0)
-                    },
+                    load: if ssao_ran { wgpu::LoadOp::Load } else { wgpu::LoadOp::Clear(1.0) },
                     store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
@@ -478,43 +447,133 @@ impl Node for MainPassNode {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
+    }
+}
+
+pub struct SkyboxNode {
+    pipeline: Option<wgpu::RenderPipeline>,
+}
+
+impl Default for SkyboxNode {
+    fn default() -> Self {
+        Self { pipeline: None }
+    }
+}
+
+impl Node for SkyboxNode {
+    fn prepare(&mut self, context: &mut RenderContext) {
+        if self.pipeline.is_some() { return; }
+        let device = &context.render_server.device;
+        let world = context.render_world;
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("skybox pipeline layout"),
+            bind_group_layouts: &[&world.camera_render_resources.bind_group_layout, &world.sky_render_resources.texture_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let shader = wgpu::ShaderModuleDescriptor {
+            label: Some("skybox shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/skybox.wgsl").into()),
+        };
+
+        use crate::render::vertex::VertexSky;
+        use crate::render::{create_render_pipeline, Texture};
+
+        self.pipeline = Some(create_render_pipeline(device, &pipeline_layout, Some(context.render_server.surface_config.format), Some(Texture::DEPTH_FORMAT), &[VertexSky::desc()], shader, "skybox pipeline", false, Some(wgpu::Face::Back)));
+    }
+
+    fn run(&mut self, context: &mut RenderContext) {
+        let world = context.render_world;
+        if world.extracted.sky.is_none() { return; }
+        let depth_texture = world.texture_cache.get(world.surface_depth_texture).unwrap();
+
+        let mut render_pass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("skybox render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: context.output_view, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store } })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &depth_texture.view, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }), stencil_ops: None }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        if let Some(camera_bind_group) = &world.camera_render_resources.bind_group {
+            render_sky(camera_bind_group, &world.sky_render_resources, &mut render_pass, &world.mesh_render_resources.mesh_allocator, self.pipeline.as_ref().unwrap());
+        }
+    }
+}
+
+pub struct MeshNode {
+    pipeline: Option<wgpu::RenderPipeline>,
+}
+
+impl Default for MeshNode {
+    fn default() -> Self {
+        Self { pipeline: None }
+    }
+}
+
+impl Node for MeshNode {
+    fn prepare(&mut self, context: &mut RenderContext) {
+        if self.pipeline.is_some() { return; }
+        let device = &context.render_server.device;
+        let world = context.render_world;
+        let resources = &world.mesh_render_resources;
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("mesh layout"),
+            bind_group_layouts: &[&world.camera_render_resources.bind_group_layout, &resources.light_bind_group_layout, &resources.bindless_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let shader = wgpu::ShaderModuleDescriptor {
+            label: Some("mesh shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/mesh.wgsl").into()),
+        };
+
+        use crate::render::vertex::Vertex3d;
+        use crate::render::{create_render_pipeline, InstanceRaw, Texture};
+
+        self.pipeline = Some(create_render_pipeline(device, &pipeline_layout, Some(context.render_server.surface_config.format), Some(Texture::DEPTH_FORMAT), &[Vertex3d::desc(), InstanceRaw::desc()], shader, "standard bindless", false, Some(wgpu::Face::Back)));
+    }
+
+    fn run(&mut self, context: &mut RenderContext) {
+        let world = context.render_world;
+        if world.extracted.meshes.is_empty() { return; }
+        let depth_texture = world.texture_cache.get(world.surface_depth_texture).unwrap();
+
+        let mut render_pass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("mesh render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: context.output_view, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store } })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &depth_texture.view, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }), stencil_ops: None }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        for i in 0..world.extracted.cameras.uniforms.len() {
+            if world.extracted.cameras.types[i] == CameraType::D3 {
+                crate::render::render_meshes(&world.extracted.meshes, &world.mesh_cache, &world.mesh_render_resources, &world.camera_render_resources, i, &world.extracted.cameras.uniforms[i], &world.gizmo_render_resources, &mut render_pass, &world.extracted.bvh, self.pipeline.as_ref().unwrap());
+            }
+        }
+    }
+}
+
+pub struct SpriteNode;
+
+impl Node for SpriteNode {
+    fn run(&mut self, context: &mut RenderContext) {
+        let world = context.render_world;
+        let mut render_pass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("sprite render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: context.output_view, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store } })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
 
         for i in 0..world.extracted.cameras.uniforms.len() {
             if world.extracted.cameras.types[i] == CameraType::D2 {
-                render_atlas(
-                    &world.extracted.atlases,
-                    &world.atlas_render_resources,
-                    &mut render_pass,
-                );
-
-                // Draw sprites.
-                render_sprite(
-                    &world.sprite_batches,
-                    &world.sprite_render_resources,
-                    &mut render_pass,
-                    world.camera_render_resources.bind_group.as_ref().unwrap(),
-                );
-            } else {
-                if world.camera_render_resources.bind_group.is_some() {
-                    render_sky(
-                        world.camera_render_resources.bind_group.as_ref().unwrap(),
-                        &world.sky_render_resources,
-                        &mut render_pass,
-                        &world.mesh_render_resources.mesh_allocator,
-                    );
-                }
-
-                render_meshes(
-                    &world.extracted.meshes,
-                    &world.mesh_cache,
-                    &world.mesh_render_resources,
-                    &world.camera_render_resources,
-                    i,
-                    &world.extracted.cameras.uniforms[i],
-                    &world.gizmo_render_resources,
-                    &mut render_pass,
-                    &world.extracted.bvh,
-                );
+                render_atlas(&world.extracted.atlases, &world.atlas_render_resources, &mut render_pass);
+                render_sprite(&world.sprite_batches, &world.sprite_render_resources, &mut render_pass, world.camera_render_resources.bind_group.as_ref().unwrap());
             }
         }
     }

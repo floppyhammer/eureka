@@ -160,7 +160,6 @@ pub struct MeshRenderResources {
     pub(crate) texture_index_map: HashMap<TextureId, u32>,
     pub(crate) material_index_map: HashMap<MaterialId, u32>,
     pub(crate) cull_bind_group_layout: wgpu::BindGroupLayout,
-    pub(crate) pipeline_cache: HashMap<u32, wgpu::RenderPipeline>,
     pub material_cache: MaterialCache,
     pub(crate) mesh_allocator: MeshAllocator,
     pub(crate) global_instance_buffer: Option<wgpu::Buffer>,
@@ -231,7 +230,7 @@ impl MeshRenderResources {
             light_bind_group: None,
             light_uniform_buffer: None, dummy_2d_view, dummy_cube_view, dummy_sampler, current_skybox: None,
             bindless_bind_group_layout, bindless_bind_group: None, materials_storage_buffer: None, texture_index_map: HashMap::new(), material_index_map: HashMap::new(),
-            cull_bind_group_layout, pipeline_cache: HashMap::new(), material_cache: MaterialCache::new(),
+            cull_bind_group_layout, material_cache: MaterialCache::new(),
             mesh_allocator: MeshAllocator::new(&render_server.device), global_instance_buffer: None, global_visible_instance_buffer: None, global_indirect_buffer: None,
             mesh_metadata_buffer: None, cull_bind_group: None, mesh_id_to_index: HashMap::new(), draw_counts: Vec::new(),
             mesh_infos: Vec::new(),
@@ -284,16 +283,8 @@ impl MeshRenderResources {
         }));
     }
 
-    pub fn prepare_pipeline(&mut self, render_server: &RenderServer, _shader_maker: &mut ShaderMaker, camera_bind_group_layout: &wgpu::BindGroupLayout) {
-        if !self.pipeline_cache.contains_key(&0) {
-            let pipeline_layout = render_server.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("mesh layout"), bind_group_layouts: &[camera_bind_group_layout, &self.light_bind_group_layout, &self.bindless_bind_group_layout], push_constant_ranges: &[] });
-            let shader = wgpu::ShaderModuleDescriptor { label: Some("mesh shader"), source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/mesh.wgsl").into()) };
-            let pipeline = create_render_pipeline(&render_server.device, &pipeline_layout, Some(render_server.surface_config.format), Some(Texture::DEPTH_FORMAT), &[Vertex3d::desc(), InstanceRaw::desc()], shader, "standard bindless", false, Some(wgpu::Face::Back));
-            self.pipeline_cache.insert(0, pipeline);
-        }
+    pub fn prepare_pipeline(&mut self, _render_server: &RenderServer, _shader_maker: &mut ShaderMaker, _camera_bind_group_layout: &wgpu::BindGroupLayout) {
     }
-
-    pub fn get_pipeline(&self) -> &wgpu::RenderPipeline { self.pipeline_cache.get(&0).unwrap() }
 
     pub(crate) fn prepare_instances(&mut self, render_server: &RenderServer, extracted_meshes: &Vec<ExtractedMesh>, mesh_cache: &MeshCache, camera_uniform_buffer: &wgpu::Buffer) {
         let mut grouped_instances: HashMap<MeshId, Vec<InstanceRaw>> = HashMap::new();
@@ -404,9 +395,26 @@ pub(crate) fn prepare_meshes(extracted_meshes: &Vec<ExtractedMesh>, extracted_li
     mesh_render_resources.prepare_instances(render_server, extracted_meshes, mesh_cache, camera_render_resources.uniform_buffer.as_ref().unwrap());
 }
 
-pub(crate) fn render_meshes<'a, 'b: 'a>(_extracted_meshes: &'b Vec<ExtractedMesh>, _mesh_cache: &'b MeshCache, mesh_render_resources: &'b MeshRenderResources, camera_render_resources: &'b CameraRenderResources, camera_index: usize, _camera_uniform: &CameraUniform, gizmo_render_resources: &'b GizmoRenderResources, render_pass: &mut wgpu::RenderPass<'a>, _bvh: &'b Bvh) {
-    if camera_render_resources.bind_group.is_none() || mesh_render_resources.light_bind_group.is_none() || mesh_render_resources.bindless_bind_group.is_none() || mesh_render_resources.global_indirect_buffer.is_none() { return; }
-    render_pass.set_pipeline(mesh_render_resources.get_pipeline());
+pub(crate) fn render_meshes<'a, 'b: 'a>(
+    _extracted_meshes: &'b Vec<ExtractedMesh>,
+    _mesh_cache: &'b MeshCache,
+    mesh_render_resources: &'b MeshRenderResources,
+    camera_render_resources: &'b CameraRenderResources,
+    camera_index: usize,
+    _camera_uniform: &CameraUniform,
+    gizmo_render_resources: &'b GizmoRenderResources,
+    render_pass: &mut wgpu::RenderPass<'a>,
+    _bvh: &'b Bvh,
+    pipeline: &'b wgpu::RenderPipeline,
+) {
+    if camera_render_resources.bind_group.is_none()
+        || mesh_render_resources.light_bind_group.is_none()
+        || mesh_render_resources.bindless_bind_group.is_none()
+        || mesh_render_resources.global_indirect_buffer.is_none()
+    {
+        return;
+    }
+    render_pass.set_pipeline(pipeline);
     render_pass.set_bind_group(0, camera_render_resources.bind_group.as_ref().unwrap(), &[camera_index as u32 * CameraUniform::get_uniform_offset_unit()]);
     render_pass.set_bind_group(1, mesh_render_resources.light_bind_group.as_ref().unwrap(), &[]);
     render_pass.set_bind_group(2, mesh_render_resources.bindless_bind_group.as_ref().unwrap(), &[]);

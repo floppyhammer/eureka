@@ -1,19 +1,19 @@
-use crate::render::atlas::{prepare_atlas, render_atlas, AtlasRenderResources, ExtractedAtlas};
+use crate::render::atlas::{prepare_atlas, AtlasRenderResources, ExtractedAtlas};
 use crate::render::camera::{CameraRenderResources, CameraType, ExtractedCameras};
 use crate::render::draw_command::DrawCommands;
 use crate::render::gizmo::GizmoRenderResources;
-use crate::render::light::{prepare_shadow, render_shadow, ExtractedLights, LightRenderResources};
+use crate::render::light::{prepare_shadow, ExtractedLights, LightRenderResources};
 use crate::render::shader_maker::ShaderMaker;
-use crate::render::sky::{prepare_sky, render_sky, ExtractedSky, SkyRenderResources};
+use crate::render::sky::{prepare_sky, ExtractedSky, SkyRenderResources};
 use crate::render::sprite::{
-    prepare_sprite, render_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
+    prepare_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
 };
 use crate::render::ssao::SsaoRenderResources;
 use crate::render::{
-    prepare_meshes, render_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderServer,
+    prepare_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderServer,
     Texture, TextureCache, TextureId,
 };
-use crate::render::render_graph::{MainPassNode, RenderGraph, ShadowNode, SsaoNode, CullingNode};
+use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode};
 use crate::scene::Bvh;
 
 #[derive(Default, Clone)]
@@ -140,12 +140,18 @@ impl RenderWorld {
         graph.add_node("cull", CullingNode::default());
         graph.add_node("shadow", ShadowNode::default());
         graph.add_node("ssao", SsaoNode::default());
-        graph.add_node("main", MainPassNode);
+        graph.add_node("clear", ClearNode);
+        graph.add_node("skybox", SkyboxNode::default());
+        graph.add_node("mesh", MeshNode::default());
+        graph.add_node("sprite", SpriteNode);
 
         graph.add_node_edge("cull", "shadow");
-        graph.add_node_edge("cull", "main");
-        graph.add_node_edge("shadow", "main");
-        graph.add_node_edge("ssao", "main");
+        graph.add_node_edge("cull", "mesh");
+        graph.add_node_edge("shadow", "mesh");
+        graph.add_node_edge("ssao", "mesh");
+        graph.add_node_edge("clear", "skybox");
+        graph.add_node_edge("skybox", "mesh");
+        graph.add_node_edge("mesh", "sprite");
         graph
     }
 

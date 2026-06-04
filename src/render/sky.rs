@@ -12,7 +12,6 @@ pub(crate) struct SkyRenderResources {
     pub texture: Option<TextureId>,
     pub texture_bind_group: Option<wgpu::BindGroup>,
     pub mesh: Option<Mesh>,
-    pub pipeline: Option<wgpu::RenderPipeline>,
 }
 
 impl SkyRenderResources {
@@ -51,7 +50,6 @@ impl SkyRenderResources {
             texture_bind_group_layout: skybox_texture_bind_group_layout,
             texture_bind_group: None,
             texture: None,
-            pipeline: None,
             mesh: None,
         }
     }
@@ -62,7 +60,7 @@ pub(crate) fn prepare_sky(
     render_server: &RenderServer,
     texture_cache: &TextureCache,
     texture_id: &TextureId,
-    camera_bind_group_layout: &wgpu::BindGroupLayout,
+    _camera_bind_group_layout: &wgpu::BindGroupLayout,
     mesh_allocator: &mut crate::render::allocator::MeshAllocator,
 ) {
     let device = &render_server.device;
@@ -93,40 +91,6 @@ pub(crate) fn prepare_sky(
 
         render_resources.texture_bind_group = Some(bind_group);
     }
-
-    if render_resources.pipeline.is_none() {
-        let pipeline_label = "skybox pipeline";
-
-        let pipeline = {
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("skybox pipeline layout"),
-                bind_group_layouts: &[
-                    camera_bind_group_layout,
-                    &render_resources.texture_bind_group_layout,
-                ],
-                push_constant_ranges: &[],
-            });
-
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("skybox shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/skybox.wgsl").into()),
-            };
-
-            create_render_pipeline(
-                device,
-                &pipeline_layout,
-                Some(render_server.surface_config.format),
-                Some(Texture::DEPTH_FORMAT),
-                &[VertexSky::desc()],
-                shader,
-                pipeline_label,
-                false,
-                Some(wgpu::Face::Back),
-            )
-        };
-
-        render_resources.pipeline = Some(pipeline);
-    }
 }
 
 pub(crate) fn render_sky<'a, 'b: 'a>(
@@ -134,13 +98,14 @@ pub(crate) fn render_sky<'a, 'b: 'a>(
     render_resources: &'b SkyRenderResources,
     render_pass: &mut RenderPass<'a>,
     mesh_allocator: &'b crate::render::allocator::MeshAllocator,
+    pipeline: &'b wgpu::RenderPipeline,
 ) {
-    if render_resources.pipeline.is_none() || render_resources.mesh.is_none() {
+    if render_resources.mesh.is_none() {
         return;
     }
 
     let mesh = render_resources.mesh.as_ref().unwrap();
-    render_pass.set_pipeline(render_resources.pipeline.as_ref().unwrap());
+    render_pass.set_pipeline(pipeline);
 
     render_pass.set_vertex_buffer(0, mesh_allocator.sky_vertex_buffer.slice(..));
     render_pass.set_index_buffer(mesh_allocator.sky_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
