@@ -176,7 +176,9 @@ pub trait DrawSprite2d<'a> {
     fn draw_sprite2d(
         &mut self,
         pipeline: &'a wgpu::RenderPipeline,
-        mesh: &'a Mesh,
+        vertex_buffer: &'a wgpu::Buffer,
+        index_buffer: &'a wgpu::Buffer,
+        index_count: u32,
         texture_bind_group: &'a wgpu::BindGroup,
         camera_bind_group: &'a wgpu::BindGroup,
     );
@@ -184,29 +186,23 @@ pub trait DrawSprite2d<'a> {
 
 impl<'a, 'b> DrawSprite2d<'b> for wgpu::RenderPass<'a>
 where
-    'b: 'a, // This means 'b must outlive 'a.
+    'b: 'a,
 {
     fn draw_sprite2d(
         &mut self,
         pipeline: &'b wgpu::RenderPipeline,
-        mesh: &'b Mesh,
+        vertex_buffer: &'b wgpu::Buffer,
+        index_buffer: &'b wgpu::Buffer,
+        index_count: u32,
         texture_bind_group: &'b wgpu::BindGroup,
         camera_bind_group: &'b wgpu::BindGroup,
     ) {
         self.set_pipeline(&pipeline);
-
-        // Set vertex buffer for VertexInput.
-        self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-
-        self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-        // Set camera group.
+        self.set_vertex_buffer(0, vertex_buffer.slice(..));
+        self.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         self.set_bind_group(0, Some(camera_bind_group), &[]);
-
-        // Set texture group.
         self.set_bind_group(1, Some(texture_bind_group), &[]);
-
-        self.draw_indexed(0..mesh.index_count, 0, 0..1);
+        self.draw_indexed(0..index_count, 0, 0..1);
     }
 }
 
@@ -214,7 +210,9 @@ pub trait DrawSprite3d<'a> {
     fn draw_sprite(
         &mut self,
         pipeline: &'a wgpu::RenderPipeline,
-        mesh: &'a Mesh,
+        vertex_buffer: &'a wgpu::Buffer,
+        index_buffer: &'a wgpu::Buffer,
+        index_count: u32,
         texture_bind_group: &'a wgpu::BindGroup,
         camera_bind_group: &'a wgpu::BindGroup,
         params_bind_group: &'a wgpu::BindGroup,
@@ -223,33 +221,25 @@ pub trait DrawSprite3d<'a> {
 
 impl<'a, 'b> DrawSprite3d<'b> for wgpu::RenderPass<'a>
 where
-    'b: 'a, // This means 'b must outlive 'a.
+    'b: 'a,
 {
     fn draw_sprite(
         &mut self,
         pipeline: &'b wgpu::RenderPipeline,
-        mesh: &'b Mesh,
+        vertex_buffer: &'b wgpu::Buffer,
+        index_buffer: &'b wgpu::Buffer,
+        index_count: u32,
         texture_bind_group: &'b wgpu::BindGroup,
         camera_bind_group: &'b wgpu::BindGroup,
         params_bind_group: &'b wgpu::BindGroup,
     ) {
         self.set_pipeline(&pipeline);
-
-        // Set vertex buffer for VertexInput.
-        self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-
-        self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-        // Set camera group.
+        self.set_vertex_buffer(0, vertex_buffer.slice(..));
+        self.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         self.set_bind_group(0, Some(camera_bind_group), &[]);
-
-        // Set texture group.
         self.set_bind_group(1, Some(texture_bind_group), &[]);
-
-        // Set params group.
         self.set_bind_group(2, Some(params_bind_group), &[]);
-
-        self.draw_indexed(0..mesh.index_count, 0, 0..1);
+        self.draw_indexed(0..index_count, 0, 0..1);
     }
 }
 

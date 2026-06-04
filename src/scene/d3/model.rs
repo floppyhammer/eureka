@@ -442,6 +442,7 @@ impl Model {
         texture_cache: &mut TextureCache,
         material_cache: &mut MaterialCache,
         mesh_cache: &mut MeshCache,
+        mesh_allocator: &mut crate::render::allocator::MeshAllocator,
     ) {
         let mut material_ids = Vec::new();
         for m in raw.materials {
@@ -484,30 +485,20 @@ impl Model {
         }
 
         for m in raw.meshes {
-            let vertex_buffer =
-                render_server
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("{} Vertex Buffer", m.name)),
-                        contents: bytemuck::cast_slice(&m.vertices),
-                        usage: wgpu::BufferUsages::VERTEX,
-                    });
-            let index_buffer =
-                render_server
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("{} Index Buffer", m.name)),
-                        contents: bytemuck::cast_slice(&m.indices),
-                        usage: wgpu::BufferUsages::INDEX,
-                    });
+            let (v_offset, i_offset) = mesh_allocator.allocate(
+                &render_server.device,
+                &render_server.queue,
+                &m.vertices,
+                &m.indices,
+            );
 
-            let mesh_id = mesh_cache.add(Mesh {
-                name: m.name,
-                vertex_buffer,
-                index_buffer,
-                index_count: m.indices.len() as u32,
-                aabb: m.aabb,
-            });
+            let mesh_id = mesh_cache.add(Mesh::new(
+                &m.name,
+                v_offset,
+                i_offset,
+                m.indices.len() as u32,
+                m.aabb,
+            ));
             self.meshes.push(mesh_id);
             self.materials
                 .push(m.material_index.map(|idx| material_ids[idx]));
@@ -528,6 +519,7 @@ impl Model {
         tc: &mut TextureCache,
         mc: &mut MaterialCache,
         msc: &mut MeshCache,
+        ma: &mut crate::render::allocator::MeshAllocator,
     ) -> Self {
         let mut model = Self {
             node_3d: Node3d::default(),
@@ -538,7 +530,7 @@ impl Model {
             name: "".to_string(),
             asset_path: None,
         };
-        model.finalize(raw, rs, tc, mc, msc);
+        model.finalize(raw, rs, tc, mc, msc, ma);
         model
     }
 
@@ -546,11 +538,12 @@ impl Model {
         tc: &mut TextureCache,
         mc: &mut MaterialCache,
         msc: &mut MeshCache,
+        ma: &mut crate::render::allocator::MeshAllocator,
         rs: &RenderServer,
         path: P,
     ) -> Result<Self> {
         let raw = Self::parse(path)?;
-        Ok(Self::from_raw(raw, rs, tc, mc, msc))
+        Ok(Self::from_raw(raw, rs, tc, mc, msc, ma))
     }
 }
 
@@ -584,6 +577,7 @@ impl AsNode for Model {
                     &mut render_world.texture_cache,
                     &mut render_world.mesh_render_resources.material_cache,
                     &mut render_world.mesh_cache,
+                    &mut render_world.mesh_render_resources.mesh_allocator,
                 );
             }
         }

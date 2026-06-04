@@ -14,17 +14,19 @@ impl Node for CullingNode {
         let resources = &world.mesh_render_resources;
 
         if let Some(pipeline) = &resources.cull_pipeline {
-            let mut compute_pass = context.encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Culling Pass"),
-                timestamp_writes: None,
-            });
-            compute_pass.set_pipeline(pipeline);
+            if let Some(bind_group) = &resources.cull_bind_group {
+                let mut compute_pass = context.encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("Global Culling Pass"),
+                    timestamp_writes: None,
+                });
+                compute_pass.set_pipeline(pipeline);
+                compute_pass.set_bind_group(0, bind_group, &[0]); // Camera offset
 
-            for metadata in world.mesh_render_resources.instance_cache.values() {
-                if let Some(bind_group) = &metadata.cull_bind_group {
-                    compute_pass.set_bind_group(0, bind_group, &[0]); // Camera offset 0 for now
-                    let workgroup_count = (metadata.instance_count as u32 + 63) / 64;
-                    compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
+                // Dispatch based on total instance count across all meshes
+                // We'll calculate total instances in prepare_instances or just use a large enough number
+                let total_instances: u32 = world.extracted.meshes.len() as u32;
+                if total_instances > 0 {
+                    compute_pass.dispatch_workgroups((total_instances + 63) / 64, 1, 1);
                 }
             }
         }
@@ -270,6 +272,7 @@ impl Node for MainPassNode {
                         world.camera_render_resources.bind_group.as_ref().unwrap(),
                         &world.sky_render_resources,
                         &mut render_pass,
+                        &world.mesh_render_resources.mesh_allocator,
                     );
                 }
 

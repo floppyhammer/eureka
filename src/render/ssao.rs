@@ -454,48 +454,32 @@ impl SsaoRenderResources {
     pub fn render_normal<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        extracted_meshes: &'a Vec<ExtractedMesh>,
-        mesh_cache: &'a MeshCache,
+        _extracted_meshes: &'a Vec<ExtractedMesh>,
+        _mesh_cache: &'a MeshCache,
         mesh_render_resources: &'a MeshRenderResources,
         camera_bind_group: &'a wgpu::BindGroup,
         camera_index: usize,
-        camera_uniform: &CameraUniform,
-        bvh: &'a Bvh,
+        _camera_uniform: &CameraUniform,
+        _bvh: &'a Bvh,
     ) {
         render_pass.set_pipeline(&self.normal_pipeline);
         let offset = camera_index as u32 * CameraUniform::get_uniform_offset_unit();
         render_pass.set_bind_group(0, camera_bind_group, &[offset]);
 
-        let frustum = Frustum::from_view_proj(Mat4::from_cols_array_2d(&camera_uniform.view_proj));
-
-        let mut visible_indices = Vec::new();
-        if bvh.root.is_some() {
-            bvh.query(&frustum, &mut visible_indices);
-        } else {
-            visible_indices = (0..extracted_meshes.len()).collect();
+        if mesh_render_resources.global_indirect_buffer.is_none() {
+            return;
         }
 
-        for idx in visible_indices {
-            let extracted = &extracted_meshes[idx];
-            let mesh = mesh_cache.get(extracted.mesh_id).unwrap();
+        render_pass.set_vertex_buffer(0, mesh_render_resources.mesh_allocator.vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, mesh_render_resources.global_visible_instance_buffer.as_ref().unwrap().slice(..));
+        render_pass.set_index_buffer(mesh_render_resources.mesh_allocator.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-            // Frustum culling
-            if bvh.root.is_none() {
-                let world_aabb = mesh.aabb.transform(&extracted.transform);
-                if !frustum.intersects_aabb(&world_aabb) {
-                    continue;
-                }
-            }
-
-            let instance = mesh_render_resources
-                .instance_cache
-                .get(&extracted.mesh_id)
-                .unwrap();
-
-            render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
-            render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+        if !mesh_render_resources.draw_counts.is_empty() && mesh_render_resources.draw_counts[0] > 0 {
+            render_pass.multi_draw_indexed_indirect(
+                mesh_render_resources.global_indirect_buffer.as_ref().unwrap(),
+                0,
+                mesh_render_resources.draw_counts[0],
+            );
         }
     }
 }

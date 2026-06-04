@@ -226,6 +226,7 @@ impl RenderWorld {
                         &self.texture_cache,
                         &self.extracted.sky.unwrap().texture,
                         &self.camera_render_resources.bind_group_layout,
+                        &mut self.mesh_render_resources.mesh_allocator,
                     );
                 }
             }

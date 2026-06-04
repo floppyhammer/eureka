@@ -414,7 +414,7 @@ pub(crate) fn render_shadow(
     mesh_render_resources: &MeshRenderResources,
     bvh: &Bvh,
 ) {
-    if render_resources.pipeline.is_none() {
+    if render_resources.pipeline.is_none() || mesh_render_resources.global_instance_buffer.is_none() {
         return;
     }
 
@@ -469,18 +469,19 @@ pub(crate) fn render_shadow(
                 visible_indices = (0..extracted_meshes.len()).collect();
             }
 
-            // For shadows, we draw all instances for now to ensure off-screen objects cast shadows.
-            // In a full GPU-driven setup, we'd have a separate culling pass for the light's view.
-            for (mesh_id, instance) in &mesh_render_resources.instance_cache {
-                let mesh = mesh_cache.get(*mesh_id).unwrap();
+            render_pass.set_vertex_buffer(0, mesh_render_resources.mesh_allocator.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, mesh_render_resources.global_instance_buffer.as_ref().unwrap().slice(..));
+            render_pass.set_index_buffer(mesh_render_resources.mesh_allocator.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+            for info in &mesh_render_resources.mesh_infos {
+                let mesh = mesh_cache.get(info.mesh_id).unwrap();
 
                 render_pass.set_pipeline(pipeline);
-                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
-                render_pass
-                    .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-                render_pass.draw_indexed(0..mesh.index_count, 0, 0..instance.instance_count as u32);
+                render_pass.draw_indexed(
+                    mesh.index_offset..mesh.index_offset + mesh.index_count,
+                    mesh.vertex_offset as i32,
+                    info.base_instance..info.base_instance + info.instance_count,
+                );
             }
         }
     }
@@ -528,16 +529,19 @@ pub(crate) fn render_shadow(
                 render_pass.set_bind_group(0, bind_group, &[dynamic_offset]);
             }
 
-            for (mesh_id, instance) in &mesh_render_resources.instance_cache {
-                let mesh = mesh_cache.get(*mesh_id).unwrap();
+            render_pass.set_vertex_buffer(0, mesh_render_resources.mesh_allocator.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, mesh_render_resources.global_instance_buffer.as_ref().unwrap().slice(..));
+            render_pass.set_index_buffer(mesh_render_resources.mesh_allocator.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+            for info in &mesh_render_resources.mesh_infos {
+                let mesh = mesh_cache.get(info.mesh_id).unwrap();
 
                 render_pass.set_pipeline(pipeline);
-                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                render_pass.set_vertex_buffer(1, instance.buffer.slice(..));
-                render_pass
-                    .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-                render_pass.draw_indexed(0..mesh.index_count, 0, 0..instance.instance_count as u32);
+                render_pass.draw_indexed(
+                    mesh.index_offset..mesh.index_offset + mesh.index_count,
+                    mesh.vertex_offset as i32,
+                    info.base_instance..info.base_instance + info.instance_count,
+                );
             }
         }
     }

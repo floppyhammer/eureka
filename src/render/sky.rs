@@ -11,7 +11,7 @@ pub(crate) struct SkyRenderResources {
     pub texture_bind_group_layout: wgpu::BindGroupLayout,
     pub texture: Option<TextureId>,
     pub texture_bind_group: Option<wgpu::BindGroup>,
-    pub mesh: Mesh,
+    pub mesh: Option<Mesh>,
     pub pipeline: Option<wgpu::RenderPipeline>,
 }
 
@@ -47,14 +47,12 @@ impl SkyRenderResources {
             })
         };
 
-        let mesh = Mesh::default_skybox(&render_server.device);
-
         Self {
             texture_bind_group_layout: skybox_texture_bind_group_layout,
             texture_bind_group: None,
             texture: None,
             pipeline: None,
-            mesh,
+            mesh: None,
         }
     }
 }
@@ -65,8 +63,13 @@ pub(crate) fn prepare_sky(
     texture_cache: &TextureCache,
     texture_id: &TextureId,
     camera_bind_group_layout: &wgpu::BindGroupLayout,
+    mesh_allocator: &mut crate::render::allocator::MeshAllocator,
 ) {
     let device = &render_server.device;
+
+    if render_resources.mesh.is_none() {
+        render_resources.mesh = Some(Mesh::default_skybox(&render_server.queue, mesh_allocator));
+    }
 
     if render_resources.texture.is_none() || render_resources.texture.unwrap() != *texture_id {
         render_resources.texture = Some(*texture_id);
@@ -130,31 +133,20 @@ pub(crate) fn render_sky<'a, 'b: 'a>(
     camera_bind_group: &'b wgpu::BindGroup,
     render_resources: &'b SkyRenderResources,
     render_pass: &mut RenderPass<'a>,
+    mesh_allocator: &'b crate::render::allocator::MeshAllocator,
 ) {
-    if render_resources.pipeline.is_none() {
+    if render_resources.pipeline.is_none() || render_resources.mesh.is_none() {
         return;
     }
 
+    let mesh = render_resources.mesh.as_ref().unwrap();
     render_pass.set_pipeline(render_resources.pipeline.as_ref().unwrap());
 
-    // Set vertex buffer for VertexInput.
-    render_pass.set_vertex_buffer(0, render_resources.mesh.vertex_buffer.slice(..));
+    render_pass.set_vertex_buffer(0, mesh_allocator.sky_vertex_buffer.slice(..));
+    render_pass.set_index_buffer(mesh_allocator.sky_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-    render_pass.set_index_buffer(
-        render_resources.mesh.index_buffer.slice(..),
-        wgpu::IndexFormat::Uint32,
-    );
-
-    // FIXME
-    // Set camera uniform.
     render_pass.set_bind_group(0, camera_bind_group, &[0]);
+    render_pass.set_bind_group(1, render_resources.texture_bind_group.as_ref().unwrap(), &[]);
 
-    // Set texture.
-    render_pass.set_bind_group(
-        1,
-        render_resources.texture_bind_group.as_ref().unwrap(),
-        &[],
-    );
-
-    render_pass.draw_indexed(0..render_resources.mesh.index_count, 0, 0..1);
+    render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
 }
