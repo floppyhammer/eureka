@@ -237,9 +237,11 @@ impl MeshRenderResources {
         }
     }
 
-    pub fn prepare_materials(&mut self, texture_cache: &TextureCache, render_server: &RenderServer) {
+    pub fn prepare_materials(&mut self, texture_cache: &TextureCache, render_server: &RenderServer, extracted_sprites: &[crate::render::sprite::ExtractedSprite2d]) {
         self.texture_index_map.clear();
         let mut texture_views = Vec::new();
+
+        // 1. 搜集材质纹理
         let mut sorted_materials: Vec<_> = self.material_cache.storage.iter().collect();
         sorted_materials.sort_by(|(id1, m1), (id2, m2)| m1.name.cmp(&m2.name).then(id1.0.cmp(&id2.0)));
 
@@ -250,6 +252,17 @@ impl MeshRenderResources {
                         self.texture_index_map.insert(id, texture_views.len() as u32);
                         texture_views.push(&texture.view);
                     }
+                }
+            }
+        }
+
+        // 2. 搜集 Sprite 纹理
+        for sprite in extracted_sprites {
+            let id = sprite.texture_id;
+            if !self.texture_index_map.contains_key(&id) {
+                if let Some(texture) = texture_cache.get(id) {
+                    self.texture_index_map.insert(id, texture_views.len() as u32);
+                    texture_views.push(&texture.view);
                 }
             }
         }
@@ -389,7 +402,6 @@ impl MeshRenderResources {
 }
 
 pub(crate) fn prepare_meshes(extracted_meshes: &Vec<ExtractedMesh>, extracted_lights: &ExtractedLights, texture_cache: &TextureCache, shader_maker: &mut ShaderMaker, mesh_render_resources: &mut MeshRenderResources, light_render_resources: &LightRenderResources, camera_render_resources: &CameraRenderResources, render_server: &RenderServer, mesh_cache: &MeshCache, ssao_texture_id: TextureId, skybox_texture_id: Option<TextureId>) {
-    mesh_render_resources.prepare_materials(texture_cache, render_server);
     mesh_render_resources.prepare_pipeline(render_server, shader_maker, &camera_render_resources.bind_group_layout);
     mesh_render_resources.prepare_lights(render_server, extracted_lights, light_render_resources, texture_cache, ssao_texture_id, skybox_texture_id);
     mesh_render_resources.prepare_instances(render_server, extracted_meshes, mesh_cache, camera_render_resources.uniform_buffer.as_ref().unwrap());

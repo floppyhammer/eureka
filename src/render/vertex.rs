@@ -62,6 +62,7 @@ pub(crate) struct Vertex2d {
     pub(crate) position: [f32; 2],
     pub(crate) uv: [f32; 2],
     pub(crate) color: [f32; 3],
+    pub(crate) texture_idx: u32,
 }
 
 impl VertexBuffer for Vertex2d {
@@ -87,6 +88,12 @@ impl VertexBuffer for Vertex2d {
                     offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
                     shader_location: 2,
                     format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    // Texture Index.
+                    offset: std::mem::size_of::<[f32; 7]>() as wgpu::BufferAddress,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Uint32,
                 },
             ],
         }

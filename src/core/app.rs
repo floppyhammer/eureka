@@ -84,7 +84,7 @@ impl<'a> App<'a> {
         // Handle to a physical graphics and/or compute device.
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
+                power_preference: wgpu::PowerPreference::HighPerformance, // 强制请求高性能显卡
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
             })
@@ -97,9 +97,9 @@ impl<'a> App<'a> {
                 label: None,
                 required_features: wgpu::Features::TEXTURE_BINDING_ARRAY
                     | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
-                    | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY
                     | wgpu::Features::INDIRECT_FIRST_INSTANCE
                     | wgpu::Features::MULTI_DRAW_INDIRECT,
+                // 移除了 STORAGE_RESOURCE_BINDING_ARRAY，因为目前没用到
                 required_limits: wgpu::Limits {
                     max_binding_array_elements_per_shader_stage: 1024,
                     ..Default::default()
