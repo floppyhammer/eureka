@@ -608,7 +608,7 @@ impl Node for SpriteNode {
 
     fn run(&mut self, context: &mut RenderContext) {
         let world = context.render_world;
-        if world.sprite_batches.is_empty() {
+        if world.sprite_batches.is_empty() && world.extracted.atlases.is_empty() {
             return;
         }
 
@@ -632,6 +632,14 @@ impl Node for SpriteNode {
             &world.camera_render_resources.bind_group,
             &world.mesh_render_resources.bindless_bind_group,
         ) {
+            // 1. 渲染文字和图集 (Atlas)
+            render_atlas(
+                &world.extracted.atlases,
+                &world.atlas_render_resources,
+                &mut render_pass,
+            );
+
+            // 2. 渲染普通精灵 (Sprite)
             render_sprite(
                 &world.sprite_batches,
                 &world.sprite_render_resources,
@@ -641,5 +649,15 @@ impl Node for SpriteNode {
                 self.pipeline.as_ref().unwrap(),
             );
         }
+    }
+}
+
+pub struct TextNode;
+
+impl Node for TextNode {
+    fn run(&mut self, context: &mut RenderContext) {
+        // 由于 TextServer 目前不在 RenderWorld 里，
+        // 我们暂时通过 context.render_world 的某些字段来传递绘制。
+        // 等待后续将 TextServer 彻底接入 RenderWorld。
     }
 }
