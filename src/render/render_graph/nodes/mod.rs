@@ -1,10 +1,9 @@
-use crate::render::render_graph::{Node, RenderContext};
+use crate::render::atlas::render_atlas;
 use crate::render::camera::CameraType;
 use crate::render::light::render_shadow;
-use crate::render::atlas::render_atlas;
-use crate::render::sprite::render_sprite;
+use crate::render::render_graph::{Node, RenderContext};
 use crate::render::sky::render_sky;
-use crate::render::{render_meshes};
+use crate::render::sprite::render_sprite;
 use crate::render::vertex::VertexBuffer;
 
 pub struct CullingNode {
@@ -591,7 +590,7 @@ impl Node for SpriteNode {
         };
 
         use crate::render::vertex::Vertex2d;
-        use crate::render::{create_render_pipeline, Texture};
+        use crate::render::create_render_pipeline;
 
         self.pipeline = Some(create_render_pipeline(
             device,

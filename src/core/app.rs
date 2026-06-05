@@ -18,7 +18,7 @@ use crate::asset::AssetServer;
 use crate::core::singleton::Singletons;
 use crate::render::render_world::RenderWorld;
 use crate::render::RenderServer;
-use crate::scene::{AsNode, Model, Sky, Sprite2d, World};
+use crate::scene::{AsNode, World};
 use crate::text::TextServer;
 use crate::window::InputServer;
 
