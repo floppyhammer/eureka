@@ -13,7 +13,7 @@ use crate::render::{
     prepare_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderContext,
     Texture, TextureCache, TextureId,
 };
-use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode};
+use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode, FxaaNode};
 use crate::scene::Bvh;
 
 #[derive(Default, Clone)]
@@ -29,6 +29,7 @@ pub struct Extracted {
 
 pub struct RenderWorld {
     pub(crate) surface_depth_texture: TextureId,
+    pub(crate) main_color_texture: TextureId,
     pub texture_cache: TextureCache,
     pub(crate) shader_maker: ShaderMaker,
     pub(crate) camera_render_resources: CameraRenderResources,
@@ -49,6 +50,7 @@ impl RenderWorld {
     pub fn new(render_server: &RenderContext) -> Self {
         let mut texture_cache = TextureCache::new();
         let depth_texture = Texture::create_depth_texture(&render_server.device, &mut texture_cache, &render_server.surface_config, Some("surface depth texture"));
+        let main_color_texture = Self::create_main_color_texture(&render_server.device, &render_server.surface_config, &mut texture_cache);
         let camera_render_resources = CameraRenderResources::new(render_server);
         let sprite_render_resources = SpriteRenderResources::new(render_server);
         let mesh_render_resources = MeshRenderResources::new(render_server);
@@ -60,6 +62,7 @@ impl RenderWorld {
 
         Self {
             surface_depth_texture: depth_texture,
+            main_color_texture,
             texture_cache,
             mesh_cache: MeshCache::new(),
             camera_render_resources,
@@ -91,6 +94,7 @@ impl RenderWorld {
         graph.add_node("clear", ClearNode);
         graph.add_node("skybox", SkyboxNode::default());
         graph.add_node("mesh", MeshNode::default());
+        graph.add_node("fxaa", FxaaNode::default());
         graph.add_node("sprite", SpriteNode::default());
 
         graph.add_node_edge("cull", "shadow");
@@ -99,7 +103,8 @@ impl RenderWorld {
         graph.add_node_edge("ssao", "mesh");
         graph.add_node_edge("clear", "skybox");
         graph.add_node_edge("skybox", "mesh");
-        graph.add_node_edge("mesh", "sprite");
+        graph.add_node_edge("mesh", "fxaa");
+        graph.add_node_edge("fxaa", "sprite");
         graph
     }
 
@@ -145,6 +150,45 @@ impl RenderWorld {
     pub fn recreate_depth_texture(&mut self, render_server: &RenderContext) {
         self.texture_cache.remove(self.surface_depth_texture);
         self.surface_depth_texture = Texture::create_depth_texture(&render_server.device, &mut self.texture_cache, &render_server.surface_config, Some("surface depth texture"));
+
+        self.texture_cache.remove(self.main_color_texture);
+        self.main_color_texture = Self::create_main_color_texture(&render_server.device, &render_server.surface_config, &mut self.texture_cache);
+
         self.ssao_render_resources.on_resize(&render_server.device, &mut self.texture_cache, render_server.surface_config.width, render_server.surface_config.height, self.surface_depth_texture);
+    }
+
+    fn create_main_color_texture(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration, cache: &mut TextureCache) -> TextureId {
+        let size = wgpu::Extent3d {
+            width: config.width,
+            height: config.height,
+            depth_or_array_layers: 1,
+        };
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("main color texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+        cache.add(Texture {
+            size: (config.width, config.height),
+            texture,
+            view,
+            sampler,
+            format: config.format,
+        })
     }
 }

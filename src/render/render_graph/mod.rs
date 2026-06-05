@@ -54,13 +54,16 @@ impl RenderGraph {
         render_context: &RenderContext,
         render_world: &RenderWorld,
         encoder: &mut wgpu::CommandEncoder,
-        output_view: &wgpu::TextureView,
+        final_output_view: &wgpu::TextureView,
     ) {
+        let main_view = &render_world.texture_cache.get(render_world.main_color_texture).expect("Main color texture not found in cache").view;
+
         let mut context = FrameContext {
             render_context,
             render_world,
             encoder,
-            output_view,
+            output_view: main_view,
+            final_output_view,
         };
 
         // Simple topological sort for execution order
@@ -130,4 +133,5 @@ pub struct FrameContext<'a> {
     pub render_world: &'a RenderWorld,
     pub encoder: &'a mut wgpu::CommandEncoder,
     pub output_view: &'a wgpu::TextureView,
+    pub final_output_view: &'a wgpu::TextureView,
 }
