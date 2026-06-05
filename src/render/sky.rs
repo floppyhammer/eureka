@@ -1,5 +1,5 @@
 use crate::render::vertex::{VertexBuffer, VertexSky};
-use crate::render::{create_render_pipeline, Mesh, RenderServer, Texture, TextureCache, TextureId};
+use crate::render::{create_render_pipeline, Mesh, RenderContext, Texture, TextureCache, TextureId};
 use wgpu::RenderPass;
 
 #[derive(Copy, Clone)]
@@ -15,7 +15,7 @@ pub(crate) struct SkyRenderResources {
 }
 
 impl SkyRenderResources {
-    pub(crate) fn new(render_server: &RenderServer) -> Self {
+    pub(crate) fn new(render_server: &RenderContext) -> Self {
         let device = &render_server.device;
 
         let skybox_texture_bind_group_layout = {
@@ -57,7 +57,7 @@ impl SkyRenderResources {
 
 pub(crate) fn prepare_sky(
     render_resources: &mut SkyRenderResources,
-    render_server: &RenderServer,
+    render_server: &RenderContext,
     texture_cache: &TextureCache,
     texture_id: &TextureId,
     _camera_bind_group_layout: &wgpu::BindGroupLayout,

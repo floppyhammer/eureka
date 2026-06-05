@@ -17,7 +17,7 @@ use winit::dpi::{LogicalSize, PhysicalSize, Size};
 use crate::asset::AssetServer;
 use crate::core::singleton::Singletons;
 use crate::render::render_world::RenderWorld;
-use crate::render::RenderServer;
+use crate::render::RenderContext;
 use crate::scene::{AsNode, World};
 use crate::text::TextServer;
 use crate::window::InputServer;
@@ -74,7 +74,7 @@ impl<'a> App<'a> {
     }
 
     /// Creating some of the wgpu types requires async code.
-    async fn init_render(window: Arc<Window>) -> RenderServer<'a> {
+    async fn init_render(window: Arc<Window>) -> RenderContext<'a> {
         // Context for all other wgpu objects.
         let instance = wgpu::Instance::default();
 
@@ -131,7 +131,7 @@ impl<'a> App<'a> {
         surface.configure(&device, &surface_config);
 
         // Create a render server.
-        RenderServer::new(surface, surface_config, device, queue)
+        RenderContext::new(surface, surface_config, device, queue)
     }
 
     pub fn run(&mut self) {
@@ -151,17 +151,17 @@ impl<'a> App<'a> {
         if let Some(singletons) = &mut self.singletons {
             // Reconfigure the surface everytime the window's size changes.
             if new_size.width > 0 && new_size.height > 0 {
-                let config = &mut singletons.render_server.surface_config;
+                let config = &mut singletons.render_context.surface_config;
                 config.width = new_size.width;
                 config.height = new_size.height;
 
                 singletons
-                    .render_server
+                    .render_context
                     .surface
-                    .configure(&singletons.render_server.device, config);
+                    .configure(&singletons.render_context.device, config);
 
                 if let Some(render_world) = &mut self.render_world {
-                    render_world.recreate_depth_texture(&singletons.render_server);
+                    render_world.recreate_depth_texture(&singletons.render_context);
                 }
 
                 self.world
@@ -190,7 +190,7 @@ impl<'a> App<'a> {
 
             // Reconcile fonts.
             singletons.text_server.update(
-                &singletons.render_server,
+                &singletons.render_context,
                 &mut render_world.texture_cache,
                 &singletons.asset_server,
             );
@@ -219,14 +219,14 @@ impl<'a> App<'a> {
         // Extract render entities from the draw commands.
         render_world.extract(&draw_commands);
 
-        let render_server = &singletons.render_server;
+        let render_server = &singletons.render_context;
 
         render_world.prepare(render_server);
 
         // Update server GPU resources.
         singletons
             .text_server
-            .prepare(&singletons.render_server, &mut render_world.texture_cache);
+            .prepare(&singletons.render_context, &mut render_world.texture_cache);
 
         // First we need to get a frame to draw to.
         let surface_texture = render_server.surface.get_current_texture()?;
@@ -253,7 +253,7 @@ impl<'a> App<'a> {
         // Finish the command encoder to generate a command buffer,
         // then submit it for execution.
         singletons
-            .render_server
+            .render_context
             .queue
             .submit(std::iter::once(encoder.finish()));
 
@@ -281,16 +281,16 @@ impl<'a> ApplicationHandler for App<'a> {
         self.window = Some(window.clone());
 
         // App::init_render uses async code, so we're going to wait for it to finish.
-        let render_server = pollster::block_on(Self::init_render(window.clone()));
+        let render_context = pollster::block_on(Self::init_render(window.clone()));
 
         let time = Time::new();
         let mut asset_server = AssetServer::new();
-        let render_world = RenderWorld::new(&render_server);
+        let render_world = RenderWorld::new(&render_context);
         let text_server = TextServer::new(&mut asset_server);
 
         self.singletons = Some(Singletons {
             time,
-            render_server,
+            render_context,
             input_server: InputServer::new(),
             text_server,
             asset_server,

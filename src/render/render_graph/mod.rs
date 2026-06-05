@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use crate::render::RenderServer;
+use crate::render::RenderContext;
 use crate::render::render_world::RenderWorld;
 
 pub mod node;
@@ -51,13 +51,13 @@ impl RenderGraph {
 
     pub fn run(
         &mut self,
-        render_server: &RenderServer,
+        render_context: &RenderContext,
         render_world: &RenderWorld,
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
     ) {
-        let mut context = RenderContext {
-            render_server,
+        let mut context = FrameContext {
+            render_context,
             render_world,
             encoder,
             output_view,
@@ -125,8 +125,8 @@ impl RenderGraph {
     }
 }
 
-pub struct RenderContext<'a> {
-    pub render_server: &'a RenderServer<'a>,
+pub struct FrameContext<'a> {
+    pub render_context: &'a RenderContext<'a>,
     pub render_world: &'a RenderWorld,
     pub encoder: &'a mut wgpu::CommandEncoder,
     pub output_view: &'a wgpu::TextureView,

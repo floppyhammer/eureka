@@ -69,8 +69,8 @@ impl AsNode for Camera2d {
 
     fn update(&mut self, _dt: f32, singletons: &mut Singletons) {
         self.projection.update(
-            singletons.render_server.surface_config.width as f32,
-            singletons.render_server.surface_config.height as f32,
+            singletons.render_context.surface_config.width as f32,
+            singletons.render_context.surface_config.height as f32,
         );
     }
 

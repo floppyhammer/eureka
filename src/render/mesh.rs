@@ -7,7 +7,7 @@ use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform, 
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex2d, Vertex3d, VertexBuffer, VertexSky};
-use crate::render::{create_render_pipeline, RenderServer, Texture, TextureCache, TextureId};
+use crate::render::{create_render_pipeline, RenderContext, Texture, TextureCache, TextureId};
 use crate::scene::Bvh;
 use glam::{Mat3, Mat4, Quat, Vec3};
 use std::collections::HashMap;
@@ -180,7 +180,7 @@ pub(crate) struct MeshInstanceInfo {
 }
 
 impl MeshRenderResources {
-    pub(crate) fn new(render_server: &RenderServer) -> Self {
+    pub(crate) fn new(render_server: &RenderContext) -> Self {
         let light_bind_group_layout = render_server.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
@@ -237,7 +237,7 @@ impl MeshRenderResources {
         }
     }
 
-    pub fn prepare_materials(&mut self, texture_cache: &TextureCache, render_server: &RenderServer, extracted_sprites: &[crate::render::sprite::ExtractedSprite2d]) {
+    pub fn prepare_materials(&mut self, texture_cache: &TextureCache, render_server: &RenderContext, extracted_sprites: &[crate::render::sprite::ExtractedSprite2d]) {
         self.texture_index_map.clear();
         let mut texture_views = Vec::new();
 
@@ -296,10 +296,10 @@ impl MeshRenderResources {
         }));
     }
 
-    pub fn prepare_pipeline(&mut self, _render_server: &RenderServer, _shader_maker: &mut ShaderMaker, _camera_bind_group_layout: &wgpu::BindGroupLayout) {
+    pub fn prepare_pipeline(&mut self, _render_server: &RenderContext, _shader_maker: &mut ShaderMaker, _camera_bind_group_layout: &wgpu::BindGroupLayout) {
     }
 
-    pub(crate) fn prepare_instances(&mut self, render_server: &RenderServer, extracted_meshes: &Vec<ExtractedMesh>, mesh_cache: &MeshCache, camera_uniform_buffer: &wgpu::Buffer) {
+    pub(crate) fn prepare_instances(&mut self, render_server: &RenderContext, extracted_meshes: &Vec<ExtractedMesh>, mesh_cache: &MeshCache, camera_uniform_buffer: &wgpu::Buffer) {
         let mut grouped_instances: HashMap<MeshId, Vec<InstanceRaw>> = HashMap::new();
         for mesh in extracted_meshes {
             let material_idx = mesh.material_id.and_then(|id| self.material_index_map.get(&id)).cloned().unwrap_or(0);
@@ -366,7 +366,7 @@ impl MeshRenderResources {
         self.draw_counts = vec![indirect_commands.len() as u32];
     }
 
-    pub(crate) fn prepare_lights(&mut self, render_server: &RenderServer, lights: &ExtractedLights, light_render_resources: &LightRenderResources, texture_cache: &TextureCache, ssao_texture_id: TextureId, skybox_texture_id: Option<TextureId>) {
+    pub(crate) fn prepare_lights(&mut self, render_server: &RenderContext, lights: &ExtractedLights, light_render_resources: &LightRenderResources, texture_cache: &TextureCache, ssao_texture_id: TextureId, skybox_texture_id: Option<TextureId>) {
         if self.light_uniform_buffer.is_none() { self.light_uniform_buffer = Some(render_server.device.create_buffer(&wgpu::BufferDescriptor { label: Some("light uniform"), size: mem::size_of::<LightUniform>() as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false })); }
         if self.light_bind_group.is_none() || self.current_skybox != skybox_texture_id {
             if let (Some(sm), Some(psm)) = (light_render_resources.directional_shadow_map, light_render_resources.point_shadow_map) {
@@ -401,7 +401,7 @@ impl MeshRenderResources {
     }
 }
 
-pub(crate) fn prepare_meshes(extracted_meshes: &Vec<ExtractedMesh>, extracted_lights: &ExtractedLights, texture_cache: &TextureCache, shader_maker: &mut ShaderMaker, mesh_render_resources: &mut MeshRenderResources, light_render_resources: &LightRenderResources, camera_render_resources: &CameraRenderResources, render_server: &RenderServer, mesh_cache: &MeshCache, ssao_texture_id: TextureId, skybox_texture_id: Option<TextureId>) {
+pub(crate) fn prepare_meshes(extracted_meshes: &Vec<ExtractedMesh>, extracted_lights: &ExtractedLights, texture_cache: &TextureCache, shader_maker: &mut ShaderMaker, mesh_render_resources: &mut MeshRenderResources, light_render_resources: &LightRenderResources, camera_render_resources: &CameraRenderResources, render_server: &RenderContext, mesh_cache: &MeshCache, ssao_texture_id: TextureId, skybox_texture_id: Option<TextureId>) {
     mesh_render_resources.prepare_pipeline(render_server, shader_maker, &camera_render_resources.bind_group_layout);
     mesh_render_resources.prepare_lights(render_server, extracted_lights, light_render_resources, texture_cache, ssao_texture_id, skybox_texture_id);
     mesh_render_resources.prepare_instances(render_server, extracted_meshes, mesh_cache, camera_render_resources.uniform_buffer.as_ref().unwrap());

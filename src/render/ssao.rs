@@ -2,7 +2,7 @@ use crate::math::frustum::Frustum;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::mesh::{ExtractedMesh, InstanceRaw, MeshCache, MeshRenderResources};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
-use crate::render::{create_render_pipeline, RenderServer, Texture, TextureCache, TextureId};
+use crate::render::{create_render_pipeline, RenderContext, Texture, TextureCache, TextureId};
 use crate::scene::Bvh;
 use glam::{vec3, vec4, Mat4, Vec3};
 use wgpu::util::DeviceExt;
@@ -26,7 +26,7 @@ struct SSAOUniform {
 
 impl SsaoRenderResources {
     pub fn new(
-        render_server: &RenderServer,
+        render_server: &RenderContext,
         texture_cache: &mut TextureCache,
         camera_resources: &CameraRenderResources,
         initial_depth_texture: TextureId,

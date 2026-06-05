@@ -1,7 +1,7 @@
 use crate::core::singleton::Singletons;
 use crate::render::camera::{CameraType, CameraUniform, PerspectiveProjection, Projection};
 use crate::render::draw_command::DrawCommands;
-use crate::render::RenderServer;
+use crate::render::RenderContext;
 use crate::scene::{AsNode, NodeType};
 use crate::window::{InputEvent, InputServer};
 use glam::{Mat4, UVec2, Vec2, Vec3};
@@ -30,7 +30,7 @@ impl Camera3d {
         position: Vec3,
         yaw_radians: f32,
         pitch_radians: f32,
-        render_server: &RenderServer,
+        render_server: &RenderContext,
     ) -> Self {
         let config = &render_server.surface_config;
 
@@ -250,8 +250,8 @@ impl AsNode for Camera3d {
 
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         self.projection.update(
-            singletons.render_server.surface_config.width as f32,
-            singletons.render_server.surface_config.height as f32,
+            singletons.render_context.surface_config.width as f32,
+            singletons.render_context.surface_config.height as f32,
         );
 
         // Update camera transform.

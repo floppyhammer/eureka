@@ -1,4 +1,4 @@
-use crate::render::{RenderServer, Texture};
+use crate::render::{RenderContext, Texture};
 
 pub(crate) struct Gizmo {
     pub(crate) color: [f32; 3],
@@ -10,7 +10,7 @@ pub(crate) struct GizmoRenderResources {
 
 impl GizmoRenderResources {
     pub(crate) fn new(
-        render_server: &RenderServer,
+        render_server: &RenderContext,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> Self {
         let device = &render_server.device;

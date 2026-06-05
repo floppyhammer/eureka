@@ -15,7 +15,7 @@ use crate::render::draw_command::DrawCommands;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::vertex::Vertex3d;
 use crate::render::{
-    ExtractedMesh, Mesh, MeshCache, MeshId, RawTextureData, RenderServer, Texture, TextureCache,
+    ExtractedMesh, Mesh, MeshCache, MeshId, RawTextureData, RenderContext, Texture, TextureCache,
     TextureId,
 };
 use crate::scene::d3::node_3d::{AsNode3d, Node3d};
@@ -438,7 +438,7 @@ impl Model {
     pub fn finalize(
         &mut self,
         raw: RawModelData,
-        render_server: &RenderServer,
+        render_server: &RenderContext,
         texture_cache: &mut TextureCache,
         material_cache: &mut MaterialCache,
         mesh_cache: &mut MeshCache,
@@ -515,7 +515,7 @@ impl Model {
 
     pub fn from_raw(
         raw: RawModelData,
-        rs: &RenderServer,
+        rs: &RenderContext,
         tc: &mut TextureCache,
         mc: &mut MaterialCache,
         msc: &mut MeshCache,
@@ -539,7 +539,7 @@ impl Model {
         mc: &mut MaterialCache,
         msc: &mut MeshCache,
         ma: &mut crate::render::allocator::MeshAllocator,
-        rs: &RenderServer,
+        rs: &RenderContext,
         path: P,
     ) -> Result<Self> {
         let raw = Self::parse(path)?;
@@ -573,7 +573,7 @@ impl AsNode for Model {
                 let raw = raw.clone();
                 self.finalize(
                     raw,
-                    &singletons.render_server,
+                    &singletons.render_context,
                     &mut render_world.texture_cache,
                     &mut render_world.mesh_render_resources.material_cache,
                     &mut render_world.mesh_cache,

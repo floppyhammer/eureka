@@ -3,7 +3,7 @@ use crate::render::camera::CameraUniform;
 use crate::render::draw_command::DrawCommands;
 use crate::render::sprite::ExtractedSprite2d;
 use crate::render::view::ViewInfo;
-use crate::render::{RawTextureData, RenderServer, Texture, TextureCache, TextureId};
+use crate::render::{RawTextureData, RenderContext, Texture, TextureCache, TextureId};
 use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
 use crate::scene::{AsNode, NodeType};
 use glam::{Mat4, Vec2, Vec3, Vec4};
@@ -80,7 +80,7 @@ impl Sprite2d {
     pub fn finalize(
         &mut self,
         raw: RawTextureData,
-        render_server: &RenderServer,
+        render_server: &RenderContext,
         texture_cache: &mut TextureCache,
     ) {
         let texture_id = Texture::from_raw(
@@ -130,7 +130,7 @@ impl AsNode for Sprite2d {
                 let raw = raw.clone();
                 self.finalize(
                     raw,
-                    &singletons.render_server,
+                    &singletons.render_context,
                     &mut render_world.texture_cache,
                 );
             }

@@ -2,7 +2,7 @@ use crate::asset::AssetServer;
 use crate::math::rect_to_vec4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasInstance, AtlasMode};
-use crate::render::{RenderServer, TextureCache};
+use crate::render::{RenderContext, TextureCache};
 use crate::text::{DynamicFont, FONT_ATLAS_SIZE};
 use glam::{Vec2, Vec4};
 use std::collections::HashMap;
@@ -35,7 +35,7 @@ impl TextServer {
 
     pub(crate) fn update(
         &mut self,
-        render_server: &RenderServer,
+        render_server: &RenderContext,
         texture_cache: &mut TextureCache,
         asset_server: &AssetServer,
     ) {
@@ -59,7 +59,7 @@ impl TextServer {
 
     pub(crate) fn prepare(
         &mut self,
-        render_server: &RenderServer,
+        render_server: &RenderContext,
         texture_cache: &mut TextureCache,
     ) {
         for (_key, font) in &mut self.fonts {

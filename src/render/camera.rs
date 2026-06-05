@@ -1,7 +1,7 @@
-use crate::render::RenderServer;
 use glam::Mat4;
 use std::mem;
 use wgpu::BufferAddress;
+use crate::render::RenderContext;
 
 #[derive(Clone, PartialEq)]
 pub(crate) enum CameraType {
@@ -72,9 +72,9 @@ pub(crate) struct CameraRenderResources {
 }
 
 impl CameraRenderResources {
-    pub fn new(render_server: &RenderServer) -> Self {
+    pub fn new(render_context: &RenderContext) -> Self {
         let bind_group_layout =
-            render_server
+            render_context
                 .device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     entries: &[wgpu::BindGroupLayoutEntry {
@@ -98,7 +98,7 @@ impl CameraRenderResources {
         }
     }
 
-    pub fn prepare_cameras(&mut self, render_server: &RenderServer, cameras: &ExtractedCameras) {
+    pub fn prepare_cameras(&mut self, render_context: &RenderContext, cameras: &ExtractedCameras) {
         let camera_count = cameras.uniforms.len();
 
         if self.uniform_buffer_capacity < camera_count {
@@ -106,14 +106,14 @@ impl CameraRenderResources {
             let buffer_size = offset_unit * camera_count as u32;
 
             // Create a buffer for the camera uniform.
-            let buffer = render_server.device.create_buffer(&wgpu::BufferDescriptor {
+            let buffer = render_context.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("camera uniform buffer (unique)"),
                 size: buffer_size as BufferAddress,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
 
-            let bind_group = render_server
+            let bind_group = render_context
                 .device
                 .create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &self.bind_group_layout,
@@ -152,7 +152,7 @@ impl CameraRenderResources {
                 }
             }
 
-            render_server.queue.write_buffer(
+            render_context.queue.write_buffer(
                 self.uniform_buffer.as_ref().unwrap(),
                 0,
                 bytemuck::cast_slice(aligned_up_data.as_slice()),

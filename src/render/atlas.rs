@@ -1,6 +1,6 @@
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::VertexBuffer;
-use crate::render::{InstanceRaw, RenderServer, Texture, TextureCache, TextureId};
+use crate::render::{InstanceRaw, RenderContext, Texture, TextureCache, TextureId};
 use glam::{UVec2, Vec2, Vec4};
 use std::collections::HashMap;
 use std::mem;
@@ -19,7 +19,7 @@ pub struct AtlasRenderResources {
 }
 
 impl AtlasRenderResources {
-    pub(crate) fn new(render_server: &RenderServer) -> Self {
+    pub(crate) fn new(render_server: &RenderContext) -> Self {
         let params_bind_group_layout = render_server.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::VERTEX, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: true, min_binding_size: None }, count: None }],
             label: Some("atlas params bind group layout"),
@@ -34,7 +34,7 @@ impl AtlasRenderResources {
         Self { params_bind_group_layout, params_bind_group: None, params_buffer: None, params_buffer_capacity: 0, instance_buffer: None, texture_bind_group_layout, texture_bind_group_cache: HashMap::new(), instance_buffer_capacity: 0, pipeline_cache: Default::default() }
     }
 
-    fn create_pipeline(&mut self, mode: AtlasMode, render_server: &RenderServer, shader_maker: &mut ShaderMaker) {
+    fn create_pipeline(&mut self, mode: AtlasMode, render_server: &RenderContext, shader_maker: &mut ShaderMaker) {
         if self.pipeline_cache.contains_key(&mode) { return; }
         let device = &render_server.device;
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("atlas layout"), bind_group_layouts: &[&self.params_bind_group_layout, &self.texture_bind_group_layout], push_constant_ranges: &[] });
@@ -79,7 +79,7 @@ impl VertexBuffer for AtlasInstanceRaw {
 }
 #[derive(Default, Clone)] pub(crate) struct Atlas { pub(crate) texture: Option<TextureId>, pub(crate) instances: Vec<AtlasInstance>, pub(crate) texture_size: (u32, u32), pub(crate) mode: AtlasMode }
 
-pub fn prepare_atlas(extracted: &Vec<ExtractedAtlas>, render_resources: &mut AtlasRenderResources, render_server: &RenderServer, texture_cache: &TextureCache, shader_maker: &mut ShaderMaker) {
+pub fn prepare_atlas(extracted: &Vec<ExtractedAtlas>, render_resources: &mut AtlasRenderResources, render_server: &RenderContext, texture_cache: &TextureCache, shader_maker: &mut ShaderMaker) {
     if extracted.is_empty() { return; }
     let device = &render_server.device;
     let mut all_instances = vec![];

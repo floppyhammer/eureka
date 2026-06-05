@@ -1,7 +1,7 @@
 use crate::render::atlas::render_atlas;
 use crate::render::camera::CameraType;
 use crate::render::light::render_shadow;
-use crate::render::render_graph::{Node, RenderContext};
+use crate::render::render_graph::{FrameContext, Node, RenderContext};
 use crate::render::sky::render_sky;
 use crate::render::sprite::render_sprite;
 use crate::render::vertex::VertexBuffer;
@@ -17,14 +17,14 @@ impl Default for CullingNode {
 }
 
 impl Node for CullingNode {
-    fn prepare(&mut self, context: &mut RenderContext) {
+    fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() {
             return;
         }
 
         let world = context.render_world;
         let resources = &world.mesh_render_resources;
-        let device = &context.render_server.device;
+        let device = &context.render_context.device;
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("cull layout"),
@@ -47,7 +47,7 @@ impl Node for CullingNode {
         }));
     }
 
-    fn run(&mut self, context: &mut RenderContext) {
+    fn run(&mut self, context: &mut FrameContext) {
         let world = context.render_world;
         let resources = &world.mesh_render_resources;
 
@@ -81,12 +81,12 @@ impl Default for ShadowNode {
 }
 
 impl Node for ShadowNode {
-    fn prepare(&mut self, context: &mut RenderContext) {
+    fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() {
             return;
         }
 
-        let device = &context.render_server.device;
+        let device = &context.render_context.device;
         let camera_resources = &context.render_world.camera_render_resources;
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -118,7 +118,7 @@ impl Node for ShadowNode {
         self.pipeline = Some(pipeline);
     }
 
-    fn run(&mut self, context: &mut RenderContext) {
+    fn run(&mut self, context: &mut FrameContext) {
         let world = context.render_world;
         if let Some(pipeline) = &self.pipeline {
             render_shadow(
@@ -153,12 +153,12 @@ impl Default for SsaoNode {
 }
 
 impl Node for SsaoNode {
-    fn prepare(&mut self, context: &mut RenderContext) {
+    fn prepare(&mut self, context: &mut FrameContext) {
         if self.normal_pipeline.is_some() {
             return;
         }
 
-        let device = &context.render_server.device;
+        let device = &context.render_context.device;
         let world = context.render_world;
         let camera_resources = &world.camera_render_resources;
 
@@ -275,7 +275,7 @@ impl Node for SsaoNode {
         self.blur_pipeline = Some(blur_pipeline);
     }
 
-    fn run(&mut self, context: &mut RenderContext) {
+    fn run(&mut self, context: &mut FrameContext) {
         let world = context.render_world;
         if world.extracted.meshes.is_empty() {
             return;
@@ -407,7 +407,7 @@ impl Node for SsaoNode {
 pub struct ClearNode;
 
 impl Node for ClearNode {
-    fn run(&mut self, context: &mut RenderContext) {
+    fn run(&mut self, context: &mut FrameContext) {
         let world = context.render_world;
         let depth_texture = world.texture_cache.get(world.surface_depth_texture).unwrap();
 
@@ -460,9 +460,9 @@ impl Default for SkyboxNode {
 }
 
 impl Node for SkyboxNode {
-    fn prepare(&mut self, context: &mut RenderContext) {
+    fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() { return; }
-        let device = &context.render_server.device;
+        let device = &context.render_context.device;
         let world = context.render_world;
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -479,10 +479,10 @@ impl Node for SkyboxNode {
         use crate::render::vertex::VertexSky;
         use crate::render::{create_render_pipeline, Texture};
 
-        self.pipeline = Some(create_render_pipeline(device, &pipeline_layout, Some(context.render_server.surface_config.format), Some(Texture::DEPTH_FORMAT), &[VertexSky::desc()], shader, "skybox pipeline", false, Some(wgpu::Face::Back)));
+        self.pipeline = Some(create_render_pipeline(device, &pipeline_layout, Some(context.render_context.surface_config.format), Some(Texture::DEPTH_FORMAT), &[VertexSky::desc()], shader, "skybox pipeline", false, Some(wgpu::Face::Back)));
     }
 
-    fn run(&mut self, context: &mut RenderContext) {
+    fn run(&mut self, context: &mut FrameContext) {
         let world = context.render_world;
         if world.extracted.sky.is_none() { return; }
         let depth_texture = world.texture_cache.get(world.surface_depth_texture).unwrap();
@@ -512,9 +512,9 @@ impl Default for MeshNode {
 }
 
 impl Node for MeshNode {
-    fn prepare(&mut self, context: &mut RenderContext) {
+    fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() { return; }
-        let device = &context.render_server.device;
+        let device = &context.render_context.device;
         let world = context.render_world;
         let resources = &world.mesh_render_resources;
 
@@ -532,10 +532,10 @@ impl Node for MeshNode {
         use crate::render::vertex::Vertex3d;
         use crate::render::{create_render_pipeline, InstanceRaw, Texture};
 
-        self.pipeline = Some(create_render_pipeline(device, &pipeline_layout, Some(context.render_server.surface_config.format), Some(Texture::DEPTH_FORMAT), &[Vertex3d::desc(), InstanceRaw::desc()], shader, "standard bindless", false, Some(wgpu::Face::Back)));
+        self.pipeline = Some(create_render_pipeline(device, &pipeline_layout, Some(context.render_context.surface_config.format), Some(Texture::DEPTH_FORMAT), &[Vertex3d::desc(), InstanceRaw::desc()], shader, "standard bindless", false, Some(wgpu::Face::Back)));
     }
 
-    fn run(&mut self, context: &mut RenderContext) {
+    fn run(&mut self, context: &mut FrameContext) {
         let world = context.render_world;
         if world.extracted.meshes.is_empty() { return; }
         let depth_texture = world.texture_cache.get(world.surface_depth_texture).unwrap();
@@ -567,12 +567,12 @@ impl Default for SpriteNode {
 }
 
 impl Node for SpriteNode {
-    fn prepare(&mut self, context: &mut RenderContext) {
+    fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() {
             return;
         }
 
-        let device = &context.render_server.device;
+        let device = &context.render_context.device;
         let world = context.render_world;
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -595,7 +595,7 @@ impl Node for SpriteNode {
         self.pipeline = Some(create_render_pipeline(
             device,
             &pipeline_layout,
-            Some(context.render_server.surface_config.format),
+            Some(context.render_context.surface_config.format),
             None, // 修正：2D 渲染不使用深度缓冲区，必须与 RenderPass 匹配
             &[Vertex2d::desc()],
             shader,
@@ -605,7 +605,7 @@ impl Node for SpriteNode {
         ));
     }
 
-    fn run(&mut self, context: &mut RenderContext) {
+    fn run(&mut self, context: &mut FrameContext) {
         let world = context.render_world;
         if world.sprite_batches.is_empty() && world.extracted.atlases.is_empty() {
             return;
@@ -654,7 +654,7 @@ impl Node for SpriteNode {
 pub struct TextNode;
 
 impl Node for TextNode {
-    fn run(&mut self, context: &mut RenderContext) {
+    fn run(&mut self, context: &mut FrameContext) {
         // 由于 TextServer 目前不在 RenderWorld 里，
         // 我们暂时通过 context.render_world 的某些字段来传递绘制。
         // 等待后续将 TextServer 彻底接入 RenderWorld。

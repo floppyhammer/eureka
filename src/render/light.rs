@@ -3,7 +3,7 @@ use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{
     create_render_pipeline, ExtractedMesh, InstanceRaw, MeshCache, MeshRenderResources,
-    RenderServer, Texture, TextureCache, TextureId,
+    RenderContext, Texture, TextureCache, TextureId,
 };
 use crate::scene::Bvh;
 use glam::{Mat4, Vec3};
@@ -100,7 +100,7 @@ impl LightRenderResources {
 pub(crate) fn prepare_shadow(
     extracted_lights: &ExtractedLights,
     main_camera: Option<&CameraUniform>,
-    render_server: &RenderServer,
+    render_server: &RenderContext,
     texture_cache: &mut TextureCache,
     render_resources: &mut LightRenderResources,
     camera_render_resources: &CameraRenderResources,

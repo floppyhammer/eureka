@@ -1,7 +1,7 @@
 use crate::math::transform::Transform2d;
 use crate::render::camera::CameraUniform;
 use crate::render::vertex::{Vertex2d, VertexBuffer};
-use crate::render::{Mesh, RenderServer, Texture, TextureCache, TextureId, MeshRenderResources};
+use crate::render::{Mesh, RenderContext, Texture, TextureCache, TextureId, MeshRenderResources};
 use glam::Vec2;
 use std::mem;
 use std::ops::Range;
@@ -31,7 +31,7 @@ pub struct SpriteRenderResources {
 }
 
 impl SpriteRenderResources {
-    pub(crate) fn new(_render_server: &RenderServer) -> Self {
+    pub(crate) fn new(_render_server: &RenderContext) -> Self {
         Self {
             vertex_buffer: None,
             vertex_buffer_capacity: 0,
@@ -49,7 +49,7 @@ pub(crate) fn prepare_sprite(
     sprites: &Vec<ExtractedSprite2d>,
     render_resources: &mut SpriteRenderResources,
     texture_cache: &TextureCache,
-    render_server: &RenderServer,
+    render_server: &RenderContext,
     mesh_render_resources: &MeshRenderResources,
 ) -> Vec<SpriteBatch> {
     if sprites.is_empty() { return vec![]; }

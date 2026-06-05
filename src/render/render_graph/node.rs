@@ -1,6 +1,6 @@
-use crate::render::render_graph::RenderContext;
+use crate::render::render_graph::FrameContext;
 
 pub trait Node: Send + Sync + 'static {
-    fn prepare(&mut self, _context: &mut RenderContext) {}
-    fn run(&mut self, context: &mut RenderContext);
+    fn prepare(&mut self, _context: &mut FrameContext) {}
+    fn run(&mut self, context: &mut FrameContext);
 }

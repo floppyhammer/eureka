@@ -18,7 +18,7 @@ fn main() {
             Vec3::new(-10.0, 0.0, 0.0),
             0.0,
             0.0,
-            &singletons.render_server,
+            &singletons.render_context,
         );
         world.add_node(Box::new(camera3d), None);
 

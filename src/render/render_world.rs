@@ -10,7 +10,7 @@ use crate::render::sprite::{
 };
 use crate::render::ssao::SsaoRenderResources;
 use crate::render::{
-    prepare_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderServer,
+    prepare_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderContext,
     Texture, TextureCache, TextureId,
 };
 use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode};
@@ -46,7 +46,7 @@ pub struct RenderWorld {
 }
 
 impl RenderWorld {
-    pub fn new(render_server: &RenderServer) -> Self {
+    pub fn new(render_server: &RenderContext) -> Self {
         let mut texture_cache = TextureCache::new();
         let depth_texture = Texture::create_depth_texture(&render_server.device, &mut texture_cache, &render_server.surface_config, Some("surface depth texture"));
         let camera_render_resources = CameraRenderResources::new(render_server);
@@ -77,7 +77,7 @@ impl RenderWorld {
         }
     }
 
-    pub fn run_graph(&mut self, render_server: &RenderServer, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
+    pub fn run_graph(&mut self, render_server: &RenderContext, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
         let mut graph = std::mem::take(&mut self.render_graph);
         graph.run(render_server, self, encoder, output_view);
         self.render_graph = graph;
@@ -107,7 +107,7 @@ impl RenderWorld {
         self.extracted = draw_commands.extracted.clone();
     }
 
-    pub fn prepare(&mut self, render_server: &RenderServer) {
+    pub fn prepare(&mut self, render_server: &RenderContext) {
         // 1. Prepare global camera data
         self.camera_render_resources.prepare_cameras(render_server, &self.extracted.cameras);
 
@@ -142,7 +142,7 @@ impl RenderWorld {
         }
     }
 
-    pub fn recreate_depth_texture(&mut self, render_server: &RenderServer) {
+    pub fn recreate_depth_texture(&mut self, render_server: &RenderContext) {
         self.texture_cache.remove(self.surface_depth_texture);
         self.surface_depth_texture = Texture::create_depth_texture(&render_server.device, &mut self.texture_cache, &render_server.surface_config, Some("surface depth texture"));
         self.ssao_render_resources.on_resize(&render_server.device, &mut self.texture_cache, render_server.surface_config.width, render_server.surface_config.height, self.surface_depth_texture);

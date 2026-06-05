@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::render::draw_command::DrawCommands;
 use crate::render::sky::ExtractedSky;
-use crate::render::{RawCubeTextureData, RenderServer, Texture, TextureCache, TextureId};
+use crate::render::{RawCubeTextureData, RenderContext, Texture, TextureCache, TextureId};
 use crate::scene::{AsNode, NodeType};
 
 pub struct Sky {
@@ -33,7 +33,7 @@ impl Sky {
     pub fn finalize(
         &mut self,
         raw: RawCubeTextureData,
-        render_server: &RenderServer,
+        render_server: &RenderContext,
         texture_cache: &mut TextureCache,
     ) {
         let texture_id = Texture::from_raw_cube(
@@ -67,7 +67,7 @@ impl AsNode for Sky {
                 let raw = raw.clone();
                 self.finalize(
                     raw,
-                    &singletons.render_server,
+                    &singletons.render_context,
                     &mut render_world.texture_cache,
                 );
             }

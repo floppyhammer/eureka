@@ -1,4 +1,4 @@
-use crate::render::{RenderServer, Texture, TextureCache, TextureId};
+use crate::render::{RenderContext, Texture, TextureCache, TextureId};
 use allsorts::pathfinder_geometry::rect::RectI;
 use allsorts::pathfinder_geometry::vector::Vector2I;
 use fontdue;
@@ -110,7 +110,7 @@ impl DynamicFont {
     /// Load font from a file.
     pub(crate) fn load_from_file(
         path: &str,
-        render_server: &RenderServer,
+        render_server: &RenderContext,
         texture_cache: &mut TextureCache,
     ) -> Self {
         // Read the font data.
@@ -124,7 +124,7 @@ impl DynamicFont {
 
     pub(crate) fn load_from_memory(
         buffer: Vec<u8>,
-        render_server: &RenderServer,
+        render_server: &RenderContext,
         texture_cache: &mut TextureCache,
     ) -> Self {
         let now = Instant::now();
@@ -176,7 +176,7 @@ impl DynamicFont {
     }
 
     /// Upload atlas data to the atlas texture.
-    pub(crate) fn upload(&mut self, render_server: &RenderServer, texture_cache: &TextureCache) {
+    pub(crate) fn upload(&mut self, render_server: &RenderContext, texture_cache: &TextureCache) {
         let texture = texture_cache.get(self.atlas_texture).unwrap();
 
         if let Some(region) = self.updated_atlas_region {

@@ -1,4 +1,4 @@
-use crate::render::render_server::RenderServer;
+use crate::render::RenderContext;
 use anyhow::*;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
 use std::collections::HashMap;
@@ -506,7 +506,7 @@ impl Texture {
     }
 
     pub fn load_cube<P: AsRef<Path>>(
-        render_server: &RenderServer,
+        render_server: &RenderContext,
         cache: &mut TextureCache,
         path: P,
     ) -> Result<TextureId> {
