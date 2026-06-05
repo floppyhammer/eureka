@@ -1,8 +1,7 @@
 use crate::math::frustum::Frustum;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
-use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{
-    create_render_pipeline, ExtractedMesh, InstanceRaw, MeshCache, MeshRenderResources,
+    ExtractedMesh, MeshCache, MeshRenderResources,
     RenderContext, Texture, TextureCache, TextureId,
 };
 use crate::scene::Bvh;

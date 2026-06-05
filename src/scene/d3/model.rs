@@ -601,7 +601,7 @@ impl AsNode for Model {
         }
     }
 
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {}
+    fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {}
 }
 
 impl AsNode3d for Model {

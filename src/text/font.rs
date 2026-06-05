@@ -244,12 +244,12 @@ impl DynamicFont {
         for para in &bidi_info.paragraphs {
             let para_range = para.range.clone();
 
-            let para_text = &text[para_range.clone()];
+            let _para_text = &text[para_range.clone()];
             // println!("Line text: {}", para_text);
 
             // Reorder line text only when there's RTL text.
             if bidi_info.has_rtl() {
-                let reordered_text = bidi_info.reorder_line(para, para_range.clone());
+                let _reordered_text = bidi_info.reorder_line(para, para_range.clone());
                 // println!("Reordered RTL line text: {}", reordered_text);
             }
 
@@ -307,7 +307,7 @@ impl DynamicFont {
                 unicode_buffer.set_direction(dir);
                 unicode_buffer.set_script(script);
 
-                let codepoint_count = unicode_buffer.len();
+                let _codepoint_count = unicode_buffer.len();
 
                 // Do shaping.
                 let glyph_buffer = rustybuzz::shape(&face, &[], unicode_buffer);
@@ -411,7 +411,7 @@ impl DynamicFont {
                         region = None;
                     }
 
-                    let run_bytes = run_text.bytes().collect::<Vec<u8>>();
+                    let _run_bytes = run_text.bytes().collect::<Vec<u8>>();
                     let glyph_text = run_text[cluster_range.clone()].to_string();
 
                     let mut unicode_characters = vec![];

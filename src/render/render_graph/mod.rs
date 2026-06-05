@@ -86,7 +86,7 @@ impl RenderGraph {
         let mut in_degree = HashMap::new();
         for (node, deps) in &self.dependencies {
             in_degree.entry(node.clone()).or_insert(0);
-            for dep in deps {
+            for _dep in deps {
                 *in_degree.entry(node.clone()).or_insert(0) += 1;
             }
         }

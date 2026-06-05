@@ -1,7 +1,7 @@
 use crate::render::atlas::render_atlas;
 use crate::render::camera::CameraType;
 use crate::render::light::render_shadow;
-use crate::render::render_graph::{FrameContext, Node, RenderContext};
+use crate::render::render_graph::{FrameContext, Node};
 use crate::render::sky::render_sky;
 use crate::render::sprite::render_sprite;
 use crate::render::vertex::VertexBuffer;

@@ -1,11 +1,11 @@
 use crate::math::transform::Transform2d;
 use crate::render::camera::CameraUniform;
-use crate::render::vertex::{Vertex2d, VertexBuffer};
-use crate::render::{Mesh, RenderContext, Texture, TextureCache, TextureId, MeshRenderResources};
+use crate::render::vertex::Vertex2d;
+use crate::render::{MeshRenderResources, RenderContext, TextureCache, TextureId};
 use glam::Vec2;
 use std::mem;
 use std::ops::Range;
-use wgpu::{BufferAddress};
+use wgpu::BufferAddress;
 
 #[derive(Debug, Copy, Clone)]
 pub struct ExtractedSprite2d {

@@ -6,7 +6,6 @@ use crate::render::{RenderContext, TextureCache};
 use crate::text::{DynamicFont, FONT_ATLAS_SIZE};
 use glam::{Vec2, Vec4};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use unicode_linebreak::BreakClass;
 
 pub struct TextServer {

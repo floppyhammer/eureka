@@ -1,6 +1,6 @@
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::VertexBuffer;
-use crate::render::{InstanceRaw, RenderContext, Texture, TextureCache, TextureId};
+use crate::render::{RenderContext, TextureCache, TextureId};
 use glam::{UVec2, Vec2, Vec4};
 use std::collections::HashMap;
 use std::mem;

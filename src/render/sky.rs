@@ -1,5 +1,4 @@
-use crate::render::vertex::{VertexBuffer, VertexSky};
-use crate::render::{create_render_pipeline, Mesh, RenderContext, Texture, TextureCache, TextureId};
+use crate::render::{Mesh, RenderContext, TextureCache, TextureId};
 use wgpu::RenderPass;
 
 #[derive(Copy, Clone)]
