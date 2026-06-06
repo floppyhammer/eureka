@@ -164,8 +164,7 @@ impl<'a> App<'a> {
                     render_world.recreate_depth_texture(&singletons.render_context);
                 }
 
-                self.world
-                    .when_view_size_changes(UVec2::new(new_size.width, new_size.height))
+                self.world.when_view_size_changes(UVec2::new(new_size.width, new_size.height))
             }
         }
     }
@@ -202,8 +201,7 @@ impl<'a> App<'a> {
             }
 
             singletons.time.tick();
-            self.world
-                .update(singletons.time.get_delta() as f32, singletons);
+            self.world.update(singletons.time.get_delta() as f32, singletons);
         }
     }
 

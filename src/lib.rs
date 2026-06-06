@@ -6,3 +6,4 @@ pub mod render;
 pub mod scene;
 pub mod text;
 pub mod window;
+mod animation;

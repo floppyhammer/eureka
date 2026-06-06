@@ -2,8 +2,10 @@ use crate::core::singleton::Singletons;
 use crate::render::draw_command::DrawCommands;
 use crate::scene::{AsNode, Camera2d, Camera3d, NodeType};
 use crate::window::InputServer;
+use crate::animation::property::PropertyChange;
 use glam::UVec2;
 use indextree::{Arena, NodeEdge, NodeId};
+use crate::animation::PropertyProvider;
 
 pub struct World {
     // Type Box<dyn AsNode> is a trait object;
@@ -128,6 +130,7 @@ impl World {
 
     pub fn update(&mut self, dt: f32, singletons: &mut Singletons) {
         let ids = self.traverse();
+        let mut all_changes: Vec<PropertyChange> = Vec::new();
 
         for id in ids {
             // 1. Propagate transforms
@@ -165,6 +168,18 @@ impl World {
 
             // 2. Node update
             self.arena[id].get_mut().update(dt, singletons);
+
+            // 3. Collect animation changes from AnimationPlayer nodes
+            if let Some(player) = self.arena[id].get_mut().as_any_mut().downcast_mut::<crate::animation::player::AnimationPlayer>() {
+                all_changes.extend(player.take_changes());
+            }
+        }
+
+        // 4. Apply all collected property changes
+        for change in all_changes {
+            if let Some(node) = self.get_node_mut::<Box<dyn AsNode>>(change.target_entity) {
+                apply_property_change_to_node(node.as_mut(), &change);
+            }
         }
 
         // Reload assets.
@@ -197,5 +212,15 @@ impl World {
                 camera.when_view_size_changes(new_size);
             }
         }
+    }
+}
+
+fn apply_property_change_to_node(node: &mut dyn AsNode, change: &PropertyChange) {
+    // Try to downcast to types that implement PropertyProvider
+    if let Some(node3d) = node.as_any_mut().downcast_mut::<crate::scene::d3::node_3d::Node3d>() {
+        node3d.set_property(&change.property_path, change.value.clone(), change.weight);
+    }
+    if let Some(node_ui) = node.as_any_mut().downcast_mut::<crate::scene::d2::node_ui::NodeUi>() {
+        node_ui.set_property(&change.property_path, change.value.clone(), change.weight);
     }
 }

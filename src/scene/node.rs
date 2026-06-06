@@ -21,6 +21,9 @@ pub enum NodeType {
     Sky,
     PointLight,
     DirectionalLight,
+    
+    // Logic
+    AnimationPlayer,
 }
 
 impl std::fmt::Display for NodeType {
@@ -37,6 +40,7 @@ impl std::fmt::Display for NodeType {
             NodeType::Sky => write!(f, "Sky"),
             NodeType::PointLight => write!(f, "PointLight"),
             NodeType::DirectionalLight => write!(f, "DirectionalLight"),
+            NodeType::AnimationPlayer => write!(f, "AnimationPlayer"),
         }
     }
 }
@@ -89,6 +93,10 @@ pub trait AsNode {
     }
 
     fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
+        None
+    }
+
+    fn as_property_provider_mut(&mut self) -> Option<&mut dyn crate::animation::property::PropertyProvider> {
         None
     }
 }
