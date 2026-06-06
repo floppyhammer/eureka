@@ -20,7 +20,8 @@ impl Node for ShadowNode {
         }
 
         let device = &context.render_context.device;
-        let camera_resources = &context.render_world.camera_render_resources;
+        let world = &*context.render_world;
+        let camera_resources = &world.camera_render_resources;
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("shadow pipeline layout"),
@@ -49,7 +50,7 @@ impl Node for ShadowNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let world = context.render_world;
+        let world = &*context.render_world;
         if let Some(pipeline) = &self.pipeline {
             render_shadow(
                 context.encoder,

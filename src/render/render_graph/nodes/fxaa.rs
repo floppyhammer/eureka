@@ -1,25 +1,19 @@
-use crate::render::render_graph::{FrameContext, Node};
-use crate::render::TextureId;
+use crate::render::render_graph::{FrameContext, Node, TextureKey};
 
 pub struct FxaaNode {
     pipeline: Option<wgpu::RenderPipeline>,
-    bind_group: Option<wgpu::BindGroup>,
-    current_texture_id: Option<TextureId>,
 }
 
 impl Default for FxaaNode {
     fn default() -> Self {
         Self {
             pipeline: None,
-            bind_group: None,
-            current_texture_id: None,
         }
     }
 }
 
 impl Node for FxaaNode {
     fn prepare(&mut self, context: &mut FrameContext) {
-        let world = context.render_world;
         let device = &context.render_context.device;
 
         if self.pipeline.is_none() {
@@ -70,30 +64,33 @@ impl Node for FxaaNode {
                 None,
             ));
         }
-
-        if self.current_texture_id != Some(world.main_color_texture) {
-            let texture = world.texture_cache.get(world.main_color_texture).unwrap();
-            let bind_group_layout = self.pipeline.as_ref().unwrap().get_bind_group_layout(0);
-            self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("fxaa bind group"),
-                layout: &bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&texture.view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                    },
-                ],
-            }));
-            self.current_texture_id = Some(world.main_color_texture);
-        }
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        if let (Some(pipeline), Some(bind_group)) = (&self.pipeline, &self.bind_group) {
+        let main_color_key = TextureKey {
+            width: context.render_context.surface_config.width,
+            height: context.render_context.surface_config.height,
+            format: context.render_context.surface_config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        };
+        let main_color_texture = context.get_texture("main_color", main_color_key);
+
+        let bind_group = context.render_context.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("fxaa bind group"),
+            layout: &self.pipeline.as_ref().unwrap().get_bind_group_layout(0),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&main_color_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&main_color_texture.sampler),
+                },
+            ],
+        });
+
+        if let Some(pipeline) = &self.pipeline {
             let mut render_pass = context
                 .encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -113,7 +110,7 @@ impl Node for FxaaNode {
                 });
 
             render_pass.set_pipeline(pipeline);
-            render_pass.set_bind_group(0, bind_group, &[]);
+            render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.draw(0..3, 0..1);
         }
     }

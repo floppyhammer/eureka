@@ -1,16 +1,35 @@
 use crate::render::camera::CameraType;
-use crate::render::render_graph::{FrameContext, Node};
+use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use crate::render::Texture;
 
 pub struct ClearNode;
 
 impl Node for ClearNode {
     fn run(&mut self, context: &mut FrameContext) {
-        let world = context.render_world;
-        let depth_texture = world
-            .texture_cache
-            .get(world.surface_depth_texture)
-            .unwrap();
+        let width = context.render_context.surface_config.width;
+        let height = context.render_context.surface_config.height;
+        let format = context.render_context.surface_config.format;
 
+        // 先定义所有的 Key，不要在使用过程中从 context 拿数据
+        let main_color_key = TextureKey {
+            width,
+            height,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        };
+        let main_depth_key = TextureKey {
+            width,
+            height,
+            format: Texture::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        };
+
+        // 按顺序获取纹理句柄（现在返回的是克隆后的句柄，不会互相冲突）
+        let main_color = context.get_texture("main_color", main_color_key);
+        let main_depth = context.get_texture("main_depth", main_depth_key);
+
+        let world = &*context.render_world;
+        
         let ssao_ran = {
             let mut wants_ssao = false;
             for (i, cam_type) in world.extracted.cameras.types.iter().enumerate() {
@@ -29,7 +48,7 @@ impl Node for ClearNode {
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("clear pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: context.output_view,
+                    view: &main_color.view,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
@@ -43,7 +62,7 @@ impl Node for ClearNode {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth_texture.view,
+                    view: &main_depth.view,
                     depth_ops: Some(wgpu::Operations {
                         load: if ssao_ran {
                             wgpu::LoadOp::Load

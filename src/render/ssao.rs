@@ -26,8 +26,7 @@ impl SsaoRenderResources {
     pub fn new(
         render_server: &RenderContext,
         texture_cache: &mut TextureCache,
-        camera_resources: &CameraRenderResources,
-        initial_depth_texture: TextureId,
+        _camera_resources: &CameraRenderResources,
     ) -> Self {
         let device = &render_server.device;
         let config = &render_server.surface_config;
@@ -116,8 +115,23 @@ impl SsaoRenderResources {
         });
 
         let normal_view = &texture_cache.get(normal_texture).unwrap().view;
-        let depth_view = &texture_cache.get(initial_depth_texture).unwrap().view;
         let noise_view = &texture_cache.get(noise_texture).unwrap().view;
+
+        // Create a dummy depth view for initial bind group creation
+        let dummy_depth = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Dummy Depth"),
+            size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let depth_view = dummy_depth.create_view(&wgpu::TextureViewDescriptor {
+            aspect: wgpu::TextureAspect::DepthOnly,
+            ..Default::default()
+        });
 
         // Note: Layouts are temporary here to create bind groups during init.
         // In a full refactor, layouts should be managed by a central cache.
@@ -151,7 +165,7 @@ impl SsaoRenderResources {
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: wgpu::BindingResource::TextureView(depth_view),
+                    resource: wgpu::BindingResource::TextureView(&depth_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
@@ -207,7 +221,6 @@ impl SsaoRenderResources {
         texture_cache: &mut TextureCache,
         width: u32,
         height: u32,
-        depth_texture_id: TextureId,
     ) {
         texture_cache.remove(self.normal_texture);
         texture_cache.remove(self.ssao_texture);
@@ -236,15 +249,13 @@ impl SsaoRenderResources {
             wgpu::TextureFormat::R8Unorm,
             "SSAO Blurred Texture",
         ));
-
-        self.update_bind_groups(device, texture_cache, depth_texture_id);
     }
 
     pub fn update_bind_groups(
         &mut self,
         device: &wgpu::Device,
         texture_cache: &TextureCache,
-        depth_texture_id: TextureId,
+        depth_view: &wgpu::TextureView,
     ) {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -263,7 +274,6 @@ impl SsaoRenderResources {
         });
 
         let normal_view = &texture_cache.get(self.normal_texture).unwrap().view;
-        let depth_view = &texture_cache.get(depth_texture_id).unwrap().view;
         let noise_view = &texture_cache.get(self.noise_texture).unwrap().view;
 
         // Note: Recreating layouts because they aren't stored.

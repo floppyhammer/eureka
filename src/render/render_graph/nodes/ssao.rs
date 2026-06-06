@@ -1,5 +1,5 @@
 use crate::render::camera::CameraType;
-use crate::render::render_graph::{FrameContext, Node};
+use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw, Texture};
 
@@ -26,7 +26,7 @@ impl Node for SsaoNode {
         }
 
         let device = &context.render_context.device;
-        let world = context.render_world;
+        let world = &*context.render_world;
         let camera_resources = &world.camera_render_resources;
 
         let normal_pipeline = {
@@ -190,7 +190,22 @@ impl Node for SsaoNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let world = context.render_world;
+        let width = context.render_context.surface_config.width;
+        let height = context.render_context.surface_config.height;
+
+        let main_depth_key = TextureKey {
+            width,
+            height,
+            format: Texture::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        };
+
+        let main_depth = context.get_texture("main_depth", main_depth_key);
+        let depth_view = main_depth.view; // 现在是拥有所有权的句柄
+
+        // 重新获取并标记为可变借用
+        let world = &mut *context.render_world;
+
         if world.extracted.meshes.is_empty() {
             return;
         }
@@ -211,16 +226,18 @@ impl Node for SsaoNode {
             return;
         }
 
+        // 重要：更新 SSAO 的 BindGroup 以使用当前的瞬时深度图
+        world.ssao_render_resources.update_bind_groups(
+            &context.render_context.device,
+            &world.texture_cache,
+            &depth_view,
+        );
+
         let camera_bind_group = world.camera_render_resources.bind_group.as_ref().unwrap();
 
         let normal_view = &world
             .texture_cache
             .get(world.ssao_render_resources.normal_texture)
-            .unwrap()
-            .view;
-        let depth_view = &world
-            .texture_cache
-            .get(world.surface_depth_texture)
             .unwrap()
             .view;
 
@@ -239,7 +256,7 @@ impl Node for SsaoNode {
                         },
                     })],
                     depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                        view: depth_view,
+                        view: &depth_view,
                         depth_ops: Some(wgpu::Operations {
                             load: wgpu::LoadOp::Clear(1.0),
                             store: wgpu::StoreOp::Store,

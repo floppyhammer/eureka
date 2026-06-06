@@ -16,7 +16,7 @@ impl Node for CullingNode {
             return;
         }
 
-        let world = context.render_world;
+        let world = &*context.render_world;
         let resources = &world.mesh_render_resources;
         let device = &context.render_context.device;
 
@@ -44,7 +44,7 @@ impl Node for CullingNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let world = context.render_world;
+        let world = &*context.render_world;
         let resources = &world.mesh_render_resources;
 
         if let Some(pipeline) = &self.pipeline {

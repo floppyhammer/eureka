@@ -1,4 +1,4 @@
-use crate::render::render_graph::{FrameContext, Node};
+use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use crate::render::sky::render_sky;
 use crate::render::vertex::{VertexBuffer, VertexSky};
 use crate::render::{create_render_pipeline, Texture};
@@ -19,7 +19,7 @@ impl Node for SkyboxNode {
             return;
         }
         let device = &context.render_context.device;
-        let world = context.render_world;
+        let world = &*context.render_world;
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("skybox pipeline layout"),
@@ -49,21 +49,37 @@ impl Node for SkyboxNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let world = context.render_world;
+        let width = context.render_context.surface_config.width;
+        let height = context.render_context.surface_config.height;
+        let format = context.render_context.surface_config.format;
+
+        let main_color_key = TextureKey {
+            width,
+            height,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        };
+        let main_depth_key = TextureKey {
+            width,
+            height,
+            format: Texture::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        };
+
+        let main_color = context.get_texture("main_color", main_color_key);
+        let main_depth = context.get_texture("main_depth", main_depth_key);
+
+        let world = &*context.render_world;
         if world.extracted.sky.is_none() {
             return;
         }
-        let depth_texture = world
-            .texture_cache
-            .get(world.surface_depth_texture)
-            .unwrap();
 
         let mut render_pass = context
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("skybox render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: context.output_view,
+                    view: &main_color.view,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
@@ -72,7 +88,7 @@ impl Node for SkyboxNode {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth_texture.view,
+                    view: &main_depth.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Load,
                         store: wgpu::StoreOp::Store,

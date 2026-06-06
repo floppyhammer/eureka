@@ -21,7 +21,7 @@ impl Node for SpriteNode {
         }
 
         let device = &context.render_context.device;
-        let world = context.render_world;
+        let world = &*context.render_world;
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("sprite bindless layout"),
@@ -51,7 +51,7 @@ impl Node for SpriteNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let world = context.render_world;
+        let world = &*context.render_world;
         if world.sprite_batches.is_empty() && world.extracted.atlases.is_empty() {
             return;
         }

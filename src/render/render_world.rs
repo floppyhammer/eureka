@@ -28,8 +28,6 @@ pub struct Extracted {
 }
 
 pub struct RenderWorld {
-    pub(crate) surface_depth_texture: TextureId,
-    pub(crate) main_color_texture: TextureId,
     pub texture_cache: TextureCache,
     pub(crate) shader_maker: ShaderMaker,
     pub(crate) camera_render_resources: CameraRenderResources,
@@ -49,8 +47,6 @@ pub struct RenderWorld {
 impl RenderWorld {
     pub fn new(render_server: &RenderContext) -> Self {
         let mut texture_cache = TextureCache::new();
-        let depth_texture = Texture::create_depth_texture(&render_server.device, &mut texture_cache, &render_server.surface_config, Some("surface depth texture"));
-        let main_color_texture = Self::create_main_color_texture(&render_server.device, &render_server.surface_config, &mut texture_cache);
         let camera_render_resources = CameraRenderResources::new(render_server);
         let sprite_render_resources = SpriteRenderResources::new(render_server);
         let mesh_render_resources = MeshRenderResources::new(render_server);
@@ -58,11 +54,9 @@ impl RenderWorld {
         let atlas_render_resources = AtlasRenderResources::new(render_server);
         let sky_render_resources = SkyRenderResources::new(render_server);
         let light_render_resources = LightRenderResources::new();
-        let ssao_render_resources = SsaoRenderResources::new(render_server, &mut texture_cache, &camera_render_resources, depth_texture);
+        let ssao_render_resources = SsaoRenderResources::new(render_server, &mut texture_cache, &camera_render_resources);
 
         Self {
-            surface_depth_texture: depth_texture,
-            main_color_texture,
             texture_cache,
             mesh_cache: MeshCache::new(),
             camera_render_resources,
@@ -148,13 +142,7 @@ impl RenderWorld {
     }
 
     pub fn recreate_depth_texture(&mut self, render_server: &RenderContext) {
-        self.texture_cache.remove(self.surface_depth_texture);
-        self.surface_depth_texture = Texture::create_depth_texture(&render_server.device, &mut self.texture_cache, &render_server.surface_config, Some("surface depth texture"));
-
-        self.texture_cache.remove(self.main_color_texture);
-        self.main_color_texture = Self::create_main_color_texture(&render_server.device, &render_server.surface_config, &mut self.texture_cache);
-
-        self.ssao_render_resources.on_resize(&render_server.device, &mut self.texture_cache, render_server.surface_config.width, render_server.surface_config.height, self.surface_depth_texture);
+        self.ssao_render_resources.on_resize(&render_server.device, &mut self.texture_cache, render_server.surface_config.width, render_server.surface_config.height);
     }
 
     fn create_main_color_texture(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration, cache: &mut TextureCache) -> TextureId {
