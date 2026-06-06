@@ -3,6 +3,13 @@ use crate::render::{TextureCache, TextureId};
 use bitflags::bitflags;
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlphaMode {
+    Opaque,
+    Mask,
+    Blend,
+}
+
 #[derive(Debug, Clone)]
 pub struct MaterialStandard {
     pub name: String,
@@ -15,6 +22,8 @@ pub struct MaterialStandard {
     // Bind group for the textures.
     pub texture_bind_group: Option<BindGroupId>,
     pub transparent: bool,
+    pub alpha_cutoff: f32,
+    pub alpha_mode: AlphaMode,
 }
 
 #[repr(C)]
@@ -23,10 +32,12 @@ pub struct MaterialUniform {
     pub base_color: [f32; 4],
     pub metallic: f32,
     pub roughness: f32,
+    pub alpha_cutoff: f32,
     pub color_texture_idx: i32,
     pub normal_texture_idx: i32,
     pub metallic_roughness_texture_idx: i32,
-    pub _pad0: [u32; 3],
+    pub alpha_mode: u32,
+    pub _pad0: u32,
 }
 
 impl MaterialStandard {
@@ -41,6 +52,8 @@ impl MaterialStandard {
             metallic_roughness_texture: None,
             texture_bind_group: None,
             transparent: false,
+            alpha_cutoff: 0.5,
+            alpha_mode: AlphaMode::Opaque,
         }
     }
 
@@ -51,14 +64,22 @@ impl MaterialStandard {
                 .unwrap_or(-1)
         };
 
+        let alpha_mode_enum = match self.alpha_mode {
+            AlphaMode::Opaque => 0u32,
+            AlphaMode::Mask => 1u32,
+            AlphaMode::Blend => 2u32,
+        };
+
         MaterialUniform {
             base_color: self.base_color,
             metallic: self.metallic,
             roughness: self.roughness,
+            alpha_cutoff: self.alpha_cutoff,
             color_texture_idx: get_idx(self.color_texture),
             normal_texture_idx: get_idx(self.normal_texture),
             metallic_roughness_texture_idx: get_idx(self.metallic_roughness_texture),
-            _pad0: [0; 3],
+            alpha_mode: alpha_mode_enum,
+            _pad0: 0u32,
         }
     }
 }

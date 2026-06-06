@@ -135,13 +135,17 @@ struct Material {
     base_color: vec4<f32>,
     metallic: f32,
     roughness: f32,
+    alpha_cutoff: f32,
     color_texture_idx: i32,
     normal_texture_idx: i32,
     metallic_roughness_texture_idx: i32,
+    alpha_mode: u32,
     _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
 }
+
+const ALPHA_MODE_OPAQUE: u32 = 0u;
+const ALPHA_MODE_MASK: u32 = 1u;
+const ALPHA_MODE_BLEND: u32 = 2u;
 
 @group(2) @binding(0)
 var<storage, read> materials: array<Material>;
@@ -213,6 +217,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         sampled_color = textureSample(t_textures[u32(material.color_texture_idx)], s_sampler, in.tex_coords);
     }
     let object_color = sampled_color * material.base_color;
+
+    // Alpha test for MASK mode
+    if (material.alpha_mode == ALPHA_MODE_MASK) {
+        if (object_color.a < material.alpha_cutoff) {
+            discard;
+        }
+    }
 
     // Reconstruct TBN matrix (Tangent to World)
     let world_normal_basis = normalize(in.world_normal);

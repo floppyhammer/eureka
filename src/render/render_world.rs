@@ -13,13 +13,14 @@ use crate::render::{
     prepare_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderContext,
     Texture, TextureCache, TextureId,
 };
-use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode, FxaaNode};
+use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode, FxaaNode, TransparentMeshNode};
 use crate::scene::Bvh;
 
 #[derive(Default, Clone)]
 pub struct Extracted {
     pub(crate) sprites: Vec<ExtractedSprite2d>,
     pub(crate) meshes: Vec<ExtractedMesh>,
+    pub(crate) transparent_meshes: Vec<ExtractedMesh>,
     pub(crate) bvh: Bvh,
     pub(crate) cameras: ExtractedCameras,
     pub(crate) lights: ExtractedLights,
@@ -88,6 +89,7 @@ impl RenderWorld {
         graph.add_node("clear", ClearNode);
         graph.add_node("skybox", SkyboxNode::default());
         graph.add_node("mesh", MeshNode::default());
+        graph.add_node("transparent_mesh", TransparentMeshNode::default());
         graph.add_node("fxaa", FxaaNode::default());
         graph.add_node("sprite", SpriteNode::default());
 
@@ -97,7 +99,8 @@ impl RenderWorld {
         graph.add_node_edge("ssao", "mesh");
         graph.add_node_edge("clear", "skybox");
         graph.add_node_edge("skybox", "mesh");
-        graph.add_node_edge("mesh", "fxaa");
+        graph.add_node_edge("mesh", "transparent_mesh");
+        graph.add_node_edge("transparent_mesh", "fxaa");
         graph.add_node_edge("fxaa", "sprite");
         graph
     }
@@ -113,7 +116,30 @@ impl RenderWorld {
         // 2. Prepare Bindless Materials (Now includes sprite textures)
         self.mesh_render_resources.prepare_materials(&self.texture_cache, render_server, &self.extracted.sprites);
 
-        // 3. Prepare 3D Mesh BVH
+        // 3. Separate opaque and transparent meshes
+        let mut opaque_meshes = Vec::new();
+        let mut transparent_meshes = Vec::new();
+        for mesh in &self.extracted.meshes {
+            let is_transparent = if let Some(material_id) = mesh.material_id {
+                if let Some(material) = self.mesh_render_resources.material_cache.get(&material_id) {
+                    material.transparent || mesh.transparent
+                } else {
+                    mesh.transparent
+                }
+            } else {
+                mesh.transparent
+            };
+
+            if is_transparent {
+                transparent_meshes.push(*mesh);
+            } else {
+                opaque_meshes.push(*mesh);
+            }
+        }
+        self.extracted.transparent_meshes = transparent_meshes;
+        let original_meshes = std::mem::replace(&mut self.extracted.meshes, opaque_meshes);
+
+        // 4. Prepare 3D Mesh BVH (only for opaque meshes)
         if !self.extracted.meshes.is_empty() {
             let bvh_objects: Vec<_> = self.extracted.meshes.iter().enumerate().filter_map(|(i, ext)| {
                 self.mesh_cache.get(ext.mesh_id).map(|mesh| (mesh.aabb.transform(&ext.transform), i))
@@ -121,13 +147,14 @@ impl RenderWorld {
             self.extracted.bvh = Bvh::build(bvh_objects);
         }
 
-        // 4. Prepare Sprites & Atlases
+        // 5. Prepare Sprites & Atlases
         self.sprite_batches = prepare_sprite(&self.extracted.sprites, &mut self.sprite_render_resources, &self.texture_cache, render_server, &self.mesh_render_resources);
         prepare_atlas(&self.extracted.atlases, &mut self.atlas_render_resources, render_server, &self.texture_cache, &mut self.shader_maker);
 
-        // 5. Prepare 3D Meshes & Lights
-        if !self.extracted.meshes.is_empty() || !self.extracted.lights.point_lights.is_empty() {
-             prepare_meshes(&self.extracted.meshes, &self.extracted.lights, &self.texture_cache, &mut self.shader_maker, &mut self.mesh_render_resources, &self.light_render_resources, &self.camera_render_resources, render_server, &self.mesh_cache, self.ssao_render_resources.blur_texture, self.extracted.sky.as_ref().map(|s| s.texture));
+        // 6. Prepare 3D Meshes & Lights (combine opaque and transparent for instance preparation)
+        let all_meshes: Vec<_> = self.extracted.meshes.iter().chain(self.extracted.transparent_meshes.iter()).cloned().collect();
+        if !all_meshes.is_empty() || !self.extracted.lights.point_lights.is_empty() {
+             prepare_meshes(&all_meshes, &self.extracted.lights, &self.texture_cache, &mut self.shader_maker, &mut self.mesh_render_resources, &self.light_render_resources, &self.camera_render_resources, render_server, &self.mesh_cache, self.ssao_render_resources.blur_texture, self.extracted.sky.as_ref().map(|s| s.texture));
         }
 
         // 6. Prepare Shadow & Sky

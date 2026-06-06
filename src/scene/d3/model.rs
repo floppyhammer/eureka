@@ -40,6 +40,16 @@ pub struct RawMaterialData {
     pub color_texture: Option<RawTextureData>,
     pub normal_texture: Option<RawTextureData>,
     pub metallic_roughness_texture: Option<RawTextureData>,
+    pub transparent: bool,
+    pub alpha_cutoff: f32,
+    pub alpha_mode: AlphaMode,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AlphaMode {
+    Opaque,
+    Mask,
+    Blend,
 }
 
 #[derive(Clone)]
@@ -125,6 +135,9 @@ impl Model {
                 color_texture,
                 normal_texture,
                 metallic_roughness_texture: None,
+                transparent: false,
+                alpha_cutoff: 0.5,
+                alpha_mode: AlphaMode::Opaque,
             });
         }
 
@@ -303,6 +316,21 @@ impl Model {
                 }
             });
 
+            let alpha_mode = m.alpha_mode();
+            let alpha_cutoff = m.alpha_cutoff().unwrap_or(0.5);
+            
+            let is_transparent = match alpha_mode {
+                gltf::material::AlphaMode::Blend => true,
+                gltf::material::AlphaMode::Mask => false,
+                gltf::material::AlphaMode::Opaque => base_color_factor[3] < 1.0,
+            };
+
+            let alpha_mode_enum = match alpha_mode {
+                gltf::material::AlphaMode::Blend => AlphaMode::Blend,
+                gltf::material::AlphaMode::Mask => AlphaMode::Mask,
+                gltf::material::AlphaMode::Opaque => AlphaMode::Opaque,
+            };
+
             raw_materials.push(RawMaterialData {
                 name: m.name().unwrap_or("").to_string(),
                 base_color: base_color_factor,
@@ -311,6 +339,9 @@ impl Model {
                 color_texture,
                 normal_texture,
                 metallic_roughness_texture,
+                transparent: is_transparent,
+                alpha_cutoff,
+                alpha_mode: alpha_mode_enum,
             });
         }
 
@@ -323,6 +354,9 @@ impl Model {
             color_texture: None,
             normal_texture: None,
             metallic_roughness_texture: None,
+            transparent: false,
+            alpha_cutoff: 0.5,
+            alpha_mode: AlphaMode::Opaque,
         });
 
         let mut raw_meshes = Vec::new();
@@ -471,6 +505,12 @@ impl Model {
                 )
             });
 
+            let alpha_mode = match m.alpha_mode {
+                AlphaMode::Opaque => crate::render::material::AlphaMode::Opaque,
+                AlphaMode::Mask => crate::render::material::AlphaMode::Mask,
+                AlphaMode::Blend => crate::render::material::AlphaMode::Blend,
+            };
+
             material_ids.push(material_cache.add(MaterialStandard {
                 name: m.name,
                 base_color: m.base_color,
@@ -480,7 +520,9 @@ impl Model {
                 normal_texture,
                 metallic_roughness_texture,
                 texture_bind_group: None,
-                transparent: false,
+                transparent: m.transparent,
+                alpha_cutoff: m.alpha_cutoff,
+                alpha_mode,
             }));
         }
 
@@ -596,6 +638,7 @@ impl AsNode for Model {
                 transform: combined_transform,
                 mesh_id: self.meshes[i],
                 material_id: self.materials[i],
+                transparent: false,
             };
             draw_cmds.extracted.meshes.push(extracted_mesh);
         }
