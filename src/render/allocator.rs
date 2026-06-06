@@ -71,6 +71,26 @@ impl MeshAllocator {
         (v_offset, i_offset)
     }
 
+    pub fn update(
+        &self,
+        queue: &wgpu::Queue,
+        v_offset: u32,
+        i_offset: u32,
+        vertices: &[Vertex3d],
+        indices: &[u32],
+    ) {
+        queue.write_buffer(
+            &self.vertex_buffer,
+            (v_offset as usize * size_of::<Vertex3d>()) as u64,
+            bytemuck::cast_slice(vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            (i_offset * 4) as u64,
+            bytemuck::cast_slice(indices),
+        );
+    }
+
     pub fn setup_skybox(&self, queue: &wgpu::Queue, vertices: &[VertexSky], indices: &[u32]) {
         queue.write_buffer(&self.sky_vertex_buffer, 0, bytemuck::cast_slice(vertices));
         queue.write_buffer(&self.sky_index_buffer, 0, bytemuck::cast_slice(indices));

@@ -4,10 +4,7 @@ use glam::{Mat4, Quat, Vec2, Vec3};
 use std::any::Any;
 use std::path::{Path, PathBuf};
 use std::result::Result::Ok;
-use std::time::Instant;
 use tobj::LoadOptions;
-use wgpu::util::DeviceExt;
-use gltf::mesh::util::ReadIndices;
 use crate::core::Singletons;
 use crate::math::aabb::Aabb;
 use crate::math::transform::Transform3d;
@@ -16,7 +13,6 @@ use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::vertex::Vertex3d;
 use crate::render::{
     ExtractedMesh, Mesh, MeshCache, MeshId, RawTextureData, RenderContext, Texture, TextureCache,
-    TextureId,
 };
 use crate::scene::d3::node_3d::{AsNode3d, Node3d};
 use crate::scene::{AsNode, NodeType};
