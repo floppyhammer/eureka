@@ -27,6 +27,20 @@ pub struct Label {
 }
 
 impl Label {
+    pub fn new(text: &str) -> Label {
+        Self {
+            node_ui: NodeUi::default(),
+            text: text.to_string(),
+            text_is_dirty: true,
+            layout_is_dirty: true,
+            font_id: None,
+            single_line: false,
+            leading: 20.0,
+            tracking: 0.0,
+            atlas: None,
+        }
+    }
+
     pub fn default() -> Label {
         Self {
             node_ui: NodeUi::default(),

@@ -110,13 +110,15 @@ pub fn prepare_atlas(extracted: &Vec<ExtractedAtlas>, render_resources: &mut Atl
     render_server.queue.write_buffer(render_resources.params_buffer.as_ref().unwrap(), 0, &aligned_up_data);
 
     for e in extracted {
-        let texture_id = e.atlas.texture.unwrap();
-        if !render_resources.texture_bind_group_cache.contains_key(&texture_id) {
-            let texture = texture_cache.get(texture_id).unwrap();
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor { layout: &render_resources.texture_bind_group_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&texture.view) }, wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&texture.sampler) }], label: None });
-            render_resources.texture_bind_group_cache.insert(texture_id, bind_group);
+        if let Some(texture_id) = e.atlas.texture {
+            if !render_resources.texture_bind_group_cache.contains_key(&texture_id) {
+                if let Some(texture) = texture_cache.get(texture_id) {
+                    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor { layout: &render_resources.texture_bind_group_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&texture.view) }, wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&texture.sampler) }], label: None });
+                    render_resources.texture_bind_group_cache.insert(texture_id, bind_group);
+                }
+            }
+            render_resources.create_pipeline(e.atlas.mode, render_server, shader_maker);
         }
-        render_resources.create_pipeline(e.atlas.mode, render_server, shader_maker);
     }
 }
 
@@ -125,13 +127,15 @@ pub fn render_atlas<'a, 'b: 'a>(atlases: &'b Vec<ExtractedAtlas>, render_resourc
     let offset_unit = AtlasParamsUniform::get_uniform_offset_unit();
     for (i, e) in atlases.iter().enumerate() {
         let a = &e.atlas;
-        let pipeline = render_resources.pipeline_cache.get(&a.mode).unwrap();
-        let texture_bg = render_resources.texture_bind_group_cache.get(&a.texture.unwrap()).unwrap();
-        render_pass.set_pipeline(pipeline);
-        render_pass.set_vertex_buffer(0, render_resources.instance_buffer.as_ref().unwrap().slice(..));
-        render_pass.set_bind_group(0, render_resources.params_bind_group.as_ref().unwrap(), &[(i as u32 * offset_unit) as DynamicOffset]);
-        render_pass.set_bind_group(1, texture_bg, &[]);
-        render_pass.draw(0..4, instance_offset..instance_offset + a.instances.len() as u32);
+        if let Some(texture_id) = a.texture {
+            if let (Some(pipeline), Some(texture_bg)) = (render_resources.pipeline_cache.get(&a.mode), render_resources.texture_bind_group_cache.get(&texture_id)) {
+                render_pass.set_pipeline(pipeline);
+                render_pass.set_vertex_buffer(0, render_resources.instance_buffer.as_ref().unwrap().slice(..));
+                render_pass.set_bind_group(0, render_resources.params_bind_group.as_ref().unwrap(), &[(i as u32 * offset_unit) as DynamicOffset]);
+                render_pass.set_bind_group(1, texture_bg, &[]);
+                render_pass.draw(0..4, instance_offset..instance_offset + a.instances.len() as u32);
+            }
+        }
         instance_offset += a.instances.len() as u32;
     }
 }

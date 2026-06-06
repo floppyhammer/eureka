@@ -219,8 +219,10 @@ fn apply_property_change_to_node(node: &mut dyn AsNode, change: &PropertyChange)
     // Try to downcast to types that implement PropertyProvider
     if let Some(node3d) = node.as_any_mut().downcast_mut::<crate::scene::d3::node_3d::Node3d>() {
         node3d.set_property(&change.property_path, change.value.clone(), change.weight);
+        return
     }
     if let Some(node_ui) = node.as_any_mut().downcast_mut::<crate::scene::d2::node_ui::NodeUi>() {
         node_ui.set_property(&change.property_path, change.value.clone(), change.weight);
+        return
     }
 }
