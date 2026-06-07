@@ -2,14 +2,14 @@ use crate::core::singleton::Singletons;
 use crate::math::transform::Transform2d;
 use crate::render::camera::{CameraType, CameraUniform, OrthographicProjection, Projection};
 use crate::render::draw_command::DrawCommands;
-use crate::scene::d2::AsNode2d;
+use crate::scene::d2::node2d::{AsNode2d, Node2d};
 use crate::scene::{AsNode, NodeType};
+use crate::animation::property::PropertyProvider;
 use glam::{Mat4, UVec2, Vec2, Vec3};
 use std::any::Any;
 
 pub struct Camera2d {
-    pub transform: Transform2d,
-    pub global_transform: Transform2d,
+    pub node_2d: Node2d,
 
     pub view_size: Vec2,
 
@@ -22,8 +22,7 @@ pub struct Camera2d {
 impl Camera2d {
     pub fn default() -> Self {
         Self {
-            transform: Transform2d::default(),
-            global_transform: Transform2d::default(),
+            node_2d: Node2d::default(),
             view_size: Vec2::ZERO,
             view: None,
             projection: OrthographicProjection::default().into(),
@@ -31,10 +30,10 @@ impl Camera2d {
     }
 
     pub fn calc_view_matrix(&self) -> Mat4 {
-        let rotation_mat = Mat4::from_rotation_z(-self.global_transform.rotation);
+        let rotation_mat = Mat4::from_rotation_z(-self.node_2d.global_transform.rotation);
         let translation_mat = Mat4::from_translation(Vec3::new(
-            -self.global_transform.position.x,
-            -self.global_transform.position.y,
+            -self.node_2d.global_transform.position.x,
+            -self.node_2d.global_transform.position.y,
             0.0,
         ));
 
@@ -80,13 +79,17 @@ impl AsNode for Camera2d {
         let view_mat = self.calc_view_matrix();
         let proj_mat = self.projection.calc_matrix();
 
-        uniform.view_position[0] = self.global_transform.position.x;
-        uniform.view_position[1] = self.global_transform.position.y;
+        uniform.view_position[0] = self.node_2d.global_transform.position.x;
+        uniform.view_position[1] = self.node_2d.global_transform.position.y;
         uniform.view = view_mat.to_cols_array_2d();
         uniform.proj = proj_mat.to_cols_array_2d();
         uniform.view_proj = (proj_mat * view_mat).to_cols_array_2d();
 
         draw_cmds.extracted.cameras.add(CameraType::D2, uniform);
+    }
+
+    fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {
+        Some(&mut self.node_2d)
     }
 }
 
@@ -100,30 +103,30 @@ impl AsNode2d for Camera2d {
     }
 
     fn get_position(&self) -> Vec2 {
-        self.transform.position
+        self.node_2d.transform.position
     }
 
     fn set_position(&mut self, position: Vec2) {
-        self.transform.position = position;
+        self.node_2d.transform.position = position;
     }
 
     fn get_rotation(&self) -> f32 {
-        self.transform.rotation
+        self.node_2d.transform.rotation
     }
 
     fn set_rotation(&mut self, rotation: f32) {
-        self.transform.rotation = rotation;
+        self.node_2d.transform.rotation = rotation;
     }
 
     fn get_transform(&self) -> Transform2d {
-        self.transform
+        self.node_2d.transform
     }
 
     fn get_global_transform(&self) -> Transform2d {
-        self.global_transform
+        self.node_2d.global_transform
     }
 
     fn set_global_transform(&mut self, transform: Transform2d) {
-        self.global_transform = transform;
+        self.node_2d.global_transform = transform;
     }
 }

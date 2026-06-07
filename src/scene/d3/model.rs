@@ -16,6 +16,7 @@ use crate::render::{
 };
 use crate::scene::d3::node3d::{AsNode3d, Node3d};
 use crate::scene::{AsNode, NodeType};
+use crate::animation::property::PropertyProvider;
 
 #[derive(Clone)]
 pub struct RawMeshData {
@@ -641,6 +642,10 @@ impl AsNode for Model {
     }
 
     fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {}
+
+    fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {
+        Some(&mut self.node_3d)
+    }
 }
 
 impl AsNode3d for Model {

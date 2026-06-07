@@ -4,12 +4,12 @@ use crate::math::transform::Transform3d;
 use std::any::Any;
 use crate::render::draw_command::DrawCommands;
 use crate::render::light::DirectionalLightUniform;
-use crate::scene::{AsNode, AsNode3d, NodeType};
+use crate::scene::{AsNode, AsNode3d, Node3d, NodeType};
+use crate::animation::property::PropertyProvider;
 use glam::{Quat, Vec3};
 
 pub struct DirectionalLight {
-    pub transform: Transform3d,
-    pub global_transform: Transform3d,
+    pub node_3d: Node3d,
     pub color: ColorU,
     pub strength: f32,
 }
@@ -17,8 +17,7 @@ pub struct DirectionalLight {
 impl DirectionalLight {
     pub fn new() -> Self {
         Self {
-            transform: Transform3d::default(),
-            global_transform: Transform3d::default(),
+            node_3d: Node3d::default(),
             color: ColorU::white(),
             strength: 1.0,
         }
@@ -49,7 +48,7 @@ impl AsNode for DirectionalLight {
     fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {}
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
-        let direction = self.global_transform.rotation * Vec3::NEG_Z;
+        let direction = self.node_3d.global_transform.rotation * Vec3::NEG_Z;
 
         let directional_light = DirectionalLightUniform {
             direction: direction.to_array(),
@@ -60,42 +59,46 @@ impl AsNode for DirectionalLight {
 
         draw_cmds.extracted.lights.directional_light = Some(directional_light);
     }
+
+    fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {
+        Some(&mut self.node_3d)
+    }
 }
 
 impl AsNode3d for DirectionalLight {
     fn get_position(&self) -> Vec3 {
-        self.transform.position
+        self.node_3d.transform.position
     }
 
     fn set_position(&mut self, position: Vec3) {
-        self.transform.position = position;
+        self.node_3d.transform.position = position;
     }
 
     fn get_rotation(&self) -> Quat {
-        self.transform.rotation
+        self.node_3d.transform.rotation
     }
 
     fn set_rotation(&mut self, rotation: Quat) {
-        self.transform.rotation = rotation;
+        self.node_3d.transform.rotation = rotation;
     }
 
     fn get_scale(&self) -> Vec3 {
-        self.transform.scale
+        self.node_3d.transform.scale
     }
 
     fn set_scale(&mut self, scale: Vec3) {
-        self.transform.scale = scale;
+        self.node_3d.transform.scale = scale;
     }
 
     fn get_transform(&self) -> Transform3d {
-        self.transform
+        self.node_3d.transform
     }
 
     fn get_global_transform(&self) -> Transform3d {
-        self.global_transform
+        self.node_3d.global_transform
     }
 
     fn set_global_transform(&mut self, transform: Transform3d) {
-        self.global_transform = transform;
+        self.node_3d.global_transform = transform;
     }
 }

@@ -3,6 +3,7 @@ use crate::render::atlas::{Atlas, ExtractedAtlas};
 use crate::render::draw_command::DrawCommands;
 use crate::scene::d2::node2d::{AsNode2d, Node2d};
 use crate::scene::{AsNode, NodeType};
+use crate::animation::property::PropertyProvider;
 use glam::Vec2;
 use std::any::Any;
 use crate::math::transform::Transform2d;
@@ -24,6 +25,8 @@ pub struct Label {
 
     /// For rendering glyph sprites.
     atlas: Option<Atlas>,
+
+    last_global_transform: Transform2d,
 }
 
 impl Label {
@@ -38,6 +41,7 @@ impl Label {
             leading: 20.0,
             tracking: 0.0,
             atlas: None,
+            last_global_transform: Transform2d::default(),
         }
     }
 
@@ -52,6 +56,7 @@ impl Label {
             leading: 20.0,
             tracking: 0.0,
             atlas: None,
+            last_global_transform: Transform2d::default(),
         }
     }
 
@@ -87,7 +92,10 @@ impl AsNode for Label {
     }
 
     fn update(&mut self, _dt: f32, singletons: &mut Singletons) {
-        if self.text_is_dirty || self.atlas.as_ref().map_or(true, |a| a.texture.is_none()) {
+        let transform_changed = (self.node_2d.global_transform.position - self.last_global_transform.position).length_squared() > 0.0001
+            || (self.node_2d.global_transform.rotation - self.last_global_transform.rotation).abs() > 0.0001;
+
+        if self.text_is_dirty || self.atlas.as_ref().map_or(true, |a| a.texture.is_none()) || transform_changed {
             let atlas = singletons.text_server.get_atlas(
                 self.text.as_str(),
                 self.font_id.clone(),
@@ -97,6 +105,7 @@ impl AsNode for Label {
 
             if atlas.texture.is_some() {
                 self.text_is_dirty = false;
+                self.last_global_transform = self.node_2d.global_transform;
             }
             self.atlas = Some(atlas);
         }
@@ -107,6 +116,10 @@ impl AsNode for Label {
             atlas: self.atlas.clone().unwrap(),
             view_size: draw_commands.view_info.view_size.into(),
         });
+    }
+
+    fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {
+        Some(&mut self.node_2d)
     }
 }
 

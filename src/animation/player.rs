@@ -145,18 +145,18 @@ impl AnimationPlayer {
     }
 
     fn update_crossfade(&mut self, dt: f32) {
-        // 先取出值，避免借用冲突
-        let target_clip = self.crossfading_to.clone();
+        let target_clip_name = self.crossfading_to.clone();
         
-        if let Some(target_clip) = target_clip {
+        if let Some(target_clip_name) = target_clip_name {
             self.crossfade_progress += dt / self.crossfade_duration;
             
             if self.crossfade_progress >= 1.0 {
-                self.play(&target_clip, self.loop_count);
+                let loop_count = self.loop_count;
+                self.play(&target_clip_name, loop_count);
                 self.crossfading_to = None;
                 self.crossfade_progress = 0.0;
             } else if self.tracks.len() == 1 {
-                if let Some(clip) = self.clips.get(&target_clip) {
+                if let Some(clip) = self.clips.get(&target_clip_name) {
                     self.tracks.push(AnimationTrack {
                         clip: clip.clone(),
                         time: 0.0,
@@ -227,11 +227,14 @@ impl AsNode for AnimationPlayer {
             for track in &mut self.tracks {
                 track.time += dt * self.speed;
                 
-                if track.clip.loop_count == -1 {
-                    track.time = track.time % track.clip.duration;
-                } else if track.time >= track.clip.duration {
-                    track.time = track.clip.duration;
-                    self.play_state = PlayState::Stopped;
+                let duration = track.clip.duration;
+                if duration > 0.0 {
+                    if track.clip.loop_count == -1 {
+                        track.time %= duration;
+                    } else if track.time >= duration {
+                        track.time = duration;
+                        self.play_state = PlayState::Stopped;
+                    }
                 }
             }
         }

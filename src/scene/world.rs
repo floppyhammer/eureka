@@ -177,8 +177,11 @@ impl World {
 
         // 4. Apply all collected property changes
         for change in all_changes {
-            if let Some(node) = self.get_node_mut::<Box<dyn AsNode>>(change.target_entity) {
-                apply_property_change_to_node(node.as_mut(), &change);
+            if let Some(node) = self.arena.get_mut(change.target_entity) {
+                let node_ptr = node.get_mut();
+                if let Some(provider) = node_ptr.as_property_provider_mut() {
+                    provider.set_property(&change.property_path, change.value.clone(), change.weight);
+                }
             }
         }
 
@@ -215,14 +218,3 @@ impl World {
     }
 }
 
-fn apply_property_change_to_node(node: &mut dyn AsNode, change: &PropertyChange) {
-    // Try to downcast to types that implement PropertyProvider
-    if let Some(node3d) = node.as_any_mut().downcast_mut::<crate::scene::d3::node3d::Node3d>() {
-        node3d.set_property(&change.property_path, change.value.clone(), change.weight);
-        return
-    }
-    if let Some(node_2d) = node.as_any_mut().downcast_mut::<crate::scene::d2::node2d::Node2d>() {
-        node_2d.set_property(&change.property_path, change.value.clone(), change.weight);
-        return
-    }
-}

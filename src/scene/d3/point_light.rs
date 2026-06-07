@@ -6,6 +6,7 @@ use std::any::Any;
 use crate::render::draw_command::DrawCommands;
 use crate::render::light::PointLightUniform;
 use crate::scene::{AsNode, AsNode3d, Node3d, NodeType};
+use crate::animation::property::PropertyProvider;
 // use crate::scene::sprite3d::Sprite3d;
 // use crate::scene::{AsNode, CameraInfo, NodeType};
 
@@ -75,6 +76,10 @@ impl AsNode for PointLight {
         };
 
         draw_cmds.extracted.lights.point_lights.push(point_light);
+    }
+
+    fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {
+        Some(&mut self.node_3d)
     }
 }
 

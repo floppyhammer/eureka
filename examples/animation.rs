@@ -33,7 +33,7 @@ fn main() {
             Keyframe::new(2.0, 300.0),
         ]);
 
-        let mut clip = AnimationClip::new("bounce".to_string())
+        let clip = AnimationClip::new("bounce".to_string())
             .add_curve("transform.position.x".to_string(), position_x_curve)
             .add_curve("transform.position.y".to_string(), position_y_curve);
 
@@ -50,7 +50,7 @@ fn main() {
             Keyframe::new(2.0, 300.0).with_interpolation(Interpolation::Smooth),
         ]);
 
-        let mut smooth_clip = AnimationClip::new("smooth_bounce".to_string())
+        let smooth_clip = AnimationClip::new("smooth_bounce".to_string())
             .add_curve("transform.position.x".to_string(), smooth_position_x_curve)
             .add_curve("transform.position.y".to_string(), smooth_position_y_curve);
 
