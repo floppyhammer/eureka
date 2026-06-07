@@ -1,5 +1,5 @@
 use crate::core::singleton::Singletons;
-use crate::render::atlas::{Atlas, ExtractedAtlas};
+use crate::render::atlas::Atlas;
 use crate::render::draw_command::DrawCommands;
 use crate::scene::d2::node2d::{AsNode2d, Node2d};
 use crate::scene::{AsNode, NodeType};
@@ -7,6 +7,8 @@ use crate::animation::property::PropertyProvider;
 use glam::Vec2;
 use std::any::Any;
 use crate::math::transform::Transform2d;
+
+use crate::render::sprite::ExtractedSprite2d;
 
 pub struct Label {
     node_2d: Node2d,
@@ -112,10 +114,30 @@ impl AsNode for Label {
     }
 
     fn draw(&self, draw_commands: &mut DrawCommands) {
-        draw_commands.extracted.ui_2d.push(crate::render::render_world::ExtractedUi2d::Atlas(ExtractedAtlas {
-            atlas: self.atlas.clone().unwrap(),
-            view_size: draw_commands.view_info.view_size.into(),
-        }));
+        if let Some(atlas) = &self.atlas {
+            if let Some(texture_id) = atlas.texture {
+                for instance in &atlas.instances {
+                    // instance.position is Bottom-Left in Y-down.
+                    // ExtractedSprite2d with centered=false expects Top-Left.
+                    let tl_pos = Vec2::new(instance.position.x, instance.position.y - instance.size.y);
+                    draw_commands.extracted.sprites_2d.push(ExtractedSprite2d {
+                        transform: Transform2d {
+                            position: tl_pos,
+                            rotation: 0.0,
+                            scale: Vec2::ONE,
+                        },
+                        color: instance.color.into(),
+                        rect: instance.region,
+                        size: instance.size,
+                        texture_id,
+                        centered: false,
+                        flip_x: false,
+                        flip_y: false,
+                        mode: 1,
+                    });
+                }
+            }
+        }
     }
 
     fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {

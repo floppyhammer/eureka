@@ -7,6 +7,7 @@ use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform, 
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::vertex::{Vertex3d, VertexSky};
+use crate::render::sprite::ExtractedSprite2d;
 use crate::render::{RenderContext, Texture, TextureCache, TextureId};
 use crate::scene::Bvh;
 use glam::{Mat3, Mat4, Quat, Vec3};
@@ -236,7 +237,7 @@ impl MeshRenderResources {
         }
     }
 
-    pub fn prepare_materials(&mut self, texture_cache: &TextureCache, render_server: &RenderContext, extracted_ui_2d: &[crate::render::render_world::ExtractedUi2d]) {
+    pub fn prepare_materials(&mut self, texture_cache: &TextureCache, render_server: &RenderContext, extracted_sprites_2d: &[ExtractedSprite2d]) {
         self.texture_index_map.clear();
         let mut texture_views = Vec::new();
 
@@ -255,27 +256,13 @@ impl MeshRenderResources {
             }
         }
 
-        // 2. 搜集 2D UI 纹理 (Sprites + Atlases)
-        for ui in extracted_ui_2d {
-            match ui {
-                crate::render::render_world::ExtractedUi2d::Sprite(sprite) => {
-                    let id = sprite.texture_id;
-                    if !self.texture_index_map.contains_key(&id) {
-                        if let Some(texture) = texture_cache.get(id) {
-                            self.texture_index_map.insert(id, texture_views.len() as u32);
-                            texture_views.push(&texture.view);
-                        }
-                    }
-                }
-                crate::render::render_world::ExtractedUi2d::Atlas(atlas) => {
-                    if let Some(id) = atlas.atlas.texture {
-                        if !self.texture_index_map.contains_key(&id) {
-                            if let Some(texture) = texture_cache.get(id) {
-                                self.texture_index_map.insert(id, texture_views.len() as u32);
-                                texture_views.push(&texture.view);
-                            }
-                        }
-                    }
+        // 2. 搜集 2D UI 纹理 (Sprites + Labels)
+        for sprite in extracted_sprites_2d {
+            let id = sprite.texture_id;
+            if !self.texture_index_map.contains_key(&id) {
+                if let Some(texture) = texture_cache.get(id) {
+                    self.texture_index_map.insert(id, texture_views.len() as u32);
+                    texture_views.push(&texture.view);
                 }
             }
         }

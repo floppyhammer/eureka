@@ -144,17 +144,16 @@ impl AsNode for Sprite2d {
         if let Some(texture_id) = self.texture {
             let extracted = ExtractedSprite2d {
                 transform: self.node_2d.global_transform,
-                size: if self.use_original_size {
-                    None
-                } else {
-                    Some(self.node_2d.size.into())
-                },
+                color: [1.0, 1.0, 1.0, 1.0],
+                rect: self.region,
+                size: self.node_2d.size,
                 texture_id,
                 centered: self.centered,
                 flip_x: self.flip_x,
                 flip_y: self.flip_y,
+                mode: 0,
             };
-            draw_cmds.extracted.ui_2d.push(crate::render::render_world::ExtractedUi2d::Sprite(extracted));
+            draw_cmds.extracted.sprites_2d.push(extracted);
         }
     }
 

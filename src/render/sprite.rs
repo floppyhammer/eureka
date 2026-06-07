@@ -10,11 +10,14 @@ use wgpu::BufferAddress;
 #[derive(Debug, Copy, Clone)]
 pub struct ExtractedSprite2d {
     pub(crate) transform: Transform2d,
-    pub(crate) size: Option<(f32, f32)>,
+    pub(crate) color: [f32; 4],
+    pub(crate) rect: glam::Vec4, // [min_u, min_v, max_u, max_v]
+    pub(crate) size: glam::Vec2,
     pub(crate) texture_id: TextureId,
     pub(crate) centered: bool,
     pub(crate) flip_x: bool,
     pub(crate) flip_y: bool,
+    pub(crate) mode: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -43,26 +46,17 @@ impl SpriteRenderResources {
 
 const QUAD_INDICES: [u32; 6] = [0, 2, 3, 0, 1, 2];
 const QUAD_VERTEX_POSITIONS: [Vec2; 4] = [Vec2::new(-0.5, 0.5), Vec2::new(0.5, 0.5), Vec2::new(0.5, -0.5), Vec2::new(-0.5, -0.5)];
-const QUAD_UVS: [Vec2; 4] = [Vec2::new(0., 1.), Vec2::new(1., 1.), Vec2::new(1., 0.), Vec2::new(0., 0.)];
 
 pub(crate) fn prepare_sprite(
-    ui_elements: &Vec<crate::render::render_world::ExtractedUi2d>,
+    sprites_2d: &Vec<ExtractedSprite2d>,
     render_resources: &mut SpriteRenderResources,
-    texture_cache: &TextureCache,
+    _texture_cache: &TextureCache,
     render_server: &RenderContext,
     mesh_render_resources: &MeshRenderResources,
 ) -> Vec<SpriteBatch> {
-    if ui_elements.is_empty() { return vec![]; }
+    if sprites_2d.is_empty() { return vec![]; }
 
-    let mut total_quads = 0;
-    for ui in ui_elements {
-        match ui {
-            crate::render::render_world::ExtractedUi2d::Sprite(_) => total_quads += 1,
-            crate::render::render_world::ExtractedUi2d::Atlas(atlas) => total_quads += atlas.atlas.instances.len(),
-        }
-    }
-
-    if total_quads == 0 { return vec![]; }
+    let total_quads = sprites_2d.len();
 
     if render_resources.vertex_buffer.is_none() || render_resources.vertex_buffer_capacity < total_quads {
         render_resources.vertex_buffer = Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
@@ -77,72 +71,45 @@ pub(crate) fn prepare_sprite(
     let mut all_vertices = Vec::with_capacity(total_quads * 4);
     let mut all_indices = Vec::with_capacity(total_quads * 6);
 
-    // 计算 Z 步长。我们希望越后抽取的元素 Z 越大（越靠近相机，在我们的投影中，Z 越大越靠前）。
-    let z_step = 10.0 / (ui_elements.len() as f32 + 1.0);
-    let mut current_z = -5.0; // 从中间往后一点开始
+    let z_step = 10.0 / (sprites_2d.len() as f32 + 1.0);
+    let mut current_z = -5.0;
 
-    for ui in ui_elements {
+    for e in sprites_2d {
         current_z += z_step;
-        match ui {
-            crate::render::render_world::ExtractedUi2d::Sprite(e) => {
-                let mut uvs = QUAD_UVS;
-                if e.flip_x { uvs = [uvs[1], uvs[0], uvs[3], uvs[2]]; }
-                if e.flip_y { uvs = [uvs[3], uvs[2], uvs[1], uvs[0]]; }
 
-                let size = e.size.unwrap_or_else(|| { let tex = texture_cache.get(e.texture_id).unwrap(); (tex.size.0 as f32, tex.size.1 as f32) });
-                let quad_size = Vec2::new(size.0, size.1);
-                let texture_idx = *mesh_render_resources.texture_index_map.get(&e.texture_id).unwrap_or(&0);
+        let mut uvs = [
+            Vec2::new(e.rect.x, e.rect.w), // BL
+            Vec2::new(e.rect.z, e.rect.w), // BR
+            Vec2::new(e.rect.z, e.rect.y), // TR
+            Vec2::new(e.rect.x, e.rect.y), // TL
+        ];
 
-                let vertex_start = all_vertices.len() as u32;
-                for i in 0..4 {
-                    let mut quad_pos = QUAD_VERTEX_POSITIONS[i];
-                    if !e.centered { quad_pos += Vec2::new(0.5, 0.5); }
-                    let new_pos = e.transform.transform_point(&(quad_pos * quad_size));
-                    all_vertices.push(Vertex2d { position: [new_pos.x, new_pos.y, current_z], uv: uvs[i].into(), color: [1., 1., 1., 1.], texture_idx, mode: 0 });
-                }
-                for i in QUAD_INDICES { all_indices.push(vertex_start + i); }
-            }
-            crate::render::render_world::ExtractedUi2d::Atlas(e) => {
-                if let Some(texture_id) = e.atlas.texture {
-                    let texture_idx = *mesh_render_resources.texture_index_map.get(&texture_id).unwrap_or(&0);
-                    for instance in &e.atlas.instances {
-                        let vertex_start = all_vertices.len() as u32;
-                        let p = instance.position;
-                        let s = instance.size;
-                        let r = instance.region; // [min_u, min_v, max_u, max_v]
-
-                        // 重要：在 eureka 的文本系统中，p.y 实际上是字符的底部（或接近底部）坐标。
-                        // 我们应该向上生成四边形。
-                        // 0: 左下 (BL), 1: 右下 (BR), 2: 右上 (TR), 3: 左上 (TL)
-                        let pos = [
-                            [p.x,       p.y,       current_z], // 0: BL
-                            [p.x + s.x, p.y,       current_z], // 1: BR
-                            [p.x + s.x, p.y - s.y, current_z], // 2: TR
-                            [p.x,       p.y - s.y, current_z], // 3: TL
-                        ];
-
-                        // 对应 UV (r.y 是 top/min_v, r.w 是 bottom/max_v)
-                        let uvs = [
-                            [r.x, r.w], // 0: BL
-                            [r.z, r.w], // 1: BR
-                            [r.z, r.y], // 2: TR
-                            [r.x, r.y], // 3: TL
-                        ];
-
-                        for i in 0..4 {
-                            all_vertices.push(Vertex2d {
-                                position: pos[i],
-                                uv: uvs[i],
-                                color: instance.color.into(),
-                                texture_idx,
-                                mode: 1
-                            });
-                        }
-                        for i in QUAD_INDICES { all_indices.push(vertex_start + i); }
-                    }
-                }
-            }
+        if e.flip_x {
+            uvs.swap(0, 1);
+            uvs.swap(2, 3);
         }
+        if e.flip_y {
+            uvs.swap(0, 3);
+            uvs.swap(1, 2);
+        }
+
+        let texture_idx = *mesh_render_resources.texture_index_map.get(&e.texture_id).unwrap_or(&0);
+        let vertex_start = all_vertices.len() as u32;
+
+        for i in 0..4 {
+            let mut quad_pos = QUAD_VERTEX_POSITIONS[i];
+            if !e.centered { quad_pos += Vec2::new(0.5, 0.5); }
+            let new_pos = e.transform.transform_point(&(quad_pos * e.size));
+
+            all_vertices.push(Vertex2d {
+                position: [new_pos.x, new_pos.y, current_z],
+                uv: uvs[i].into(),
+                color: e.color,
+                texture_idx,
+                mode: e.mode,
+            });
+        }
+        for i in QUAD_INDICES { all_indices.push(vertex_start + i); }
     }
 
     if render_resources.index_buffer_capacity < all_indices.len() {
