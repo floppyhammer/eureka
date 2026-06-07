@@ -6,7 +6,6 @@ pub mod shadow;
 pub mod skybox;
 pub mod sprite;
 pub mod ssao;
-pub mod text;
 pub mod transparent_mesh;
 
 pub use clear::*;
@@ -17,5 +16,4 @@ pub use shadow::*;
 pub use skybox::*;
 pub use sprite::*;
 pub use ssao::*;
-pub use text::*;
 pub use transparent_mesh::*;
