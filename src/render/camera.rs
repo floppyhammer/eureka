@@ -251,9 +251,9 @@ impl OrthographicProjection {
             left: 0f32,
             right: 1f32,
             bottom: 0f32,
-            top: 0.1,
-            near: 100.0,
-            far: 0.0,
+            top: 1.0,
+            near: -100.0,
+            far: 100.0,
         }
     }
 

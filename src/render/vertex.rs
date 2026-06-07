@@ -59,10 +59,11 @@ impl VertexBuffer for Vertex3d {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct Vertex2d {
-    pub(crate) position: [f32; 2],
+    pub(crate) position: [f32; 3],
     pub(crate) uv: [f32; 2],
-    pub(crate) color: [f32; 3],
+    pub(crate) color: [f32; 4],
     pub(crate) texture_idx: u32,
+    pub(crate) mode: u32,
 }
 
 impl VertexBuffer for Vertex2d {
@@ -75,24 +76,30 @@ impl VertexBuffer for Vertex2d {
                     // Position.
                     offset: 0,
                     shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x2,
+                    format: wgpu::VertexFormat::Float32x3,
                 },
                 wgpu::VertexAttribute {
                     // UV.
-                    offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
+                    offset: 12,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x2,
                 },
                 wgpu::VertexAttribute {
                     // Color.
-                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    offset: 20,
                     shader_location: 2,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: wgpu::VertexFormat::Float32x4,
                 },
                 wgpu::VertexAttribute {
                     // Texture Index.
-                    offset: std::mem::size_of::<[f32; 7]>() as wgpu::BufferAddress,
+                    offset: 36,
                     shader_location: 3,
+                    format: wgpu::VertexFormat::Uint32,
+                },
+                wgpu::VertexAttribute {
+                    // Mode (0: Sprite, 1: Text)
+                    offset: 40,
+                    shader_location: 4,
                     format: wgpu::VertexFormat::Uint32,
                 },
             ],

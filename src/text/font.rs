@@ -69,7 +69,7 @@ pub(crate) struct Glyph {
     pub(crate) break_property: BreakClass,
 }
 
-pub(crate) const FONT_ATLAS_SIZE: u32 = 2096;
+pub(crate) const FONT_ATLAS_SIZE: u32 = 2048;
 
 pub(crate) struct Font {
     res_path: String,

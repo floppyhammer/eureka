@@ -154,7 +154,7 @@ impl AsNode for Sprite2d {
                 flip_x: self.flip_x,
                 flip_y: self.flip_y,
             };
-            draw_cmds.extracted.sprites.push(extracted);
+            draw_cmds.extracted.ui_2d.push(crate::render::render_world::ExtractedUi2d::Sprite(extracted));
         }
     }
 

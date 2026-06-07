@@ -46,40 +46,102 @@ const QUAD_VERTEX_POSITIONS: [Vec2; 4] = [Vec2::new(-0.5, 0.5), Vec2::new(0.5, 0
 const QUAD_UVS: [Vec2; 4] = [Vec2::new(0., 1.), Vec2::new(1., 1.), Vec2::new(1., 0.), Vec2::new(0., 0.)];
 
 pub(crate) fn prepare_sprite(
-    sprites: &Vec<ExtractedSprite2d>,
+    ui_elements: &Vec<crate::render::render_world::ExtractedUi2d>,
     render_resources: &mut SpriteRenderResources,
     texture_cache: &TextureCache,
     render_server: &RenderContext,
     mesh_render_resources: &MeshRenderResources,
 ) -> Vec<SpriteBatch> {
-    if sprites.is_empty() { return vec![]; }
+    if ui_elements.is_empty() { return vec![]; }
 
-    let sprite_count = sprites.len();
-    if render_resources.vertex_buffer_capacity < sprite_count {
-        render_resources.vertex_buffer = Some(render_server.device.create_buffer(&wgpu::BufferDescriptor { label: Some("sprite vertex"), size: (mem::size_of::<Vertex2d>() * 4 * sprite_count) as BufferAddress, usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false }));
-        render_resources.vertex_buffer_capacity = sprite_count;
+    let mut total_quads = 0;
+    for ui in ui_elements {
+        match ui {
+            crate::render::render_world::ExtractedUi2d::Sprite(_) => total_quads += 1,
+            crate::render::render_world::ExtractedUi2d::Atlas(atlas) => total_quads += atlas.atlas.instances.len(),
+        }
     }
 
-    let mut all_vertices = Vec::with_capacity(sprite_count * 4);
-    let mut all_indices = Vec::with_capacity(sprite_count * 6);
+    if total_quads == 0 { return vec![]; }
 
-    for e in sprites {
-        let mut uvs = QUAD_UVS;
-        if e.flip_x { uvs = [uvs[1], uvs[0], uvs[3], uvs[2]]; }
-        if e.flip_y { uvs = [uvs[3], uvs[2], uvs[1], uvs[0]]; }
+    if render_resources.vertex_buffer.is_none() || render_resources.vertex_buffer_capacity < total_quads {
+        render_resources.vertex_buffer = Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("ui vertex"),
+            size: (mem::size_of::<Vertex2d>() * 4 * total_quads) as BufferAddress,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false
+        }));
+        render_resources.vertex_buffer_capacity = total_quads;
+    }
 
-        let size = e.size.unwrap_or_else(|| { let tex = texture_cache.get(e.texture_id).unwrap(); (tex.size.0 as f32, tex.size.1 as f32) });
-        let quad_size = Vec2::new(size.0, size.1);
-        let texture_idx = *mesh_render_resources.texture_index_map.get(&e.texture_id).unwrap_or(&0);
+    let mut all_vertices = Vec::with_capacity(total_quads * 4);
+    let mut all_indices = Vec::with_capacity(total_quads * 6);
 
-        let vertex_start = all_vertices.len() as u32;
-        for i in 0..4 {
-            let mut quad_pos = QUAD_VERTEX_POSITIONS[i];
-            if !e.centered { quad_pos += Vec2::new(0.5, 0.5); }
-            let new_pos = e.transform.transform_point(&(quad_pos * quad_size));
-            all_vertices.push(Vertex2d { position: new_pos.into(), uv: uvs[i].into(), color: [1., 1., 1.], texture_idx });
+    // 计算 Z 步长。我们希望越后抽取的元素 Z 越大（越靠近相机，在我们的投影中，Z 越大越靠前）。
+    let z_step = 10.0 / (ui_elements.len() as f32 + 1.0);
+    let mut current_z = -5.0; // 从中间往后一点开始
+
+    for ui in ui_elements {
+        current_z += z_step;
+        match ui {
+            crate::render::render_world::ExtractedUi2d::Sprite(e) => {
+                let mut uvs = QUAD_UVS;
+                if e.flip_x { uvs = [uvs[1], uvs[0], uvs[3], uvs[2]]; }
+                if e.flip_y { uvs = [uvs[3], uvs[2], uvs[1], uvs[0]]; }
+
+                let size = e.size.unwrap_or_else(|| { let tex = texture_cache.get(e.texture_id).unwrap(); (tex.size.0 as f32, tex.size.1 as f32) });
+                let quad_size = Vec2::new(size.0, size.1);
+                let texture_idx = *mesh_render_resources.texture_index_map.get(&e.texture_id).unwrap_or(&0);
+
+                let vertex_start = all_vertices.len() as u32;
+                for i in 0..4 {
+                    let mut quad_pos = QUAD_VERTEX_POSITIONS[i];
+                    if !e.centered { quad_pos += Vec2::new(0.5, 0.5); }
+                    let new_pos = e.transform.transform_point(&(quad_pos * quad_size));
+                    all_vertices.push(Vertex2d { position: [new_pos.x, new_pos.y, current_z], uv: uvs[i].into(), color: [1., 1., 1., 1.], texture_idx, mode: 0 });
+                }
+                for i in QUAD_INDICES { all_indices.push(vertex_start + i); }
+            }
+            crate::render::render_world::ExtractedUi2d::Atlas(e) => {
+                if let Some(texture_id) = e.atlas.texture {
+                    let texture_idx = *mesh_render_resources.texture_index_map.get(&texture_id).unwrap_or(&0);
+                    for instance in &e.atlas.instances {
+                        let vertex_start = all_vertices.len() as u32;
+                        let p = instance.position;
+                        let s = instance.size;
+                        let r = instance.region; // [min_u, min_v, max_u, max_v]
+
+                        // 按照引擎标准的 QUAD 顺序:
+                        // 0: 左下 (BL), 1: 右下 (BR), 2: 右上 (TR), 3: 左上 (TL)
+                        let pos = [
+                            [p.x, p.y + s.y, current_z],     // 0: BL
+                            [p.x + s.x, p.y + s.y, current_z], // 1: BR
+                            [p.x + s.x, p.y, current_z],     // 2: TR
+                            [p.x, p.y, current_z],           // 3: TL
+                        ];
+
+                        // 对应 UV (r.x: min_u, r.y: min_v, r.z: max_u, r.w: max_v)
+                        let uvs = [
+                            [r.x, r.w],                      // 0: BL
+                            [r.z, r.w],                      // 1: BR
+                            [r.z, r.y],                      // 2: TR
+                            [r.x, r.y],                      // 3: TL
+                        ];
+
+                        for i in 0..4 {
+                            all_vertices.push(Vertex2d {
+                                position: pos[i],
+                                uv: uvs[i],
+                                color: instance.color.into(),
+                                texture_idx,
+                                mode: 1
+                            });
+                        }
+                        for i in QUAD_INDICES { all_indices.push(vertex_start + i); }
+                    }
+                }
+            }
         }
-        for i in QUAD_INDICES { all_indices.push(vertex_start + i); }
     }
 
     if render_resources.index_buffer_capacity < all_indices.len() {

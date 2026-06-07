@@ -10,6 +10,8 @@ pub struct SsaoRenderResources {
     pub ssao_texture: TextureId,
     pub blur_texture: TextureId,
     pub noise_texture: TextureId,
+    pub depth_texture: TextureId,
+    pub depth_texture_view: wgpu::TextureView,
 
     pub ssao_uniform_buffer: wgpu::Buffer,
     pub ssao_bind_group: wgpu::BindGroup,
@@ -55,6 +57,14 @@ impl SsaoRenderResources {
             wgpu::TextureFormat::R8Unorm,
             "SSAO Blurred Texture",
         ));
+
+        let depth_texture_raw = create_depth_texture(device, config.width, config.height, "SSAO Depth Texture");
+        let depth_texture_view = depth_texture_raw.texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("SSAO Depth View"),
+            aspect: wgpu::TextureAspect::DepthOnly,
+            ..Default::default()
+        });
+        let depth_texture = texture_cache.add(depth_texture_raw);
 
         // Noise texture (4x4)
         let mut noise_data = Vec::new();
@@ -209,6 +219,8 @@ impl SsaoRenderResources {
             ssao_texture,
             blur_texture,
             noise_texture,
+            depth_texture,
+            depth_texture_view,
             ssao_uniform_buffer,
             ssao_bind_group,
             blur_bind_group,
@@ -225,6 +237,7 @@ impl SsaoRenderResources {
         texture_cache.remove(self.normal_texture);
         texture_cache.remove(self.ssao_texture);
         texture_cache.remove(self.blur_texture);
+        texture_cache.remove(self.depth_texture);
 
         self.normal_texture = texture_cache.add(create_color_texture(
             device,
@@ -249,6 +262,14 @@ impl SsaoRenderResources {
             wgpu::TextureFormat::R8Unorm,
             "SSAO Blurred Texture",
         ));
+
+        let depth_texture_raw = create_depth_texture(device, width, height, "SSAO Depth Texture");
+        self.depth_texture_view = depth_texture_raw.texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("SSAO Depth View"),
+            aspect: wgpu::TextureAspect::DepthOnly,
+            ..Default::default()
+        });
+        self.depth_texture = texture_cache.add(depth_texture_raw);
     }
 
     pub fn update_bind_groups(
@@ -417,6 +438,53 @@ fn create_color_texture(
         view,
         sampler,
         format,
+    }
+}
+
+fn create_depth_texture(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+    label: &str,
+) -> Texture {
+    let size = wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+    };
+    let desc = wgpu::TextureDescriptor {
+        label: Some(label),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: Texture::DEPTH_FORMAT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    };
+    let texture = device.create_texture(&desc);
+    let view = texture.create_view(&wgpu::TextureViewDescriptor {
+        aspect: wgpu::TextureAspect::DepthOnly,
+        ..Default::default()
+    });
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        address_mode_w: wgpu::AddressMode::ClampToEdge,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        compare: Some(wgpu::CompareFunction::LessEqual),
+        lod_min_clamp: 0.0,
+        lod_max_clamp: 100.0,
+        ..Default::default()
+    });
+
+    Texture {
+        size: (width, height),
+        texture,
+        view,
+        sampler,
+        format: Texture::DEPTH_FORMAT,
     }
 }
 

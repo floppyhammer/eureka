@@ -16,15 +16,20 @@ use crate::render::{
 use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode, FxaaNode, TransparentMeshNode};
 use crate::scene::Bvh;
 
+#[derive(Clone)]
+pub enum ExtractedUi2d {
+    Sprite(ExtractedSprite2d),
+    Atlas(ExtractedAtlas),
+}
+
 #[derive(Default, Clone)]
 pub struct Extracted {
-    pub(crate) sprites: Vec<ExtractedSprite2d>,
+    pub(crate) ui_2d: Vec<ExtractedUi2d>,
     pub(crate) meshes: Vec<ExtractedMesh>,
     pub(crate) transparent_meshes: Vec<ExtractedMesh>,
     pub(crate) bvh: Bvh,
     pub(crate) cameras: ExtractedCameras,
     pub(crate) lights: ExtractedLights,
-    pub(crate) atlases: Vec<ExtractedAtlas>,
     pub(crate) sky: Option<ExtractedSky>,
 }
 
@@ -56,6 +61,9 @@ impl RenderWorld {
         let sky_render_resources = SkyRenderResources::new(render_server);
         let light_render_resources = LightRenderResources::new();
         let ssao_render_resources = SsaoRenderResources::new(render_server, &mut texture_cache, &camera_render_resources);
+
+        // 我们不再单独管理深度纹理，因为它现在由 SSAO 资源池管理并自动创建。
+        // 原有的 create_main_depth_texture 调用可以移除，因为它在 SsaoRenderResources::new 里已经被覆盖。
 
         Self {
             texture_cache,
@@ -113,8 +121,8 @@ impl RenderWorld {
         // 1. Prepare global camera data
         self.camera_render_resources.prepare_cameras(render_server, &self.extracted.cameras);
 
-        // 2. Prepare Bindless Materials (Now includes sprite textures)
-        self.mesh_render_resources.prepare_materials(&self.texture_cache, render_server, &self.extracted.sprites);
+        // 2. Prepare Bindless Materials (Now includes all 2D textures)
+        self.mesh_render_resources.prepare_materials(&self.texture_cache, render_server, &self.extracted.ui_2d);
 
         // 3. Separate opaque and transparent meshes
         let mut opaque_meshes = Vec::new();
@@ -147,9 +155,8 @@ impl RenderWorld {
             self.extracted.bvh = Bvh::build(bvh_objects);
         }
 
-        // 5. Prepare Sprites & Atlases
-        self.sprite_batches = prepare_sprite(&self.extracted.sprites, &mut self.sprite_render_resources, &self.texture_cache, render_server, &self.mesh_render_resources);
-        prepare_atlas(&self.extracted.atlases, &mut self.atlas_render_resources, render_server, &self.texture_cache, &mut self.shader_maker);
+        // 5. Prepare Unified 2D UI
+        self.sprite_batches = prepare_sprite(&self.extracted.ui_2d, &mut self.sprite_render_resources, &self.texture_cache, render_server, &self.mesh_render_resources);
 
         // 6. Prepare 3D Meshes & Lights (combine opaque and transparent for instance preparation)
         let all_meshes: Vec<_> = self.extracted.meshes.iter().chain(self.extracted.transparent_meshes.iter()).cloned().collect();

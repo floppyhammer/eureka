@@ -41,7 +41,7 @@ impl Node for SpriteNode {
             device,
             &pipeline_layout,
             Some(context.render_context.surface_config.format),
-            None,
+            None, // 暂时禁用深度格式，改回传统的绘制顺序以进行调试
             &[Vertex2d::desc()],
             shader,
             "sprite bindless",
@@ -52,7 +52,7 @@ impl Node for SpriteNode {
 
     fn run(&mut self, context: &mut FrameContext) {
         let world = &*context.render_world;
-        if world.sprite_batches.is_empty() && world.extracted.atlases.is_empty() {
+        if world.sprite_batches.is_empty() {
             return;
         }
 
@@ -69,7 +69,7 @@ impl Node for SpriteNode {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: None, // 暂时禁用
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
@@ -78,12 +78,6 @@ impl Node for SpriteNode {
             &world.camera_render_resources.bind_group,
             &world.mesh_render_resources.bindless_bind_group,
         ) {
-            render_atlas(
-                &world.extracted.atlases,
-                &world.atlas_render_resources,
-                &mut render_pass,
-            );
-
             render_sprite(
                 &world.sprite_batches,
                 &world.sprite_render_resources,

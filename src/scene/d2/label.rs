@@ -112,10 +112,10 @@ impl AsNode for Label {
     }
 
     fn draw(&self, draw_commands: &mut DrawCommands) {
-        draw_commands.extracted.atlases.push(ExtractedAtlas {
+        draw_commands.extracted.ui_2d.push(crate::render::render_world::ExtractedUi2d::Atlas(ExtractedAtlas {
             atlas: self.atlas.clone().unwrap(),
             view_size: draw_commands.view_info.view_size.into(),
-        });
+        }));
     }
 
     fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {
