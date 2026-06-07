@@ -175,8 +175,9 @@ impl RenderWorld {
         }
     }
 
-    pub fn recreate_depth_texture(&mut self, render_server: &RenderContext) {
-        self.ssao_render_resources.on_resize(&render_server.device, &mut self.texture_cache, render_server.surface_config.width, render_server.surface_config.height);
+    pub fn recreate_depth_texture(&mut self, _render_server: &RenderContext) {
+        // 深度纹理现在由 RenderGraph::ResourcePool 按需管理，
+        // 节点的 run 方法会通过 context.get_texture 自动处理 Resize。
     }
 
     fn create_main_color_texture(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration, cache: &mut TextureCache) -> TextureId {

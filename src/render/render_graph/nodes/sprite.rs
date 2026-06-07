@@ -1,8 +1,9 @@
 use crate::render::atlas::render_atlas;
 use crate::render::create_render_pipeline;
-use crate::render::render_graph::{FrameContext, Node};
+use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use crate::render::sprite::render_sprite;
 use crate::render::vertex::{Vertex2d, VertexBuffer};
+use crate::render::Texture;
 
 pub struct SpriteNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -41,7 +42,7 @@ impl Node for SpriteNode {
             device,
             &pipeline_layout,
             Some(context.render_context.surface_config.format),
-            None, // 暂时禁用深度格式，改回传统的绘制顺序以进行调试
+            Some(Texture::DEPTH_FORMAT),
             &[Vertex2d::desc()],
             shader,
             "sprite bindless",
@@ -51,6 +52,14 @@ impl Node for SpriteNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
+        let main_depth_key = TextureKey {
+            width: context.render_context.surface_config.width,
+            height: context.render_context.surface_config.height,
+            format: Texture::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        };
+        let main_depth = context.get_texture("main_depth", main_depth_key);
+
         let world = &*context.render_world;
         if world.sprite_batches.is_empty() {
             return;
@@ -69,7 +78,14 @@ impl Node for SpriteNode {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None, // 暂时禁用
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &main_depth.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });

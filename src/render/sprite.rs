@@ -111,21 +111,22 @@ pub(crate) fn prepare_sprite(
                         let s = instance.size;
                         let r = instance.region; // [min_u, min_v, max_u, max_v]
 
-                        // 按照引擎标准的 QUAD 顺序:
+                        // 重要：在 eureka 的文本系统中，p.y 实际上是字符的底部（或接近底部）坐标。
+                        // 我们应该向上生成四边形。
                         // 0: 左下 (BL), 1: 右下 (BR), 2: 右上 (TR), 3: 左上 (TL)
                         let pos = [
-                            [p.x, p.y + s.y, current_z],     // 0: BL
-                            [p.x + s.x, p.y + s.y, current_z], // 1: BR
-                            [p.x + s.x, p.y, current_z],     // 2: TR
-                            [p.x, p.y, current_z],           // 3: TL
+                            [p.x,       p.y,       current_z], // 0: BL
+                            [p.x + s.x, p.y,       current_z], // 1: BR
+                            [p.x + s.x, p.y - s.y, current_z], // 2: TR
+                            [p.x,       p.y - s.y, current_z], // 3: TL
                         ];
 
-                        // 对应 UV (r.x: min_u, r.y: min_v, r.z: max_u, r.w: max_v)
+                        // 对应 UV (r.y 是 top/min_v, r.w 是 bottom/max_v)
                         let uvs = [
-                            [r.x, r.w],                      // 0: BL
-                            [r.z, r.w],                      // 1: BR
-                            [r.z, r.y],                      // 2: TR
-                            [r.x, r.y],                      // 3: TL
+                            [r.x, r.w], // 0: BL
+                            [r.z, r.w], // 1: BR
+                            [r.z, r.y], // 2: TR
+                            [r.x, r.y], // 3: TL
                         ];
 
                         for i in 0..4 {
