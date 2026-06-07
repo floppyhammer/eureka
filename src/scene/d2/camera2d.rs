@@ -16,7 +16,7 @@ pub struct Camera2d {
     /// Where to draw. None for screen.
     pub view: Option<u32>,
 
-    projection: Projection,
+    pub projection: Projection,
 }
 
 impl Camera2d {

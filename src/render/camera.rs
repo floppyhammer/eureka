@@ -180,7 +180,7 @@ impl From<OrthographicProjection> for Projection {
 }
 
 impl Projection {
-    pub(crate) fn update(&mut self, width: f32, height: f32) {
+    pub fn update(&mut self, width: f32, height: f32) {
         match self {
             Projection::Perspective(projection) => projection.update(width, height),
             Projection::Orthographic(projection) => projection.update(width, height),

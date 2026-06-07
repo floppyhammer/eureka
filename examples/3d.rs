@@ -1,16 +1,17 @@
+use eureka::core::{App, Singletons};
+use eureka::render::draw_command::DrawCommands;
+use eureka::render::render_world::RenderWorld;
+use eureka::scene::{AsNode, AsNode2d, AsNode3d, Camera2d, Camera3d, DirectionalLight, Label, Model, NodeType, PointLight, Sky};
+use eureka::window::{InputEvent, InputServer};
+use glam::{Quat, Vec2, Vec3};
 use std::any::Any;
 use std::path::PathBuf;
-use eureka::core::{App, Singletons};
-use eureka::render::render_world::RenderWorld;
-use eureka::scene::{AsNode, AsNode3d, Camera3d, DirectionalLight, Model, NodeType, PointLight, Sky};
-use glam::{Quat, Vec3};
-use eureka::render::draw_command::DrawCommands;
+use winit::keyboard::KeyCode;
 
 fn main() {
     let mut app = App::new();
 
     app.setup(|app| {
-        // Destructure fields of App to leverage Rust's "split borrows" feature.
         let singletons = app.singletons.as_mut().unwrap();
         let world = &mut app.world;
 
@@ -21,6 +22,18 @@ fn main() {
             &singletons.render_context,
         );
         world.add_node(Box::new(camera3d), None);
+
+        // Add an orthographic 2D camera for the UI overlay.
+        let mut camera2d = Camera2d::default();
+        camera2d.when_view_size_changes(glam::UVec2::new(
+            singletons.render_context.surface_config.width,
+            singletons.render_context.surface_config.height,
+        ));
+        world.add_node(Box::new(camera2d), None);
+
+        // Add settings controller (which also acts as a label)
+        let controller = SettingsController::new();
+        world.add_node(Box::new(controller), None);
 
         // Add a skybox
         let skybox_path = singletons.asset_server.asset_dir.join("images/skybox.jpg");
@@ -203,5 +216,75 @@ impl AsNode for Ferris {
 
     fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
         self.model.as_node_3d_mut()
+    }
+}
+
+pub struct SettingsController {
+    label: Label,
+    ssao: bool,
+    fxaa: bool,
+}
+
+impl SettingsController {
+    pub fn new() -> Self {
+        let mut label = Label::new("");
+        label.set_position(Vec2::new(20.0, 20.0));
+        let mut s = Self {
+            label,
+            ssao: true,
+            fxaa: true,
+        };
+        s.refresh_text();
+        s
+    }
+
+    fn refresh_text(&mut self) {
+        self.label.set_text(format!(
+            "SSAO (1): {} | FXAA (2): {}",
+            if self.ssao { "ON" } else { "OFF" },
+            if self.fxaa { "ON" } else { "OFF" }
+        ));
+    }
+}
+
+impl AsNode for SettingsController {
+    fn as_any(&self) -> &dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn node_type(&self) -> NodeType { NodeType::Label }
+
+    fn input(&mut self, input_event: &mut InputEvent, _input_server: &mut InputServer) {
+        if let InputEvent::Key(key) = input_event {
+            if key.pressed {
+                match key.key_code {
+                    KeyCode::Digit1 => {
+                        self.ssao = !self.ssao;
+                        self.refresh_text();
+                    }
+                    KeyCode::Digit2 => {
+                        self.fxaa = !self.fxaa;
+                        self.refresh_text();
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+        self.label.update(dt, singletons);
+    }
+
+    fn draw(&self, draw_cmds: &mut DrawCommands) {
+        self.label.draw(draw_cmds);
+        draw_cmds.extracted.fxaa_enabled = self.fxaa;
+        draw_cmds.extracted.ssao_enabled = self.ssao;
+    }
+
+    fn as_node_2d(&self) -> Option<&dyn AsNode2d> {
+        Some(&self.label)
+    }
+
+    fn as_node_2d_mut(&mut self) -> Option<&mut dyn AsNode2d> {
+        Some(&mut self.label)
     }
 }

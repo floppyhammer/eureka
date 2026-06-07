@@ -1,4 +1,5 @@
 use crate::render::render_graph::{FrameContext, Node};
+use std::any::Any;
 
 pub struct CullingNode {
     pipeline: Option<wgpu::ComputePipeline>,
@@ -11,6 +12,10 @@ impl Default for CullingNode {
 }
 
 impl Node for CullingNode {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() {
             return;

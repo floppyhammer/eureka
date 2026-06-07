@@ -2,9 +2,15 @@ use crate::render::camera::CameraType;
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use crate::render::Texture;
 
+use std::any::Any;
+
 pub struct ClearNode;
 
 impl Node for ClearNode {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn run(&mut self, context: &mut FrameContext) {
         let width = context.render_context.surface_config.width;
         let height = context.render_context.surface_config.height;

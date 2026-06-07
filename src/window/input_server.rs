@@ -14,8 +14,8 @@ pub enum InputEvent {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Key {
-    pub(crate) key_code: KeyCode,
-    pub(crate) pressed: bool,
+    pub key_code: KeyCode,
+    pub pressed: bool,
 }
 
 #[derive(Debug, Copy, Clone)]

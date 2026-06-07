@@ -1,4 +1,4 @@
-pub(crate) mod d2;
+pub mod d2;
 pub(crate) mod d3;
 
 pub(crate) mod node;

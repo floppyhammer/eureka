@@ -6,6 +6,7 @@ use crate::render::mesh::{ExtractedMesh, MeshCache, MeshRenderResources};
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use glam::{Mat4, Vec3};
 use std::mem;
+use std::any::Any;
 
 pub struct TransparentMeshNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -22,6 +23,10 @@ impl Default for TransparentMeshNode {
 }
 
 impl Node for TransparentMeshNode {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() {
             return;

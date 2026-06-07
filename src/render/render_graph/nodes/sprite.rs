@@ -4,6 +4,7 @@ use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use crate::render::sprite::render_sprite;
 use crate::render::vertex::{Vertex2d, VertexBuffer};
 use crate::render::Texture;
+use std::any::Any;
 
 pub struct SpriteNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -16,6 +17,10 @@ impl Default for SpriteNode {
 }
 
 impl Node for SpriteNode {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() {
             return;
@@ -46,7 +51,7 @@ impl Node for SpriteNode {
             &[Vertex2d::desc()],
             shader,
             "sprite bindless",
-            true,
+            true, // 重新开启深度测试
             None,
         ));
     }
@@ -81,7 +86,7 @@ impl Node for SpriteNode {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &main_depth.view,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: wgpu::LoadOp::Clear(1.0), // 关键：清除 3D 场景深度，开始 UI 深度测试
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,

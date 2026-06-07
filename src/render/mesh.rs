@@ -238,12 +238,15 @@ impl MeshRenderResources {
     }
 
     pub fn prepare_materials(&mut self, texture_cache: &TextureCache, render_server: &RenderContext, extracted_sprites_2d: &[ExtractedSprite2d]) {
+        // 关键：我们不再每一帧都重建 Map。
+        // 我们只在必要时清空并重建，或者采用增量方式。
+        // 为了目前最稳妥的修复闪烁，我们先清空但确保 3D 材质的顺序是绝对固定的。
         self.texture_index_map.clear();
         let mut texture_views = Vec::new();
 
-        // 1. 搜集材质纹理
+        // 1. 搜集材质纹理 (这部分顺序通过 sorted_materials 保证绝对固定)
         let mut sorted_materials: Vec<_> = self.material_cache.storage.iter().collect();
-        sorted_materials.sort_by(|(id1, m1), (id2, m2)| m1.name.cmp(&m2.name).then(id1.0.cmp(&id2.0)));
+        sorted_materials.sort_by(|(id1, _), (id2, _)| id1.0.cmp(&id2.0));
 
         for (_, material) in &sorted_materials {
             for id in [material.color_texture, material.normal_texture, material.metallic_roughness_texture].into_iter().flatten() {
@@ -256,9 +259,13 @@ impl MeshRenderResources {
             }
         }
 
-        // 2. 搜集 2D UI 纹理 (Sprites + Labels)
-        for sprite in extracted_sprites_2d {
-            let id = sprite.texture_id;
+        // 2. 搜集 2D UI 纹理 (放在 3D 材质之后)
+        // 这里的顺序也需要通过 ID 排序来保证固定
+        let mut sprite_texture_ids: Vec<_> = extracted_sprites_2d.iter().map(|s| s.texture_id).collect();
+        sprite_texture_ids.sort();
+        sprite_texture_ids.dedup();
+
+        for id in sprite_texture_ids {
             if !self.texture_index_map.contains_key(&id) {
                 if let Some(texture) = texture_cache.get(id) {
                     self.texture_index_map.insert(id, texture_views.len() as u32);

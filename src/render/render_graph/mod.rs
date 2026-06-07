@@ -108,12 +108,30 @@ impl RenderGraph {
         self.cached_execution_order = None;
     }
 
+    pub fn get_node_mut<T: Node>(&mut self, name: &str) -> Option<&mut T> {
+        self.nodes.get_mut(name).and_then(|s| s.node.as_any_mut().downcast_mut::<T>())
+    }
+
     /// Adds a dependency edge between two nodes. Node `to` will run after node `from`.
     pub fn add_node_edge(&mut self, from: impl Into<String>, to: impl Into<String>) {
         let from = from.into();
         let to = to.into();
-        self.dependencies.entry(to).or_default().push(from);
-        self.cached_execution_order = None;
+        let deps = self.dependencies.entry(to).or_default();
+        if !deps.contains(&from) {
+            deps.push(from);
+            self.cached_execution_order = None;
+        }
+    }
+
+    pub fn remove_node_edge(&mut self, from: impl Into<String>, to: impl Into<String>) {
+        let from = from.into();
+        let to = to.into();
+        if let Some(deps) = self.dependencies.get_mut(&to) {
+            if let Some(pos) = deps.iter().position(|x| *x == from) {
+                deps.remove(pos);
+                self.cached_execution_order = None;
+            }
+        }
     }
 
     pub fn run(

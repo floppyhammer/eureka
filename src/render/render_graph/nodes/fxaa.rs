@@ -1,4 +1,5 @@
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use std::any::Any;
 
 pub struct FxaaNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -13,6 +14,10 @@ impl Default for FxaaNode {
 }
 
 impl Node for FxaaNode {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn prepare(&mut self, context: &mut FrameContext) {
         let device = &context.render_context.device;
 
@@ -67,13 +72,14 @@ impl Node for FxaaNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let main_color_key = TextureKey {
+        let key = TextureKey {
             width: context.render_context.surface_config.width,
             height: context.render_context.surface_config.height,
             format: context.render_context.surface_config.format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         };
-        let main_color_texture = context.get_texture("main_color", main_color_key);
+        let input_texture = context.get_texture("main_color", key);
+        let output_texture = context.get_texture("fxaa_color", key);
 
         let bind_group = context.render_context.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("fxaa bind group"),
@@ -81,37 +87,33 @@ impl Node for FxaaNode {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&main_color_texture.view),
+                    resource: wgpu::BindingResource::TextureView(&input_texture.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&main_color_texture.sampler),
+                    resource: wgpu::BindingResource::Sampler(&input_texture.sampler),
                 },
             ],
         });
 
-        if let Some(pipeline) = &self.pipeline {
-            let mut render_pass = context
-                .encoder
-                .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("fxaa pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: context.final_output_view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
+        let mut render_pass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("fxaa pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &output_texture.view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
 
-            render_pass.set_pipeline(pipeline);
-            render_pass.set_bind_group(0, &bind_group, &[]);
-            render_pass.draw(0..3, 0..1);
-        }
+        render_pass.set_pipeline(self.pipeline.as_ref().unwrap());
+        render_pass.set_bind_group(0, &bind_group, &[]);
+        render_pass.draw(0..3, 0..1);
     }
 }

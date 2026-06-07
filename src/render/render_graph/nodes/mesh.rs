@@ -2,6 +2,7 @@ use crate::render::camera::CameraType;
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw, Texture};
+use std::any::Any;
 
 pub struct MeshNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -14,6 +15,10 @@ impl Default for MeshNode {
 }
 
 impl Node for MeshNode {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() {
             return;

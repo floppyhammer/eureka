@@ -2,6 +2,7 @@ use crate::render::camera::CameraType;
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw, Texture};
+use std::any::Any;
 
 pub struct SsaoNode {
     normal_pipeline: Option<wgpu::RenderPipeline>,
@@ -20,6 +21,10 @@ impl Default for SsaoNode {
 }
 
 impl Node for SsaoNode {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn prepare(&mut self, context: &mut FrameContext) {
         if self.normal_pipeline.is_some() {
             return;
@@ -206,7 +211,7 @@ impl Node for SsaoNode {
         // 重新获取并标记为可变借用
         let world = &mut *context.render_world;
 
-        if world.extracted.meshes.is_empty() {
+        if world.extracted.meshes.is_empty() || !world.extracted.ssao_enabled {
             return;
         }
 

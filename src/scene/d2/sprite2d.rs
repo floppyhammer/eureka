@@ -138,7 +138,7 @@ impl AsNode for Sprite2d {
 
     fn ready(&mut self) {}
 
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {}
+    fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {}
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         if let Some(texture_id) = self.texture {

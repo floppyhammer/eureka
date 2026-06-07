@@ -13,7 +13,7 @@ use crate::render::{
     prepare_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderContext,
     Texture, TextureCache, TextureId,
 };
-use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode, FxaaNode, TransparentMeshNode};
+use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode, FxaaNode, TransparentMeshNode, PresentNode};
 use crate::scene::Bvh;
 
 #[derive(Default, Clone)]
@@ -25,6 +25,8 @@ pub struct Extracted {
     pub(crate) cameras: ExtractedCameras,
     pub(crate) lights: ExtractedLights,
     pub(crate) sky: Option<ExtractedSky>,
+    pub fxaa_enabled: bool,
+    pub ssao_enabled: bool,
 }
 
 pub struct RenderWorld {
@@ -90,6 +92,7 @@ impl RenderWorld {
         graph.add_node("mesh", MeshNode::default());
         graph.add_node("transparent_mesh", TransparentMeshNode::default());
         graph.add_node("fxaa", FxaaNode::default());
+        graph.add_node("present", PresentNode::default());
         graph.add_node("sprite", SpriteNode::default());
 
         graph.add_node_edge("cull", "shadow");
@@ -100,7 +103,9 @@ impl RenderWorld {
         graph.add_node_edge("skybox", "mesh");
         graph.add_node_edge("mesh", "transparent_mesh");
         graph.add_node_edge("transparent_mesh", "fxaa");
-        graph.add_node_edge("fxaa", "sprite");
+        graph.add_node_edge("fxaa", "present");
+        graph.add_node_edge("transparent_mesh", "present");
+        graph.add_node_edge("present", "sprite");
         graph
     }
 
@@ -112,7 +117,17 @@ impl RenderWorld {
         // 1. Prepare global camera data
         self.camera_render_resources.prepare_cameras(render_server, &self.extracted.cameras);
 
-        // 2. Prepare Bindless Materials (Now includes all 2D textures)
+        // 2. Configure Render Graph based on settings (Optional: only if changed)
+        let mut final_3d_texture = "main_color".to_string();
+        if self.extracted.fxaa_enabled {
+            final_3d_texture = "fxaa_color".to_string();
+        }
+
+        if let Some(present) = self.render_graph.get_node_mut::<PresentNode>("present") {
+            present.input_texture_name = final_3d_texture;
+        }
+
+        // 3. Prepare Bindless Materials (Now includes all 2D textures)
         self.mesh_render_resources.prepare_materials(&self.texture_cache, render_server, &self.extracted.sprites_2d);
 
         // 3. Separate opaque and transparent meshes
@@ -147,7 +162,7 @@ impl RenderWorld {
         }
 
         // 5. Prepare Unified 2D UI
-        self.sprite_batches = prepare_sprite(&self.extracted.sprites_2d, &mut self.sprite_render_resources, &self.texture_cache, render_server, &self.mesh_render_resources);
+        self.sprite_batches = prepare_sprite(&self.extracted.sprites_2d, &mut self.sprite_render_resources, &self.texture_cache, render_server, &self.mesh_render_resources, &self.extracted.cameras);
 
         // 6. Prepare 3D Meshes & Lights (combine opaque and transparent for instance preparation)
         let all_meshes: Vec<_> = self.extracted.meshes.iter().chain(self.extracted.transparent_meshes.iter()).cloned().collect();

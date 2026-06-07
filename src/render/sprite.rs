@@ -53,8 +53,18 @@ pub(crate) fn prepare_sprite(
     _texture_cache: &TextureCache,
     render_server: &RenderContext,
     mesh_render_resources: &MeshRenderResources,
+    extracted_cameras: &crate::render::camera::ExtractedCameras,
 ) -> Vec<SpriteBatch> {
     if sprites_2d.is_empty() { return vec![]; }
+
+    // 找到第一个 D2 类型的相机
+    let camera_index = extracted_cameras.types.iter().position(|t| *t == crate::render::camera::CameraType::D2);
+
+    // 如果没有 2D 相机，则不渲染任何 2D 元素
+    let camera_index = match camera_index {
+        Some(idx) => idx as u32,
+        None => return vec![],
+    };
 
     let total_quads = sprites_2d.len();
 
@@ -71,11 +81,12 @@ pub(crate) fn prepare_sprite(
     let mut all_vertices = Vec::with_capacity(total_quads * 4);
     let mut all_indices = Vec::with_capacity(total_quads * 6);
 
-    let z_step = 10.0 / (sprites_2d.len() as f32 + 1.0);
-    let mut current_z = -5.0;
+    // 计算 Z 步长。我们希望越后抽取的元素 Z 越小（越靠近相机，在正交投影中，Z 越小越靠前）。
+    let z_step = 1.0 / (sprites_2d.len() as f32 + 1.0);
+    let mut current_z = 0.0;
 
     for e in sprites_2d {
-        current_z += z_step;
+        current_z -= z_step;
 
         let mut uvs = [
             Vec2::new(e.rect.x, e.rect.w), // BL
@@ -120,7 +131,7 @@ pub(crate) fn prepare_sprite(
     render_server.queue.write_buffer(render_resources.vertex_buffer.as_ref().unwrap(), 0, bytemuck::cast_slice(&all_vertices));
     render_server.queue.write_buffer(render_resources.index_buffer.as_ref().unwrap(), 0, bytemuck::cast_slice(&all_indices));
 
-    vec![SpriteBatch { index_range: 0..all_indices.len() as u32, camera_index: 0 }]
+    vec![SpriteBatch { index_range: 0..all_indices.len() as u32, camera_index }]
 }
 
 pub(crate) fn render_sprite<'a, 'b: 'a>(
