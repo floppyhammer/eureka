@@ -2,7 +2,7 @@ use crate::core::singleton::Singletons;
 use crate::math::transform::Transform2d;
 use crate::render::camera::{CameraType, CameraUniform, OrthographicProjection, Projection};
 use crate::render::draw_command::DrawCommands;
-use crate::scene::d2::AsNodeUi;
+use crate::scene::d2::AsNode2d;
 use crate::scene::{AsNode, NodeType};
 use glam::{Mat4, UVec2, Vec2, Vec3};
 use std::any::Any;
@@ -59,11 +59,11 @@ impl AsNode for Camera2d {
         self
     }
 
-    fn as_node_ui(&self) -> Option<&dyn AsNodeUi> {
+    fn as_node_2d(&self) -> Option<&dyn AsNode2d> {
         Some(self)
     }
 
-    fn as_node_ui_mut(&mut self) -> Option<&mut dyn AsNodeUi> {
+    fn as_node_2d_mut(&mut self) -> Option<&mut dyn AsNode2d> {
         Some(self)
     }
 
@@ -90,7 +90,7 @@ impl AsNode for Camera2d {
     }
 }
 
-impl AsNodeUi for Camera2d {
+impl AsNode2d for Camera2d {
     fn get_size(&self) -> Vec2 {
         self.view_size
     }

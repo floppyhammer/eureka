@@ -138,10 +138,10 @@ impl World {
 
             // 2D Transform Propagation
             let parent_global_transform2d = parent_id.and_then(|p_id| {
-                self.arena[p_id].get().as_node_ui().map(|p| p.get_global_transform())
+                self.arena[p_id].get().as_node_2d().map(|p| p.get_global_transform())
             });
 
-            if let Some(node2d) = self.arena[id].get_mut().as_node_ui_mut() {
+            if let Some(node2d) = self.arena[id].get_mut().as_node_2d_mut() {
                 let local = node2d.get_transform();
                 let global = if let Some(parent_global) = parent_global_transform2d {
                     parent_global.combine(&local)
@@ -217,12 +217,12 @@ impl World {
 
 fn apply_property_change_to_node(node: &mut dyn AsNode, change: &PropertyChange) {
     // Try to downcast to types that implement PropertyProvider
-    if let Some(node3d) = node.as_any_mut().downcast_mut::<crate::scene::d3::node_3d::Node3d>() {
+    if let Some(node3d) = node.as_any_mut().downcast_mut::<crate::scene::d3::node3d::Node3d>() {
         node3d.set_property(&change.property_path, change.value.clone(), change.weight);
         return
     }
-    if let Some(node_ui) = node.as_any_mut().downcast_mut::<crate::scene::d2::node_ui::NodeUi>() {
-        node_ui.set_property(&change.property_path, change.value.clone(), change.weight);
+    if let Some(node_2d) = node.as_any_mut().downcast_mut::<crate::scene::d2::node2d::Node2d>() {
+        node_2d.set_property(&change.property_path, change.value.clone(), change.weight);
         return
     }
 }

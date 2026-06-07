@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::path::PathBuf;
 use eureka::core::{App, Singletons};
-use eureka::scene::{AsNode, AsNodeUi, NodeType};
+use eureka::scene::{AsNode, AsNode2d, NodeType};
 use eureka::scene::Camera2d;
 use eureka::scene::Sprite2d;
 use glam::Vec2;
@@ -72,12 +72,12 @@ impl AsNode for MySprite {
     fn as_any_mut(&mut self) -> &mut dyn Any { self }
     fn node_type(&self) -> NodeType { NodeType::Sprite2d }
 
-    fn as_node_ui(&self) -> Option<&dyn AsNodeUi> {
-        self.sprite2d.as_node_ui()
+    fn as_node_2d(&self) -> Option<&dyn AsNode2d> {
+        self.sprite2d.as_node_2d()
     }
 
-    fn as_node_ui_mut(&mut self) -> Option<&mut dyn AsNodeUi> {
-        self.sprite2d.as_node_ui_mut()
+    fn as_node_2d_mut(&mut self) -> Option<&mut dyn AsNode2d> {
+        self.sprite2d.as_node_2d_mut()
     }
 
     fn reconcile(&mut self, singletons: &mut Singletons, render_world: &mut RenderWorld) {

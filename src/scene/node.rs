@@ -1,6 +1,6 @@
 use crate::core::singleton::Singletons;
 use crate::render::draw_command::DrawCommands;
-use crate::scene::d2::AsNodeUi;
+use crate::scene::d2::AsNode2d;
 use crate::scene::d3::AsNode3d;
 use crate::window::input_server::InputEvent;
 use crate::window::InputServer;
@@ -80,11 +80,11 @@ pub trait AsNode {
         // Default implementation
     }
 
-    fn as_node_ui(&self) -> Option<&dyn AsNodeUi> {
+    fn as_node_2d(&self) -> Option<&dyn AsNode2d> {
         None
     }
 
-    fn as_node_ui_mut(&mut self) -> Option<&mut dyn AsNodeUi> {
+    fn as_node_2d_mut(&mut self) -> Option<&mut dyn AsNode2d> {
         None
     }
 

@@ -1,14 +1,14 @@
 use crate::core::singleton::Singletons;
 use crate::render::atlas::{Atlas, ExtractedAtlas};
 use crate::render::draw_command::DrawCommands;
-use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
+use crate::scene::d2::node2d::{AsNode2d, Node2d};
 use crate::scene::{AsNode, NodeType};
 use glam::Vec2;
 use std::any::Any;
 use crate::math::transform::Transform2d;
 
 pub struct Label {
-    node_ui: NodeUi,
+    node_2d: Node2d,
 
     text: String,
 
@@ -29,7 +29,7 @@ pub struct Label {
 impl Label {
     pub fn new(text: &str) -> Label {
         Self {
-            node_ui: NodeUi::default(),
+            node_2d: Node2d::default(),
             text: text.to_string(),
             text_is_dirty: true,
             layout_is_dirty: true,
@@ -43,7 +43,7 @@ impl Label {
 
     pub fn default() -> Label {
         Self {
-            node_ui: NodeUi::default(),
+            node_2d: Node2d::default(),
             text: "Label".to_string(),
             text_is_dirty: true,
             layout_is_dirty: true,
@@ -78,11 +78,11 @@ impl AsNode for Label {
         NodeType::Label
     }
 
-    fn as_node_ui(&self) -> Option<&dyn AsNodeUi> {
+    fn as_node_2d(&self) -> Option<&dyn AsNode2d> {
         Some(self)
     }
 
-    fn as_node_ui_mut(&mut self) -> Option<&mut dyn AsNodeUi> {
+    fn as_node_2d_mut(&mut self) -> Option<&mut dyn AsNode2d> {
         Some(self)
     }
 
@@ -91,7 +91,7 @@ impl AsNode for Label {
             let atlas = singletons.text_server.get_atlas(
                 self.text.as_str(),
                 self.font_id.clone(),
-                self.node_ui.global_transform,
+                self.node_2d.global_transform,
                 self.leading,
             );
 
@@ -110,40 +110,40 @@ impl AsNode for Label {
     }
 }
 
-impl AsNodeUi for Label {
+impl AsNode2d for Label {
     fn get_size(&self) -> Vec2 {
-        self.node_ui.size
+        self.node_2d.size
     }
 
     fn set_size(&mut self, size: Vec2) {
-        self.node_ui.size = size;
+        self.node_2d.size = size;
     }
 
     fn get_position(&self) -> Vec2 {
-        self.node_ui.transform.position
+        self.node_2d.transform.position
     }
 
     fn set_position(&mut self, position: Vec2) {
-        self.node_ui.transform.position = position;
+        self.node_2d.transform.position = position;
     }
 
     fn get_rotation(&self) -> f32 {
-        self.node_ui.transform.rotation
+        self.node_2d.transform.rotation
     }
 
     fn set_rotation(&mut self, rotation: f32) {
-        self.node_ui.transform.rotation = rotation;
+        self.node_2d.transform.rotation = rotation;
     }
 
     fn get_transform(&self) -> Transform2d {
-        self.node_ui.transform
+        self.node_2d.transform
     }
 
     fn get_global_transform(&self) -> Transform2d {
-        self.node_ui.global_transform
+        self.node_2d.global_transform
     }
 
     fn set_global_transform(&mut self, transform: Transform2d) {
-        self.node_ui.global_transform = transform;
+        self.node_2d.global_transform = transform;
     }
 }

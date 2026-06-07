@@ -14,7 +14,7 @@ use crate::render::vertex::Vertex3d;
 use crate::render::{
     ExtractedMesh, Mesh, MeshCache, MeshId, RawTextureData, RenderContext, Texture, TextureCache,
 };
-use crate::scene::d3::node_3d::{AsNode3d, Node3d};
+use crate::scene::d3::node3d::{AsNode3d, Node3d};
 use crate::scene::{AsNode, NodeType};
 
 #[derive(Clone)]

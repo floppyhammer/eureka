@@ -1,6 +1,6 @@
 use eureka::animation::{AnimationClip, AnimationCurve, AnimationPlayer, Interpolation, Keyframe};
 use eureka::core::App;
-use eureka::scene::{AsNodeUi, Camera2d};
+use eureka::scene::{AsNode2d, Camera2d};
 use eureka::scene::Label;
 use glam::Vec2;
 

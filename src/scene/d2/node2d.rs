@@ -2,14 +2,14 @@ use crate::animation::property::{PropertyPath, PropertyProvider, PropertyValue};
 use crate::math::transform::Transform2d;
 use glam::{FloatExt, Vec2};
 
-pub struct NodeUi {
+pub struct Node2d {
     pub transform: Transform2d,
     pub global_transform: Transform2d,
 
     pub size: Vec2,
 }
 
-impl Default for NodeUi {
+impl Default for Node2d {
     fn default() -> Self {
         Self {
             transform: Transform2d::default(),
@@ -19,7 +19,7 @@ impl Default for NodeUi {
     }
 }
 
-pub trait AsNodeUi {
+pub trait AsNode2d {
     fn get_size(&self) -> Vec2;
 
     fn set_size(&mut self, size: Vec2);
@@ -39,7 +39,7 @@ pub trait AsNodeUi {
     fn set_global_transform(&mut self, transform: Transform2d);
 }
 
-impl PropertyProvider for NodeUi {
+impl PropertyProvider for Node2d {
     fn get_property(&self, path: &PropertyPath) -> Option<PropertyValue> {
         match path.path() {
             "transform.position" => Some(PropertyValue::Vec2(self.transform.position)),

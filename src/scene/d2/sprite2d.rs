@@ -3,7 +3,7 @@ use crate::math::transform::Transform2d;
 use crate::render::draw_command::DrawCommands;
 use crate::render::sprite::ExtractedSprite2d;
 use crate::render::{RawTextureData, RenderContext, Texture, TextureCache, TextureId};
-use crate::scene::d2::node_ui::{AsNodeUi, NodeUi};
+use crate::scene::d2::node2d::{AsNode2d, Node2d};
 use crate::scene::{AsNode, NodeType};
 use glam::{Vec2, Vec4};
 use std::any::Any;
@@ -16,7 +16,7 @@ pub struct SpriteSheet {
 }
 
 pub struct Sprite2d {
-    node_ui: NodeUi,
+    node_2d: Node2d,
     use_original_size: bool,
     pub name: String,
     pub region: Vec4,
@@ -36,9 +36,9 @@ impl Sprite2d {
         let size = Vec2::new(texture.size.0 as f32, texture.size.1 as f32);
 
         Self {
-            node_ui: NodeUi {
+            node_2d: Node2d {
                 size,
-                ..NodeUi::default()
+                ..Node2d::default()
             },
             use_original_size: true,
             name: "".to_string(),
@@ -58,7 +58,7 @@ impl Sprite2d {
 
     pub fn at_path<P: AsRef<Path>>(path: P) -> Self {
         Self {
-            node_ui: NodeUi::default(),
+            node_2d: Node2d::default(),
             use_original_size: true,
             name: path.as_ref().to_string_lossy().into_owned(),
             region: Vec4::new(0.0, 0.0, 1.0, 1.0),
@@ -90,7 +90,7 @@ impl Sprite2d {
         let texture = texture_cache.get(texture_id).unwrap();
 
         if self.use_original_size {
-            self.node_ui.size = Vec2::new(texture.size.0 as f32, texture.size.1 as f32);
+            self.node_2d.size = Vec2::new(texture.size.0 as f32, texture.size.1 as f32);
         }
 
         self.texture = Some(texture_id);
@@ -113,11 +113,11 @@ impl AsNode for Sprite2d {
         NodeType::Sprite2d
     }
 
-    fn as_node_ui(&self) -> Option<&dyn AsNodeUi> {
+    fn as_node_2d(&self) -> Option<&dyn AsNode2d> {
         Some(self)
     }
 
-    fn as_node_ui_mut(&mut self) -> Option<&mut dyn AsNodeUi> {
+    fn as_node_2d_mut(&mut self) -> Option<&mut dyn AsNode2d> {
         Some(self)
     }
 
@@ -142,11 +142,11 @@ impl AsNode for Sprite2d {
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         if let Some(texture_id) = self.texture {
             let extracted = ExtractedSprite2d {
-                transform: self.node_ui.global_transform,
+                transform: self.node_2d.global_transform,
                 size: if self.use_original_size {
                     None
                 } else {
-                    Some(self.node_ui.size.into())
+                    Some(self.node_2d.size.into())
                 },
                 texture_id,
                 centered: self.centered,
@@ -158,35 +158,35 @@ impl AsNode for Sprite2d {
     }
 }
 
-impl AsNodeUi for Sprite2d {
+impl AsNode2d for Sprite2d {
     fn get_size(&self) -> Vec2 {
-        self.node_ui.size
+        self.node_2d.size
     }
     fn set_size(&mut self, size: Vec2) {
-        self.node_ui.size = size;
+        self.node_2d.size = size;
     }
     fn get_position(&self) -> Vec2 {
-        self.node_ui.transform.position
+        self.node_2d.transform.position
     }
     fn set_position(&mut self, position: Vec2) {
-        self.node_ui.transform.position = position;
+        self.node_2d.transform.position = position;
     }
     fn get_rotation(&self) -> f32 {
-        self.node_ui.transform.rotation
+        self.node_2d.transform.rotation
     }
     fn set_rotation(&mut self, rotation: f32) {
-        self.node_ui.transform.rotation = rotation;
+        self.node_2d.transform.rotation = rotation;
     }
 
     fn get_transform(&self) -> Transform2d {
-        self.node_ui.transform
+        self.node_2d.transform
     }
 
     fn get_global_transform(&self) -> Transform2d {
-        self.node_ui.global_transform
+        self.node_2d.global_transform
     }
 
     fn set_global_transform(&mut self, transform: Transform2d) {
-        self.node_ui.global_transform = transform;
+        self.node_2d.global_transform = transform;
     }
 }
