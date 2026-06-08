@@ -16,7 +16,7 @@ fn main() {
         let world = &mut app.world;
 
         let camera3d = Camera3d::new(
-            Vec3::new(-10.0, 0.0, 0.0),
+            Vec3::new(-10.0, 2.0, 0.0),
             0.0,
             0.0,
             &singletons.render_context,
