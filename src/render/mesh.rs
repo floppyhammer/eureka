@@ -212,7 +212,16 @@ impl MeshRenderResources {
             let texture = render_server.device.create_texture(&wgpu::TextureDescriptor { label: Some("dummy cube"), size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 6 }, mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8UnormSrgb, usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST, view_formats: &[] });
             texture.create_view(&wgpu::TextureViewDescriptor { label: Some("dummy cube view"), dimension: Some(wgpu::TextureViewDimension::Cube), ..Default::default() })
         };
-        let dummy_sampler = render_server.device.create_sampler(&wgpu::SamplerDescriptor { label: Some("dummy sampler"), ..Default::default() });
+        let dummy_sampler = render_server.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("mesh bindless sampler"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
 
         let cull_bind_group_layout = render_server.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[

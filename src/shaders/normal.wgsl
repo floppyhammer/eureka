@@ -42,9 +42,10 @@ struct InstanceInput {
     @location(7) model_matrix_2: vec4<f32>,
     @location(8) model_matrix_3: vec4<f32>,
 
-    @location(9) normal_matrix_0: vec3<f32>,
-    @location(10) normal_matrix_1: vec3<f32>,
-    @location(11) normal_matrix_2: vec3<f32>,
+    // 必须用 vec4 对应 InstanceRaw 的内存布局 [f32; 4]
+    @location(9) normal_matrix_0: vec4<f32>,
+    @location(10) normal_matrix_1: vec4<f32>,
+    @location(11) normal_matrix_2: vec4<f32>,
 
     @location(12) material_idx: u32,
 }
@@ -53,7 +54,10 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) view_normal: vec3<f32>,
     @location(1) tex_coords: vec2<f32>,
-    @location(2) @interpolate(flat) material_idx: u32,
+    @location(2) world_tangent: vec3<f32>,
+    @location(3) world_bitangent: vec3<f32>,
+    @location(4) world_normal: vec3<f32>,
+    @location(5) @interpolate(flat) material_idx: u32,
 }
 
 @vertex
@@ -65,16 +69,21 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
         instance.model_matrix_3);
 
     let normal_matrix = mat3x3<f32>(
-        instance.normal_matrix_0,
-        instance.normal_matrix_1,
-        instance.normal_matrix_2);
+        instance.normal_matrix_0.xyz,
+        instance.normal_matrix_1.xyz,
+        instance.normal_matrix_2.xyz);
 
     let world_normal = normalize(normal_matrix * vertex.normal);
+    let world_tangent = normalize(normal_matrix * vertex.tangent);
+    let world_bitangent = normalize(normal_matrix * vertex.bitangent);
     let view_normal = (camera.view * vec4<f32>(world_normal, 0.0)).xyz;
 
     var out: VertexOutput;
     out.clip_position = camera.view_proj * model_matrix * vec4<f32>(vertex.position, 1.0);
     out.view_normal = view_normal;
+    out.world_normal = world_normal;
+    out.world_tangent = world_tangent;
+    out.world_bitangent = world_bitangent;
     out.tex_coords = vertex.tex_coords;
     out.material_idx = instance.material_idx;
 
