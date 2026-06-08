@@ -68,6 +68,53 @@ pub struct BufferKey {
     pub usage: wgpu::BufferUsages,
 }
 
+/// 采样器资源键（包含采样器的完整规格）
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub struct SamplerKey {
+    pub address_mode_u: wgpu::AddressMode,
+    pub address_mode_v: wgpu::AddressMode,
+    pub address_mode_w: wgpu::AddressMode,
+    pub mag_filter: wgpu::FilterMode,
+    pub min_filter: wgpu::FilterMode,
+    pub mipmap_filter: wgpu::FilterMode,
+    pub compare: Option<wgpu::CompareFunction>,
+    pub lod_min_clamp: f32,
+    pub lod_max_clamp: f32,
+}
+
+impl Eq for SamplerKey {}
+
+impl std::hash::Hash for SamplerKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.address_mode_u.hash(state);
+        self.address_mode_v.hash(state);
+        self.address_mode_w.hash(state);
+        self.mag_filter.hash(state);
+        self.min_filter.hash(state);
+        self.mipmap_filter.hash(state);
+        self.compare.hash(state);
+        // f32 的 hash 需要特殊处理
+        self.lod_min_clamp.to_bits().hash(state);
+        self.lod_max_clamp.to_bits().hash(state);
+    }
+}
+
+impl Default for SamplerKey {
+    fn default() -> Self {
+        Self {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            compare: None,
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 100.0,
+        }
+    }
+}
+
 /// 池化缓冲区包装，包含物理 Buffer 和其唯一 ID
 #[derive(Clone)]
 pub struct PooledBuffer {
@@ -88,12 +135,11 @@ pub struct BindGroupKey {
 pub enum ResourceSpec {
     Texture(TextureKey),
     Buffer(BufferKey),
+    Sampler(SamplerKey),
     /// 占位符，用于声明需要 BindGroup 但不指定具体布局
     BindGroup,
     /// 占位符，用于声明需要 Pipeline 但不指定具体布局
     Pipeline,
-    /// 占位符，用于声明需要 Sampler
-    Sampler,
 }
 
 /// 资源声明（节点使用）

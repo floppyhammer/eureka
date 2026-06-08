@@ -113,7 +113,14 @@ pub fn prepare_atlas(extracted: &Vec<ExtractedAtlas>, render_resources: &mut Atl
         if let Some(texture_id) = e.atlas.texture {
             if !render_resources.texture_bind_group_cache.contains_key(&texture_id) {
                 if let Some(texture) = texture_cache.get(texture_id) {
-                    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor { layout: &render_resources.texture_bind_group_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&texture.view) }, wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&texture.sampler) }], label: None });
+                    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                        address_mode_u: wgpu::AddressMode::ClampToEdge,
+                        address_mode_v: wgpu::AddressMode::ClampToEdge,
+                        mag_filter: wgpu::FilterMode::Linear,
+                        min_filter: wgpu::FilterMode::Linear,
+                        ..Default::default()
+                    });
+                    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor { layout: &render_resources.texture_bind_group_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&texture.view) }, wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler) }], label: None });
                     render_resources.texture_bind_group_cache.insert(texture_id, bind_group);
                 }
             }

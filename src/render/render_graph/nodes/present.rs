@@ -96,6 +96,12 @@ impl Node for PresentNode {
         };
         let input_texture = context.get_texture_by_id(&self.input_resource_id, input_key);
 
+        let sampler = context.render_context.device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
         let bind_group = context.render_context.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("present bind group"),
             layout: &self.pipeline.as_ref().unwrap().get_bind_group_layout(0),
@@ -106,7 +112,7 @@ impl Node for PresentNode {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&input_texture.sampler),
+                    resource: wgpu::BindingResource::Sampler(&sampler),
                 },
             ],
         });

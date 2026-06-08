@@ -72,6 +72,16 @@ pub(crate) fn prepare_sky(
         render_resources.texture = Some(*texture_id);
 
         let texture = texture_cache.get(*texture_id).unwrap();
+        
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &render_resources.texture_bind_group_layout,
@@ -82,7 +92,7 @@ pub(crate) fn prepare_sky(
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                    resource: wgpu::BindingResource::Sampler(&sampler),
                 },
             ],
             label: None,

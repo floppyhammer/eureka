@@ -92,27 +92,26 @@ impl Node for FxaaNode {
 
         let pipeline = self.pipeline.as_ref().unwrap();
 
-        // 使用物理资源 ID 作为缓存 Key，交给资源池管理
-        let bind_group = context.create_bind_group(
-            &pipeline.get_bind_group_layout(0),
-            vec![input_texture.id],
-            |ctx| {
-                ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("fxaa bind group"),
-                    layout: &pipeline.get_bind_group_layout(0),
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&input_texture.view),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(&input_texture.sampler),
-                        },
-                    ],
-                })
-            }
-        );
+        let sampler = context.render_context.device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let bind_group = context.render_context.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("fxaa bind group"),
+            layout: &pipeline.get_bind_group_layout(0),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&input_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
+        });
 
         let mut render_pass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("fxaa pass"),

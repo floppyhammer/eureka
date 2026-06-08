@@ -33,8 +33,6 @@ pub struct Texture {
     pub texture: wgpu::Texture,
     // Thin wrapper over texture.
     pub view: wgpu::TextureView,
-    // Defines how to sample the texture.
-    pub sampler: wgpu::Sampler,
     pub format: wgpu::TextureFormat,
     /// 唯一标识，用于缓存优化
     pub id: u64,
@@ -205,21 +203,10 @@ impl Texture {
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
-
         let texture = Texture {
             size,
             texture,
             view,
-            sampler,
             format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         };
@@ -277,24 +264,10 @@ impl Texture {
             array_layer_count: Some(layers),
         });
 
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            compare: Some(wgpu::CompareFunction::LessEqual),
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 100.0,
-            ..Default::default()
-        });
-
         let texture = Texture {
             size: (width, height),
             texture,
             view,
-            sampler,
             format: Self::DEPTH_FORMAT,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         };
@@ -319,11 +292,6 @@ impl Texture {
             false,
             label,
         )
-    }
-
-    /// Set a new sampler for this texture.
-    pub fn set_sampler(&mut self, new_sampler: wgpu::Sampler) {
-        self.sampler = new_sampler;
     }
 
     pub fn decode_from_disk<P: AsRef<Path>>(path: P) -> Result<RawTextureData> {
@@ -403,21 +371,11 @@ impl Texture {
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
 
         cache.add(Texture {
             size: (raw.width, raw.height),
             texture,
             view,
-            sampler,
             format: raw.format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         })
@@ -494,21 +452,10 @@ impl Texture {
             array_layer_count: Some(6),
         });
 
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-
         cache.add(Texture {
             size: (0, 0),
             texture,
             view,
-            sampler,
             format: raw.format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         })
@@ -598,21 +545,10 @@ impl Texture {
             array_layer_count: Some(6),
         });
 
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-
         let texture = Self {
             size: (0, 0),
             texture,
             view,
-            sampler,
             format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         };

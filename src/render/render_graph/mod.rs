@@ -249,7 +249,6 @@ pub struct FrameContext<'a> {
 /// 包含克隆后的句柄，不绑定生命周期
 pub struct ResolvedTransientTexture {
     pub view: wgpu::TextureView,
-    pub sampler: wgpu::Sampler,
     pub id: u64,
 }
 
@@ -265,7 +264,6 @@ impl<'a> FrameContext<'a> {
 
         ResolvedTransientTexture {
             view: texture.view.clone(),
-            sampler: texture.sampler.clone(),
             id: texture.id,
         }
     }
@@ -279,9 +277,13 @@ impl<'a> FrameContext<'a> {
 
         ResolvedTransientTexture {
             view: texture.view.clone(),
-            sampler: texture.sampler.clone(),
             id: texture.id,
         }
+    }
+
+    /// 获取一个具名瞬时采样器。返回克隆的句柄以允许连续调用。
+    pub fn get_sampler(&mut self, key: resource::SamplerKey) -> wgpu::Sampler {
+        self.pool.acquire_sampler(&self.render_context.device, key)
     }
 
     /// 获取一个瞬时缓冲区。返回其克隆句柄。

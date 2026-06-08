@@ -235,7 +235,6 @@ impl RenderWorld {
             size: (config.width, config.height),
             texture,
             view,
-            sampler,
             format: config.format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         })

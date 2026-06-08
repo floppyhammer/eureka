@@ -133,6 +133,7 @@ impl MaterialStandard {
     pub fn get_bind_group_entries<'a>(
         &'a self,
         texture_cache: &'a TextureCache,
+        sampler: &'a wgpu::Sampler,
     ) -> Vec<wgpu::BindGroupEntry<'a>> {
         let mut bind_group_entries = vec![];
 
@@ -145,7 +146,7 @@ impl MaterialStandard {
             });
             bind_group_entries.push(wgpu::BindGroupEntry {
                 binding: 1,
-                resource: wgpu::BindingResource::Sampler(&color_texture.sampler),
+                resource: wgpu::BindingResource::Sampler(sampler),
             });
         }
 
@@ -158,7 +159,7 @@ impl MaterialStandard {
             });
             bind_group_entries.push(wgpu::BindGroupEntry {
                 binding: 3,
-                resource: wgpu::BindingResource::Sampler(&normal_texture.sampler),
+                resource: wgpu::BindingResource::Sampler(sampler),
             });
         }
 
@@ -173,7 +174,7 @@ impl MaterialStandard {
             });
             bind_group_entries.push(wgpu::BindGroupEntry {
                 binding: 5,
-                resource: wgpu::BindingResource::Sampler(&mr_texture.sampler),
+                resource: wgpu::BindingResource::Sampler(sampler),
             });
         }
 

@@ -426,7 +426,6 @@ fn create_color_texture(
         size: (width, height),
         texture,
         view,
-        sampler,
         format,
         id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
     }
@@ -474,7 +473,6 @@ fn create_depth_texture(
         size: (width, height),
         texture,
         view,
-        sampler,
         format: Texture::DEPTH_FORMAT,
         id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
     }
@@ -521,7 +519,6 @@ fn create_noise_texture(device: &wgpu::Device, queue: &wgpu::Queue, data: &[f32]
         size: (4, 4),
         texture,
         view,
-        sampler,
         format: wgpu::TextureFormat::Rgba32Float,
         id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
     }

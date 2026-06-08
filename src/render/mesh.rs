@@ -379,7 +379,20 @@ impl MeshRenderResources {
                 let point_shadow_map = texture_cache.get(psm).unwrap();
                 let shadow_sampler = render_server.device.create_sampler(&wgpu::SamplerDescriptor { label: Some("shadow sampler"), address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge, address_mode_w: wgpu::AddressMode::ClampToEdge, mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, mipmap_filter: wgpu::FilterMode::Nearest, compare: Some(wgpu::CompareFunction::LessEqual), ..Default::default() });
                 let psv = point_shadow_map.texture.create_view(&wgpu::TextureViewDescriptor { label: Some("psv"), format: Some(Texture::DEPTH_FORMAT), dimension: Some(wgpu::TextureViewDimension::CubeArray), aspect: wgpu::TextureAspect::DepthOnly, array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6), ..Default::default() });
-                let (sky_v, sky_s) = if let Some(id) = skybox_texture_id { let tex = texture_cache.get(id).unwrap(); (&tex.view, &tex.sampler) } else { (&self.dummy_cube_view, &self.dummy_sampler) };
+                let sky_view = if let Some(id) = skybox_texture_id { 
+                    &texture_cache.get(id).unwrap().view 
+                } else { 
+                    &self.dummy_cube_view 
+                };
+                let skybox_sampler = render_server.device.create_sampler(&wgpu::SamplerDescriptor {
+                    address_mode_u: wgpu::AddressMode::ClampToEdge,
+                    address_mode_v: wgpu::AddressMode::ClampToEdge,
+                    address_mode_w: wgpu::AddressMode::ClampToEdge,
+                    mag_filter: wgpu::FilterMode::Linear,
+                    min_filter: wgpu::FilterMode::Linear,
+                    mipmap_filter: wgpu::FilterMode::Linear,
+                    ..Default::default()
+                });
                 self.light_bind_group = Some(render_server.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &self.light_bind_group_layout,
                     entries: &[
@@ -389,8 +402,8 @@ impl MeshRenderResources {
                         wgpu::BindGroupEntry { binding: 3, resource: light_render_resources.cascade_uniform_buffer.as_ref().unwrap().as_entire_binding() },
                         wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&psv) },
                         wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&texture_cache.get(ssao_texture_id).unwrap().view) },
-                        wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(sky_v) },
-                        wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::Sampler(sky_s) },
+                        wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(sky_view) },
+                        wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::Sampler(&skybox_sampler) },
                     ],
                     label: Some("light bind group"),
                 }));
