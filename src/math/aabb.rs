@@ -27,6 +27,23 @@ impl Aabb {
         Self { min, max }
     }
 
+    pub fn from_vertices(vertices: &[crate::render::vertex::Vertex3d]) -> Self {
+        if vertices.is_empty() {
+            return Self::default();
+        }
+
+        let mut min = Vec3::from_array(vertices[0].position);
+        let mut max = min;
+
+        for v in &vertices[1..] {
+            let p = Vec3::from_array(v.position);
+            min = min.min(p);
+            max = max.max(p);
+        }
+
+        Self { min, max }
+    }
+
     pub fn transform(&self, transform: &crate::math::transform::Transform3d) -> Self {
         self.transform_by_matrix(&transform.matrix())
     }

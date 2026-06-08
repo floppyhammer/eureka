@@ -143,7 +143,7 @@ impl Model {
         let mut first = true;
 
         for m in obj_meshes {
-            let mut vertices = Vec::new();
+            let mut vertices = Vec::with_capacity(m.mesh.positions.len() / 3);
             for i in 0..m.mesh.positions.len() / 3 {
                 vertices.push(Vertex3d {
                     position: [
@@ -151,12 +151,20 @@ impl Model {
                         m.mesh.positions[i * 3 + 1],
                         m.mesh.positions[i * 3 + 2],
                     ],
-                    uv: [m.mesh.texcoords[i * 2], 1.0 - m.mesh.texcoords[i * 2 + 1]],
-                    normal: [
-                        m.mesh.normals[i * 3],
-                        m.mesh.normals[i * 3 + 1],
-                        m.mesh.normals[i * 3 + 2],
-                    ],
+                    uv: if !m.mesh.texcoords.is_empty() {
+                        [m.mesh.texcoords[i * 2], 1.0 - m.mesh.texcoords[i * 2 + 1]]
+                    } else {
+                        [0.0, 0.0]
+                    },
+                    normal: if !m.mesh.normals.is_empty() {
+                        [
+                            m.mesh.normals[i * 3],
+                            m.mesh.normals[i * 3 + 1],
+                            m.mesh.normals[i * 3 + 2],
+                        ]
+                    } else {
+                        [0.0, 1.0, 0.0]
+                    },
                     tangent: [0.0; 3],
                     bi_tangent: [0.0; 3],
                 });
@@ -168,6 +176,7 @@ impl Model {
                 let v0_idx = c[0] as usize;
                 let v1_idx = c[1] as usize;
                 let v2_idx = c[2] as usize;
+
                 let pos0 = Vec3::from_array(vertices[v0_idx].position);
                 let pos1 = Vec3::from_array(vertices[v1_idx].position);
                 let pos2 = Vec3::from_array(vertices[v2_idx].position);
@@ -180,30 +189,40 @@ impl Model {
                 let delta_uv1 = uv1 - uv0;
                 let delta_uv2 = uv2 - uv0;
 
-                let r = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x);
-                let tangent = (delta_pos1 * delta_uv2.y - delta_pos2 * delta_uv1.y) * r;
-                let bi_tangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
+                let denom = delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x;
+                if denom.abs() > f32::EPSILON {
+                    let r = 1.0 / denom;
+                    let tangent = (delta_pos1 * delta_uv2.y - delta_pos2 * delta_uv1.y) * r;
+                    let bi_tangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
 
-                vertices[v0_idx].tangent = (Vec3::from_array(vertices[v0_idx].tangent) + tangent).to_array();
-                vertices[v1_idx].tangent = (Vec3::from_array(vertices[v1_idx].tangent) + tangent).to_array();
-                vertices[v2_idx].tangent = (Vec3::from_array(vertices[v2_idx].tangent) + tangent).to_array();
+                    let v0_t = Vec3::from_array(vertices[v0_idx].tangent) + tangent;
+                    let v1_t = Vec3::from_array(vertices[v1_idx].tangent) + tangent;
+                    let v2_t = Vec3::from_array(vertices[v2_idx].tangent) + tangent;
+                    vertices[v0_idx].tangent = v0_t.to_array();
+                    vertices[v1_idx].tangent = v1_t.to_array();
+                    vertices[v2_idx].tangent = v2_t.to_array();
 
-                vertices[v0_idx].bi_tangent = (Vec3::from_array(vertices[v0_idx].bi_tangent) + bi_tangent).to_array();
-                vertices[v1_idx].bi_tangent = (Vec3::from_array(vertices[v1_idx].bi_tangent) + bi_tangent).to_array();
-                vertices[v2_idx].bi_tangent = (Vec3::from_array(vertices[v2_idx].bi_tangent) + bi_tangent).to_array();
+                    let v0_bt = Vec3::from_array(vertices[v0_idx].bi_tangent) + bi_tangent;
+                    let v1_bt = Vec3::from_array(vertices[v1_idx].bi_tangent) + bi_tangent;
+                    let v2_bt = Vec3::from_array(vertices[v2_idx].bi_tangent) + bi_tangent;
+                    vertices[v0_idx].bi_tangent = v0_bt.to_array();
+                    vertices[v1_idx].bi_tangent = v1_bt.to_array();
+                    vertices[v2_idx].bi_tangent = v2_bt.to_array();
+                }
             }
 
             for v in &mut vertices {
-                v.tangent = Vec3::from_array(v.tangent).normalize().to_array();
-                v.bi_tangent = Vec3::from_array(v.bi_tangent).normalize().to_array();
+                let t = Vec3::from_array(v.tangent);
+                if t.length_squared() > f32::EPSILON {
+                    v.tangent = t.normalize().to_array();
+                }
+                let bt = Vec3::from_array(v.bi_tangent);
+                if bt.length_squared() > f32::EPSILON {
+                    v.bi_tangent = bt.normalize().to_array();
+                }
             }
 
-            let aabb = Aabb::from_points(
-                &vertices
-                    .iter()
-                    .map(|v| Vec3::from_slice(&v.position))
-                    .collect::<Vec<_>>(),
-            );
+            let aabb = Aabb::from_vertices(&vertices);
             if first {
                 model_aabb = aabb;
                 first = false;
@@ -427,12 +446,7 @@ impl Model {
                     }
                 }).unwrap_or_else(|| (0..vertices.len() as u32).collect());
 
-                let aabb = Aabb::from_points(
-                    &vertices
-                        .iter()
-                        .map(|v| Vec3::from_slice(&v.position))
-                        .collect::<Vec<_>>(),
-                );
+                let aabb = Aabb::from_vertices(&vertices);
 
                 let (s, r, t) = world_mat.to_scale_rotation_translation();
                 let transform = Transform3d {
@@ -608,8 +622,7 @@ impl AsNode for Model {
     fn reconcile(&mut self, singletons: &mut Singletons, render_world: &mut crate::render::render_world::RenderWorld) {
         if let Some(path) = &self.asset_path {
             singletons.asset_server.request_load(path);
-            if let Some(raw) = singletons.asset_server.loaded_raw_models.get(path) {
-                let raw = raw.clone();
+            if let Some(raw) = singletons.asset_server.loaded_raw_models.remove(path) {
                 self.finalize(
                     raw,
                     &singletons.render_context,
