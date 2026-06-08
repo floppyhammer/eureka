@@ -86,9 +86,8 @@ fn main() {
         let ground_path = singletons
             .asset_server
             .asset_dir
-            .join("models/granite_ground/granite_ground.obj");
-        let mut ground = Model::at_path(ground_path);
-        ground.set_scale(Vec3::new(5.0, 1.0, 5.0));
+            .join("models/ground.glb");
+        let ground = Model::at_path(ground_path);
         world.add_node(Box::new(ground), None);
     });
 
