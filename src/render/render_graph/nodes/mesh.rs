@@ -1,9 +1,10 @@
-use crate::render::camera::CameraType;
+use crate::render::camera::{CameraType, CameraUniform};
 use crate::render::render_graph::{FrameContext, Node, ResourceId, TextureKey};
 use crate::render::render_graph::standard_resources;
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw, Texture};
 use std::any::Any;
+use crate::render::render_graph::resource::BufferKey;
 
 pub struct MeshNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -18,6 +19,10 @@ impl Default for MeshNode {
 impl Node for MeshNode {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn input_resources(&self) -> Vec<ResourceId<()>> {
+        vec![standard_resources::camera_buffer()]
     }
 
     fn output_resources(&self) -> Vec<ResourceId<()>> {
@@ -81,6 +86,13 @@ impl Node for MeshNode {
         // 使用类型化资源ID获取瞬时资源
         let main_color = context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
         let main_depth = context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
+
+        // 获取相机 Buffer (自动参与 FIF 同步)
+        let camera_buffer_key = BufferKey {
+            size: (CameraUniform::get_uniform_offset_unit() * context.render_world.extracted.cameras.uniforms.len() as u32) as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        };
+        let camera_buffer = context.get_buffer_by_id(&standard_resources::camera_buffer(), camera_buffer_key);
 
         let world = &*context.render_world;
         if world.extracted.meshes.is_empty() {

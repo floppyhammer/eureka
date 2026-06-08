@@ -68,6 +68,20 @@ pub struct BufferKey {
     pub usage: wgpu::BufferUsages,
 }
 
+/// 池化缓冲区包装，包含物理 Buffer 和其唯一 ID
+#[derive(Clone)]
+pub struct PooledBuffer {
+    pub buffer: wgpu::Buffer,
+    pub id: u64,
+}
+
+/// BindGroup 缓存键
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub struct BindGroupKey {
+    pub layout_ptr: usize,
+    pub resource_ids: Vec<u64>,
+}
+
 /// 资源规格（用于创建资源时的参数）
 /// 目前主要用于纹理资源的声明
 #[derive(Debug, Clone)]
@@ -143,6 +157,10 @@ pub mod standard_resources {
 
     pub fn fxaa_color() -> ResourceId<()> {
         ResourceId::new("fxaa_color")
+    }
+
+    pub fn camera_buffer() -> ResourceId<()> {
+        ResourceId::new("camera_buffer")
     }
 
     // 深度缓冲区

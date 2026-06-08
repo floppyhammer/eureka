@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use crate::render::{Texture, NEXT_TEXTURE_ID};
 use std::sync::atomic::Ordering;
+use super::resource::{TextureKey, BufferKey, PooledBuffer, BindGroupKey};
 
 /// 瞬时资源池，用于在帧内复用纹理和缓冲区，并支持多帧并行下的延迟回收
 #[derive(Default)]
@@ -10,31 +11,11 @@ pub struct ResourcePool {
     pending_textures: Vec<(Texture, TextureKey, u64)>,
 
     /// 缓冲区池
-    buffers: HashMap<BufferKey, Vec<wgpu::Buffer>>,
-    pending_buffers: Vec<(wgpu::Buffer, BufferKey, u64)>,
+    buffers: HashMap<BufferKey, Vec<PooledBuffer>>,
+    pending_buffers: Vec<(PooledBuffer, BufferKey, u64)>,
 
     /// BindGroup 缓存
     bind_group_cache: HashMap<BindGroupKey, wgpu::BindGroup>,
-}
-
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub struct BindGroupKey {
-    pub layout_ptr: usize,
-    pub resource_ids: Vec<u64>,
-}
-
-#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
-pub struct TextureKey {
-    pub width: u32,
-    pub height: u32,
-    pub format: wgpu::TextureFormat,
-    pub usage: wgpu::TextureUsages,
-}
-
-#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
-pub struct BufferKey {
-    pub size: u64,
-    pub usage: wgpu::BufferUsages,
 }
 
 impl ResourcePool {
@@ -113,22 +94,27 @@ impl ResourcePool {
 
     // --- 缓冲区管理 ---
 
-    pub fn acquire_buffer(&mut self, device: &wgpu::Device, key: BufferKey) -> wgpu::Buffer {
+    pub fn acquire_buffer(&mut self, device: &wgpu::Device, key: BufferKey) -> PooledBuffer {
         if let Some(buffers) = self.buffers.get_mut(&key) {
             if let Some(buffer) = buffers.pop() {
                 return buffer;
             }
         }
 
-        device.create_buffer(&wgpu::BufferDescriptor {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("transient_buffer"),
             size: key.size,
             usage: key.usage | wgpu::BufferUsages::COPY_DST, // 强制包含 COPY_DST 方便写入
             mapped_at_creation: false,
-        })
+        });
+
+        PooledBuffer {
+            buffer,
+            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+        }
     }
 
-    pub fn release_buffer_deferred(&mut self, key: BufferKey, buffer: wgpu::Buffer, frame_id: u64) {
+    pub fn release_buffer_deferred(&mut self, key: BufferKey, buffer: PooledBuffer, frame_id: u64) {
         self.pending_buffers.push((buffer, key, frame_id));
     }
 

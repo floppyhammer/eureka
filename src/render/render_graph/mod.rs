@@ -11,7 +11,7 @@ pub mod resource;
 pub use node::*;
 pub use nodes::*;
 pub use resource::*;
-use crate::render::render_graph::resource_pool::{ResourcePool, TextureKey, BufferKey};
+use crate::render::render_graph::resource_pool::ResourcePool;
 
 /// A Bevy-like Render Graph that manages rendering nodes and their execution order.
 pub struct RenderGraph {
@@ -95,7 +95,7 @@ impl RenderGraph {
         self.pool.update(self.frame_count, render_context.frames_in_flight as u64);
 
         let mut active_textures: HashMap<ResourceId<()>, (TextureKey, Texture)> = HashMap::new();
-        let mut active_buffers: HashMap<ResourceId<()>, (BufferKey, wgpu::Buffer)> = HashMap::new();
+        let mut active_buffers: HashMap<ResourceId<()>, (BufferKey, PooledBuffer)> = HashMap::new();
 
         // Simple topological sort for execution order
         if self.cached_execution_order.is_none() {
@@ -243,7 +243,7 @@ pub struct FrameContext<'a> {
 
     pool: &'a mut ResourcePool,
     active_textures: &'a mut HashMap<ResourceId<()>, (TextureKey, Texture)>,
-    active_buffers: &'a mut HashMap<ResourceId<()>, (BufferKey, wgpu::Buffer)>,
+    active_buffers: &'a mut HashMap<ResourceId<()>, (BufferKey, PooledBuffer)>,
 }
 
 /// 包含克隆后的句柄，不绑定生命周期
@@ -285,7 +285,7 @@ impl<'a> FrameContext<'a> {
     }
 
     /// 获取一个瞬时缓冲区。返回其克隆句柄。
-    pub fn get_buffer(&mut self, name: impl Into<String>, key: BufferKey) -> wgpu::Buffer {
+    pub fn get_buffer(&mut self, name: impl Into<String>, key: BufferKey) -> PooledBuffer {
         let name = name.into();
         let res_id = ResourceId::new(name);
         let (_, buffer) = self.active_buffers.entry(res_id).or_insert_with(|| {
@@ -297,7 +297,7 @@ impl<'a> FrameContext<'a> {
     }
 
     /// 通过资源ID获取缓冲区
-    pub fn get_buffer_by_id(&mut self, id: &ResourceId<()>, key: BufferKey) -> wgpu::Buffer {
+    pub fn get_buffer_by_id(&mut self, id: &ResourceId<()>, key: BufferKey) -> PooledBuffer {
         let (_, buffer) = self.active_buffers.entry(id.clone()).or_insert_with(|| {
             let buf = self.pool.acquire_buffer(&self.render_context.device, key);
             (key, buf)

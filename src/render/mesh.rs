@@ -315,7 +315,7 @@ impl MeshRenderResources {
     pub fn prepare_pipeline(&mut self, _render_server: &RenderContext, _shader_maker: &mut ShaderMaker, _camera_bind_group_layout: &wgpu::BindGroupLayout) {
     }
 
-    pub(crate) fn prepare_instances(&mut self, render_server: &RenderContext, extracted_meshes: &Vec<ExtractedMesh>, mesh_cache: &MeshCache, camera_uniform_buffer: &wgpu::Buffer) {
+    pub(crate) fn prepare_instances(&mut self, render_server: &RenderContext, extracted_meshes: &Vec<ExtractedMesh>, mesh_cache: &MeshCache) {
         let mut grouped_instances: HashMap<MeshId, Vec<InstanceRaw>> = HashMap::new();
         for mesh in extracted_meshes {
             let material_idx = mesh.material_id.and_then(|id| self.material_index_map.get(&id)).cloned().unwrap_or(0);
@@ -366,19 +366,7 @@ impl MeshRenderResources {
         render_server.queue.write_buffer(self.global_indirect_buffer.as_ref().unwrap(), 0, bytemuck::cast_slice(&indirect_commands));
         render_server.queue.write_buffer(self.mesh_metadata_buffer.as_ref().unwrap(), 0, bytemuck::cast_slice(&mesh_metadatas));
 
-        if self.cull_bind_group.is_none() {
-            self.cull_bind_group = Some(render_server.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &self.cull_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: camera_uniform_buffer, offset: 0, size: Some(wgpu::BufferSize::new(mem::size_of::<CameraUniform>() as u64).unwrap()) }) },
-                    wgpu::BindGroupEntry { binding: 1, resource: self.mesh_metadata_buffer.as_ref().unwrap().as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 2, resource: self.global_instance_buffer.as_ref().unwrap().as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 3, resource: self.global_visible_instance_buffer.as_ref().unwrap().as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 4, resource: self.global_indirect_buffer.as_ref().unwrap().as_entire_binding() },
-                ],
-                label: Some("global cull"),
-            }));
-        }
+        // 移除了 cull_bind_group 的预创建，现在由 CullingNode 在运行时动态创建并缓存
         self.draw_counts = vec![indirect_commands.len() as u32];
     }
 
@@ -417,10 +405,33 @@ impl MeshRenderResources {
     }
 }
 
-pub(crate) fn prepare_meshes(extracted_meshes: &Vec<ExtractedMesh>, extracted_lights: &ExtractedLights, texture_cache: &TextureCache, shader_maker: &mut ShaderMaker, mesh_render_resources: &mut MeshRenderResources, light_render_resources: &LightRenderResources, camera_render_resources: &CameraRenderResources, render_server: &RenderContext, mesh_cache: &MeshCache, ssao_texture_id: TextureId, skybox_texture_id: Option<TextureId>) {
-    mesh_render_resources.prepare_pipeline(render_server, shader_maker, &camera_render_resources.bind_group_layout);
-    mesh_render_resources.prepare_lights(render_server, extracted_lights, light_render_resources, texture_cache, ssao_texture_id, skybox_texture_id);
-    mesh_render_resources.prepare_instances(render_server, extracted_meshes, mesh_cache, camera_render_resources.uniform_buffer.as_ref().unwrap());
+pub(crate) fn prepare_meshes(
+    extracted_meshes: &Vec<ExtractedMesh>,
+    extracted_lights: &ExtractedLights,
+    texture_cache: &TextureCache,
+    shader_maker: &mut ShaderMaker,
+    mesh_render_resources: &mut MeshRenderResources,
+    light_render_resources: &LightRenderResources,
+    camera_render_resources: &CameraRenderResources,
+    render_server: &RenderContext,
+    mesh_cache: &MeshCache,
+    ssao_texture_id: TextureId,
+    skybox_texture_id: Option<TextureId>,
+) {
+    mesh_render_resources.prepare_pipeline(
+        render_server,
+        shader_maker,
+        &camera_render_resources.bind_group_layout,
+    );
+    mesh_render_resources.prepare_lights(
+        render_server,
+        extracted_lights,
+        light_render_resources,
+        texture_cache,
+        ssao_texture_id,
+        skybox_texture_id,
+    );
+    mesh_render_resources.prepare_instances(render_server, extracted_meshes, mesh_cache);
 }
 
 pub(crate) fn render_meshes<'a, 'b: 'a>(

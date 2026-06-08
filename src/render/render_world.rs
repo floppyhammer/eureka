@@ -14,7 +14,7 @@ use crate::render::{
     Texture, TextureCache, TextureId, NEXT_TEXTURE_ID,
 };
 use std::sync::atomic::Ordering;
-use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode, FxaaNode, TransparentMeshNode, PresentNode};
+use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode, FxaaNode, TransparentMeshNode, PresentNode, PrepareViewNode};
 use crate::render::render_graph::standard_resources;
 use crate::scene::Bvh;
 
@@ -86,6 +86,7 @@ impl RenderWorld {
 
     fn default_graph() -> RenderGraph {
         let mut graph = RenderGraph::new();
+        graph.add_node("prepare_view", PrepareViewNode::default());
         graph.add_node("cull", CullingNode::default());
         graph.add_node("shadow", ShadowNode::default());
         graph.add_node("ssao", SsaoNode::default());
@@ -97,6 +98,7 @@ impl RenderWorld {
         graph.add_node("present", PresentNode::default());
         graph.add_node("sprite", SpriteNode::default());
 
+        graph.add_node_edge("prepare_view", "cull");
         graph.add_node_edge("cull", "shadow");
         graph.add_node_edge("cull", "mesh");
         graph.add_node_edge("shadow", "mesh");
@@ -116,8 +118,8 @@ impl RenderWorld {
     }
 
     pub fn prepare(&mut self, render_server: &RenderContext) {
-        // 1. Prepare global camera data
-        self.camera_render_resources.prepare_cameras(render_server, &self.extracted.cameras);
+        // 1. Prepare global camera data (Migrated to CameraNode)
+        // self.camera_render_resources.prepare_cameras(render_server, &self.extracted.cameras);
 
         // 2. Configure Render Graph based on settings (Optional: only if changed)
         let final_3d_resource = if self.extracted.fxaa_enabled {
