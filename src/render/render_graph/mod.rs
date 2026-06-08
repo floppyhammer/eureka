@@ -145,7 +145,9 @@ impl RenderGraph {
 
         // Simple topological sort for execution order
         if self.cached_execution_order.is_none() {
-            self.cached_execution_order = Some(self.topological_sort());
+            let order = self.topological_sort();
+            self.log_structure(&order);
+            self.cached_execution_order = Some(order);
         }
         let execution_order = self.cached_execution_order.as_ref().unwrap().clone();
 
@@ -175,6 +177,26 @@ impl RenderGraph {
         for (_, (key, texture)) in active_resources {
             self.pool.release(key, texture);
         }
+    }
+
+    fn log_structure(&self, _order: &[String]) {
+        log::info!("RenderGraph Topology Updated (Mermaid):");
+
+        let mut mermaid = String::from("\n```mermaid\ngraph TD\n");
+        // 为了图表更美观，我们按照排序后的顺序生成节点定义
+        for name in _order {
+            mermaid.push_str(&format!("    {}\n", name));
+        }
+
+        // 生成连接关系
+        for (to, froms) in &self.dependencies {
+            for from in froms {
+                mermaid.push_str(&format!("    {} --> {}\n", from, to));
+            }
+        }
+        mermaid.push_str("```\n");
+
+        log::info!("{}", mermaid);
     }
 
     fn topological_sort(&self) -> Vec<String> {
