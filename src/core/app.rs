@@ -117,12 +117,14 @@ impl<'a> App<'a> {
             .get_default_config(&adapter, size.width, size.height)
             .expect("Surface unsupported by adapter!");
 
-        // Enable vsync.
         let surface_capabilities = surface.get_capabilities(&adapter);
-        surface_config.present_mode= if surface_capabilities
-            .present_modes
-            .contains(&wgpu::PresentMode::Mailbox)
-        {
+
+        // 如果无法从 capabilities 获取，通常根据显示模式推断：
+        // Fifo (V-Sync) 通常需要 2 张图，Mailbox (Triple Buffering) 通常需要 3 张。
+        let is_mailbox = surface_capabilities.present_modes.contains(&wgpu::PresentMode::Mailbox);
+        let frames_in_flight = if is_mailbox { 3 } else { 2 };
+
+        surface_config.present_mode = if is_mailbox {
             wgpu::PresentMode::Mailbox
         } else {
             wgpu::PresentMode::Fifo
@@ -131,7 +133,7 @@ impl<'a> App<'a> {
         surface.configure(&device, &surface_config);
 
         // Create a render server.
-        RenderContext::new(surface, surface_config, device, queue)
+        RenderContext::new(surface, surface_config, device, queue, frames_in_flight)
     }
 
     pub fn run(&mut self) {

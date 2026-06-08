@@ -6,6 +6,7 @@ pub struct RenderContext<'a> {
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface<'a>,
     pub surface_config: wgpu::SurfaceConfiguration,
+    pub frames_in_flight: u32,
 }
 
 impl<'a> RenderContext<'a> {
@@ -14,6 +15,7 @@ impl<'a> RenderContext<'a> {
         surface_config: wgpu::SurfaceConfiguration,
         device: wgpu::Device,
         queue: wgpu::Queue,
+        frames_in_flight: u32,
     ) -> Self {
         let now = Instant::now();
 
@@ -22,6 +24,7 @@ impl<'a> RenderContext<'a> {
             queue,
             surface,
             surface_config,
+            frames_in_flight,
         };
 
         let elapsed_time = now.elapsed();

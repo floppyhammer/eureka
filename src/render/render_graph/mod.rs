@@ -19,6 +19,7 @@ pub struct RenderGraph {
     dependencies: HashMap<String, Vec<String>>,
     cached_execution_order: Option<Vec<String>>,
     pool: ResourcePool,
+    frame_count: u64,
 }
 
 impl Default for RenderGraph {
@@ -39,6 +40,7 @@ impl RenderGraph {
             dependencies: HashMap::new(),
             cached_execution_order: None,
             pool: ResourcePool::default(),
+            frame_count: 0,
         }
     }
 
@@ -50,6 +52,7 @@ impl RenderGraph {
             name: name.clone(),
         });
         self.dependencies.entry(name).or_default();
+        // Reset cache.
         self.cached_execution_order = None;
     }
 
@@ -64,6 +67,7 @@ impl RenderGraph {
         let deps = self.dependencies.entry(to).or_default();
         if !deps.contains(&from) {
             deps.push(from);
+            // Reset cache.
             self.cached_execution_order = None;
         }
     }
@@ -74,6 +78,7 @@ impl RenderGraph {
         if let Some(deps) = self.dependencies.get_mut(&to) {
             if let Some(pos) = deps.iter().position(|x| *x == from) {
                 deps.remove(pos);
+                // Reset cache.
                 self.cached_execution_order = None;
             }
         }
@@ -86,6 +91,9 @@ impl RenderGraph {
         encoder: &mut wgpu::CommandEncoder,
         final_output_view: &wgpu::TextureView,
     ) {
+        // 1. 每帧开始时，尝试从冷却队列中回收旧资源
+        self.pool.update(self.frame_count, render_context.frames_in_flight as u64);
+
         let mut active_resources: HashMap<ResourceId<()>, (TextureKey, Texture)> = HashMap::new();
 
         // Simple topological sort for execution order
@@ -126,10 +134,12 @@ impl RenderGraph {
             }
         }
 
-        // 帧结束，回收所有申请的资源回池中
+        // 帧结束，将资源放入冷却队列，延迟到后续帧再回收
         for (_, (key, texture)) in active_resources {
-            self.pool.release(key, texture);
+            self.pool.release_deferred(key, texture, self.frame_count);
         }
+
+        self.frame_count += 1;
     }
 
     fn validate_resource_dependencies(&self, execution_order: &[String]) -> Result<(), String> {
@@ -178,6 +188,7 @@ impl RenderGraph {
         log::info!("{}", mermaid);
     }
 
+    /// Sort node running order.
     fn topological_sort(&self) -> Vec<String> {
         let mut in_degree = HashMap::new();
         for (node, deps) in &self.dependencies {
