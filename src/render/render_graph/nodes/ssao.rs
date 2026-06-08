@@ -37,7 +37,10 @@ impl Node for SsaoNode {
         let normal_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("SSAO Normal Pipeline Layout"),
-                bind_group_layouts: &[&camera_resources.bind_group_layout],
+                bind_group_layouts: &[
+                    &camera_resources.bind_group_layout,
+                    &world.mesh_render_resources.bindless_bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
             let shader = wgpu::ShaderModuleDescriptor {

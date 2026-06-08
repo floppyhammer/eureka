@@ -170,6 +170,20 @@ impl RenderWorld {
              prepare_meshes(&all_meshes, &self.extracted.lights, &self.texture_cache, &mut self.shader_maker, &mut self.mesh_render_resources, &self.light_render_resources, &self.camera_render_resources, render_server, &self.mesh_cache, self.ssao_render_resources.blur_texture, self.extracted.sky.as_ref().map(|s| s.texture));
         }
 
+        // 6.5 Re-include MASKED transparent meshes for SSAO (normal pre-pass)
+        // This allows leaves/grass to produce SSAO occlusion.
+        let mut ssao_meshes = self.extracted.meshes.clone();
+        for mesh in &self.extracted.transparent_meshes {
+            if let Some(mat_id) = mesh.material_id {
+                if let Some(mat) = self.mesh_render_resources.material_cache.get(&mat_id) {
+                    if mat.alpha_mode == crate::render::material::AlphaMode::Mask {
+                        ssao_meshes.push(*mesh);
+                    }
+                }
+            }
+        }
+        self.extracted.meshes = ssao_meshes;
+
         // 6. Prepare Shadow & Sky
         let first_d3_cam = self.extracted.cameras.types.iter().position(|t| *t == CameraType::D3);
         if let Some(idx) = first_d3_cam {
