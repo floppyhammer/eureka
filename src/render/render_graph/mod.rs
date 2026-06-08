@@ -11,7 +11,7 @@ pub mod resource;
 pub use node::*;
 pub use nodes::*;
 pub use resource::*;
-use crate::render::render_graph::resource_pool::{ResourcePool, TextureKey};
+use crate::render::render_graph::resource_pool::{ResourcePool, TextureKey, BufferKey};
 
 /// A Bevy-like Render Graph that manages rendering nodes and their execution order.
 pub struct RenderGraph {
@@ -94,7 +94,8 @@ impl RenderGraph {
         // 1. 每帧开始时，尝试从冷却队列中回收旧资源
         self.pool.update(self.frame_count, render_context.frames_in_flight as u64);
 
-        let mut active_resources: HashMap<ResourceId<()>, (TextureKey, Texture)> = HashMap::new();
+        let mut active_textures: HashMap<ResourceId<()>, (TextureKey, Texture)> = HashMap::new();
+        let mut active_buffers: HashMap<ResourceId<()>, (BufferKey, wgpu::Buffer)> = HashMap::new();
 
         // Simple topological sort for execution order
         if self.cached_execution_order.is_none() {
@@ -117,7 +118,8 @@ impl RenderGraph {
             encoder,
             final_output_view,
             pool: &mut self.pool,
-            active_resources: &mut active_resources,
+            active_textures: &mut active_textures,
+            active_buffers: &mut active_buffers,
         };
 
         // 准备所有节点
@@ -134,9 +136,12 @@ impl RenderGraph {
             }
         }
 
-        // 帧结束，将资源放入冷却队列，延迟到后续帧再回收
-        for (_, (key, texture)) in active_resources {
-            self.pool.release_deferred(key, texture, self.frame_count);
+        // 帧结束，回收所有资源
+        for (_, (key, texture)) in active_textures {
+            self.pool.release_texture_deferred(key, texture, self.frame_count);
+        }
+        for (_, (key, buffer)) in active_buffers {
+            self.pool.release_buffer_deferred(key, buffer, self.frame_count);
         }
 
         self.frame_count += 1;
@@ -237,7 +242,8 @@ pub struct FrameContext<'a> {
     pub final_output_view: &'a wgpu::TextureView,
 
     pool: &'a mut ResourcePool,
-    active_resources: &'a mut HashMap<ResourceId<()>, (TextureKey, Texture)>,
+    active_textures: &'a mut HashMap<ResourceId<()>, (TextureKey, Texture)>,
+    active_buffers: &'a mut HashMap<ResourceId<()>, (BufferKey, wgpu::Buffer)>,
 }
 
 /// 包含克隆后的句柄，不绑定生命周期
@@ -252,8 +258,8 @@ impl<'a> FrameContext<'a> {
     pub fn get_texture(&mut self, name: impl Into<String>, key: TextureKey) -> ResolvedTransientTexture {
         let name = name.into();
         let res_id = ResourceId::new(name);
-        let (_, texture) = self.active_resources.entry(res_id).or_insert_with(|| {
-            let tex = self.pool.acquire(&self.render_context.device, key);
+        let (_, texture) = self.active_textures.entry(res_id).or_insert_with(|| {
+            let tex = self.pool.acquire_texture(&self.render_context.device, key);
             (key, tex)
         });
 
@@ -266,8 +272,8 @@ impl<'a> FrameContext<'a> {
 
     /// 通过类型化资源ID获取纹理
     pub fn get_texture_by_id(&mut self, id: &ResourceId<()>, key: TextureKey) -> ResolvedTransientTexture {
-        let (_, texture) = self.active_resources.entry(id.clone()).or_insert_with(|| {
-            let tex = self.pool.acquire(&self.render_context.device, key);
+        let (_, texture) = self.active_textures.entry(id.clone()).or_insert_with(|| {
+            let tex = self.pool.acquire_texture(&self.render_context.device, key);
             (key, tex)
         });
 
@@ -278,9 +284,31 @@ impl<'a> FrameContext<'a> {
         }
     }
 
+    /// 获取一个瞬时缓冲区。返回其克隆句柄。
+    pub fn get_buffer(&mut self, name: impl Into<String>, key: BufferKey) -> wgpu::Buffer {
+        let name = name.into();
+        let res_id = ResourceId::new(name);
+        let (_, buffer) = self.active_buffers.entry(res_id).or_insert_with(|| {
+            let buf = self.pool.acquire_buffer(&self.render_context.device, key);
+            (key, buf)
+        });
+
+        buffer.clone()
+    }
+
+    /// 通过资源ID获取缓冲区
+    pub fn get_buffer_by_id(&mut self, id: &ResourceId<()>, key: BufferKey) -> wgpu::Buffer {
+        let (_, buffer) = self.active_buffers.entry(id.clone()).or_insert_with(|| {
+            let buf = self.pool.acquire_buffer(&self.render_context.device, key);
+            (key, buf)
+        });
+
+        buffer.clone()
+    }
+
     /// 检查资源是否存在
     pub fn has_resource(&self, id: &ResourceId<()>) -> bool {
-        self.active_resources.contains_key(id)
+        self.active_textures.contains_key(id) || self.active_buffers.contains_key(id)
     }
 
     /// 获取或创建缓存的 BindGroup

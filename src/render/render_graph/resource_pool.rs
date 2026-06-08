@@ -2,14 +2,18 @@ use std::collections::HashMap;
 use crate::render::{Texture, NEXT_TEXTURE_ID};
 use std::sync::atomic::Ordering;
 
-/// 瞬时资源池，用于在帧内复用纹理，并支持多帧并行下的延迟回收
+/// 瞬时资源池，用于在帧内复用纹理和缓冲区，并支持多帧并行下的延迟回收
 #[derive(Default)]
 pub struct ResourcePool {
-    /// 真正可以被立即领用的资源
+    /// 纹理池
     textures: HashMap<TextureKey, Vec<Texture>>,
-    /// 处于“冷却期”的资源：(纹理, 它的Key, 释放时的帧号)
-    pending: Vec<(Texture, TextureKey, u64)>,
-    /// BindGroup 缓存：Key 是 (Layout地址, 资源ID列表)
+    pending_textures: Vec<(Texture, TextureKey, u64)>,
+
+    /// 缓冲区池
+    buffers: HashMap<BufferKey, Vec<wgpu::Buffer>>,
+    pending_buffers: Vec<(wgpu::Buffer, BufferKey, u64)>,
+
+    /// BindGroup 缓存
     bind_group_cache: HashMap<BindGroupKey, wgpu::BindGroup>,
 }
 
@@ -27,29 +31,44 @@ pub struct TextureKey {
     pub usage: wgpu::TextureUsages,
 }
 
+#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
+pub struct BufferKey {
+    pub size: u64,
+    pub usage: wgpu::BufferUsages,
+}
+
 impl ResourcePool {
-    /// 每帧开始时调用，将已经度过冷却期的资源挪回可用池
     pub fn update(&mut self, current_frame: u64, frames_in_flight: u64) {
+        // 1. 回收纹理
         let mut i = 0;
-        while i < self.pending.len() {
-            if current_frame >= self.pending[i].2 + frames_in_flight {
-                let (texture, key, _) = self.pending.remove(i);
+        while i < self.pending_textures.len() {
+            if current_frame >= self.pending_textures[i].2 + frames_in_flight {
+                let (texture, key, _) = self.pending_textures.remove(i);
                 self.textures.entry(key).or_default().push(texture);
             } else {
                 i += 1;
             }
         }
 
-        // 可选：如果缓存过大，可以在这里清理 bind_group_cache
-        // 在实际项目中，当纹理被重建（如 Resize）时，通常需要清空此缓存
+        // 2. 回收缓冲区
+        let mut i = 0;
+        while i < self.pending_buffers.len() {
+            if current_frame >= self.pending_buffers[i].2 + frames_in_flight {
+                let (buffer, key, _) = self.pending_buffers.remove(i);
+                self.buffers.entry(key).or_default().push(buffer);
+            } else {
+                i += 1;
+            }
+        }
     }
 
-    /// 清空 BindGroup 缓存（通常在窗口缩放或资源重建时调用）
     pub fn clear_bind_group_cache(&mut self) {
         self.bind_group_cache.clear();
     }
 
-    pub fn acquire(&mut self, device: &wgpu::Device, key: TextureKey) -> Texture {
+    // --- 纹理管理 ---
+
+    pub fn acquire_texture(&mut self, device: &wgpu::Device, key: TextureKey) -> Texture {
         if let Some(textures) = self.textures.get_mut(&key) {
             if let Some(texture) = textures.pop() {
                 return texture;
@@ -88,11 +107,33 @@ impl ResourcePool {
         }
     }
 
-    pub fn release_deferred(&mut self, key: TextureKey, texture: Texture, frame_id: u64) {
-        self.pending.push((texture, key, frame_id));
+    pub fn release_texture_deferred(&mut self, key: TextureKey, texture: Texture, frame_id: u64) {
+        self.pending_textures.push((texture, key, frame_id));
     }
 
-    /// 获取或创建 BindGroup
+    // --- 缓冲区管理 ---
+
+    pub fn acquire_buffer(&mut self, device: &wgpu::Device, key: BufferKey) -> wgpu::Buffer {
+        if let Some(buffers) = self.buffers.get_mut(&key) {
+            if let Some(buffer) = buffers.pop() {
+                return buffer;
+            }
+        }
+
+        device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("transient_buffer"),
+            size: key.size,
+            usage: key.usage | wgpu::BufferUsages::COPY_DST, // 强制包含 COPY_DST 方便写入
+            mapped_at_creation: false,
+        })
+    }
+
+    pub fn release_buffer_deferred(&mut self, key: BufferKey, buffer: wgpu::Buffer, frame_id: u64) {
+        self.pending_buffers.push((buffer, key, frame_id));
+    }
+
+    // --- BindGroup 管理 ---
+
     pub fn get_or_create_bind_group<F>(
         &mut self,
         layout: &wgpu::BindGroupLayout,
