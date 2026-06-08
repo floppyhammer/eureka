@@ -11,8 +11,9 @@ use crate::render::sprite::{
 use crate::render::ssao::SsaoRenderResources;
 use crate::render::{
     prepare_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderContext,
-    Texture, TextureCache, TextureId,
+    Texture, TextureCache, TextureId, NEXT_TEXTURE_ID,
 };
+use std::sync::atomic::Ordering;
 use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode, FxaaNode, TransparentMeshNode, PresentNode};
 use crate::render::render_graph::standard_resources;
 use crate::scene::Bvh;
@@ -234,6 +235,7 @@ impl RenderWorld {
             view,
             sampler,
             format: config.format,
+            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         })
     }
 }

@@ -244,6 +244,7 @@ pub struct FrameContext<'a> {
 pub struct ResolvedTransientTexture {
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
+    pub id: u64,
 }
 
 impl<'a> FrameContext<'a> {
@@ -259,6 +260,7 @@ impl<'a> FrameContext<'a> {
         ResolvedTransientTexture {
             view: texture.view.clone(),
             sampler: texture.sampler.clone(),
+            id: texture.id,
         }
     }
 
@@ -272,11 +274,26 @@ impl<'a> FrameContext<'a> {
         ResolvedTransientTexture {
             view: texture.view.clone(),
             sampler: texture.sampler.clone(),
+            id: texture.id,
         }
     }
 
     /// 检查资源是否存在
     pub fn has_resource(&self, id: &ResourceId<()>) -> bool {
         self.active_resources.contains_key(id)
+    }
+
+    /// 获取或创建缓存的 BindGroup
+    pub fn create_bind_group<F>(
+        &mut self,
+        layout: &wgpu::BindGroupLayout,
+        resource_ids: Vec<u64>,
+        creator: F,
+    ) -> wgpu::BindGroup
+    where
+        F: FnOnce(&RenderContext) -> wgpu::BindGroup,
+    {
+        let render_context = self.render_context;
+        self.pool.get_or_create_bind_group(layout, resource_ids, || creator(render_context))
     }
 }

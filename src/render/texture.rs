@@ -5,6 +5,9 @@ use std::collections::HashMap;
 use std::path::Path;
 use uuid;
 use wgpu::Extent3d;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+pub static NEXT_TEXTURE_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone)]
 pub struct RawTextureData {
@@ -33,6 +36,8 @@ pub struct Texture {
     // Defines how to sample the texture.
     pub sampler: wgpu::Sampler,
     pub format: wgpu::TextureFormat,
+    /// 唯一标识，用于缓存优化
+    pub id: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -216,6 +221,7 @@ impl Texture {
             view,
             sampler,
             format,
+            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         };
 
         Ok(cache.add(texture))
@@ -290,6 +296,7 @@ impl Texture {
             view,
             sampler,
             format: Self::DEPTH_FORMAT,
+            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         };
 
         cache.add(texture)
@@ -412,6 +419,7 @@ impl Texture {
             view,
             sampler,
             format: raw.format,
+            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         })
     }
 
@@ -502,6 +510,7 @@ impl Texture {
             view,
             sampler,
             format: raw.format,
+            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         })
     }
 
@@ -605,6 +614,7 @@ impl Texture {
             view,
             sampler,
             format,
+            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
         };
 
         Ok(cache.add(texture))

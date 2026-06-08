@@ -1,6 +1,7 @@
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::mesh::{ExtractedMesh, MeshCache, MeshRenderResources};
-use crate::render::{RenderContext, Texture, TextureCache, TextureId};
+use crate::render::{RenderContext, Texture, TextureCache, TextureId, NEXT_TEXTURE_ID};
+use std::sync::atomic::Ordering;
 use crate::scene::Bvh;
 use glam::vec3;
 use wgpu::util::DeviceExt;
@@ -427,6 +428,7 @@ fn create_color_texture(
         view,
         sampler,
         format,
+        id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
     }
 }
 
@@ -474,6 +476,7 @@ fn create_depth_texture(
         view,
         sampler,
         format: Texture::DEPTH_FORMAT,
+        id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
     }
 }
 
@@ -520,6 +523,7 @@ fn create_noise_texture(device: &wgpu::Device, queue: &wgpu::Queue, data: &[f32]
         view,
         sampler,
         format: wgpu::TextureFormat::Rgba32Float,
+        id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
     }
 }
 
