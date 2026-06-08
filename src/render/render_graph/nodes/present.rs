@@ -1,24 +1,36 @@
-use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use crate::render::render_graph::{FrameContext, Node, ResourceId, TextureKey};
+use crate::render::render_graph::standard_resources;
 use crate::render::create_render_pipeline;
 use std::any::Any;
 
 pub struct PresentNode {
     pipeline: Option<wgpu::RenderPipeline>,
-    pub input_texture_name: String,
+    pub input_resource_id: ResourceId<()>,
 }
 
 impl Default for PresentNode {
     fn default() -> Self {
         Self {
             pipeline: None,
-            input_texture_name: "main_color".to_string(),
+            input_resource_id: standard_resources::main_color(),
         }
+    }
+}
+
+impl PresentNode {
+    pub fn with_input(mut self, input_id: ResourceId<()>) -> Self {
+        self.input_resource_id = input_id;
+        self
     }
 }
 
 impl Node for PresentNode {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn input_resources(&self) -> Vec<ResourceId<()>> {
+        vec![self.input_resource_id.clone()]
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {
@@ -82,7 +94,7 @@ impl Node for PresentNode {
             format: context.render_context.surface_config.format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         };
-        let input_texture = context.get_texture(&self.input_texture_name, input_key);
+        let input_texture = context.get_texture_by_id(&self.input_resource_id, input_key);
 
         let bind_group = context.render_context.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("present bind group"),

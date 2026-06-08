@@ -14,6 +14,7 @@ use crate::render::{
     Texture, TextureCache, TextureId,
 };
 use crate::render::render_graph::{RenderGraph, ShadowNode, SsaoNode, CullingNode, SkyboxNode, ClearNode, MeshNode, SpriteNode, FxaaNode, TransparentMeshNode, PresentNode};
+use crate::render::render_graph::standard_resources;
 use crate::scene::Bvh;
 
 #[derive(Default, Clone)]
@@ -118,13 +119,14 @@ impl RenderWorld {
         self.camera_render_resources.prepare_cameras(render_server, &self.extracted.cameras);
 
         // 2. Configure Render Graph based on settings (Optional: only if changed)
-        let mut final_3d_texture = "main_color".to_string();
-        if self.extracted.fxaa_enabled {
-            final_3d_texture = "fxaa_color".to_string();
-        }
+        let final_3d_resource = if self.extracted.fxaa_enabled {
+            standard_resources::fxaa_color()
+        } else {
+            standard_resources::main_color()
+        };
 
         if let Some(present) = self.render_graph.get_node_mut::<PresentNode>("present") {
-            present.input_texture_name = final_3d_texture;
+            present.input_resource_id = final_3d_resource;
         }
 
         // 3. Prepare Bindless Materials (Now includes all 2D textures)

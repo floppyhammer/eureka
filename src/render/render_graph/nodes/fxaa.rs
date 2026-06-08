@@ -1,4 +1,5 @@
-use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use crate::render::render_graph::{FrameContext, Node, ResourceId, TextureKey};
+use crate::render::render_graph::standard_resources;
 use std::any::Any;
 
 pub struct FxaaNode {
@@ -16,6 +17,14 @@ impl Default for FxaaNode {
 impl Node for FxaaNode {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn input_resources(&self) -> Vec<ResourceId<()>> {
+        vec![standard_resources::main_color()]
+    }
+
+    fn output_resources(&self) -> Vec<ResourceId<()>> {
+        vec![standard_resources::fxaa_color()]
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {
@@ -78,8 +87,8 @@ impl Node for FxaaNode {
             format: context.render_context.surface_config.format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         };
-        let input_texture = context.get_texture("main_color", key);
-        let output_texture = context.get_texture("fxaa_color", key);
+        let input_texture = context.get_texture_by_id(&standard_resources::main_color(), key);
+        let output_texture = context.get_texture_by_id(&standard_resources::fxaa_color(), key);
 
         let bind_group = context.render_context.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("fxaa bind group"),

@@ -5,68 +5,13 @@ use crate::render::Texture;
 
 pub mod node;
 pub mod nodes;
+mod resource_pool;
+pub mod resource;
 
 pub use node::*;
 pub use nodes::*;
-
-/// 瞬时资源池，用于在帧内复用纹理
-#[derive(Default)]
-pub struct ResourcePool {
-    textures: HashMap<TextureKey, Vec<Texture>>,
-}
-
-#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
-pub struct TextureKey {
-    pub width: u32,
-    pub height: u32,
-    pub format: wgpu::TextureFormat,
-    pub usage: wgpu::TextureUsages,
-}
-
-impl ResourcePool {
-    pub fn acquire(&mut self, device: &wgpu::Device, key: TextureKey) -> Texture {
-        if let Some(textures) = self.textures.get_mut(&key) {
-            if let Some(texture) = textures.pop() {
-                return texture;
-            }
-        }
-
-        // 如果池中没有，创建新的
-        let wgpu_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("transient_texture"),
-            size: wgpu::Extent3d {
-                width: key.width,
-                height: key.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: key.format,
-            usage: key.usage,
-            view_formats: &[],
-        });
-
-        let view = wgpu_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-
-        Texture {
-            size: (key.width, key.height),
-            texture: wgpu_texture,
-            view,
-            sampler,
-            format: key.format,
-        }
-    }
-
-    pub fn release(&mut self, key: TextureKey, texture: Texture) {
-        self.textures.entry(key).or_default().push(texture);
-    }
-}
+pub use resource::*;
+use crate::render::render_graph::resource_pool::{ResourcePool, TextureKey};
 
 /// A Bevy-like Render Graph that manages rendering nodes and their execution order.
 pub struct RenderGraph {
@@ -141,7 +86,7 @@ impl RenderGraph {
         encoder: &mut wgpu::CommandEncoder,
         final_output_view: &wgpu::TextureView,
     ) {
-        let mut active_resources: HashMap<String, (TextureKey, Texture)> = HashMap::new();
+        let mut active_resources: HashMap<ResourceId<()>, (TextureKey, Texture)> = HashMap::new();
 
         // Simple topological sort for execution order
         if self.cached_execution_order.is_none() {
@@ -150,6 +95,12 @@ impl RenderGraph {
             self.cached_execution_order = Some(order);
         }
         let execution_order = self.cached_execution_order.as_ref().unwrap().clone();
+
+        // 验证资源依赖
+        if let Err(err) = self.validate_resource_dependencies(&execution_order) {
+            log::error!("Resource dependency validation failed: {}", err);
+            return;
+        }
 
         // 临时包装，方便 Node 使用
         let mut context = FrameContext {
@@ -161,12 +112,14 @@ impl RenderGraph {
             active_resources: &mut active_resources,
         };
 
+        // 准备所有节点
         for node_name in &execution_order {
             if let Some(node_state) = self.nodes.get_mut(node_name) {
                 node_state.node.prepare(&mut context);
             }
         }
 
+        // 执行所有节点
         for node_name in execution_order {
             if let Some(node_state) = self.nodes.get_mut(&node_name) {
                 node_state.node.run(&mut context);
@@ -179,16 +132,42 @@ impl RenderGraph {
         }
     }
 
+    fn validate_resource_dependencies(&self, execution_order: &[String]) -> Result<(), String> {
+        let mut available_resources: HashMap<ResourceId<()>, ()> = HashMap::new();
+
+        // 添加一些内置的初始资源（如最终输出视图）
+        available_resources.insert(ResourceId::new("final_output"), ());
+
+        for node_name in execution_order {
+            if let Some(node_state) = self.nodes.get(node_name) {
+                // 检查输入资源是否可用
+                for input_id in node_state.node.input_resources() {
+                    if !available_resources.contains_key(&input_id) {
+                        return Err(format!(
+                            "Node '{}' requires input resource '{}' which is not available",
+                            node_name, input_id
+                        ));
+                    }
+                }
+
+                // 将输出资源标记为可用
+                for output_id in node_state.node.output_resources() {
+                    available_resources.insert(output_id, ());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn log_structure(&self, _order: &[String]) {
         log::info!("RenderGraph Topology Updated (Mermaid):");
 
         let mut mermaid = String::from("\n```mermaid\ngraph TD\n");
-        // 为了图表更美观，我们按照排序后的顺序生成节点定义
         for name in _order {
             mermaid.push_str(&format!("    {}\n", name));
         }
 
-        // 生成连接关系
         for (to, froms) in &self.dependencies {
             for from in froms {
                 mermaid.push_str(&format!("    {} --> {}\n", from, to));
@@ -208,7 +187,6 @@ impl RenderGraph {
             }
         }
 
-        // Reverse dependencies to find what each node enables
         let mut enables = HashMap::new();
         for (node, deps) in &self.dependencies {
             for dep in deps {
@@ -237,7 +215,6 @@ impl RenderGraph {
             }
         }
 
-        // If result.len() != self.nodes.len(), there is a cycle, but we'll ignore it for now or just return what we have
         result
     }
 }
@@ -249,7 +226,7 @@ pub struct FrameContext<'a> {
     pub final_output_view: &'a wgpu::TextureView,
 
     pool: &'a mut ResourcePool,
-    active_resources: &'a mut HashMap<String, (TextureKey, Texture)>,
+    active_resources: &'a mut HashMap<ResourceId<()>, (TextureKey, Texture)>,
 }
 
 /// 包含克隆后的句柄，不绑定生命周期
@@ -262,7 +239,8 @@ impl<'a> FrameContext<'a> {
     /// 获取一个具名瞬时纹理。返回克隆的句柄以允许连续调用。
     pub fn get_texture(&mut self, name: impl Into<String>, key: TextureKey) -> ResolvedTransientTexture {
         let name = name.into();
-        let (_, texture) = self.active_resources.entry(name).or_insert_with(|| {
+        let res_id = ResourceId::new(name);
+        let (_, texture) = self.active_resources.entry(res_id).or_insert_with(|| {
             let tex = self.pool.acquire(&self.render_context.device, key);
             (key, tex)
         });
@@ -271,5 +249,23 @@ impl<'a> FrameContext<'a> {
             view: texture.view.clone(),
             sampler: texture.sampler.clone(),
         }
+    }
+
+    /// 通过类型化资源ID获取纹理
+    pub fn get_texture_by_id(&mut self, id: &ResourceId<()>, key: TextureKey) -> ResolvedTransientTexture {
+        let (_, texture) = self.active_resources.entry(id.clone()).or_insert_with(|| {
+            let tex = self.pool.acquire(&self.render_context.device, key);
+            (key, tex)
+        });
+
+        ResolvedTransientTexture {
+            view: texture.view.clone(),
+            sampler: texture.sampler.clone(),
+        }
+    }
+
+    /// 检查资源是否存在
+    pub fn has_resource(&self, id: &ResourceId<()>) -> bool {
+        self.active_resources.contains_key(id)
     }
 }

@@ -1,5 +1,6 @@
 use crate::render::camera::CameraType;
-use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use crate::render::render_graph::{FrameContext, Node, ResourceId, TextureKey};
+use crate::render::render_graph::standard_resources;
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw, Texture};
 use std::any::Any;
@@ -17,6 +18,10 @@ impl Default for MeshNode {
 impl Node for MeshNode {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn output_resources(&self) -> Vec<ResourceId<()>> {
+        vec![standard_resources::main_color(), standard_resources::main_depth()]
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {
@@ -73,11 +78,10 @@ impl Node for MeshNode {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         };
 
-        // 1. 先通过 context 获取瞬时资源（可变借用 context）
-        let main_color = context.get_texture("main_color", main_color_key);
-        let main_depth = context.get_texture("main_depth", main_depth_key);
+        // 使用类型化资源ID获取瞬时资源
+        let main_color = context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
+        let main_depth = context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
 
-        // 2. 然后再借用 world (只读借用 context.render_world)
         let world = &*context.render_world;
         if world.extracted.meshes.is_empty() {
             return;
