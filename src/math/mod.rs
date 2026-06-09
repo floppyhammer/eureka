@@ -2,6 +2,7 @@ pub mod aabb;
 pub mod color;
 pub mod frustum;
 pub mod transform;
+pub(crate) mod bvh;
 
 use allsorts::pathfinder_geometry::rect::RectF;
 use glam::Vec4;

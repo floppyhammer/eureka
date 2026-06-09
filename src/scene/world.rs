@@ -5,7 +5,6 @@ use crate::window::InputServer;
 use crate::animation::property::PropertyChange;
 use glam::UVec2;
 use indextree::{Arena, NodeEdge, NodeId};
-use crate::animation::PropertyProvider;
 
 pub struct World {
     // Type Box<dyn AsNode> is a trait object;
@@ -217,4 +216,3 @@ impl World {
         }
     }
 }
-

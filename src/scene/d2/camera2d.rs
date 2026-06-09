@@ -46,10 +46,6 @@ impl Camera2d {
 }
 
 impl AsNode for Camera2d {
-    fn node_type(&self) -> NodeType {
-        NodeType::Camera2d
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -58,12 +54,8 @@ impl AsNode for Camera2d {
         self
     }
 
-    fn as_node_2d(&self) -> Option<&dyn AsNode2d> {
-        Some(self)
-    }
-
-    fn as_node_2d_mut(&mut self) -> Option<&mut dyn AsNode2d> {
-        Some(self)
+    fn node_type(&self) -> NodeType {
+        NodeType::Camera2d
     }
 
     fn update(&mut self, _dt: f32, singletons: &mut Singletons) {
@@ -86,6 +78,14 @@ impl AsNode for Camera2d {
         uniform.view_proj = (proj_mat * view_mat).to_cols_array_2d();
 
         draw_cmds.extracted.cameras.add(CameraType::D2, uniform);
+    }
+
+    fn as_node_2d(&self) -> Option<&dyn AsNode2d> {
+        Some(self)
+    }
+
+    fn as_node_2d_mut(&mut self) -> Option<&mut dyn AsNode2d> {
+        Some(self)
     }
 
     fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {

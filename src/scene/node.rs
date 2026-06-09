@@ -10,13 +10,10 @@ pub enum NodeType {
     // 2D
     Camera2d,
     Sprite2d,
-    VectorSprite,
     Label,
-    Button,
 
     // 3D
     Camera3d,
-    Sprite3d,
     Model,
     Sky,
     PointLight,
@@ -31,11 +28,8 @@ impl std::fmt::Display for NodeType {
         match self {
             NodeType::Camera2d => write!(f, "Camera2d"),
             NodeType::Sprite2d => write!(f, "Sprite2d"),
-            NodeType::VectorSprite => write!(f, "VectorSprite"),
             NodeType::Label => write!(f, "Label"),
-            NodeType::Button => write!(f, "Button"),
             NodeType::Camera3d => write!(f, "Camera3d"),
-            NodeType::Sprite3d => write!(f, "Sprite3d"),
             NodeType::Model => write!(f, "Model"),
             NodeType::Sky => write!(f, "Sky"),
             NodeType::PointLight => write!(f, "PointLight"),

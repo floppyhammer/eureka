@@ -10,23 +10,16 @@ use glam::{Vec2, Vec4};
 use std::any::Any;
 use std::path::{Path, PathBuf};
 
-pub struct SpriteSheet {
-    h_frames: u32,
-    v_frames: u32,
-    frame: u32,
-}
-
 pub struct Sprite2d {
     node_2d: Node2d,
     use_original_size: bool,
     pub name: String,
     pub region: Vec4,
-    pub sprite_sheet: SpriteSheet,
-    pub texture: Option<TextureId>,
     pub centered: bool,
     pub flip_x: bool,
     pub flip_y: bool,
 
+    pub texture: Option<TextureId>,
     // Asynchronous loading
     pub asset_path: Option<PathBuf>,
 }
@@ -44,11 +37,6 @@ impl Sprite2d {
             use_original_size: true,
             name: "".to_string(),
             region: Vec4::new(0.0, 0.0, 1.0, 1.0),
-            sprite_sheet: SpriteSheet {
-                h_frames: 0,
-                v_frames: 0,
-                frame: 0,
-            },
             texture: Some(texture_id),
             centered: false,
             flip_x: false,
@@ -63,11 +51,6 @@ impl Sprite2d {
             use_original_size: true,
             name: path.as_ref().to_string_lossy().into_owned(),
             region: Vec4::new(0.0, 0.0, 1.0, 1.0),
-            sprite_sheet: SpriteSheet {
-                h_frames: 0,
-                v_frames: 0,
-                frame: 0,
-            },
             texture: None,
             centered: false,
             flip_x: false,

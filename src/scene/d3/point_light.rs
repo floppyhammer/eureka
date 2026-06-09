@@ -7,8 +7,6 @@ use crate::render::draw_command::DrawCommands;
 use crate::render::light::PointLightUniform;
 use crate::scene::{AsNode, AsNode3d, Node3d, NodeType};
 use crate::animation::property::PropertyProvider;
-// use crate::scene::sprite3d::Sprite3d;
-// use crate::scene::{AsNode, CameraInfo, NodeType};
 
 pub struct PointLight {
     pub node_3d: Node3d,
@@ -16,21 +14,16 @@ pub struct PointLight {
     pub strength: f32,
     pub shadow_near: f32,
     pub shadow_far: f32,
-    // pub(crate) sprite: Sprite3d,
 }
 
 impl PointLight {
     pub fn new() -> Self {
-        // let sprite_tex = Texture::load(&device, &queue, &mut render_server.texture_cache, icon_path).unwrap();
-        // let sprite3d = Sprite3d::new(&render_server, sprite_tex);
-
         Self {
             node_3d: Node3d::default(),
             color: ColorU::white(),
             strength: 1.0,
             shadow_near: 0.1,
             shadow_far: 100.0,
-            // sprite: sprite3d,
         }
     }
 }
@@ -46,14 +39,6 @@ impl AsNode for PointLight {
 
     fn node_type(&self) -> NodeType {
         NodeType::PointLight
-    }
-
-    fn as_node_3d(&self) -> Option<&dyn AsNode3d> {
-        Some(self)
-    }
-
-    fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
-        Some(self)
     }
 
     fn update(&mut self, dt: f32, singletons: &mut Singletons) {
@@ -76,6 +61,14 @@ impl AsNode for PointLight {
         };
 
         draw_cmds.extracted.lights.point_lights.push(point_light);
+    }
+
+    fn as_node_3d(&self) -> Option<&dyn AsNode3d> {
+        Some(self)
+    }
+
+    fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
+        Some(self)
     }
 
     fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {

@@ -22,11 +22,7 @@ anyhow = "1.0"
 tobj = "4.0.0"
 # For glTF loading.
 gltf = "1.4.1"
-chrono = "0.4.19"
 # For JSON parsing.
-serde_json = "1.0"
-# For vector rendering.
-lyon = "1.0.0"
 # Tree structure.
 indextree = "4.4.0"
 # Text rasterization.

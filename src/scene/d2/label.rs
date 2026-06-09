@@ -85,14 +85,6 @@ impl AsNode for Label {
         NodeType::Label
     }
 
-    fn as_node_2d(&self) -> Option<&dyn AsNode2d> {
-        Some(self)
-    }
-
-    fn as_node_2d_mut(&mut self) -> Option<&mut dyn AsNode2d> {
-        Some(self)
-    }
-
     fn update(&mut self, _dt: f32, singletons: &mut Singletons) {
         let transform_changed = (self.node_2d.global_transform.position - self.last_global_transform.position).length_squared() > 0.0001
             || (self.node_2d.global_transform.rotation - self.last_global_transform.rotation).abs() > 0.0001;
@@ -138,6 +130,14 @@ impl AsNode for Label {
                 }
             }
         }
+    }
+
+    fn as_node_2d(&self) -> Option<&dyn AsNode2d> {
+        Some(self)
+    }
+
+    fn as_node_2d_mut(&mut self) -> Option<&mut dyn AsNode2d> {
+        Some(self)
     }
 
     fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {

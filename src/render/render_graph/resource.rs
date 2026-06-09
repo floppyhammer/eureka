@@ -3,16 +3,6 @@ use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use crate::render::Texture;
 
-/// 资源类型枚举
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ResourceType {
-    Texture,
-    Buffer,
-    BindGroup,
-    Pipeline,
-    Sampler,
-}
-
 /// 资源类型标签
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TextureTag;
