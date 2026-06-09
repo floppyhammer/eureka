@@ -20,6 +20,10 @@ pub struct ResourcePool {
 
     /// BindGroup 缓存
     bind_group_cache: HashMap<BindGroupKey, wgpu::BindGroup>,
+
+    /// 固定存在
+    bind_group_layouts: HashMap<String, wgpu::BindGroupLayout>,
+    pipeline_layouts: HashMap<String, wgpu::PipelineLayout>,
 }
 
 impl ResourcePool {
@@ -195,5 +199,21 @@ impl ResourcePool {
             .entry(key)
             .or_insert_with(creator)
             .clone()
+    }
+
+    pub fn add_bind_group_layout(&mut self, name: impl Into<String>, layout: wgpu::BindGroupLayout) {
+        self.bind_group_layouts.insert(name.into(), layout);
+    }
+
+    pub fn get_bind_group_layout(&self, name: &str) -> Option<&wgpu::BindGroupLayout> {
+        self.bind_group_layouts.get(name)
+    }
+
+    pub fn add_pipeline_layout(&mut self, name: impl Into<String>, layout: wgpu::PipelineLayout) {
+        self.pipeline_layouts.insert(name.into(), layout);
+    }
+
+    pub fn get_pipeline_layout(&self, name: &str) -> Option<&wgpu::PipelineLayout> {
+        self.pipeline_layouts.get(name)
     }
 }

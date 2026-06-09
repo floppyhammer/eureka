@@ -2,6 +2,8 @@ use crate::render::Texture;
 use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
+use std::num::NonZeroU64;
+use wgpu::wgc::id::{BindGroupLayoutId, SamplerId, TextureViewId};
 
 /// 资源类型标签
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
