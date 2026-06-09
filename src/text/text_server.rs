@@ -35,7 +35,7 @@ impl TextServer {
     pub(crate) fn update(
         &mut self,
         render_server: &RenderContext,
-        texture_cache: &mut TextureCache,
+        imported_texture_cache: &mut TextureCache,
         asset_server: &AssetServer,
     ) {
         for (path, buffer) in &asset_server.loaded_raw_fonts {
@@ -50,7 +50,7 @@ impl TextServer {
 
             if !self.fonts.contains_key(&key) {
                 let font =
-                    DynamicFont::load_from_memory(buffer.clone(), render_server, texture_cache);
+                    DynamicFont::load_from_memory(buffer.clone(), render_server, imported_texture_cache);
                 self.fonts.insert(key, font);
             }
         }
@@ -59,10 +59,10 @@ impl TextServer {
     pub(crate) fn prepare(
         &mut self,
         render_server: &RenderContext,
-        texture_cache: &mut TextureCache,
+        imported_texture_cache: &mut TextureCache,
     ) {
         for (_key, font) in &mut self.fonts {
-            font.upload(render_server, texture_cache);
+            font.upload(render_server, imported_texture_cache);
         }
     }
 

@@ -486,7 +486,7 @@ impl Model {
         &mut self,
         raw: RawModelData,
         render_server: &RenderContext,
-        texture_cache: &mut TextureCache,
+        imported_texture_cache: &mut TextureCache,
         material_cache: &mut MaterialCache,
         mesh_cache: &mut MeshCache,
         mesh_allocator: &mut crate::render::mesh_allocator::MeshAllocator,
@@ -500,7 +500,7 @@ impl Model {
                 Texture::from_raw(
                     &render_server.device,
                     &render_server.queue,
-                    texture_cache,
+                    imported_texture_cache,
                     raw_tex,
                 )
             });
@@ -508,7 +508,7 @@ impl Model {
                 Texture::from_raw(
                     &render_server.device,
                     &render_server.queue,
-                    texture_cache,
+                    imported_texture_cache,
                     raw_tex,
                 )
             });
@@ -516,7 +516,7 @@ impl Model {
                 Texture::from_raw(
                     &render_server.device,
                     &render_server.queue,
-                    texture_cache,
+                    imported_texture_cache,
                     raw_tex,
                 )
             });
@@ -632,7 +632,7 @@ impl AsNode for Model {
                 self.finalize(
                     raw,
                     &singletons.render_context,
-                    &mut render_world.texture_cache,
+                    &mut render_world.imported_texture_cache,
                     &mut render_world.mesh_render_resources.material_cache,
                     &mut render_world.mesh_cache,
                     &mut render_world.mesh_render_resources.mesh_allocator,

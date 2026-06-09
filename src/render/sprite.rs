@@ -57,7 +57,7 @@ impl SpriteRenderResources {
 pub(crate) fn prepare_sprite(
     sprites_2d: &Vec<ExtractedSprite2d>,
     render_resources: &mut SpriteRenderResources,
-    _texture_cache: &TextureCache,
+    _imported_texture_cache: &TextureCache,
     render_server: &RenderContext,
     mesh_render_resources: &MeshRenderResources,
     extracted_cameras: &crate::render::camera::ExtractedCameras,

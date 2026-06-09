@@ -1,22 +1,20 @@
-use crate::render::camera::{CameraRenderResources, CameraType, ExtractedCameras};
+use std::cell::RefCell;
+use std::sync::Arc;
+use crate::render::camera::{CameraType, ExtractedCameras};
 use crate::render::draw_command::DrawCommands;
 use crate::render::gizmo::GizmoRenderResources;
-use crate::render::light::{prepare_shadow, ExtractedLights, LightRenderResources};
+use crate::render::light::ExtractedLights;
 use crate::render::render_graph::standard_resources;
 use crate::render::render_graph::{
     ClearNode, CullingNode, FxaaNode, MeshNode, PrepareViewNode, PresentNode, RenderGraph,
     ShadowNode, SkyboxNode, SpriteNode, SsaoNode, TransparentMeshNode,
 };
 use crate::render::shader_maker::ShaderMaker;
-use crate::render::sky::{prepare_sky, ExtractedSky, SkyRenderResources};
+use crate::render::sky::{prepare_sky, ExtractedSky, SkyImportedResources};
 use crate::render::sprite::{
     prepare_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
 };
-use crate::render::ssao::SsaoRenderResources;
-use crate::render::{
-    prepare_meshes, ExtractedMesh, MeshCache, MeshRenderResources, RenderContext, Texture,
-    TextureCache, TextureId, NEXT_TEXTURE_ID,
-};
+use crate::render::{ExtractedMesh, MeshCache, MeshId, MeshInstanceInfo, MeshRenderResources, RenderContext, Texture, TextureCache, TextureId, NEXT_TEXTURE_ID};
 use crate::scene::Bvh;
 use std::sync::atomic::Ordering;
 
@@ -34,50 +32,40 @@ pub struct Extracted {
 }
 
 pub struct RenderWorld {
-    pub texture_cache: TextureCache,
-    pub(crate) shader_maker: ShaderMaker,
-    pub(crate) camera_render_resources: CameraRenderResources,
-    pub(crate) sprite_render_resources: SpriteRenderResources,
+    /// Material textures, sprite textures
+    pub imported_texture_cache: TextureCache,
     pub mesh_cache: MeshCache,
+    pub(crate) shader_maker: ShaderMaker,
+    pub(crate) sprite_render_resources: SpriteRenderResources,
+    // pub(crate) bindless_bind_group_layout: wgpu::BindGroupLayout,
+    // pub(crate) bindless_bind_group: Option<wgpu::BindGroup>,
     pub mesh_render_resources: MeshRenderResources,
-    pub(crate) light_render_resources: LightRenderResources,
     pub(crate) extracted: Extracted,
     pub(crate) sprite_batches: Vec<SpriteBatch>,
-    pub gizmo_render_resources: GizmoRenderResources,
-    pub sky_render_resources: SkyRenderResources,
-    pub ssao_render_resources: SsaoRenderResources,
+    // pub gizmo_render_resources: GizmoRenderResources,
+    pub sky_imported_resources: SkyImportedResources,
     pub render_graph: RenderGraph,
 }
 
 impl RenderWorld {
     pub fn new(render_server: &RenderContext) -> Self {
-        let mut texture_cache = TextureCache::new();
-        let camera_render_resources = CameraRenderResources::new(render_server);
+        let mut imported_texture_cache = TextureCache::new();
         let sprite_render_resources = SpriteRenderResources::new(render_server);
         let mesh_render_resources = MeshRenderResources::new(render_server);
-        let gizmo_render_resources =
-            GizmoRenderResources::new(render_server, &camera_render_resources.bind_group_layout);
-        let sky_render_resources = SkyRenderResources::new(render_server);
-        let light_render_resources = LightRenderResources::new();
-        let ssao_render_resources =
-            SsaoRenderResources::new(render_server, &mut texture_cache, &camera_render_resources);
-
-        // 我们不再单独管理深度纹理，因为它现在由 SSAO 资源池管理并自动创建。
-        // 原有的 create_main_depth_texture 调用可以移除，因为它在 SsaoRenderResources::new 里已经被覆盖。
+        // let gizmo_render_resources =
+        //     GizmoRenderResources::new(render_server, &camera_render_resources.bind_group_layout);
+        let sky_imported_resources = SkyImportedResources::new();
 
         Self {
-            texture_cache,
+            imported_texture_cache,
             mesh_cache: MeshCache::new(),
-            camera_render_resources,
             sprite_render_resources,
             mesh_render_resources,
-            light_render_resources,
             shader_maker: ShaderMaker::new(),
             extracted: Extracted::default(),
             sprite_batches: vec![],
-            gizmo_render_resources,
-            sky_render_resources,
-            ssao_render_resources,
+            // gizmo_render_resources,
+            sky_imported_resources,
             render_graph: Self::default_graph(),
         }
     }
@@ -127,11 +115,9 @@ impl RenderWorld {
         self.extracted = draw_commands.extracted.clone();
     }
 
+    /// Prepare CPU resources and imported GPU resources
     pub fn prepare(&mut self, render_server: &RenderContext) {
-        // 1. Prepare global camera data (Migrated to CameraNode)
-        // self.camera_render_resources.prepare_cameras(render_server, &self.extracted.cameras);
-
-        // 2. Configure Render Graph based on settings (Optional: only if changed)
+        // Configure Render Graph based on settings (Optional: only if changed)
         let final_3d_resource = if self.extracted.fxaa_enabled {
             standard_resources::fxaa_color()
         } else {
@@ -144,14 +130,15 @@ impl RenderWorld {
 
         // 3. Prepare Bindless Materials (Now includes all 2D textures)
         self.mesh_render_resources.prepare_materials(
-            &self.texture_cache,
+            &self.imported_texture_cache,
             render_server,
             &self.extracted.sprites_2d,
         );
 
-        // 3. Separate opaque and transparent meshes
+        // Separate opaque and transparent meshes
         let mut opaque_meshes = Vec::new();
         let mut transparent_meshes = Vec::new();
+
         for mesh in &self.extracted.meshes {
             let is_transparent = if let Some(material_id) = mesh.material_id {
                 if let Some(material) = self.mesh_render_resources.material_cache.get(&material_id)
@@ -171,9 +158,9 @@ impl RenderWorld {
             }
         }
         self.extracted.transparent_meshes = transparent_meshes;
-        let original_meshes = std::mem::replace(&mut self.extracted.meshes, opaque_meshes);
+        let _ = std::mem::replace(&mut self.extracted.meshes, opaque_meshes);
 
-        // 4. Prepare 3D Mesh BVH (only for opaque meshes)
+        // Prepare 3D mesh BVH (only for opaque meshes)
         if !self.extracted.meshes.is_empty() {
             let bvh_objects: Vec<_> = self
                 .extracted
@@ -189,17 +176,17 @@ impl RenderWorld {
             self.extracted.bvh = Bvh::build(bvh_objects);
         }
 
-        // 5. Prepare Unified 2D UI
+        // Prepare unified 2D sprites
         self.sprite_batches = prepare_sprite(
             &self.extracted.sprites_2d,
             &mut self.sprite_render_resources,
-            &self.texture_cache,
+            &self.imported_texture_cache,
             render_server,
             &self.mesh_render_resources,
             &self.extracted.cameras,
         );
 
-        // 6. Prepare 3D Meshes & Lights (combine opaque and transparent for instance preparation)
+        // Prepare 3D meshes & lights (combine opaque and transparent for instance preparation)
         let all_meshes: Vec<_> = self
             .extracted
             .meshes
@@ -207,20 +194,9 @@ impl RenderWorld {
             .chain(self.extracted.transparent_meshes.iter())
             .cloned()
             .collect();
+
         if !all_meshes.is_empty() || !self.extracted.lights.point_lights.is_empty() {
-            prepare_meshes(
-                &all_meshes,
-                &self.extracted.lights,
-                &self.texture_cache,
-                &mut self.shader_maker,
-                &mut self.mesh_render_resources,
-                &self.light_render_resources,
-                &self.camera_render_resources,
-                render_server,
-                &self.mesh_cache,
-                self.ssao_render_resources.blur_texture,
-                self.extracted.sky.as_ref().map(|s| s.texture),
-            );
+            self.mesh_render_resources.prepare_instances(render_server, &all_meshes, &self.mesh_cache);
         }
 
         // 6.5 Re-include MASKED transparent meshes for SSAO (normal pre-pass)
@@ -237,31 +213,11 @@ impl RenderWorld {
         }
         self.extracted.meshes = ssao_meshes;
 
-        // 6. Prepare Shadow & Sky
-        let first_d3_cam = self
-            .extracted
-            .cameras
-            .types
-            .iter()
-            .position(|t| *t == CameraType::D3);
-        if let Some(idx) = first_d3_cam {
-            prepare_shadow(
-                &self.extracted.lights,
-                Some(&self.extracted.cameras.uniforms[idx]),
-                render_server,
-                &mut self.texture_cache,
-                &mut self.light_render_resources,
-                &self.camera_render_resources,
-            );
-        }
-
         if let Some(sky) = &self.extracted.sky {
             prepare_sky(
-                &mut self.sky_render_resources,
+                &mut self.sky_imported_resources,
                 render_server,
-                &self.texture_cache,
                 &sky.texture,
-                &self.camera_render_resources.bind_group_layout,
                 &mut self.mesh_render_resources.mesh_allocator,
             );
         }
@@ -308,6 +264,8 @@ impl RenderWorld {
             view,
             format: config.format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            view_id: 0,
+            view_cache: Arc::new(RefCell::new(Default::default())),
         })
     }
 }

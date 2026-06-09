@@ -1,11 +1,12 @@
+use crate::render::camera::CameraUniform;
 use crate::render::create_render_pipeline;
-use crate::render::render_graph::standard_resources;
-use crate::render::render_graph::{FrameContext, Node, ResourceId, TextureKey};
+use crate::render::render_graph::{standard_resources, SamplerKey, TextureId};
+use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use std::any::Any;
 
 pub struct PresentNode {
     pipeline: Option<wgpu::RenderPipeline>,
-    pub input_resource_id: crate::render::render_graph::resource::TextureId,
+    pub input_resource_id: TextureId,
 }
 
 impl Default for PresentNode {
@@ -18,10 +19,7 @@ impl Default for PresentNode {
 }
 
 impl PresentNode {
-    pub fn with_input(
-        mut self,
-        input_id: crate::render::render_graph::resource::TextureId,
-    ) -> Self {
+    pub fn with_input(mut self, input_id: TextureId) -> Self {
         self.input_resource_id = input_id;
         self
     }
@@ -34,6 +32,7 @@ impl Node for PresentNode {
 
     fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
+
         crate::render::render_graph::resource::NodeResources::new()
             .input(
                 self.input_resource_id.clone(),
@@ -64,50 +63,68 @@ impl Node for PresentNode {
 
         let device = &context.render_context.device;
 
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("present bind group layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        });
+        let bind_group_layout = context
+            .pool
+            .get_bind_group_layout("present_bind_group_layout");
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("present pipeline layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        if bind_group_layout.is_none() {
+            let bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Present Bind Group Layout"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                    ],
+                });
 
-        let shader = wgpu::ShaderModuleDescriptor {
-            label: Some("present shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/blit.wgsl").into()),
-        };
+            context
+                .pool
+                .add_bind_group_layout("present_bind_group_layout", bind_group_layout);
+        }
 
-        self.pipeline = Some(create_render_pipeline(
-            device,
-            &pipeline_layout,
-            Some(context.render_context.surface_config.format),
-            None,
-            &[],
-            shader,
-            "present pipeline",
-            false,
-            None,
-        ));
+        let bind_group_layout = context
+            .pool
+            .get_bind_group_layout("present_bind_group_layout")
+            .unwrap();
+
+        if self.pipeline.is_none() {
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Present Pipeline Layout"),
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Present Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/blit.wgsl").into()),
+            };
+
+            self.pipeline = Some(create_render_pipeline(
+                device,
+                &pipeline_layout,
+                Some(context.render_context.surface_config.format),
+                None,
+                &[],
+                shader,
+                "Present Pipeline",
+                false,
+                None,
+            ));
+        }
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -121,21 +138,23 @@ impl Node for PresentNode {
         let input_texture = context.get_texture_by_id(&self.input_resource_id, input_key);
 
         let sampler = context
-            .render_context
-            .device
-            .create_sampler(&wgpu::SamplerDescriptor {
+            .get_sampler(SamplerKey {
                 mag_filter: wgpu::FilterMode::Linear,
                 min_filter: wgpu::FilterMode::Linear,
                 ..Default::default()
-            });
+            })
+            .clone();
+
+        let bind_group_layout = context
+            .pool
+            .get_bind_group_layout("present_bind_group_layout")
+            .unwrap()
+            .clone();
 
         let bind_group =
-            context
-                .render_context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("present bind group"),
-                    layout: &self.pipeline.as_ref().unwrap().get_bind_group_layout(0),
+            context.create_bind_group(&bind_group_layout, vec![input_texture.id], |ctx| {
+                ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &bind_group_layout,
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
@@ -146,12 +165,14 @@ impl Node for PresentNode {
                             resource: wgpu::BindingResource::Sampler(&sampler),
                         },
                     ],
-                });
+                    label: Some("Present Bind Group"),
+                })
+            });
 
         let mut render_pass = context
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("present pass"),
+                label: Some("Present Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: context.final_output_view,
                     depth_slice: None,

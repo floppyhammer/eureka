@@ -192,7 +192,7 @@ impl<'a> App<'a> {
             // Reconcile fonts.
             singletons.text_server.update(
                 &singletons.render_context,
-                &mut render_world.texture_cache,
+                &mut render_world.imported_texture_cache,
                 &singletons.asset_server,
             );
 
@@ -226,7 +226,7 @@ impl<'a> App<'a> {
         // Update server GPU resources.
         singletons
             .text_server
-            .prepare(&singletons.render_context, &mut render_world.texture_cache);
+            .prepare(&singletons.render_context, &mut render_world.imported_texture_cache);
 
         // First we need to get a frame to draw to.
         let surface_texture = render_server.surface.get_current_texture()?;

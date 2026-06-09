@@ -305,6 +305,22 @@ pub mod standard_resources {
         ResourceId::new("camera_buffer")
     }
 
+    pub fn shadow_cascade_buffer() -> BufferId {
+        ResourceId::new("shadow_cascade_buffer")
+    }
+
+    pub fn directional_shadow_camera_buffer() -> BufferId {
+        ResourceId::new("directional_shadow_camera_buffer")
+    }
+
+    pub fn point_shadow_camera_buffer() -> BufferId {
+        ResourceId::new("point_shadow_camera_buffer")
+    }
+
+    pub fn light_uniform_buffer() -> BufferId {
+        ResourceId::new("light_uniform_buffer")
+    }
+
     // SSAO 相关
     pub fn ssao_normal() -> TextureId {
         ResourceId::new("ssao_normal")

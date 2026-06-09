@@ -34,12 +34,12 @@ impl Sky {
         &mut self,
         raw: RawCubeTextureData,
         render_server: &RenderContext,
-        texture_cache: &mut TextureCache,
+        imported_texture_cache: &mut TextureCache,
     ) {
         let texture_id = Texture::from_raw_cube(
             &render_server.device,
             &render_server.queue,
-            texture_cache,
+            imported_texture_cache,
             raw,
         );
         self.texture = Some(texture_id);
@@ -68,7 +68,7 @@ impl AsNode for Sky {
                 self.finalize(
                     raw,
                     &singletons.render_context,
-                    &mut render_world.texture_cache,
+                    &mut render_world.imported_texture_cache,
                 );
             }
         }

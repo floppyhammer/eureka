@@ -1,15 +1,12 @@
 use crate::math::aabb::Aabb;
 use crate::math::transform::Transform3d;
-use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::gizmo::GizmoRenderResources;
-use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform, MAX_POINT_LIGHTS};
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::mesh_allocator::MeshAllocator;
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sprite::ExtractedSprite2d;
 use crate::render::vertex::{Vertex3d, VertexSky};
-use crate::render::{RenderContext, Texture, TextureCache, TextureId};
-use crate::scene::Bvh;
+use crate::render::{RenderContext, TextureCache, TextureId};
 use glam::{Mat3, Mat4, Quat, Vec3};
 use std::collections::HashMap;
 use std::mem;
@@ -49,6 +46,7 @@ impl MeshCache {
     }
 }
 
+#[derive(Clone)]
 pub struct Mesh {
     pub name: String,
     pub vertex_offset: u32,
@@ -278,19 +276,17 @@ struct MeshMetadata {
 }
 
 pub struct MeshRenderResources {
-    pub(crate) light_bind_group_layout: wgpu::BindGroupLayout,
-    pub(crate) light_bind_group: Option<wgpu::BindGroup>,
-    pub(crate) light_uniform_buffer: Option<wgpu::Buffer>,
+//     pub(crate) light_bind_group_layout: wgpu::BindGroupLayout,
+//     pub(crate) light_bind_group: Option<wgpu::BindGroup>,
+//     pub(crate) light_uniform_buffer: Option<wgpu::Buffer>,
     pub(crate) dummy_2d_view: wgpu::TextureView,
     pub(crate) dummy_cube_view: wgpu::TextureView,
     pub(crate) dummy_sampler: wgpu::Sampler,
-    pub(crate) current_skybox: Option<TextureId>,
     pub(crate) bindless_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) bindless_bind_group: Option<wgpu::BindGroup>,
     pub(crate) materials_storage_buffer: Option<wgpu::Buffer>,
     pub(crate) texture_index_map: HashMap<TextureId, u32>,
     pub(crate) material_index_map: HashMap<MaterialId, u32>,
-    pub(crate) cull_bind_group_layout: wgpu::BindGroupLayout,
     pub material_cache: MaterialCache,
     pub(crate) mesh_allocator: MeshAllocator,
     /// Cull
@@ -298,7 +294,7 @@ pub struct MeshRenderResources {
     pub(crate) global_visible_instance_buffer: Option<wgpu::Buffer>,
     pub(crate) global_indirect_buffer: Option<wgpu::Buffer>,
     pub(crate) mesh_metadata_buffer: Option<wgpu::Buffer>,
-    pub(crate) cull_bind_group: Option<wgpu::BindGroup>,
+    // pub(crate) cull_bind_group: Option<wgpu::BindGroup>,
     pub(crate) mesh_id_to_index: HashMap<MeshId, u32>,
     pub(crate) draw_counts: Vec<u32>,
     pub(crate) mesh_infos: Vec<MeshInstanceInfo>,
@@ -313,87 +309,6 @@ pub(crate) struct MeshInstanceInfo {
 
 impl MeshRenderResources {
     pub(crate) fn new(render_server: &RenderContext) -> Self {
-        let light_bind_group_layout =
-            render_server
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Texture {
-                                multisampled: false,
-                                view_dimension: wgpu::TextureViewDimension::D2Array,
-                                sample_type: wgpu::TextureSampleType::Depth,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 2,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 3,
-                            visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 4,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Texture {
-                                multisampled: false,
-                                view_dimension: wgpu::TextureViewDimension::CubeArray,
-                                sample_type: wgpu::TextureSampleType::Depth,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 5,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Texture {
-                                multisampled: false,
-                                view_dimension: wgpu::TextureViewDimension::D2,
-                                sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 6,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Texture {
-                                multisampled: false,
-                                view_dimension: wgpu::TextureViewDimension::Cube,
-                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 7,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                            count: None,
-                        },
-                    ],
-                    label: Some("mesh light bind group layout"),
-                });
-
         let bindless_bind_group_layout =
             render_server
                 .device
@@ -490,86 +405,21 @@ impl MeshRenderResources {
                 ..Default::default()
             });
 
-        let cull_bind_group_layout =
-            render_server
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: wgpu::ShaderStages::COMPUTE,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: true,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: wgpu::ShaderStages::COMPUTE,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 2,
-                            visibility: wgpu::ShaderStages::COMPUTE,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 3,
-                            visibility: wgpu::ShaderStages::COMPUTE,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Storage { read_only: false },
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 4,
-                            visibility: wgpu::ShaderStages::COMPUTE,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Storage { read_only: false },
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                    ],
-                    label: Some("cull bind group layout"),
-                });
-
         Self {
-            light_bind_group_layout,
-            light_bind_group: None,
-            light_uniform_buffer: None,
             dummy_2d_view,
             dummy_cube_view,
             dummy_sampler,
-            current_skybox: None,
             bindless_bind_group_layout,
             bindless_bind_group: None,
             materials_storage_buffer: None,
             texture_index_map: HashMap::new(),
             material_index_map: HashMap::new(),
-            cull_bind_group_layout,
             material_cache: MaterialCache::new(),
             mesh_allocator: MeshAllocator::new(&render_server.device),
             global_instance_buffer: None,
             global_visible_instance_buffer: None,
             global_indirect_buffer: None,
             mesh_metadata_buffer: None,
-            cull_bind_group: None,
             mesh_id_to_index: HashMap::new(),
             draw_counts: Vec::new(),
             mesh_infos: Vec::new(),
@@ -578,7 +428,7 @@ impl MeshRenderResources {
 
     pub fn prepare_materials(
         &mut self,
-        texture_cache: &TextureCache,
+        imported_texture_cache: &TextureCache,
         render_server: &RenderContext,
         extracted_sprites_2d: &[ExtractedSprite2d],
     ) {
@@ -602,7 +452,7 @@ impl MeshRenderResources {
             .flatten()
             {
                 if !self.texture_index_map.contains_key(&id) {
-                    if let Some(texture) = texture_cache.get(id) {
+                    if let Some(texture) = imported_texture_cache.get(id) {
                         self.texture_index_map
                             .insert(id, texture_views.len() as u32);
                         texture_views.push(&texture.view);
@@ -620,7 +470,7 @@ impl MeshRenderResources {
 
         for id in sprite_texture_ids {
             if !self.texture_index_map.contains_key(&id) {
-                if let Some(texture) = texture_cache.get(id) {
+                if let Some(texture) = imported_texture_cache.get(id) {
                     self.texture_index_map
                         .insert(id, texture_views.len() as u32);
                     texture_views.push(&texture.view);
@@ -792,7 +642,6 @@ impl MeshRenderResources {
                         | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 }));
-            self.cull_bind_group = None;
         }
         let indirect_buffer_size = (indirect_commands.len() * 20) as BufferAddress;
         if self.global_indirect_buffer.is_none()
@@ -841,238 +690,4 @@ impl MeshRenderResources {
         // 移除了 cull_bind_group 的预创建，现在由 CullingNode 在运行时动态创建并缓存
         self.draw_counts = vec![indirect_commands.len() as u32];
     }
-
-    pub(crate) fn prepare_lights(
-        &mut self,
-        render_server: &RenderContext,
-        lights: &ExtractedLights,
-        light_render_resources: &LightRenderResources,
-        texture_cache: &TextureCache,
-        ssao_texture_id: TextureId,
-        skybox_texture_id: Option<TextureId>,
-    ) {
-        if self.light_uniform_buffer.is_none() {
-            self.light_uniform_buffer =
-                Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("light uniform"),
-                    size: mem::size_of::<LightUniform>() as u64,
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                }));
-        }
-        if self.light_bind_group.is_none() || self.current_skybox != skybox_texture_id {
-            if let (Some(sm), Some(psm)) = (
-                light_render_resources.directional_shadow_map,
-                light_render_resources.point_shadow_map,
-            ) {
-                self.current_skybox = skybox_texture_id;
-                let shadow_map = texture_cache.get(sm).unwrap();
-                let point_shadow_map = texture_cache.get(psm).unwrap();
-                let shadow_sampler =
-                    render_server
-                        .device
-                        .create_sampler(&wgpu::SamplerDescriptor {
-                            label: Some("shadow sampler"),
-                            address_mode_u: wgpu::AddressMode::ClampToEdge,
-                            address_mode_v: wgpu::AddressMode::ClampToEdge,
-                            address_mode_w: wgpu::AddressMode::ClampToEdge,
-                            mag_filter: wgpu::FilterMode::Linear,
-                            min_filter: wgpu::FilterMode::Linear,
-                            mipmap_filter: wgpu::FilterMode::Nearest,
-                            compare: Some(wgpu::CompareFunction::LessEqual),
-                            ..Default::default()
-                        });
-                let psv = point_shadow_map
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor {
-                        label: Some("psv"),
-                        format: Some(Texture::DEPTH_FORMAT),
-                        dimension: Some(wgpu::TextureViewDimension::CubeArray),
-                        aspect: wgpu::TextureAspect::DepthOnly,
-                        array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6),
-                        ..Default::default()
-                    });
-                let sky_view = if let Some(id) = skybox_texture_id {
-                    &texture_cache.get(id).unwrap().view
-                } else {
-                    &self.dummy_cube_view
-                };
-                let skybox_sampler =
-                    render_server
-                        .device
-                        .create_sampler(&wgpu::SamplerDescriptor {
-                            address_mode_u: wgpu::AddressMode::ClampToEdge,
-                            address_mode_v: wgpu::AddressMode::ClampToEdge,
-                            address_mode_w: wgpu::AddressMode::ClampToEdge,
-                            mag_filter: wgpu::FilterMode::Linear,
-                            min_filter: wgpu::FilterMode::Linear,
-                            mipmap_filter: wgpu::FilterMode::Linear,
-                            ..Default::default()
-                        });
-                self.light_bind_group = Some(
-                    render_server
-                        .device
-                        .create_bind_group(&wgpu::BindGroupDescriptor {
-                            layout: &self.light_bind_group_layout,
-                            entries: &[
-                                wgpu::BindGroupEntry {
-                                    binding: 0,
-                                    resource: self
-                                        .light_uniform_buffer
-                                        .as_ref()
-                                        .unwrap()
-                                        .as_entire_binding(),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 1,
-                                    resource: wgpu::BindingResource::TextureView(&shadow_map.view),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 2,
-                                    resource: wgpu::BindingResource::Sampler(&shadow_sampler),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 3,
-                                    resource: light_render_resources
-                                        .cascade_uniform_buffer
-                                        .as_ref()
-                                        .unwrap()
-                                        .as_entire_binding(),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 4,
-                                    resource: wgpu::BindingResource::TextureView(&psv),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 5,
-                                    resource: wgpu::BindingResource::TextureView(
-                                        &texture_cache.get(ssao_texture_id).unwrap().view,
-                                    ),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 6,
-                                    resource: wgpu::BindingResource::TextureView(sky_view),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 7,
-                                    resource: wgpu::BindingResource::Sampler(&skybox_sampler),
-                                },
-                            ],
-                            label: Some("light bind group"),
-                        }),
-                );
-            }
-        }
-        let mut light_uniform = LightUniform::default();
-        light_uniform.ambient_color = [1.0, 1.0, 1.0];
-        light_uniform.ambient_strength = 0.01;
-        light_uniform.point_light_count = lights.point_lights.len() as u32;
-        for i in 0..lights.point_lights.len() {
-            light_uniform.point_lights[i] = lights.point_lights[i];
-        }
-        if let Some(dl) = lights.directional_light {
-            light_uniform.directional_light = dl;
-        }
-        render_server.queue.write_buffer(
-            self.light_uniform_buffer.as_ref().unwrap(),
-            0,
-            bytemuck::cast_slice(&[light_uniform]),
-        );
-    }
-}
-
-pub(crate) fn prepare_meshes(
-    extracted_meshes: &Vec<ExtractedMesh>,
-    extracted_lights: &ExtractedLights,
-    texture_cache: &TextureCache,
-    shader_maker: &mut ShaderMaker,
-    mesh_render_resources: &mut MeshRenderResources,
-    light_render_resources: &LightRenderResources,
-    camera_render_resources: &CameraRenderResources,
-    render_server: &RenderContext,
-    mesh_cache: &MeshCache,
-    ssao_texture_id: TextureId,
-    skybox_texture_id: Option<TextureId>,
-) {
-    mesh_render_resources.prepare_pipeline(
-        render_server,
-        shader_maker,
-        &camera_render_resources.bind_group_layout,
-    );
-    mesh_render_resources.prepare_lights(
-        render_server,
-        extracted_lights,
-        light_render_resources,
-        texture_cache,
-        ssao_texture_id,
-        skybox_texture_id,
-    );
-    mesh_render_resources.prepare_instances(render_server, extracted_meshes, mesh_cache);
-}
-
-pub(crate) fn render_meshes<'a, 'b: 'a>(
-    _extracted_meshes: &'b Vec<ExtractedMesh>,
-    _mesh_cache: &'b MeshCache,
-    mesh_render_resources: &'b MeshRenderResources,
-    camera_render_resources: &'b CameraRenderResources,
-    camera_index: usize,
-    _camera_uniform: &CameraUniform,
-    gizmo_render_resources: &'b GizmoRenderResources,
-    render_pass: &mut wgpu::RenderPass<'a>,
-    _bvh: &'b Bvh,
-    pipeline: &'b wgpu::RenderPipeline,
-) {
-    if camera_render_resources.bind_group.is_none()
-        || mesh_render_resources.light_bind_group.is_none()
-        || mesh_render_resources.bindless_bind_group.is_none()
-        || mesh_render_resources.global_indirect_buffer.is_none()
-    {
-        return;
-    }
-    render_pass.set_pipeline(pipeline);
-    render_pass.set_bind_group(
-        0,
-        camera_render_resources.bind_group.as_ref().unwrap(),
-        &[camera_index as u32 * CameraUniform::get_uniform_offset_unit()],
-    );
-    render_pass.set_bind_group(
-        1,
-        mesh_render_resources.light_bind_group.as_ref().unwrap(),
-        &[],
-    );
-    render_pass.set_bind_group(
-        2,
-        mesh_render_resources.bindless_bind_group.as_ref().unwrap(),
-        &[],
-    );
-    render_pass.set_vertex_buffer(
-        0,
-        mesh_render_resources.mesh_allocator.vertex_buffer.slice(..),
-    );
-    render_pass.set_vertex_buffer(
-        1,
-        mesh_render_resources
-            .global_visible_instance_buffer
-            .as_ref()
-            .unwrap()
-            .slice(..),
-    );
-    render_pass.set_index_buffer(
-        mesh_render_resources.mesh_allocator.index_buffer.slice(..),
-        wgpu::IndexFormat::Uint32,
-    );
-    if !mesh_render_resources.draw_counts.is_empty() && mesh_render_resources.draw_counts[0] > 0 {
-        render_pass.multi_draw_indexed_indirect(
-            mesh_render_resources
-                .global_indirect_buffer
-                .as_ref()
-                .unwrap(),
-            0,
-            mesh_render_resources.draw_counts[0],
-        );
-    }
-    gizmo_render_resources.render(
-        render_pass,
-        camera_render_resources.bind_group.as_ref().unwrap(),
-    );
 }

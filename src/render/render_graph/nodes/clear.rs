@@ -46,7 +46,6 @@ impl Node for ClearNode {
         let height = context.render_context.surface_config.height;
         let format = context.render_context.surface_config.format;
 
-        // 先定义所有的 Key，不要在使用过程中从 context 拿数据
         let main_color_key = TextureKey {
             width,
             height,
@@ -54,6 +53,9 @@ impl Node for ClearNode {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         };
+        let main_color =
+            context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
+
         let main_depth_key = TextureKey {
             width,
             height,
@@ -61,10 +63,8 @@ impl Node for ClearNode {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         };
-
-        // 按顺序获取纹理句柄（现在返回的是克隆后的句柄，不会互相冲突）
-        let main_color = context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
-        let main_depth = context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
+        let main_depth =
+            context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
 
         let world = &*context.render_world;
 

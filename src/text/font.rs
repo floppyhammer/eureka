@@ -111,7 +111,7 @@ impl DynamicFont {
     pub(crate) fn load_from_file(
         path: &str,
         render_server: &RenderContext,
-        texture_cache: &mut TextureCache,
+        imported_texture_cache: &mut TextureCache,
     ) -> Self {
         // Read the font data.
         let mut f = File::open(path).expect("No font file found!");
@@ -119,13 +119,13 @@ impl DynamicFont {
         let mut buffer = vec![0; metadata.len() as usize];
         f.read(&mut buffer).expect("Font buffer overflow!");
 
-        Self::load_from_memory(buffer, render_server, texture_cache)
+        Self::load_from_memory(buffer, render_server, imported_texture_cache)
     }
 
     pub(crate) fn load_from_memory(
         buffer: Vec<u8>,
         render_server: &RenderContext,
-        texture_cache: &mut TextureCache,
+        imported_texture_cache: &mut TextureCache,
     ) -> Self {
         let now = Instant::now();
 
@@ -141,7 +141,7 @@ impl DynamicFont {
         let atlas_texture = Texture::from_image(
             &render_server.device,
             &render_server.queue,
-            texture_cache,
+            imported_texture_cache,
             &atlas_image,
             "default font atlas".into(),
         )
@@ -176,8 +176,8 @@ impl DynamicFont {
     }
 
     /// Upload atlas data to the atlas texture.
-    pub(crate) fn upload(&mut self, render_server: &RenderContext, texture_cache: &TextureCache) {
-        let texture = texture_cache.get(self.atlas_texture).unwrap();
+    pub(crate) fn upload(&mut self, render_server: &RenderContext, imported_texture_cache: &TextureCache) {
+        let texture = imported_texture_cache.get(self.atlas_texture).unwrap();
 
         if let Some(region) = self.updated_atlas_region {
             let queue = &render_server.queue;

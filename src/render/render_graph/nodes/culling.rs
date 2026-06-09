@@ -25,46 +25,108 @@ impl Node for CullingNode {
         )
     }
 
-    fn prepare(&mut self, context: &mut FrameContext) {
-        if self.pipeline.is_some() {
-            return;
-        }
+    fn prepare(&mut self, context: &mut FrameContext) {}
 
+    fn run(&mut self, context: &mut FrameContext) {
         let world = &*context.render_world;
         let resources = &world.mesh_render_resources;
         let device = &context.render_context.device;
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("cull layout"),
-            bind_group_layouts: &[&resources.cull_bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        let cull_bind_group_layout = context.pool.get_bind_group_layout("cull_bind_group_layout");
+        if cull_bind_group_layout.is_none() {
+            let cull_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: true,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 4,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                    ],
+                    label: Some("Cull Bind Group Layout"),
+                });
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("cull shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/cull.wgsl").into()),
-        });
+            context
+                .pool
+                .add_bind_group_layout("cull_bind_group_layout", cull_bind_group_layout);
+        }
+        let cull_bind_group_layout = context
+            .pool
+            .get_bind_group_layout("cull_bind_group_layout")
+            .unwrap()
+            .clone();
 
-        self.pipeline = Some(
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("cull pipeline"),
-                layout: Some(&pipeline_layout),
-                module: &shader,
-                entry_point: Some("main"),
-                cache: None,
-                compilation_options: Default::default(),
-            }),
-        );
-    }
+        if self.pipeline.is_none() {
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Cull Layout"),
+                bind_group_layouts: &[&cull_bind_group_layout],
+                push_constant_ranges: &[],
+            });
 
-    fn run(&mut self, context: &mut FrameContext) {
+            let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Cull Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/cull.wgsl").into()),
+            });
+
+            self.pipeline = Some(device.create_compute_pipeline(
+                &wgpu::ComputePipelineDescriptor {
+                    label: Some("Cull Pipeline"),
+                    layout: Some(&pipeline_layout),
+                    module: &shader,
+                    entry_point: Some("main"),
+                    cache: None,
+                    compilation_options: Default::default(),
+                },
+            ));
+        }
+
         // 获取相机 Buffer (自动参与 FIF 同步)
-        let camera_buffer_key = BufferKey {
-            size: (CameraUniform::get_uniform_offset_unit()
-                * context.render_world.extracted.cameras.uniforms.len() as u32)
-                as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        };
+        let camera_buffer_key = context.render_world.extracted.cameras.get_buffer_key();
         let camera_buffer =
             context.get_buffer_by_id(&standard_resources::camera_buffer(), camera_buffer_key);
 
@@ -79,84 +141,81 @@ impl Node for CullingNode {
         else {
             return;
         };
+
         let camera_offset = camera_index as u32 * CameraUniform::get_uniform_offset_unit();
 
-        if let Some(pipeline) = &self.pipeline {
-            // 创建 Culling BindGroup（直接创建，不使用缓存）
-            let world = &*context.render_world;
-            let resources = &world.mesh_render_resources;
-            let total_instances: u32 = world.extracted.meshes.len() as u32;
+        // 创建 Culling BindGroup（直接创建，不使用缓存）
+        let world = &*context.render_world;
+        let resources = &world.mesh_render_resources;
+        let total_instances: u32 = world.extracted.meshes.len() as u32;
 
-            // 检查所有必要的 buffer 是否存在
-            let Some(mesh_metadata_buffer) = resources.mesh_metadata_buffer.as_ref() else {
-                return;
-            };
-            let Some(global_instance_buffer) = resources.global_instance_buffer.as_ref() else {
-                return;
-            };
-            let Some(global_visible_instance_buffer) =
-                resources.global_visible_instance_buffer.as_ref()
-            else {
-                return;
-            };
-            let Some(global_indirect_buffer) = resources.global_indirect_buffer.as_ref() else {
-                return;
-            };
+        // 检查所有必要的 buffer 是否存在
+        let Some(mesh_metadata_buffer) = resources.mesh_metadata_buffer.as_ref() else {
+            return;
+        };
+        let Some(global_instance_buffer) = resources.global_instance_buffer.as_ref() else {
+            return;
+        };
+        let Some(global_visible_instance_buffer) =
+            resources.global_visible_instance_buffer.as_ref()
+        else {
+            return;
+        };
+        let Some(global_indirect_buffer) = resources.global_indirect_buffer.as_ref() else {
+            return;
+        };
 
-            let bind_group =
-                context
-                    .render_context
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        layout: &resources.cull_bind_group_layout,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                    buffer: &camera_buffer.buffer,
-                                    offset: 0,
-                                    size: Some(
-                                        wgpu::BufferSize::new(
-                                            size_of::<CameraUniform>() as u64
-                                        )
+        // todo: use cache
+        let bind_group =
+            context
+                .render_context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &cull_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                buffer: &camera_buffer.buffer,
+                                offset: 0,
+                                size: Some(
+                                    wgpu::BufferSize::new(size_of::<CameraUniform>() as u64)
                                         .unwrap(),
-                                    ),
-                                }),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: mesh_metadata_buffer.as_entire_binding(),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 2,
-                                resource: global_instance_buffer.as_entire_binding(),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 3,
-                                resource: global_visible_instance_buffer.as_entire_binding(),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 4,
-                                resource: global_indirect_buffer.as_entire_binding(),
-                            },
-                        ],
-                        label: Some("global cull dynamic bind group"),
-                    });
+                                ),
+                            }),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: mesh_metadata_buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: global_instance_buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: global_visible_instance_buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: global_indirect_buffer.as_entire_binding(),
+                        },
+                    ],
+                    label: Some("Cull Dynamic Bind Group"),
+                });
 
-            let mut compute_pass =
-                context
-                    .encoder
-                    .begin_compute_pass(&wgpu::ComputePassDescriptor {
-                        label: Some("Global Culling Pass"),
-                        timestamp_writes: None,
-                    });
+        let mut compute_pass = context
+            .encoder
+            .begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Global Culling Pass"),
+                timestamp_writes: None,
+            });
 
-            compute_pass.set_pipeline(pipeline);
-            compute_pass.set_bind_group(0, &bind_group, &[camera_offset]);
+        compute_pass.set_pipeline(self.pipeline.as_ref().unwrap());
+        compute_pass.set_bind_group(0, &bind_group, &[camera_offset]);
 
-            if total_instances > 0 {
-                compute_pass.dispatch_workgroups((total_instances + 63) / 64, 1, 1);
-            }
+        if total_instances > 0 {
+            compute_pass.dispatch_workgroups((total_instances + 63) / 64, 1, 1);
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::render::render_graph::standard_resources;
+use crate::render::render_graph::{standard_resources, SamplerKey};
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use std::any::Any;
 
@@ -34,12 +34,16 @@ impl Node for FxaaNode {
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {
+
+    }
+
+    fn run(&mut self, context: &mut FrameContext) {
         let device = &context.render_context.device;
 
         if self.pipeline.is_none() {
             let bind_group_layout =
                 device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("fxaa bind group layout"),
+                    label: Some("FXAA Bind Group Layout"),
                     entries: &[
                         wgpu::BindGroupLayoutEntry {
                             binding: 0,
@@ -61,13 +65,13 @@ impl Node for FxaaNode {
                 });
 
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("fxaa pipeline layout"),
+                label: Some("FXAA Pipeline Layout"),
                 bind_group_layouts: &[&bind_group_layout],
                 push_constant_ranges: &[],
             });
 
             let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("fxaa shader"),
+                label: Some("FXAA Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/fxaa.wgsl").into()),
             };
 
@@ -79,14 +83,16 @@ impl Node for FxaaNode {
                 None,
                 &[],
                 shader,
-                "fxaa pipeline",
+                "FXAA Pipeline",
                 false,
                 None,
             ));
-        }
-    }
 
-    fn run(&mut self, context: &mut FrameContext) {
+            context
+                .pool
+                .add_bind_group_layout("fxaa_bind_group_layout", bind_group_layout);
+        }
+        
         let key = TextureKey {
             width: context.render_context.surface_config.width,
             height: context.render_context.surface_config.height,
@@ -99,22 +105,23 @@ impl Node for FxaaNode {
 
         let pipeline = self.pipeline.as_ref().unwrap();
 
-        let sampler = context
-            .render_context
-            .device
-            .create_sampler(&wgpu::SamplerDescriptor {
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                ..Default::default()
-            });
+        let sampler = context.get_sampler(SamplerKey {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let bind_group_layout = context
+            .pool
+            .get_bind_group_layout("fxaa_bind_group_layout")
+            .unwrap()
+            .clone();
 
         let bind_group =
-            context
-                .render_context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("fxaa bind group"),
-                    layout: &pipeline.get_bind_group_layout(0),
+            context.create_bind_group(&bind_group_layout, vec![input_texture.id], |ctx| {
+                ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("FXAA Bind Group"),
+                    layout: &bind_group_layout,
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
@@ -125,12 +132,13 @@ impl Node for FxaaNode {
                             resource: wgpu::BindingResource::Sampler(&sampler),
                         },
                     ],
-                });
+                })
+            });
 
         let mut render_pass = context
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("fxaa pass"),
+                label: Some("FXAA Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &output_texture.view,
                     depth_slice: None,

@@ -1,13 +1,42 @@
 use crate::render::RenderContext;
 use anyhow::*;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use uuid;
 use wgpu::Extent3d;
 
 pub static NEXT_TEXTURE_ID: AtomicU64 = AtomicU64::new(1);
+pub static NEXT_VIEW_ID: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ViewKey {
+    pub format: Option<wgpu::TextureFormat>,
+    pub dimension: Option<wgpu::TextureViewDimension>,
+    pub aspect: wgpu::TextureAspect,
+    pub base_mip_level: u32,
+    pub mip_level_count: Option<u32>,
+    pub base_array_layer: u32,
+    pub array_layer_count: Option<u32>,
+}
+
+impl From<&wgpu::TextureViewDescriptor<'_>> for ViewKey {
+    fn from(desc: &wgpu::TextureViewDescriptor<'_>) -> Self {
+        Self {
+            format: desc.format,
+            dimension: desc.dimension,
+            aspect: desc.aspect,
+            base_mip_level: desc.base_mip_level,
+            mip_level_count: desc.mip_level_count,
+            base_array_layer: desc.base_array_layer,
+            array_layer_count: desc.array_layer_count,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct RawTextureData {
@@ -32,16 +61,19 @@ pub struct Texture {
     pub(crate) size: (u32, u32),
     // Actual data.
     pub texture: wgpu::Texture,
-    // Thin wrapper over texture.
+    // Default view
     pub view: wgpu::TextureView,
     pub format: wgpu::TextureFormat,
     /// 唯一标识，用于缓存优化
     pub id: u64,
+    pub view_id: u64,
+    pub view_cache: Arc<RefCell<HashMap<ViewKey, (wgpu::TextureView, u64)>>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TextureId(uuid::Uuid);
 
+/// Imported texture cache, not managed by ResourcePool.
 pub struct TextureCache {
     pub(crate) storage: HashMap<TextureId, Texture>,
 }
@@ -210,6 +242,8 @@ impl Texture {
             view,
             format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
+            view_cache: Arc::new(RefCell::new(HashMap::new())),
         };
 
         Ok(cache.add(texture))
@@ -271,12 +305,37 @@ impl Texture {
             view,
             format: Self::DEPTH_FORMAT,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
+            view_cache: Arc::new(RefCell::new(HashMap::new())),
         };
 
         cache.add(texture)
     }
 
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
+    pub fn get_view(
+        &self,
+        desc: &wgpu::TextureViewDescriptor,
+    ) -> (wgpu::TextureView, u64) {
+        let key = ViewKey::from(desc);
+        let mut cache = self.view_cache.borrow_mut();
+
+        if let Some(entry) = cache.get(&key) {
+            return (entry.0.clone(), entry.1);
+        }
+
+        let view = self.texture.create_view(desc);
+
+        // 生成派生 ID：结合物理 ID 和描述符哈希，确保全局唯一且稳定
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.id.hash(&mut hasher);
+        key.hash(&mut hasher);
+        let derived_id = hasher.finish();
+
+        cache.insert(key, (view.clone(), derived_id));
+        (view, derived_id)
+    }
 
     pub fn create_depth_texture(
         device: &wgpu::Device,
@@ -379,6 +438,8 @@ impl Texture {
             view,
             format: raw.format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
+            view_cache: Arc::new(RefCell::new(HashMap::new())),
         })
     }
 
@@ -459,6 +520,8 @@ impl Texture {
             view,
             format: raw.format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
+            view_cache: Arc::new(RefCell::new(HashMap::new())),
         })
     }
 
@@ -552,6 +615,8 @@ impl Texture {
             view,
             format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
+            view_cache: Arc::new(RefCell::new(HashMap::new())),
         };
 
         Ok(cache.add(texture))

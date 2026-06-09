@@ -1,4 +1,3 @@
-
 struct Camera {
     view_pos: vec4<f32>,
     view: mat4x4<f32>,
@@ -43,9 +42,10 @@ struct Lights {
 var<uniform> lights: Lights;
 
 @group(1) @binding(1)
-var t_shadow: texture_depth_2d_array;
+var t_shadow_cascade: texture_depth_2d_array;
 @group(1) @binding(2)
 var s_shadow: sampler_comparison;
+
 struct CascadeUniform {
     view_proj: array<mat4x4<f32>, 3>,
     splits: vec4<f32>,
@@ -344,11 +344,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
             // 3x3 PCF (Percentage Closer Filtering)
             var shadow_sum = 0.0;
-            let texel_size = 1.0 / vec2<f32>(textureDimensions(t_shadow).xy);
+            let texel_size = 1.0 / vec2<f32>(textureDimensions(t_shadow_cascade).xy);
             for (var y: f32 = -1.0; y <= 1.0; y += 1.0) {
                 for (var x: f32 = -1.0; x <= 1.0; x += 1.0) {
                     let offset = vec2<f32>(x, y) * texel_size;
-                    shadow_sum += textureSampleCompare(t_shadow, s_shadow, shadow_uv + offset, i32(cascade_index), shadow_pos.z - bias);
+                    shadow_sum += textureSampleCompare(t_shadow_cascade, s_shadow, shadow_uv + offset, i32(cascade_index), shadow_pos.z - bias);
                 }
             }
             shadow_factor = shadow_sum / 9.0;

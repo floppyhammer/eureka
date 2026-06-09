@@ -1,27 +1,29 @@
 use super::resource::{BindGroupKey, BufferKey, PooledBuffer, SamplerKey, TextureKey};
-use crate::render::{Texture, NEXT_TEXTURE_ID};
+use crate::render::{Texture, NEXT_TEXTURE_ID, NEXT_VIEW_ID};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::cell::RefCell;
 
 /// 瞬时资源池，用于在帧内复用纹理和缓冲区，并支持多帧并行下的延迟回收
 #[derive(Default)]
 pub struct ResourcePool {
-    /// 纹理池
+    /// 跨帧纹理池（支持 FIF 数据隔离）
     textures: HashMap<TextureKey, Vec<Texture>>,
     pending_textures: Vec<(Texture, TextureKey, u64)>,
 
-    /// 缓冲区池
+    /// 跨帧缓冲区池（支持 FIF 数据隔离）
     buffers: HashMap<BufferKey, Vec<PooledBuffer>>,
     pending_buffers: Vec<(PooledBuffer, BufferKey, u64)>,
 
-    /// 采样器池
+    /// 跨帧采样器池（支持 FIF 数据隔离）
     samplers: HashMap<SamplerKey, Vec<wgpu::Sampler>>,
     pending_samplers: Vec<(wgpu::Sampler, SamplerKey, u64)>,
 
-    /// BindGroup 缓存
-    bind_group_cache: HashMap<BindGroupKey, wgpu::BindGroup>,
+    /// 帧内 BindGroup 缓存，每帧清空
+    frame_bind_group_cache: HashMap<BindGroupKey, wgpu::BindGroup>,
 
-    /// 固定存在
+    /// 持久化存在
     bind_group_layouts: HashMap<String, wgpu::BindGroupLayout>,
     pipeline_layouts: HashMap<String, wgpu::PipelineLayout>,
 }
@@ -63,7 +65,7 @@ impl ResourcePool {
     }
 
     pub fn clear_bind_group_cache(&mut self) {
-        self.bind_group_cache.clear();
+        self.frame_bind_group_cache.clear();
     }
 
     // --- 纹理管理 ---
@@ -105,6 +107,8 @@ impl ResourcePool {
             view,
             format: key.format,
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
+            view_cache: Arc::new(RefCell::new(HashMap::new())),
         }
     }
 
@@ -195,18 +199,50 @@ impl ResourcePool {
             layout_ptr: layout as *const _ as usize,
             resource_ids,
         };
-        self.bind_group_cache
+        self.frame_bind_group_cache
             .entry(key)
             .or_insert_with(creator)
             .clone()
     }
 
-    pub fn add_bind_group_layout(&mut self, name: impl Into<String>, layout: wgpu::BindGroupLayout) {
+    pub fn get_bind_group(
+        &mut self,
+        layout: &wgpu::BindGroupLayout,
+        resource_ids: Vec<u64>,
+    ) -> Option<&wgpu::BindGroup> {
+        let key = BindGroupKey {
+            layout_ptr: layout as *const _ as usize,
+            resource_ids,
+        };
+        self.frame_bind_group_cache.get(&key)
+    }
+
+    pub fn add_bind_group_layout(
+        &mut self,
+        name: impl Into<String>,
+        layout: wgpu::BindGroupLayout,
+    ) {
         self.bind_group_layouts.insert(name.into(), layout);
     }
 
     pub fn get_bind_group_layout(&self, name: &str) -> Option<&wgpu::BindGroupLayout> {
         self.bind_group_layouts.get(name)
+    }
+
+    pub fn get_or_create_bind_group_layout<F>(
+        &mut self,
+        name: &str,
+        creator: F,
+    ) -> wgpu::BindGroupLayout
+    where
+        F: FnOnce() -> wgpu::BindGroupLayout,
+    {
+        // 假设内部是 HashMap<String, wgpu::BindGroupLayout>
+        // 利用 entry API 只需要进行一次哈希查找
+        self.bind_group_layouts
+            .entry(name.to_string())
+            .or_insert_with(creator)
+            .clone() // wgpu资源clone很廉价（内部是Arc）
     }
 
     pub fn add_pipeline_layout(&mut self, name: impl Into<String>, layout: wgpu::PipelineLayout) {

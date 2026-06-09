@@ -1,12 +1,13 @@
 use crate::render::camera::CameraType;
-use crate::render::camera::{CameraRenderResources, CameraUniform};
+use crate::render::camera::CameraUniform;
+use crate::render::light::{CascadeUniform, LightUniform, MAX_POINT_LIGHTS};
 use crate::render::mesh::{ExtractedMesh, MeshCache, MeshRenderResources};
-use crate::render::render_graph::{standard_resources, FrameContext, Node, TextureKey};
+use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node, TextureKey};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw, MeshId, Texture};
 use glam::{Mat4, Vec3};
 use std::any::Any;
-use std::mem;
+use wgpu::BufferAddress;
 
 pub struct TransparentMeshNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -50,6 +51,10 @@ impl Node for TransparentMeshNode {
         crate::render::render_graph::resource::NodeResources::new()
             .input(standard_resources::main_color(), color_spec.clone())
             .input(standard_resources::main_depth(), depth_spec.clone())
+            .input(
+                standard_resources::camera_buffer(),
+                ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
+            )
             .optional_input(
                 standard_resources::ssao_blur(),
                 ResourceSpec::Texture(TextureKey {
@@ -64,46 +69,61 @@ impl Node for TransparentMeshNode {
             .output(standard_resources::main_depth(), depth_spec)
     }
 
-    fn prepare(&mut self, context: &mut FrameContext) {
-        if self.pipeline.is_some() {
-            return;
-        }
-        let device = &context.render_context.device;
-        let world = &*context.render_world;
-        let resources = &world.mesh_render_resources;
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("transparent mesh layout"),
-            bind_group_layouts: &[
-                &world.camera_render_resources.bind_group_layout,
-                &resources.light_bind_group_layout,
-                &resources.bindless_bind_group_layout,
-            ],
-            push_constant_ranges: &[],
-        });
-
-        let shader = wgpu::ShaderModuleDescriptor {
-            label: Some("transparent mesh shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/mesh.wgsl").into()),
-        };
-
-        self.pipeline = Some(create_render_pipeline(
-            device,
-            &pipeline_layout,
-            Some(context.render_context.surface_config.format),
-            Some(Texture::DEPTH_FORMAT),
-            &[Vertex3d::desc(), InstanceRaw::desc()],
-            shader,
-            "transparent bindless",
-            true,
-            Some(wgpu::Face::Back),
-        ));
-    }
+    fn prepare(&mut self, context: &mut FrameContext) {}
 
     fn run(&mut self, context: &mut FrameContext) {
         let width = context.render_context.surface_config.width;
         let height = context.render_context.surface_config.height;
         let format = context.render_context.surface_config.format;
+
+        if context.render_world.extracted.transparent_meshes.is_empty() {
+            return;
+        }
+
+        let device = &context.render_context.device;
+        let world = &*context.render_world;
+        let resources = &world.mesh_render_resources;
+
+        let camera_bind_group_layout = context
+            .pool
+            .get_bind_group_layout("camera_bind_group_layout")
+            .unwrap()
+            .clone();
+
+        let light_bind_group_layout = context
+            .pool
+            .get_bind_group_layout("light_bind_group_layout")
+            .unwrap()
+            .clone();
+
+        if self.pipeline.is_none() {
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("transparent mesh layout"),
+                bind_group_layouts: &[
+                    &camera_bind_group_layout,
+                    &light_bind_group_layout,
+                    &resources.bindless_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("transparent mesh shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/mesh.wgsl").into()),
+            };
+
+            self.pipeline = Some(create_render_pipeline(
+                device,
+                &pipeline_layout,
+                Some(context.render_context.surface_config.format),
+                Some(Texture::DEPTH_FORMAT),
+                &[Vertex3d::desc(), InstanceRaw::desc()],
+                shader,
+                "Transparent Mesh Bindless",
+                true,
+                Some(wgpu::Face::Back),
+            ));
+        }
 
         let main_color_key = TextureKey {
             width,
@@ -144,10 +164,6 @@ impl Node for TransparentMeshNode {
         let shadow_map =
             context.get_texture_by_id(&standard_resources::directional_shadow_map(), shadow_key);
 
-        if context.render_world.extracted.transparent_meshes.is_empty() {
-            return;
-        }
-
         // --- 动态更新 Light Bind Group ---
         let device = &context.render_context.device;
 
@@ -172,26 +188,26 @@ impl Node for TransparentMeshNode {
             ..Default::default()
         });
 
-        // 提取所需句柄以断开借用链
-        let light_resources_cascade_buffer = context
-            .render_world
-            .light_render_resources
-            .cascade_uniform_buffer
-            .as_ref()
-            .unwrap()
-            .clone();
-        let mesh_resources_light_layout = context
-            .render_world
-            .mesh_render_resources
-            .light_bind_group_layout
-            .clone();
-        let mesh_resources_light_buffer = context
-            .render_world
-            .mesh_render_resources
-            .light_uniform_buffer
-            .as_ref()
-            .unwrap()
-            .clone();
+        let cascade_uniform_buffer = {
+            let cascade_buffer_key = BufferKey {
+                size: size_of::<CascadeUniform>() as BufferAddress,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            };
+
+            context.get_buffer_by_id(
+                &standard_resources::shadow_cascade_buffer(),
+                cascade_buffer_key,
+            )
+        };
+
+        let light_uniform_buffer = {
+            let buffer_key = BufferKey {
+                size: size_of::<LightUniform>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            };
+
+            context.get_buffer_by_id(&standard_resources::light_uniform_buffer(), buffer_key)
+        };
 
         let cascade_view = shadow_map
             .texture
@@ -205,29 +221,35 @@ impl Node for TransparentMeshNode {
                 ..Default::default()
             });
 
-        let psv = if let Some(psm_id) = context.render_world.light_render_resources.point_shadow_map
-        {
-            let psm = context.render_world.texture_cache.get(psm_id).unwrap();
-            psm.texture.create_view(&wgpu::TextureViewDescriptor {
-                label: Some("psv"),
-                format: Some(Texture::DEPTH_FORMAT),
-                dimension: Some(wgpu::TextureViewDimension::CubeArray),
-                aspect: wgpu::TextureAspect::DepthOnly,
-                array_layer_count: Some(crate::render::light::MAX_POINT_LIGHTS as u32 * 6),
-                ..Default::default()
-            })
-        } else {
-            context
-                .render_world
-                .mesh_render_resources
-                .dummy_cube_view
-                .clone()
+        let point_shadow_map = {
+            let point_sm_key = TextureKey {
+                width: 512,
+                height: 512,
+                format: Texture::DEPTH_FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                layers: (MAX_POINT_LIGHTS * 6) as u32,
+            };
+
+            context.get_texture_by_id(&standard_resources::point_shadow_map(), point_sm_key)
         };
 
-        let sky_view = if let Some(id) = context.render_world.mesh_render_resources.current_skybox {
+        let point_shadow_map_view =
+            point_shadow_map
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor {
+                    label: Some("point shadow map view"),
+                    format: Some(Texture::DEPTH_FORMAT),
+                    dimension: Some(wgpu::TextureViewDimension::CubeArray),
+                    aspect: wgpu::TextureAspect::DepthOnly,
+                    array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6),
+                    ..Default::default()
+                });
+
+        let sky_view = if let Some(id) = context.render_world.sky_imported_resources.texture {
             context
                 .render_world
-                .texture_cache
+                .imported_texture_cache
                 .get(id)
                 .unwrap()
                 .view
@@ -240,16 +262,21 @@ impl Node for TransparentMeshNode {
                 .clone()
         };
 
-        let light_bg = context.create_bind_group(
-            &mesh_resources_light_layout,
-            vec![ssao_blur.id, shadow_map.id],
+        let light_bind_group = context.create_bind_group(
+            &light_bind_group_layout,
+            vec![
+                ssao_blur.id,
+                light_uniform_buffer.id,
+                cascade_uniform_buffer.id,
+                shadow_map.id,
+            ],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &mesh_resources_light_layout,
+                    layout: &light_bind_group_layout,
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
-                            resource: mesh_resources_light_buffer.as_entire_binding(),
+                            resource: light_uniform_buffer.buffer.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
@@ -261,11 +288,11 @@ impl Node for TransparentMeshNode {
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
-                            resource: light_resources_cascade_buffer.as_entire_binding(),
+                            resource: cascade_uniform_buffer.buffer.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 4,
-                            resource: wgpu::BindingResource::TextureView(&psv),
+                            resource: wgpu::BindingResource::TextureView(&point_shadow_map_view),
                         },
                         wgpu::BindGroupEntry {
                             binding: 5,
@@ -284,7 +311,37 @@ impl Node for TransparentMeshNode {
                 })
             },
         );
-        context.render_world.mesh_render_resources.light_bind_group = Some(light_bg);
+
+        let camera_buffer = {
+            let buffer_key = context
+                .render_world
+                .extracted
+                .cameras
+                .get_buffer_key()
+                .clone();
+
+            context
+                .get_buffer_by_id(&standard_resources::camera_buffer(), buffer_key)
+                .clone()
+        };
+        let camera_bind_group =
+            context.create_bind_group(&camera_bind_group_layout, vec![camera_buffer.id], |ctx| {
+                ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &camera_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &camera_buffer.buffer,
+                            offset: 0,
+                            size: Some(
+                                wgpu::BufferSize::new(size_of::<CameraUniform>() as u64).unwrap(),
+                            ),
+                        }),
+                    }],
+                    label: Some("Camera Bind Group"),
+                })
+            });
+
 
         let world = &mut *context.render_world;
 
@@ -313,15 +370,21 @@ impl Node for TransparentMeshNode {
                 occlusion_query_set: None,
             });
 
-        for i in 0..world.extracted.cameras.uniforms.len() {
-            if world.extracted.cameras.types[i] == CameraType::D3 {
+        for camera_idx in 0..world.extracted.cameras.uniforms.len() {
+            if world.extracted.cameras.types[camera_idx] == CameraType::D3 {
                 render_transparent_meshes(
                     &world.extracted.transparent_meshes,
                     &world.mesh_cache,
                     &world.mesh_render_resources,
-                    &world.camera_render_resources,
-                    i,
-                    &world.extracted.cameras.uniforms[i],
+                    &camera_bind_group,
+                    &light_bind_group,
+                    world
+                        .mesh_render_resources
+                        .bindless_bind_group
+                        .as_ref()
+                        .unwrap(),
+                    camera_idx,
+                    &world.extracted.cameras.uniforms[camera_idx],
                     &mut render_pass,
                     self.pipeline.as_ref().unwrap(),
                     &context.render_context.device,
@@ -337,7 +400,9 @@ fn render_transparent_meshes<'a, 'b: 'a>(
     extracted_meshes: &'b Vec<ExtractedMesh>,
     mesh_cache: &'b MeshCache,
     mesh_render_resources: &'b MeshRenderResources,
-    camera_render_resources: &'b CameraRenderResources,
+    camera_bind_group: &'b wgpu::BindGroup,
+    light_bind_group: &'b wgpu::BindGroup,
+    bindless_bind_group: &'b wgpu::BindGroup,
     camera_index: usize,
     camera_uniform: &CameraUniform,
     render_pass: &mut wgpu::RenderPass<'a>,
@@ -346,13 +411,6 @@ fn render_transparent_meshes<'a, 'b: 'a>(
     queue: &wgpu::Queue,
     instance_buffer: &mut Option<wgpu::Buffer>,
 ) {
-    if camera_render_resources.bind_group.is_none()
-        || mesh_render_resources.light_bind_group.is_none()
-        || mesh_render_resources.bindless_bind_group.is_none()
-    {
-        return;
-    }
-
     let view_proj = Mat4::from_cols_array_2d(&camera_uniform.view_proj);
 
     let mut sorted_meshes: Vec<_> = extracted_meshes.iter().enumerate().collect();
@@ -394,8 +452,7 @@ fn render_transparent_meshes<'a, 'b: 'a>(
         return;
     }
 
-    let buffer_size =
-        (sorted_instances.len() * mem::size_of::<InstanceRaw>()) as wgpu::BufferAddress;
+    let buffer_size = (sorted_instances.len() * size_of::<InstanceRaw>()) as wgpu::BufferAddress;
 
     if instance_buffer.is_none() || instance_buffer.as_ref().unwrap().size() < buffer_size {
         *instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
@@ -413,21 +470,14 @@ fn render_transparent_meshes<'a, 'b: 'a>(
     );
 
     render_pass.set_pipeline(pipeline);
+
     render_pass.set_bind_group(
         0,
-        camera_render_resources.bind_group.as_ref().unwrap(),
+        camera_bind_group,
         &[camera_index as u32 * CameraUniform::get_uniform_offset_unit()],
     );
-    render_pass.set_bind_group(
-        1,
-        mesh_render_resources.light_bind_group.as_ref().unwrap(),
-        &[],
-    );
-    render_pass.set_bind_group(
-        2,
-        mesh_render_resources.bindless_bind_group.as_ref().unwrap(),
-        &[],
-    );
+    render_pass.set_bind_group(1, light_bind_group, &[]);
+    render_pass.set_bind_group(2, bindless_bind_group, &[]);
     render_pass.set_vertex_buffer(
         0,
         mesh_render_resources.mesh_allocator.vertex_buffer.slice(..),

@@ -1,4 +1,5 @@
 use crate::render::camera::CameraUniform;
+use crate::render::light::MAX_POINT_LIGHTS;
 use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node};
 use std::any::Any;
 
@@ -7,6 +8,8 @@ use std::any::Any;
 #[derive(Default)]
 pub struct PrepareViewNode;
 
+const MAX_CAMERAS: u32 = 16;
+
 impl Node for PrepareViewNode {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -14,12 +17,14 @@ impl Node for PrepareViewNode {
 
     fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::camera::CameraUniform;
-        use crate::render::render_graph::resource::{BufferKey, ResourceSpec};
+        use crate::render::render_graph::resource::ResourceSpec;
 
         let offset_unit = CameraUniform::get_uniform_offset_unit();
-        // 假设最大支持 16 个相机，或者由 Prepare 动态调整
-        let buffer_size = offset_unit * 16;
 
+        // 假设最大支持 16 个相机，或者由 Prepare 动态调整
+        let buffer_size = offset_unit * MAX_CAMERAS;
+
+        // 输出为一个包含所有相机uniform的大缓冲区
         crate::render::render_graph::resource::NodeResources::new().output(
             standard_resources::camera_buffer(),
             ResourceSpec::buffer(
@@ -29,21 +34,47 @@ impl Node for PrepareViewNode {
         )
     }
 
+    fn prepare(&mut self, context: &mut FrameContext) {
+        if context
+            .pool
+            .get_bind_group_layout("camera_bind_group_layout")
+            .is_none()
+        {
+            let camera_bind_group_layout = context.render_context.device.create_bind_group_layout(
+                &wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: true,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                    label: Some("Camera Bind Group Layout"),
+                },
+            );
+
+            context
+                .pool
+                .add_bind_group_layout("camera_bind_group_layout", camera_bind_group_layout);
+        }
+    }
+
     fn run(&mut self, context: &mut FrameContext) {
-        // 先提取需要的数据，避免长时间占用 context 的借用
-        let uniforms = context.render_world.extracted.cameras.uniforms.clone();
+        let extracted_cameras = context.render_world.extracted.cameras.clone();
+        let uniforms = extracted_cameras.uniforms.clone();
+
+        // No cameras.
         if uniforms.is_empty() {
             return;
         }
 
         let camera_count = uniforms.len();
         let offset_unit = CameraUniform::get_uniform_offset_unit();
-        let buffer_size = offset_unit * camera_count as u32;
 
-        let buffer_key = BufferKey {
-            size: buffer_size as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        };
+        let buffer_key = extracted_cameras.get_buffer_key();
 
         // 1. 动态申请池化 Buffer 并注册到 context
         let pooled_buffer =
@@ -62,34 +93,28 @@ impl Node for PrepareViewNode {
             .queue
             .write_buffer(&pooled_buffer.buffer, 0, &aligned_up_data);
 
-        // 3. 为了兼容现有的渲染函数，暂时将结果存回 CameraRenderResources
-        context.render_world.camera_render_resources.uniform_buffer =
-            Some(pooled_buffer.buffer.clone());
-
-        // 克隆 Layout 以断开借用链
-        let layout = context
-            .render_world
-            .camera_render_resources
-            .bind_group_layout
+        let camera_bind_group_layout = context
+            .pool
+            .get_bind_group_layout("camera_bind_group_layout")
+            .unwrap()
             .clone();
 
-        let bind_group = context.create_bind_group(&layout, vec![pooled_buffer.id], |ctx| {
-            ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &pooled_buffer.buffer,
-                        offset: 0,
-                        size: Some(
-                            wgpu::BufferSize::new(std::mem::size_of::<CameraUniform>() as u64)
-                                .unwrap(),
-                        ),
-                    }),
-                }],
-                label: Some("camera dynamic bind group"),
-            })
-        });
-        context.render_world.camera_render_resources.bind_group = Some(bind_group);
+        let _ =
+            context.create_bind_group(&camera_bind_group_layout, vec![pooled_buffer.id], |ctx| {
+                ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &camera_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &pooled_buffer.buffer,
+                            offset: 0,
+                            size: Some(
+                                wgpu::BufferSize::new(size_of::<CameraUniform>() as u64).unwrap(),
+                            ),
+                        }),
+                    }],
+                    label: Some("Camera Bind Group"),
+                })
+            });
     }
 }

@@ -5,7 +5,6 @@ pub(crate) mod mesh;
 pub(crate) mod mesh_allocator;
 pub(crate) mod render_context;
 pub(crate) mod render_graph;
-pub(crate) mod ssao;
 pub(crate) mod texture;
 pub(crate) mod vertex;
 
@@ -21,3 +20,4 @@ pub(crate) mod shader_maker;
 pub(crate) mod sky;
 pub(crate) mod sprite;
 pub(crate) mod view;
+mod general_resource;

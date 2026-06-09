@@ -128,13 +128,13 @@ impl MaterialStandard {
 
     pub fn get_bind_group_entries<'a>(
         &'a self,
-        texture_cache: &'a TextureCache,
+        imported_texture_cache: &'a TextureCache,
         sampler: &'a wgpu::Sampler,
     ) -> Vec<wgpu::BindGroupEntry<'a>> {
         let mut bind_group_entries = vec![];
 
         if self.color_texture.is_some() {
-            let color_texture = texture_cache.get(self.color_texture.unwrap()).unwrap();
+            let color_texture = imported_texture_cache.get(self.color_texture.unwrap()).unwrap();
 
             bind_group_entries.push(wgpu::BindGroupEntry {
                 binding: 0, // 纹理逻辑内使用 0, 1，外面会偏移
@@ -147,7 +147,7 @@ impl MaterialStandard {
         }
 
         if self.normal_texture.is_some() {
-            let normal_texture = texture_cache.get(self.normal_texture.unwrap()).unwrap();
+            let normal_texture = imported_texture_cache.get(self.normal_texture.unwrap()).unwrap();
 
             bind_group_entries.push(wgpu::BindGroupEntry {
                 binding: 2,
@@ -160,7 +160,7 @@ impl MaterialStandard {
         }
 
         if self.metallic_roughness_texture.is_some() {
-            let mr_texture = texture_cache
+            let mr_texture = imported_texture_cache
                 .get(self.metallic_roughness_texture.unwrap())
                 .unwrap();
 

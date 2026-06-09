@@ -1,7 +1,7 @@
-use crate::render::RenderContext;
 use glam::Mat4;
-use std::mem;
-use wgpu::BufferAddress;
+use crate::render::render_graph::BufferKey;
+
+/// This only manages CPU resources.
 
 #[derive(Clone, PartialEq)]
 pub(crate) enum CameraType {
@@ -19,6 +19,17 @@ impl ExtractedCameras {
     pub(crate) fn add(&mut self, camera_type: CameraType, uniform: CameraUniform) {
         self.types.push(camera_type);
         self.uniforms.push(uniform);
+    }
+    
+    pub fn get_buffer_key(& self) -> BufferKey {
+        let camera_count = self.uniforms.len();
+        let offset_unit = CameraUniform::get_uniform_offset_unit();
+        let buffer_size = offset_unit * camera_count as u32;
+
+        BufferKey {
+            size: buffer_size as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        }
     }
 }
 
@@ -59,107 +70,6 @@ impl CameraUniform {
         let size = size_of::<CameraUniform>() as u32;
 
         (size + offset_alignment - 1) & !(offset_alignment - 1)
-    }
-}
-
-pub(crate) struct CameraRenderResources {
-    /// A big buffer for all 3d camera uniforms. Allows using uniform buffer offset.
-    pub(crate) uniform_buffer: Option<wgpu::Buffer>,
-    uniform_buffer_capacity: usize,
-
-    pub(crate) bind_group_layout: wgpu::BindGroupLayout,
-    pub(crate) bind_group: Option<wgpu::BindGroup>,
-}
-
-impl CameraRenderResources {
-    pub fn new(render_context: &RenderContext) -> Self {
-        let bind_group_layout =
-            render_context
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: true,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                    label: Some("mesh camera bind group layout"),
-                });
-
-        Self {
-            uniform_buffer: None,
-            uniform_buffer_capacity: 0,
-            bind_group_layout,
-            bind_group: None,
-        }
-    }
-
-    pub fn prepare_cameras(&mut self, render_context: &RenderContext, cameras: &ExtractedCameras) {
-        let camera_count = cameras.uniforms.len();
-
-        if self.uniform_buffer_capacity < camera_count {
-            let offset_unit = CameraUniform::get_uniform_offset_unit();
-            let buffer_size = offset_unit * camera_count as u32;
-
-            // Create a buffer for the camera uniform.
-            let buffer = render_context
-                .device
-                .create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("camera uniform buffer (unique)"),
-                    size: buffer_size as BufferAddress,
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-
-            let bind_group = render_context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &self.bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &buffer,
-                            offset: 0,
-                            // See DynamicUniformBufferOffset.
-                            size: Some(
-                                wgpu::BufferSize::new(mem::size_of::<CameraUniform>() as u64)
-                                    .unwrap(),
-                            ),
-                        }),
-                    }],
-                    label: Some("camera bind group (unique)"),
-                });
-
-            self.bind_group = Some(bind_group);
-            self.uniform_buffer = Some(buffer);
-            self.uniform_buffer_capacity = camera_count;
-        }
-
-        let offset_unit = CameraUniform::get_uniform_offset_unit();
-
-        // Write the camera buffer.
-        if self.uniform_buffer.is_some() {
-            // Consider align-up.
-            let mut aligned_up_data = vec![0u8; offset_unit as usize * camera_count];
-
-            for i in 0..camera_count {
-                let slice = bytemuck::cast_slice(&cameras.uniforms[i..i + 1]);
-
-                for j in 0..slice.len() {
-                    aligned_up_data[i * offset_unit as usize + j] = slice[j];
-                }
-            }
-
-            render_context.queue.write_buffer(
-                self.uniform_buffer.as_ref().unwrap(),
-                0,
-                bytemuck::cast_slice(aligned_up_data.as_slice()),
-            );
-        }
     }
 }
 

@@ -100,6 +100,9 @@ impl RenderGraph {
         self.pool
             .update(self.frame_count, render_context.frames_in_flight as u64);
 
+        // 2. 关键防御：每帧清理 BindGroup 缓存。
+        self.pool.clear_bind_group_cache();
+
         // Simple topological sort for execution order
         if self.cached_execution_order.is_none() {
             let order = self.topological_sort();
@@ -331,7 +334,7 @@ pub struct FrameContext<'a> {
     pub encoder: &'a mut wgpu::CommandEncoder,
     pub final_output_view: &'a wgpu::TextureView,
 
-    pool: &'a mut ResourcePool,
+    pub pool: &'a mut ResourcePool,
     active_resources: &'a mut HashMap<ResourceId<()>, (ResourceKey, VirtualResource)>,
 }
 
@@ -340,6 +343,18 @@ pub struct ResolvedTransientTexture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub id: u64,
+    pub view_id: u64,
+    pub(crate) handle: Texture,
+}
+
+impl ResolvedTransientTexture {
+    /// 获取一个稳定的视图及其 ID，用于 BindGroup 缓存优化
+    pub fn get_view(
+        &self,
+        desc: &wgpu::TextureViewDescriptor,
+    ) -> (wgpu::TextureView, u64) {
+        self.handle.get_view(desc)
+    }
 }
 
 impl<'a> FrameContext<'a> {
@@ -371,6 +386,8 @@ impl<'a> FrameContext<'a> {
                 texture: texture.texture.clone(),
                 view: texture.view.clone(),
                 id: texture.id,
+                view_id: texture.view_id,
+                handle: texture.clone(),
             }
         } else {
             panic!("Resource type mismatch: expected Texture");

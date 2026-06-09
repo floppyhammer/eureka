@@ -25,8 +25,8 @@ pub struct Sprite2d {
 }
 
 impl Sprite2d {
-    pub fn new(texture_cache: &TextureCache, texture_id: TextureId) -> Sprite2d {
-        let texture = texture_cache.get(texture_id).unwrap();
+    pub fn new(imported_texture_cache: &TextureCache, texture_id: TextureId) -> Sprite2d {
+        let texture = imported_texture_cache.get(texture_id).unwrap();
         let size = Vec2::new(texture.size.0 as f32, texture.size.1 as f32);
 
         Self {
@@ -63,15 +63,15 @@ impl Sprite2d {
         &mut self,
         raw: RawTextureData,
         render_server: &RenderContext,
-        texture_cache: &mut TextureCache,
+        imported_texture_cache: &mut TextureCache,
     ) {
         let texture_id = Texture::from_raw(
             &render_server.device,
             &render_server.queue,
-            texture_cache,
+            imported_texture_cache,
             raw,
         );
-        let texture = texture_cache.get(texture_id).unwrap();
+        let texture = imported_texture_cache.get(texture_id).unwrap();
 
         if self.use_original_size {
             self.node_2d.size = Vec2::new(texture.size.0 as f32, texture.size.1 as f32);
@@ -113,7 +113,7 @@ impl AsNode for Sprite2d {
                 self.finalize(
                     raw,
                     &singletons.render_context,
-                    &mut render_world.texture_cache,
+                    &mut render_world.imported_texture_cache,
                 );
             }
         }
