@@ -247,13 +247,32 @@ impl RenderGraph {
         log::info!("RenderGraph Topology Updated (Mermaid):");
 
         let mut mermaid = String::from("\n```mermaid\ngraph TD\n");
-        for name in _order {
-            mermaid.push_str(&format!("    {}\n", name));
+        
+        // 定义子图，每个节点作为一个子图，显示其 input/output
+        for node_name in _order {
+            if let Some(node_state) = self.nodes.get(node_name) {
+                let resources = node_state.node.node_resources();
+                
+                // 收集 input 和 output 的名称
+                let inputs: Vec<String> = resources.inputs.iter().map(|i| i.id.name().to_string()).collect();
+                let outputs: Vec<String> = resources.outputs.iter().map(|o| o.id.name().to_string()).collect();
+                
+                // 创建 mermaid 子图节点表示
+                mermaid.push_str(&format!("    subgraph {}[\"{}\"]\n", node_name, node_name));
+                mermaid.push_str(&format!("        {}_inputs[\"Inputs:\\n{}\"]\n",
+                    node_name, 
+                    if inputs.is_empty() { "none".to_string() } else { inputs.join("\\n") }));
+                mermaid.push_str(&format!("        {}_outputs[\"Outputs:\\n{}\"]\n",
+                    node_name, 
+                    if outputs.is_empty() { "none".to_string() } else { outputs.join("\\n") }));
+                mermaid.push_str("    end\n");
+            }
         }
 
+        // 添加依赖边
         for (to, froms) in &self.dependencies {
             for from in froms {
-                mermaid.push_str(&format!("    {} --> {}\n", from, to));
+                mermaid.push_str(&format!("    {}_outputs --> {}_inputs\n", from, to));
             }
         }
         mermaid.push_str("```\n");
