@@ -489,7 +489,7 @@ impl Model {
         texture_cache: &mut TextureCache,
         material_cache: &mut MaterialCache,
         mesh_cache: &mut MeshCache,
-        mesh_allocator: &mut crate::render::allocator::MeshAllocator,
+        mesh_allocator: &mut crate::render::mesh_allocator::MeshAllocator,
     ) {
         let mut material_ids = Vec::new();
         let mut material_transparencies = Vec::new();
@@ -577,7 +577,7 @@ impl Model {
         tc: &mut TextureCache,
         mc: &mut MaterialCache,
         msc: &mut MeshCache,
-        ma: &mut crate::render::allocator::MeshAllocator,
+        ma: &mut crate::render::mesh_allocator::MeshAllocator,
     ) -> Self {
         let mut model = Self {
             node_3d: Node3d::default(),
@@ -597,7 +597,7 @@ impl Model {
         tc: &mut TextureCache,
         mc: &mut MaterialCache,
         msc: &mut MeshCache,
-        ma: &mut crate::render::allocator::MeshAllocator,
+        ma: &mut crate::render::mesh_allocator::MeshAllocator,
         rs: &RenderContext,
         path: P,
     ) -> Result<Self> {

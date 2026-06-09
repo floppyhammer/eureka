@@ -60,7 +60,7 @@ pub(crate) fn prepare_sky(
     texture_cache: &TextureCache,
     texture_id: &TextureId,
     _camera_bind_group_layout: &wgpu::BindGroupLayout,
-    mesh_allocator: &mut crate::render::allocator::MeshAllocator,
+    mesh_allocator: &mut crate::render::mesh_allocator::MeshAllocator,
 ) {
     let device = &render_server.device;
 
@@ -106,7 +106,7 @@ pub(crate) fn render_sky<'a, 'b: 'a>(
     camera_bind_group: &'b wgpu::BindGroup,
     render_resources: &'b SkyRenderResources,
     render_pass: &mut RenderPass<'a>,
-    mesh_allocator: &'b crate::render::allocator::MeshAllocator,
+    mesh_allocator: &'b crate::render::mesh_allocator::MeshAllocator,
     pipeline: &'b wgpu::RenderPipeline,
 ) {
     if render_resources.mesh.is_none() {

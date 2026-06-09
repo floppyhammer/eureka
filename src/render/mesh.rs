@@ -1,6 +1,6 @@
 use crate::math::aabb::Aabb;
 use crate::math::transform::Transform3d;
-use crate::render::allocator::MeshAllocator;
+use crate::render::mesh_allocator::MeshAllocator;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::gizmo::GizmoRenderResources;
 use crate::render::light::{ExtractedLights, LightRenderResources, LightUniform, MAX_POINT_LIGHTS};
