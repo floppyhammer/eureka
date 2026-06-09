@@ -1,7 +1,7 @@
 use crate::asset::AssetServer;
 use crate::math::rect_to_vec4;
 use crate::math::transform::Transform2d;
-use crate::render::atlas::{Atlas, AtlasInstance, AtlasMode};
+use crate::render::atlas::{Atlas, AtlasInstance};
 use crate::render::{RenderContext, TextureCache};
 use crate::text::{DynamicFont, FONT_ATLAS_SIZE};
 use glam::{Vec2, Vec4};
@@ -90,7 +90,6 @@ impl TextServer {
                     texture: None,
                     instances: vec![],
                     texture_size: (FONT_ATLAS_SIZE, FONT_ATLAS_SIZE),
-                    mode: AtlasMode::Text,
                 };
             }
         };
@@ -141,7 +140,6 @@ impl TextServer {
             texture: Some(font.atlas_texture),
             instances,
             texture_size: (FONT_ATLAS_SIZE, FONT_ATLAS_SIZE),
-            mode: AtlasMode::Text,
         }
     }
 }

@@ -1,4 +1,3 @@
-use crate::render::bind_group::BindGroupId;
 use crate::render::{TextureCache, TextureId};
 use bitflags::bitflags;
 use std::collections::HashMap;
@@ -19,8 +18,6 @@ pub struct MaterialStandard {
     pub color_texture: Option<TextureId>,
     pub normal_texture: Option<TextureId>,
     pub metallic_roughness_texture: Option<TextureId>,
-    // Bind group for the textures.
-    pub texture_bind_group: Option<BindGroupId>,
     pub transparent: bool,
     pub alpha_cutoff: f32,
     pub alpha_mode: AlphaMode,
@@ -50,7 +47,6 @@ impl MaterialStandard {
             color_texture: None,
             normal_texture: None,
             metallic_roughness_texture: None,
-            texture_bind_group: None,
             transparent: false,
             alpha_cutoff: 0.5,
             alpha_mode: AlphaMode::Opaque,

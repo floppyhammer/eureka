@@ -1,4 +1,3 @@
-use crate::render::atlas::AtlasRenderResources;
 use crate::render::camera::{CameraRenderResources, CameraType, ExtractedCameras};
 use crate::render::draw_command::DrawCommands;
 use crate::render::gizmo::GizmoRenderResources;

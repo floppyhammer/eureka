@@ -535,7 +535,6 @@ impl Model {
                 color_texture,
                 normal_texture,
                 metallic_roughness_texture,
-                texture_bind_group: None,
                 transparent: m.transparent,
                 alpha_cutoff: m.alpha_cutoff,
                 alpha_mode,

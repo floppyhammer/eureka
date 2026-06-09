@@ -7,14 +7,12 @@ pub(crate) mod render_context;
 pub(crate) mod ssao;
 pub(crate) mod texture;
 pub(crate) mod vertex;
-
 pub(crate) mod light;
 
 pub use mesh::*;
 pub use render_context::*;
 pub use texture::*;
 
-mod bind_group;
 pub(crate) mod camera;
 pub mod draw_command;
 pub(crate) mod material;

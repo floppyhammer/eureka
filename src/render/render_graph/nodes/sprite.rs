@@ -1,4 +1,3 @@
-use crate::render::atlas::render_atlas;
 use crate::render::create_render_pipeline;
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use crate::render::sprite::render_sprite;
