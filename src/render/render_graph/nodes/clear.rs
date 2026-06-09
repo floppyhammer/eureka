@@ -1,5 +1,5 @@
 use crate::render::camera::CameraType;
-use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, TextureKey};
 use crate::render::Texture;
 
 use std::any::Any;
@@ -63,8 +63,8 @@ impl Node for ClearNode {
         };
 
         // 按顺序获取纹理句柄（现在返回的是克隆后的句柄，不会互相冲突）
-        let main_color = context.get_texture("main_color", main_color_key);
-        let main_depth = context.get_texture("main_depth", main_depth_key);
+        let main_color = context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
+        let main_depth = context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
 
         let world = &*context.render_world;
 

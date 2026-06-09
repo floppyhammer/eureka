@@ -1,5 +1,5 @@
 use crate::render::create_render_pipeline;
-use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, TextureKey};
 use crate::render::sprite::render_sprite;
 use crate::render::vertex::{Vertex2d, VertexBuffer};
 use crate::render::Texture;
@@ -91,7 +91,7 @@ impl Node for SpriteNode {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         };
-        let main_depth = context.get_texture("main_depth", main_depth_key);
+        let main_depth = context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
 
         let world = &*context.render_world;
         if world.sprite_batches.is_empty() {

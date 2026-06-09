@@ -290,17 +290,17 @@ pub mod standard_resources {
         ResourceId::new("main_color")
     }
 
+    // 深度缓冲区
+    pub fn main_depth() -> TextureId {
+        ResourceId::new("main_depth")
+    }
+    
     pub fn fxaa_color() -> TextureId {
         ResourceId::new("fxaa_color")
     }
 
     pub fn camera_buffer() -> BufferId {
         ResourceId::new("camera_buffer")
-    }
-
-    // 深度缓冲区
-    pub fn main_depth() -> TextureId {
-        ResourceId::new("main_depth")
     }
 
     // SSAO 相关

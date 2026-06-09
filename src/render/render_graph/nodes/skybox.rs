@@ -1,4 +1,4 @@
-use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, TextureKey};
 use crate::render::sky::render_sky;
 use crate::render::vertex::{VertexBuffer, VertexSky};
 use crate::render::{create_render_pipeline, Texture};
@@ -100,8 +100,8 @@ impl Node for SkyboxNode {
             layers: 1,
         };
 
-        let main_color = context.get_texture("main_color", main_color_key);
-        let main_depth = context.get_texture("main_depth", main_depth_key);
+        let main_color = context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
+        let main_depth = context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
 
         let world = &*context.render_world;
         if world.extracted.sky.is_none() {
