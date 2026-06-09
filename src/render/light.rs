@@ -363,7 +363,8 @@ pub(crate) fn prepare_shadow(
 
 pub(crate) fn render_shadow(
     encoder: &mut wgpu::CommandEncoder,
-    texture_cache: &TextureCache,
+    directional_shadow_texture: &wgpu::Texture,
+    point_shadow_texture: &wgpu::Texture,
     render_resources: &LightRenderResources,
     extracted_lights: &ExtractedLights,
     extracted_meshes: &Vec<ExtractedMesh>,
@@ -379,12 +380,9 @@ pub(crate) fn render_shadow(
     let offset_unit = CameraUniform::get_uniform_offset_unit();
 
     // Directional Shadow
-    if let Some(shadow_map_id) = render_resources.directional_shadow_map {
-        let shadow_map = texture_cache.get(shadow_map_id).unwrap();
-
+    {
         for i in 0..NUM_CASCADES {
-            let cascade_view = shadow_map
-                .texture
+            let cascade_view = directional_shadow_texture
                 .create_view(&wgpu::TextureViewDescriptor {
                     label: Some("shadow cascade view"),
                     format: Some(Texture::DEPTH_FORMAT),
@@ -396,6 +394,8 @@ pub(crate) fn render_shadow(
                     base_array_layer: i as u32,
                     array_layer_count: Some(1),
                 });
+// ...
+// ... rest remains same but remove the point shadow block for now if it depends on cache
 
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("directional shadow render pass"),
@@ -444,16 +444,13 @@ pub(crate) fn render_shadow(
     }
 
     // Point Shadow
-    if let Some(point_shadow_map_id) = render_resources.point_shadow_map {
-        let shadow_map = texture_cache.get(point_shadow_map_id).unwrap();
-
+    {
         for i in 0..(extracted_lights.point_lights.len() * 6) {
             if i >= MAX_POINT_LIGHTS * 6 {
                 break;
             }
 
-            let face_view = shadow_map
-                .texture
+            let face_view = point_shadow_texture
                 .create_view(&wgpu::TextureViewDescriptor {
                     label: Some("point shadow face view"),
                     format: Some(Texture::DEPTH_FORMAT),

@@ -100,9 +100,6 @@ impl RenderGraph {
         self.pool
             .update(self.frame_count, render_context.frames_in_flight as u64);
 
-        let mut active_textures: HashMap<ResourceId<()>, (TextureKey, Texture)> = HashMap::new();
-        let mut active_buffers: HashMap<ResourceId<()>, (BufferKey, PooledBuffer)> = HashMap::new();
-
         // Simple topological sort for execution order
         if self.cached_execution_order.is_none() {
             let order = self.topological_sort();
@@ -110,6 +107,66 @@ impl RenderGraph {
             self.cached_execution_order = Some(order);
         }
         let execution_order = self.cached_execution_order.as_ref().unwrap().clone();
+
+        // 2. 预分析资源声明，进行合并和预分配
+        let mut merged_specs: HashMap<ResourceId<()>, ResourceSpec> = HashMap::new();
+        for node_name in &execution_order {
+            if let Some(node_state) = self.nodes.get(node_name) {
+                let resources = node_state.node.node_resources();
+                for decl in resources
+                    .inputs
+                    .into_iter()
+                    .chain(resources.outputs.into_iter())
+                {
+                    merged_specs
+                        .entry(decl.id)
+                        .and_modify(|s| s.merge(&decl.spec))
+                        .or_insert(decl.spec);
+                }
+            }
+        }
+
+        let mut active_resources: HashMap<ResourceId<()>, (ResourceKey, VirtualResource)> =
+            HashMap::new();
+
+        for (id, spec) in merged_specs {
+            // 跳过内置的 final_output，它不由池管理
+            if id == standard_resources::final_output().erase() {
+                continue;
+            }
+            match spec {
+                ResourceSpec::Texture(mut key) => {
+                    // 处理 0 尺寸继承（简单实现：使用当前 surface 尺寸）
+                    if key.width == 0 {
+                        key.width = render_context.surface_config.width;
+                    }
+                    if key.height == 0 {
+                        key.height = render_context.surface_config.height;
+                    }
+
+                    // 自动修正主颜色缓冲区的格式，确保与 Surface 一致，防止验证错误
+                    if id == standard_resources::main_color().erase() ||
+                       id == standard_resources::fxaa_color().erase() {
+                        key.format = render_context.surface_config.format;
+                    }
+
+                    let tex = self.pool.acquire_texture(&render_context.device, key);
+                    active_resources.insert(
+                        id,
+                        (ResourceKey::Texture(key), VirtualResource::Texture(tex)),
+                    );
+                }
+                ResourceSpec::Buffer(mut key) => {
+                    // 可以在这里根据某种逻辑推导 Buffer 大小
+                    let buf = self.pool.acquire_buffer(&render_context.device, key);
+                    active_resources.insert(
+                        id,
+                        (ResourceKey::Buffer(key), VirtualResource::Buffer(buf)),
+                    );
+                }
+                _ => {} // 其他资源类型暂不预分配
+            }
+        }
 
         // 验证资源依赖
         if let Err(err) = self.validate_resource_dependencies(&execution_order) {
@@ -124,8 +181,7 @@ impl RenderGraph {
             encoder,
             final_output_view,
             pool: &mut self.pool,
-            active_textures: &mut active_textures,
-            active_buffers: &mut active_buffers,
+            active_resources: &mut active_resources,
         };
 
         // 准备所有节点
@@ -143,13 +199,16 @@ impl RenderGraph {
         }
 
         // 帧结束，回收所有资源
-        for (_, (key, texture)) in active_textures {
-            self.pool
-                .release_texture_deferred(key, texture, self.frame_count);
-        }
-        for (_, (key, buffer)) in active_buffers {
-            self.pool
-                .release_buffer_deferred(key, buffer, self.frame_count);
+        for (_, (key, resource)) in active_resources {
+            match (key, resource) {
+                (ResourceKey::Texture(k), VirtualResource::Texture(t)) => {
+                    self.pool.release_texture_deferred(k, t, self.frame_count);
+                }
+                (ResourceKey::Buffer(k), VirtualResource::Buffer(b)) => {
+                    self.pool.release_buffer_deferred(k, b, self.frame_count);
+                }
+                _ => panic!("Resource key and type mismatch during release"),
+            }
         }
 
         self.frame_count += 1;
@@ -159,23 +218,25 @@ impl RenderGraph {
         let mut available_resources: HashMap<ResourceId<()>, ()> = HashMap::new();
 
         // 添加一些内置的初始资源（如最终输出视图）
-        available_resources.insert(ResourceId::new("final_output"), ());
+        available_resources.insert(standard_resources::final_output().erase(), ());
 
         for node_name in execution_order {
             if let Some(node_state) = self.nodes.get(node_name) {
+                let resources = node_state.node.node_resources();
+
                 // 检查输入资源是否可用
-                for input_id in node_state.node.input_resources() {
-                    if !available_resources.contains_key(&input_id) {
+                for input in resources.inputs {
+                    if !input.optional && !available_resources.contains_key(&input.id) {
                         return Err(format!(
                             "Node '{}' requires input resource '{}' which is not available",
-                            node_name, input_id
+                            node_name, input.id
                         ));
                     }
                 }
 
                 // 将输出资源标记为可用
-                for output_id in node_state.node.output_resources() {
-                    available_resources.insert(output_id, ());
+                for output in resources.outputs {
+                    available_resources.insert(output.id, ());
                 }
             }
         }
@@ -253,12 +314,12 @@ pub struct FrameContext<'a> {
     pub final_output_view: &'a wgpu::TextureView,
 
     pool: &'a mut ResourcePool,
-    active_textures: &'a mut HashMap<ResourceId<()>, (TextureKey, Texture)>,
-    active_buffers: &'a mut HashMap<ResourceId<()>, (BufferKey, PooledBuffer)>,
+    active_resources: &'a mut HashMap<ResourceId<()>, (ResourceKey, VirtualResource)>,
 }
 
 /// 包含克隆后的句柄，不绑定生命周期
 pub struct ResolvedTransientTexture {
+    pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub id: u64,
 }
@@ -271,32 +332,30 @@ impl<'a> FrameContext<'a> {
         key: TextureKey,
     ) -> ResolvedTransientTexture {
         let name = name.into();
-        let res_id = ResourceId::new(name);
-        let (_, texture) = self.active_textures.entry(res_id).or_insert_with(|| {
-            let tex = self.pool.acquire_texture(&self.render_context.device, key);
-            (key, tex)
-        });
-
-        ResolvedTransientTexture {
-            view: texture.view.clone(),
-            id: texture.id,
-        }
+        let id = TextureId::new(name);
+        self.get_texture_by_id(&id, key)
     }
 
     /// 通过类型化资源ID获取纹理
     pub fn get_texture_by_id(
         &mut self,
-        id: &ResourceId<()>,
+        id: &TextureId,
         key: TextureKey,
     ) -> ResolvedTransientTexture {
-        let (_, texture) = self.active_textures.entry(id.clone()).or_insert_with(|| {
+        let res_id = id.clone().erase();
+        let (_, resource) = self.active_resources.entry(res_id).or_insert_with(|| {
             let tex = self.pool.acquire_texture(&self.render_context.device, key);
-            (key, tex)
+            (ResourceKey::Texture(key), VirtualResource::Texture(tex))
         });
 
-        ResolvedTransientTexture {
-            view: texture.view.clone(),
-            id: texture.id,
+        if let VirtualResource::Texture(texture) = resource {
+            ResolvedTransientTexture {
+                texture: texture.texture.clone(),
+                view: texture.view.clone(),
+                id: texture.id,
+            }
+        } else {
+            panic!("Resource type mismatch: expected Texture");
         }
     }
 
@@ -308,28 +367,29 @@ impl<'a> FrameContext<'a> {
     /// 获取一个瞬时缓冲区。返回其克隆句柄。
     pub fn get_buffer(&mut self, name: impl Into<String>, key: BufferKey) -> PooledBuffer {
         let name = name.into();
-        let res_id = ResourceId::new(name);
-        let (_, buffer) = self.active_buffers.entry(res_id).or_insert_with(|| {
-            let buf = self.pool.acquire_buffer(&self.render_context.device, key);
-            (key, buf)
-        });
-
-        buffer.clone()
+        let id = BufferId::new(name);
+        self.get_buffer_by_id(&id, key)
     }
 
     /// 通过资源ID获取缓冲区
-    pub fn get_buffer_by_id(&mut self, id: &ResourceId<()>, key: BufferKey) -> PooledBuffer {
-        let (_, buffer) = self.active_buffers.entry(id.clone()).or_insert_with(|| {
+    pub fn get_buffer_by_id(&mut self, id: &BufferId, key: BufferKey) -> PooledBuffer {
+        let res_id = id.clone().erase();
+        let (_, resource) = self.active_resources.entry(res_id).or_insert_with(|| {
             let buf = self.pool.acquire_buffer(&self.render_context.device, key);
-            (key, buf)
+            (ResourceKey::Buffer(key), VirtualResource::Buffer(buf))
         });
 
-        buffer.clone()
+        if let VirtualResource::Buffer(buffer) = resource {
+            buffer.clone()
+        } else {
+            panic!("Resource type mismatch: expected Buffer");
+        }
     }
 
     /// 检查资源是否存在
-    pub fn has_resource(&self, id: &ResourceId<()>) -> bool {
-        self.active_textures.contains_key(id) || self.active_buffers.contains_key(id)
+    pub fn has_resource<T>(&self, id: &ResourceId<T>) -> bool {
+        let res_id = id.clone().erase();
+        self.active_resources.contains_key(&res_id)
     }
 
     /// 获取或创建缓存的 BindGroup

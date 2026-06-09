@@ -17,8 +17,10 @@ impl Node for CullingNode {
         self
     }
 
-    fn input_resources(&self) -> Vec<ResourceId<()>> {
-        vec![standard_resources::camera_buffer()]
+    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::render_graph::resource::ResourceSpec;
+        crate::render::render_graph::resource::NodeResources::new()
+            .input(standard_resources::camera_buffer(), ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM))
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {

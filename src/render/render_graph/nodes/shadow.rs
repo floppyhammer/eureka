@@ -19,6 +19,35 @@ impl Node for ShadowNode {
         self
     }
 
+    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::render_graph::standard_resources;
+        use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
+        use crate::render::Texture;
+        use crate::render::light::{MAX_POINT_LIGHTS, NUM_CASCADES};
+
+        crate::render::render_graph::resource::NodeResources::new()
+            .output(
+                standard_resources::directional_shadow_map(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 2048,
+                    height: 2048,
+                    format: Texture::DEPTH_FORMAT,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    layers: NUM_CASCADES as u32,
+                }),
+            )
+            .output(
+                standard_resources::point_shadow_map(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 512,
+                    height: 512,
+                    format: Texture::DEPTH_FORMAT,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    layers: (MAX_POINT_LIGHTS * 6) as u32,
+                }),
+            )
+    }
+
     fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() {
             return;
@@ -55,11 +84,33 @@ impl Node for ShadowNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
+        use crate::render::render_graph::TextureKey;
+        use crate::render::Texture;
+        use crate::render::light::MAX_POINT_LIGHTS;
+
+        let shadow_key = TextureKey {
+            width: 2048,
+            height: 2048,
+            format: Texture::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
+        };
+            let psm_key = TextureKey {
+            width: 512,
+            height: 512,
+            format: Texture::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: (MAX_POINT_LIGHTS * 6) as u32,
+        };
+        let directional_shadow_map = context.get_texture_by_id(&crate::render::render_graph::standard_resources::directional_shadow_map(), psm_key);
+        let point_shadow_map = context.get_texture_by_id(&crate::render::render_graph::standard_resources::point_shadow_map(), psm_key);
+
         let world = &*context.render_world;
         if let Some(pipeline) = &self.pipeline {
             render_shadow(
                 context.encoder,
-                &world.texture_cache,
+                &directional_shadow_map.texture,
+                &point_shadow_map.texture,
                 &world.light_render_resources,
                 &world.extracted.lights,
                 &world.extracted.meshes,

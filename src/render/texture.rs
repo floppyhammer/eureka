@@ -27,6 +27,7 @@ pub struct RawCubeTextureData {
     pub format: wgpu::TextureFormat,
 }
 
+#[derive(Clone)]
 pub struct Texture {
     pub(crate) size: (u32, u32),
     // Actual data.

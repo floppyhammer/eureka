@@ -11,6 +11,34 @@ impl Node for ClearNode {
         self
     }
 
+    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::render_graph::standard_resources;
+        use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
+        use crate::render::Texture;
+
+        crate::render::render_graph::resource::NodeResources::new()
+            .output(
+                standard_resources::main_color(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    layers: 1,
+                }),
+            )
+            .output(
+                standard_resources::main_depth(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: Texture::DEPTH_FORMAT,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    layers: 1,
+                }),
+            )
+    }
+
     fn run(&mut self, context: &mut FrameContext) {
         let width = context.render_context.surface_config.width;
         let height = context.render_context.surface_config.height;
@@ -22,12 +50,14 @@ impl Node for ClearNode {
             height,
             format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
         };
         let main_depth_key = TextureKey {
             width,
             height,
             format: Texture::DEPTH_FORMAT,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
         };
 
         // 按顺序获取纹理句柄（现在返回的是克隆后的句柄，不会互相冲突）

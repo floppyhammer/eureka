@@ -76,7 +76,7 @@ impl ResourcePool {
             size: wgpu::Extent3d {
                 width: key.width,
                 height: key.height,
-                depth_or_array_layers: 1,
+                depth_or_array_layers: key.layers,
             },
             mip_level_count: 1,
             sample_count: 1,
@@ -86,7 +86,14 @@ impl ResourcePool {
             view_formats: &[],
         });
 
-        let view = wgpu_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = wgpu_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: if key.layers > 1 {
+                Some(wgpu::TextureViewDimension::D2Array)
+            } else {
+                Some(wgpu::TextureViewDimension::D2)
+            },
+            ..Default::default()
+        });
 
         Texture {
             size: (key.width, key.height),
@@ -104,10 +111,20 @@ impl ResourcePool {
     // --- 缓冲区管理 ---
 
     pub fn acquire_buffer(&mut self, device: &wgpu::Device, key: BufferKey) -> PooledBuffer {
-        if let Some(buffers) = self.buffers.get_mut(&key) {
-            if let Some(buffer) = buffers.pop() {
-                return buffer;
+        // 尝试寻找一个大小足够且用法兼容的现有缓冲区
+        let mut found_key = None;
+        for (pool_key, buffers) in &mut self.buffers {
+            if !buffers.is_empty()
+                && pool_key.size >= key.size
+                && pool_key.usage.contains(key.usage)
+            {
+                found_key = Some(*pool_key);
+                break;
             }
+        }
+
+        if let Some(k) = found_key {
+            return self.buffers.get_mut(&k).unwrap().pop().unwrap();
         }
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {

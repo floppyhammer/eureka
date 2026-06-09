@@ -12,8 +12,21 @@ impl Node for PrepareViewNode {
         self
     }
 
-    fn output_resources(&self) -> Vec<crate::render::render_graph::ResourceId<()>> {
-        vec![standard_resources::camera_buffer()]
+    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::camera::CameraUniform;
+        use crate::render::render_graph::resource::{BufferKey, ResourceSpec};
+
+        let offset_unit = CameraUniform::get_uniform_offset_unit();
+        // 假设最大支持 16 个相机，或者由 Prepare 动态调整
+        let buffer_size = offset_unit * 16;
+
+        crate::render::render_graph::resource::NodeResources::new().output(
+            standard_resources::camera_buffer(),
+            ResourceSpec::buffer(
+                buffer_size as u64,
+                wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            ),
+        )
     }
 
     fn run(&mut self, context: &mut FrameContext) {

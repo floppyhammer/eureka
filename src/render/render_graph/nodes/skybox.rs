@@ -19,6 +19,33 @@ impl Node for SkyboxNode {
         self
     }
 
+    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::render_graph::standard_resources;
+        use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
+        use crate::render::Texture;
+
+        let color_spec = ResourceSpec::Texture(TextureKey {
+            width: 0,
+            height: 0,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
+        });
+        let depth_spec = ResourceSpec::Texture(TextureKey {
+            width: 0,
+            height: 0,
+            format: Texture::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
+        });
+
+        crate::render::render_graph::resource::NodeResources::new()
+            .input(standard_resources::main_color(), color_spec.clone())
+            .input(standard_resources::main_depth(), depth_spec.clone())
+            .output(standard_resources::main_color(), color_spec)
+            .output(standard_resources::main_depth(), depth_spec)
+    }
+
     fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() {
             return;
@@ -63,12 +90,14 @@ impl Node for SkyboxNode {
             height,
             format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
         };
         let main_depth_key = TextureKey {
             width,
             height,
             format: Texture::DEPTH_FORMAT,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
         };
 
         let main_color = context.get_texture("main_color", main_color_key);

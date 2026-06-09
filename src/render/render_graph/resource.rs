@@ -1,6 +1,7 @@
 use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
+use crate::render::Texture;
 
 /// 资源类型枚举
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12,11 +13,26 @@ pub enum ResourceType {
     Sampler,
 }
 
+/// 资源类型标签
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TextureTag;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BufferTag;
+
 /// 类型化资源 ID
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ResourceId<T> {
     name: String,
     _marker: PhantomData<T>,
+}
+
+impl<T> Clone for ResourceId<T> {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<T> ResourceId<T> {
@@ -30,7 +46,18 @@ impl<T> ResourceId<T> {
     pub fn name(&self) -> &str {
         &self.name
     }
+
+    /// 擦除类型信息，转为通用 ID
+    pub fn erase(self) -> ResourceId<()> {
+        ResourceId {
+            name: self.name,
+            _marker: PhantomData,
+        }
+    }
 }
+
+pub type TextureId = ResourceId<TextureTag>;
+pub type BufferId = ResourceId<BufferTag>;
 
 impl<T> PartialEq for ResourceId<T> {
     fn eq(&self, other: &Self) -> bool {
@@ -59,6 +86,19 @@ pub struct TextureKey {
     pub height: u32,
     pub format: wgpu::TextureFormat,
     pub usage: wgpu::TextureUsages,
+    pub layers: u32,
+}
+
+impl Default for TextureKey {
+    fn default() -> Self {
+        Self {
+            width: 0,
+            height: 0,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
+        }
+    }
 }
 
 /// 缓冲区资源键
@@ -129,17 +169,64 @@ pub struct BindGroupKey {
     pub resource_ids: Vec<u64>,
 }
 
+/// 资源池化键的统一包装
+#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
+pub enum ResourceKey {
+    Texture(TextureKey),
+    Buffer(BufferKey),
+}
+
+/// 运行时物理资源的统一包装
+#[derive(Clone)]
+pub enum VirtualResource {
+    Texture(Texture),
+    Buffer(PooledBuffer),
+}
+
+impl VirtualResource {
+    pub fn id(&self) -> u64 {
+        match self {
+            VirtualResource::Texture(t) => t.id,
+            VirtualResource::Buffer(b) => b.id,
+        }
+    }
+}
+
 /// 资源规格（用于创建资源时的参数）
-/// 目前主要用于纹理资源的声明
 #[derive(Debug, Clone)]
 pub enum ResourceSpec {
     Texture(TextureKey),
     Buffer(BufferKey),
     Sampler(SamplerKey),
-    /// 占位符，用于声明需要 BindGroup 但不指定具体布局
-    BindGroup,
-    /// 占位符，用于声明需要 Pipeline 但不指定具体布局
-    Pipeline,
+}
+
+impl ResourceSpec {
+    /// 快速创建一个通用的纹理规格
+    pub fn texture(width: u32, height: u32, format: wgpu::TextureFormat, usage: wgpu::TextureUsages, layers: u32) -> Self {
+        Self::Texture(TextureKey { width, height, format, usage, layers })
+    }
+
+    /// 快速创建一个通用的缓冲区规格
+    pub fn buffer(size: u64, usage: wgpu::BufferUsages) -> Self {
+        Self::Buffer(BufferKey { size, usage })
+    }
+
+    pub fn merge(&mut self, other: &Self) {
+        match (self, other) {
+            (ResourceSpec::Texture(a), ResourceSpec::Texture(b)) => {
+                a.usage |= b.usage;
+                a.width = a.width.max(b.width);
+                a.height = a.height.max(b.height);
+                a.layers = a.layers.max(b.layers);
+                // 注意：这里假设 format 必须一致，实际中可能需要处理冲突
+            }
+            (ResourceSpec::Buffer(a), ResourceSpec::Buffer(b)) => {
+                a.usage |= b.usage;
+                a.size = a.size.max(b.size);
+            }
+            _ => {}
+        }
+    }
 }
 
 /// 资源声明（节点使用）
@@ -164,27 +251,27 @@ impl NodeResources {
         }
     }
 
-    pub fn input(mut self, id: ResourceId<()>, spec: ResourceSpec) -> Self {
+    pub fn input<T>(mut self, id: ResourceId<T>, spec: ResourceSpec) -> Self {
         self.inputs.push(ResourceDecl {
-            id,
+            id: id.erase(),
             spec,
             optional: false,
         });
         self
     }
 
-    pub fn optional_input(mut self, id: ResourceId<()>, spec: ResourceSpec) -> Self {
+    pub fn optional_input<T>(mut self, id: ResourceId<T>, spec: ResourceSpec) -> Self {
         self.inputs.push(ResourceDecl {
-            id,
+            id: id.erase(),
             spec,
             optional: true,
         });
         self
     }
 
-    pub fn output(mut self, id: ResourceId<()>, spec: ResourceSpec) -> Self {
+    pub fn output<T>(mut self, id: ResourceId<T>, spec: ResourceSpec) -> Self {
         self.outputs.push(ResourceDecl {
-            id,
+            id: id.erase(),
             spec,
             optional: false,
         });
@@ -194,42 +281,50 @@ impl NodeResources {
 
 /// 预定义的标准资源 ID（使用函数而非静态常量）
 pub mod standard_resources {
-    use super::ResourceId;
+    use super::{BufferId, ResourceId, TextureId};
 
     // 颜色缓冲区
-    pub fn main_color() -> ResourceId<()> {
+    pub fn main_color() -> TextureId {
         ResourceId::new("main_color")
     }
 
-    pub fn fxaa_color() -> ResourceId<()> {
+    pub fn fxaa_color() -> TextureId {
         ResourceId::new("fxaa_color")
     }
 
-    pub fn camera_buffer() -> ResourceId<()> {
+    pub fn camera_buffer() -> BufferId {
         ResourceId::new("camera_buffer")
     }
 
     // 深度缓冲区
-    pub fn main_depth() -> ResourceId<()> {
+    pub fn main_depth() -> TextureId {
         ResourceId::new("main_depth")
     }
 
     // SSAO 相关
-    pub fn ssao_normal() -> ResourceId<()> {
+    pub fn ssao_normal() -> TextureId {
         ResourceId::new("ssao_normal")
     }
 
-    pub fn ssao_output() -> ResourceId<()> {
+    pub fn ssao_output() -> TextureId {
         ResourceId::new("ssao_output")
     }
 
+    pub fn ssao_blur() -> TextureId {
+        ResourceId::new("ssao_blur")
+    }
+
     // 阴影相关
-    pub fn shadow_map() -> ResourceId<()> {
-        ResourceId::new("shadow_map")
+    pub fn directional_shadow_map() -> TextureId {
+        ResourceId::new("directional_shadow_map")
+    }
+
+    pub fn point_shadow_map() -> TextureId {
+        ResourceId::new("point_shadow_map")
     }
 
     // 最终输出
-    pub fn final_output() -> ResourceId<()> {
+    pub fn final_output() -> TextureId {
         ResourceId::new("final_output")
     }
 }

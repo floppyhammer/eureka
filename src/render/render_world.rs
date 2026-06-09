@@ -99,6 +99,7 @@ impl RenderWorld {
         graph.add_node("sprite", SpriteNode::default());
 
         graph.add_node_edge("prepare_view", "cull");
+        graph.add_node_edge("prepare_view", "ssao");
         graph.add_node_edge("cull", "shadow");
         graph.add_node_edge("cull", "mesh");
         graph.add_node_edge("shadow", "mesh");

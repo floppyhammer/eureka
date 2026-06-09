@@ -257,6 +257,8 @@ impl SsaoRenderResources {
         device: &wgpu::Device,
         texture_cache: &TextureCache,
         depth_view: &wgpu::TextureView,
+        normal_view: &wgpu::TextureView,
+        ssao_raw_view: &wgpu::TextureView,
     ) {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -274,7 +276,6 @@ impl SsaoRenderResources {
             ..Default::default()
         });
 
-        let normal_view = &texture_cache.get(self.normal_texture).unwrap().view;
         let noise_view = &texture_cache.get(self.noise_texture).unwrap().view;
 
         // Note: Recreating layouts because they aren't stored.
@@ -332,13 +333,12 @@ impl SsaoRenderResources {
                 ],
             });
 
-        let ssao_view = &texture_cache.get(self.ssao_texture).unwrap().view;
         self.blur_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &blur_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(ssao_view),
+                    resource: wgpu::BindingResource::TextureView(ssao_raw_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,

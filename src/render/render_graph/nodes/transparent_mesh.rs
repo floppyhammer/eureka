@@ -1,9 +1,9 @@
 use crate::render::camera::CameraType;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::mesh::{ExtractedMesh, MeshCache, MeshRenderResources};
-use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, TextureKey};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
-use crate::render::{create_render_pipeline, InstanceRaw, Texture};
+use crate::render::{create_render_pipeline, InstanceRaw, MeshId, Texture};
 use glam::{Mat4, Vec3};
 use std::any::Any;
 use std::mem;
@@ -25,6 +25,43 @@ impl Default for TransparentMeshNode {
 impl Node for TransparentMeshNode {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::render_graph::standard_resources;
+        use crate::render::render_graph::resource::{ResourceSpec, TextureKey, ResourceId};
+        use crate::render::Texture;
+
+        let color_spec = ResourceSpec::Texture(TextureKey {
+            width: 0,
+            height: 0,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
+        });
+        let depth_spec = ResourceSpec::Texture(TextureKey {
+            width: 0,
+            height: 0,
+            format: Texture::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
+        });
+
+        crate::render::render_graph::resource::NodeResources::new()
+            .input(standard_resources::main_color(), color_spec.clone())
+            .input(standard_resources::main_depth(), depth_spec.clone())
+            .optional_input(
+                standard_resources::ssao_blur(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: wgpu::TextureFormat::R8Unorm,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                    layers: 1,
+                }),
+            )
+            .output(standard_resources::main_color(), color_spec)
+            .output(standard_resources::main_depth(), depth_spec)
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {
@@ -73,21 +110,98 @@ impl Node for TransparentMeshNode {
             height,
             format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
         };
         let main_depth_key = TextureKey {
             width,
             height,
             format: Texture::DEPTH_FORMAT,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
         };
 
-        let main_color = context.get_texture("main_color", main_color_key);
-        let main_depth = context.get_texture("main_depth", main_depth_key);
+        let main_color = context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
+        let main_depth = context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
 
-        let world = &*context.render_world;
-        if world.extracted.transparent_meshes.is_empty() {
+        let r8_key = TextureKey {
+            width,
+            height,
+            format: wgpu::TextureFormat::R8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
+        };
+        let ssao_blur = context.get_texture_by_id(&standard_resources::ssao_blur(), r8_key);
+
+        let shadow_key = TextureKey {
+            width: 2048,
+            height: 2048,
+            format: Texture::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: crate::render::light::NUM_CASCADES as u32,
+        };
+        let shadow_map = context.get_texture_by_id(&standard_resources::directional_shadow_map(), shadow_key);
+
+        if context.render_world.extracted.transparent_meshes.is_empty() {
             return;
         }
+
+        // --- 动态更新 Light Bind Group ---
+        let device = &context.render_context.device;
+
+        let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor { label: Some("shadow sampler"), address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge, address_mode_w: wgpu::AddressMode::ClampToEdge, mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, mipmap_filter: wgpu::FilterMode::Nearest, compare: Some(wgpu::CompareFunction::LessEqual), ..Default::default() });
+        let skybox_sampler = device.create_sampler(&wgpu::SamplerDescriptor { address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge, address_mode_w: wgpu::AddressMode::ClampToEdge, mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, mipmap_filter: wgpu::FilterMode::Linear, ..Default::default() });
+
+        // 提取所需句柄以断开借用链
+        let light_resources_cascade_buffer = context.render_world.light_render_resources.cascade_uniform_buffer.as_ref().unwrap().clone();
+        let mesh_resources_light_layout = context.render_world.mesh_render_resources.light_bind_group_layout.clone();
+        let mesh_resources_light_buffer = context.render_world.mesh_render_resources.light_uniform_buffer.as_ref().unwrap().clone();
+
+        let cascade_view = shadow_map.texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("shadow cascade view"),
+            format: Some(Texture::DEPTH_FORMAT),
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            usage: Some(wgpu::TextureUsages::TEXTURE_BINDING),
+            aspect: wgpu::TextureAspect::DepthOnly,
+            array_layer_count: Some(crate::render::light::NUM_CASCADES as u32),
+            ..Default::default()
+        });
+
+        let psv = if let Some(psm_id) = context.render_world.light_render_resources.point_shadow_map {
+            let psm = context.render_world.texture_cache.get(psm_id).unwrap();
+            psm.texture.create_view(&wgpu::TextureViewDescriptor { label: Some("psv"), format: Some(Texture::DEPTH_FORMAT), dimension: Some(wgpu::TextureViewDimension::CubeArray), aspect: wgpu::TextureAspect::DepthOnly, array_layer_count: Some(crate::render::light::MAX_POINT_LIGHTS as u32 * 6), ..Default::default() })
+        } else {
+            context.render_world.mesh_render_resources.dummy_cube_view.clone()
+        };
+
+        let sky_view = if let Some(id) = context.render_world.mesh_render_resources.current_skybox {
+            context.render_world.texture_cache.get(id).unwrap().view.clone()
+        } else {
+            context.render_world.mesh_render_resources.dummy_cube_view.clone()
+        };
+
+        let light_bg = context.create_bind_group(
+            &mesh_resources_light_layout,
+            vec![ssao_blur.id, shadow_map.id],
+            |ctx| {
+                ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &mesh_resources_light_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry { binding: 0, resource: mesh_resources_light_buffer.as_entire_binding() },
+                        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&cascade_view) },
+                        wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&shadow_sampler) },
+                        wgpu::BindGroupEntry { binding: 3, resource: light_resources_cascade_buffer.as_entire_binding() },
+                        wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&psv) },
+                        wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&ssao_blur.view) },
+                        wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&sky_view) },
+                        wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::Sampler(&skybox_sampler) },
+                    ],
+                    label: Some("light bind group (dynamic)"),
+                })
+            }
+        );
+        context.render_world.mesh_render_resources.light_bind_group = Some(light_bg);
+
+        let world = &mut *context.render_world;
 
         let mut render_pass = context
             .encoder
@@ -249,5 +363,3 @@ fn render_transparent_meshes<'a, 'b: 'a>(
         base_instance += 1;
     }
 }
-
-use crate::render::mesh::MeshId;

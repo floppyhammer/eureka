@@ -17,12 +17,20 @@ impl Node for FxaaNode {
         self
     }
 
-    fn input_resources(&self) -> Vec<ResourceId<()>> {
-        vec![standard_resources::main_color()]
-    }
+    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
 
-    fn output_resources(&self) -> Vec<ResourceId<()>> {
-        vec![standard_resources::fxaa_color()]
+        let color_spec = ResourceSpec::Texture(TextureKey {
+            width: 0,
+            height: 0,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb, // 暂定，实际会合并
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
+        });
+
+        crate::render::render_graph::resource::NodeResources::new()
+            .input(standard_resources::main_color(), color_spec.clone())
+            .output(standard_resources::fxaa_color(), color_spec)
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {
@@ -84,6 +92,7 @@ impl Node for FxaaNode {
             height: context.render_context.surface_config.height,
             format: context.render_context.surface_config.format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
         };
         let input_texture = context.get_texture_by_id(&standard_resources::main_color(), key);
         let output_texture = context.get_texture_by_id(&standard_resources::fxaa_color(), key);

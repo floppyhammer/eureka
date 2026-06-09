@@ -21,6 +21,34 @@ impl Node for SpriteNode {
         self
     }
 
+    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::render_graph::standard_resources;
+        use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
+        use crate::render::Texture;
+
+        crate::render::render_graph::resource::NodeResources::new()
+            .output(
+                standard_resources::main_depth(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: Texture::DEPTH_FORMAT,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    layers: 1,
+                }),
+            )
+            .output(
+                standard_resources::final_output(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    layers: 1,
+                }),
+            )
+    }
+
     fn prepare(&mut self, context: &mut FrameContext) {
         if self.pipeline.is_some() {
             return;
@@ -62,6 +90,7 @@ impl Node for SpriteNode {
             height: context.render_context.surface_config.height,
             format: Texture::DEPTH_FORMAT,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
         };
         let main_depth = context.get_texture("main_depth", main_depth_key);
 
