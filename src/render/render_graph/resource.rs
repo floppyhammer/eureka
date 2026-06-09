@@ -1,7 +1,7 @@
+use crate::render::Texture;
 use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
-use crate::render::Texture;
 
 /// 资源类型标签
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -192,8 +192,20 @@ pub enum ResourceSpec {
 
 impl ResourceSpec {
     /// 快速创建一个通用的纹理规格
-    pub fn texture(width: u32, height: u32, format: wgpu::TextureFormat, usage: wgpu::TextureUsages, layers: u32) -> Self {
-        Self::Texture(TextureKey { width, height, format, usage, layers })
+    pub fn texture(
+        width: u32,
+        height: u32,
+        format: wgpu::TextureFormat,
+        usage: wgpu::TextureUsages,
+        layers: u32,
+    ) -> Self {
+        Self::Texture(TextureKey {
+            width,
+            height,
+            format,
+            usage,
+            layers,
+        })
     }
 
     /// 快速创建一个通用的缓冲区规格

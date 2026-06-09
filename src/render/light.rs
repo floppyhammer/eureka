@@ -1,8 +1,7 @@
 use crate::math::frustum::Frustum;
 use crate::render::camera::{CameraRenderResources, CameraUniform};
 use crate::render::{
-    ExtractedMesh, MeshCache, MeshRenderResources,
-    RenderContext, Texture, TextureCache, TextureId,
+    ExtractedMesh, MeshCache, MeshRenderResources, RenderContext, Texture, TextureCache, TextureId,
 };
 use crate::scene::Bvh;
 use glam::{Mat4, Vec3};
@@ -382,8 +381,8 @@ pub(crate) fn render_shadow(
     // Directional Shadow
     {
         for i in 0..NUM_CASCADES {
-            let cascade_view = directional_shadow_texture
-                .create_view(&wgpu::TextureViewDescriptor {
+            let cascade_view =
+                directional_shadow_texture.create_view(&wgpu::TextureViewDescriptor {
                     label: Some("shadow cascade view"),
                     format: Some(Texture::DEPTH_FORMAT),
                     dimension: Some(wgpu::TextureViewDimension::D2),
@@ -394,8 +393,8 @@ pub(crate) fn render_shadow(
                     base_array_layer: i as u32,
                     array_layer_count: Some(1),
                 });
-// ...
-// ... rest remains same but remove the point shadow block for now if it depends on cache
+            // ...
+            // ... rest remains same but remove the point shadow block for now if it depends on cache
 
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("directional shadow render pass"),
@@ -426,9 +425,22 @@ pub(crate) fn render_shadow(
                 visible_indices = (0..extracted_meshes.len()).collect();
             }
 
-            render_pass.set_vertex_buffer(0, mesh_render_resources.mesh_allocator.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, mesh_render_resources.global_instance_buffer.as_ref().unwrap().slice(..));
-            render_pass.set_index_buffer(mesh_render_resources.mesh_allocator.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            render_pass.set_vertex_buffer(
+                0,
+                mesh_render_resources.mesh_allocator.vertex_buffer.slice(..),
+            );
+            render_pass.set_vertex_buffer(
+                1,
+                mesh_render_resources
+                    .global_instance_buffer
+                    .as_ref()
+                    .unwrap()
+                    .slice(..),
+            );
+            render_pass.set_index_buffer(
+                mesh_render_resources.mesh_allocator.index_buffer.slice(..),
+                wgpu::IndexFormat::Uint32,
+            );
 
             for info in &mesh_render_resources.mesh_infos {
                 let mesh = mesh_cache.get(info.mesh_id).unwrap();
@@ -450,18 +462,17 @@ pub(crate) fn render_shadow(
                 break;
             }
 
-            let face_view = point_shadow_texture
-                .create_view(&wgpu::TextureViewDescriptor {
-                    label: Some("point shadow face view"),
-                    format: Some(Texture::DEPTH_FORMAT),
-                    dimension: Some(wgpu::TextureViewDimension::D2),
-                    usage: Some(wgpu::TextureUsages::RENDER_ATTACHMENT),
-                    aspect: wgpu::TextureAspect::DepthOnly,
-                    base_mip_level: 0,
-                    mip_level_count: None,
-                    base_array_layer: i as u32,
-                    array_layer_count: Some(1),
-                });
+            let face_view = point_shadow_texture.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("point shadow face view"),
+                format: Some(Texture::DEPTH_FORMAT),
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                usage: Some(wgpu::TextureUsages::RENDER_ATTACHMENT),
+                aspect: wgpu::TextureAspect::DepthOnly,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: i as u32,
+                array_layer_count: Some(1),
+            });
 
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("point shadow render pass"),
@@ -483,9 +494,22 @@ pub(crate) fn render_shadow(
                 render_pass.set_bind_group(0, bind_group, &[dynamic_offset]);
             }
 
-            render_pass.set_vertex_buffer(0, mesh_render_resources.mesh_allocator.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, mesh_render_resources.global_instance_buffer.as_ref().unwrap().slice(..));
-            render_pass.set_index_buffer(mesh_render_resources.mesh_allocator.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            render_pass.set_vertex_buffer(
+                0,
+                mesh_render_resources.mesh_allocator.vertex_buffer.slice(..),
+            );
+            render_pass.set_vertex_buffer(
+                1,
+                mesh_render_resources
+                    .global_instance_buffer
+                    .as_ref()
+                    .unwrap()
+                    .slice(..),
+            );
+            render_pass.set_index_buffer(
+                mesh_render_resources.mesh_allocator.index_buffer.slice(..),
+                wgpu::IndexFormat::Uint32,
+            );
 
             for info in &mesh_render_resources.mesh_infos {
                 let mesh = mesh_cache.get(info.mesh_id).unwrap();

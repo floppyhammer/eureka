@@ -1,5 +1,4 @@
-use crate::render::vertex::{Vertex3d, VertexSky, Vertex2d};
-use wgpu::util::DeviceExt;
+use crate::render::vertex::{Vertex3d, VertexSky};
 
 pub struct MeshAllocator {
     pub vertex_buffer: wgpu::Buffer,
@@ -13,7 +12,7 @@ pub struct MeshAllocator {
 }
 
 const DEFAULT_VERTEX_BUFFER_SIZE: u64 = 128 * 1024 * 1024; // 128MB
-const DEFAULT_INDEX_BUFFER_SIZE: u64 = 64 * 1024 * 1024;   // 64MB
+const DEFAULT_INDEX_BUFFER_SIZE: u64 = 64 * 1024 * 1024; // 64MB
 
 impl MeshAllocator {
     pub fn new(device: &wgpu::Device) -> Self {
@@ -84,8 +83,16 @@ impl MeshAllocator {
             );
         }
 
-        queue.write_buffer(&self.vertex_buffer, (v_offset as usize * std::mem::size_of::<Vertex3d>()) as u64, bytemuck::cast_slice(vertices));
-        queue.write_buffer(&self.index_buffer, (i_offset as usize * std::mem::size_of::<u32>()) as u64, bytemuck::cast_slice(indices));
+        queue.write_buffer(
+            &self.vertex_buffer,
+            (v_offset as usize * std::mem::size_of::<Vertex3d>()) as u64,
+            bytemuck::cast_slice(vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            (i_offset as usize * std::mem::size_of::<u32>()) as u64,
+            bytemuck::cast_slice(indices),
+        );
 
         self.vertex_count += vertices.len() as u32;
         self.index_count += indices.len() as u32;
@@ -101,8 +108,8 @@ impl MeshAllocator {
         vertices: &[Vertex3d],
         indices: &[u32],
     ) {
-        let v_size = (v_offset as usize + vertices.len()) * std::mem::size_of::<Vertex3d>();
-        let i_size = (i_offset as usize + indices.len()) * std::mem::size_of::<u32>();
+        let v_size = (v_offset as usize + vertices.len()) * size_of::<Vertex3d>();
+        let i_size = (i_offset as usize + indices.len()) * size_of::<u32>();
 
         if v_size > self.vertex_buffer.size() as usize {
             panic!("MeshAllocator: Vertex buffer overflow in update!");
@@ -113,12 +120,12 @@ impl MeshAllocator {
 
         queue.write_buffer(
             &self.vertex_buffer,
-            (v_offset as usize * std::mem::size_of::<Vertex3d>()) as u64,
+            (v_offset as usize * size_of::<Vertex3d>()) as u64,
             bytemuck::cast_slice(vertices),
         );
         queue.write_buffer(
             &self.index_buffer,
-            (i_offset as usize * std::mem::size_of::<u32>()) as u64,
+            (i_offset as usize * size_of::<u32>()) as u64,
             bytemuck::cast_slice(indices),
         );
     }

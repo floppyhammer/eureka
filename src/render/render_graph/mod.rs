@@ -145,8 +145,9 @@ impl RenderGraph {
                     }
 
                     // 自动修正主颜色缓冲区的格式，确保与 Surface 一致，防止验证错误
-                    if id == standard_resources::main_color().erase() ||
-                       id == standard_resources::fxaa_color().erase() {
+                    if id == standard_resources::main_color().erase()
+                        || id == standard_resources::fxaa_color().erase()
+                    {
                         key.format = render_context.surface_config.format;
                     }
 
@@ -159,10 +160,8 @@ impl RenderGraph {
                 ResourceSpec::Buffer(mut key) => {
                     // 可以在这里根据某种逻辑推导 Buffer 大小
                     let buf = self.pool.acquire_buffer(&render_context.device, key);
-                    active_resources.insert(
-                        id,
-                        (ResourceKey::Buffer(key), VirtualResource::Buffer(buf)),
-                    );
+                    active_resources
+                        .insert(id, (ResourceKey::Buffer(key), VirtualResource::Buffer(buf)));
                 }
                 _ => {} // 其他资源类型暂不预分配
             }

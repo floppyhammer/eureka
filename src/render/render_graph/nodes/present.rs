@@ -18,7 +18,10 @@ impl Default for PresentNode {
 }
 
 impl PresentNode {
-    pub fn with_input(mut self, input_id: crate::render::render_graph::resource::TextureId) -> Self {
+    pub fn with_input(
+        mut self,
+        input_id: crate::render::render_graph::resource::TextureId,
+    ) -> Self {
         self.input_resource_id = input_id;
         self
     }
@@ -32,20 +35,26 @@ impl Node for PresentNode {
     fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         crate::render::render_graph::resource::NodeResources::new()
-            .input(self.input_resource_id.clone(), ResourceSpec::Texture(TextureKey {
-                width: 0,
-                height: 0,
-                format: wgpu::TextureFormat::Bgra8UnormSrgb, // 将被自动修正
-                usage: wgpu::TextureUsages::TEXTURE_BINDING,
-                layers: 1,
-            }))
-            .output(standard_resources::final_output(), ResourceSpec::Texture(TextureKey {
-                width: 0,
-                height: 0,
-                format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                layers: 1,
-            }))
+            .input(
+                self.input_resource_id.clone(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: wgpu::TextureFormat::Bgra8UnormSrgb, // 将被自动修正
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                    layers: 1,
+                }),
+            )
+            .output(
+                standard_resources::final_output(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    layers: 1,
+                }),
+            )
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {

@@ -3,7 +3,6 @@ use crate::render::camera::CameraUniform;
 use crate::render::vertex::Vertex2d;
 use crate::render::{MeshRenderResources, RenderContext, TextureCache, TextureId};
 use glam::{Vec2, Vec4};
-use std::mem;
 use std::ops::Range;
 use wgpu::BufferAddress;
 

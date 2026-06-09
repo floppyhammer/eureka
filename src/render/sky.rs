@@ -72,7 +72,7 @@ pub(crate) fn prepare_sky(
         render_resources.texture = Some(*texture_id);
 
         let texture = texture_cache.get(*texture_id).unwrap();
-        
+
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
@@ -117,10 +117,17 @@ pub(crate) fn render_sky<'a, 'b: 'a>(
     render_pass.set_pipeline(pipeline);
 
     render_pass.set_vertex_buffer(0, mesh_allocator.sky_vertex_buffer.slice(..));
-    render_pass.set_index_buffer(mesh_allocator.sky_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+    render_pass.set_index_buffer(
+        mesh_allocator.sky_index_buffer.slice(..),
+        wgpu::IndexFormat::Uint32,
+    );
 
     render_pass.set_bind_group(0, camera_bind_group, &[0]);
-    render_pass.set_bind_group(1, render_resources.texture_bind_group.as_ref().unwrap(), &[]);
+    render_pass.set_bind_group(
+        1,
+        render_resources.texture_bind_group.as_ref().unwrap(),
+        &[],
+    );
 
     render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
 }

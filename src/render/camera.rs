@@ -1,7 +1,7 @@
+use crate::render::RenderContext;
 use glam::Mat4;
 use std::mem;
 use wgpu::BufferAddress;
-use crate::render::RenderContext;
 
 #[derive(Clone, PartialEq)]
 pub(crate) enum CameraType {
@@ -106,12 +106,14 @@ impl CameraRenderResources {
             let buffer_size = offset_unit * camera_count as u32;
 
             // Create a buffer for the camera uniform.
-            let buffer = render_context.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("camera uniform buffer (unique)"),
-                size: buffer_size as BufferAddress,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
+            let buffer = render_context
+                .device
+                .create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("camera uniform buffer (unique)"),
+                    size: buffer_size as BufferAddress,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
 
             let bind_group = render_context
                 .device

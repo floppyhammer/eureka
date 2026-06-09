@@ -20,8 +20,8 @@ impl Node for SkyboxNode {
     }
 
     fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
-        use crate::render::render_graph::standard_resources;
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
+        use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
 
         let color_spec = ResourceSpec::Texture(TextureKey {

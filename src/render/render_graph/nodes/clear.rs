@@ -12,8 +12,8 @@ impl Node for ClearNode {
     }
 
     fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
-        use crate::render::render_graph::standard_resources;
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
+        use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
 
         crate::render::render_graph::resource::NodeResources::new()
@@ -23,7 +23,8 @@ impl Node for ClearNode {
                     width: 0,
                     height: 0,
                     format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
             )
@@ -33,7 +34,8 @@ impl Node for ClearNode {
                     width: 0,
                     height: 0,
                     format: Texture::DEPTH_FORMAT,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
             )

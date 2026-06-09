@@ -19,8 +19,10 @@ impl Node for CullingNode {
 
     fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::ResourceSpec;
-        crate::render::render_graph::resource::NodeResources::new()
-            .input(standard_resources::camera_buffer(), ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM))
+        crate::render::render_graph::resource::NodeResources::new().input(
+            standard_resources::camera_buffer(),
+            ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
+        )
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {

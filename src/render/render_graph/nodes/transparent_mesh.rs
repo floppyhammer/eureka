@@ -28,8 +28,8 @@ impl Node for TransparentMeshNode {
     }
 
     fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::render_graph::resource::{ResourceId, ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
-        use crate::render::render_graph::resource::{ResourceSpec, TextureKey, ResourceId};
         use crate::render::Texture;
 
         let color_spec = ResourceSpec::Texture(TextureKey {
@@ -120,8 +120,10 @@ impl Node for TransparentMeshNode {
             layers: 1,
         };
 
-        let main_color = context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
-        let main_depth = context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
+        let main_color =
+            context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
+        let main_depth =
+            context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
 
         let r8_key = TextureKey {
             width,
@@ -139,7 +141,8 @@ impl Node for TransparentMeshNode {
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             layers: crate::render::light::NUM_CASCADES as u32,
         };
-        let shadow_map = context.get_texture_by_id(&standard_resources::directional_shadow_map(), shadow_key);
+        let shadow_map =
+            context.get_texture_by_id(&standard_resources::directional_shadow_map(), shadow_key);
 
         if context.render_world.extracted.transparent_meshes.is_empty() {
             return;
@@ -148,35 +151,93 @@ impl Node for TransparentMeshNode {
         // --- 动态更新 Light Bind Group ---
         let device = &context.render_context.device;
 
-        let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor { label: Some("shadow sampler"), address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge, address_mode_w: wgpu::AddressMode::ClampToEdge, mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, mipmap_filter: wgpu::FilterMode::Nearest, compare: Some(wgpu::CompareFunction::LessEqual), ..Default::default() });
-        let skybox_sampler = device.create_sampler(&wgpu::SamplerDescriptor { address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge, address_mode_w: wgpu::AddressMode::ClampToEdge, mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, mipmap_filter: wgpu::FilterMode::Linear, ..Default::default() });
-
-        // 提取所需句柄以断开借用链
-        let light_resources_cascade_buffer = context.render_world.light_render_resources.cascade_uniform_buffer.as_ref().unwrap().clone();
-        let mesh_resources_light_layout = context.render_world.mesh_render_resources.light_bind_group_layout.clone();
-        let mesh_resources_light_buffer = context.render_world.mesh_render_resources.light_uniform_buffer.as_ref().unwrap().clone();
-
-        let cascade_view = shadow_map.texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("shadow cascade view"),
-            format: Some(Texture::DEPTH_FORMAT),
-            dimension: Some(wgpu::TextureViewDimension::D2Array),
-            usage: Some(wgpu::TextureUsages::TEXTURE_BINDING),
-            aspect: wgpu::TextureAspect::DepthOnly,
-            array_layer_count: Some(crate::render::light::NUM_CASCADES as u32),
+        let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("shadow sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            compare: Some(wgpu::CompareFunction::LessEqual),
+            ..Default::default()
+        });
+        let skybox_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
 
-        let psv = if let Some(psm_id) = context.render_world.light_render_resources.point_shadow_map {
+        // 提取所需句柄以断开借用链
+        let light_resources_cascade_buffer = context
+            .render_world
+            .light_render_resources
+            .cascade_uniform_buffer
+            .as_ref()
+            .unwrap()
+            .clone();
+        let mesh_resources_light_layout = context
+            .render_world
+            .mesh_render_resources
+            .light_bind_group_layout
+            .clone();
+        let mesh_resources_light_buffer = context
+            .render_world
+            .mesh_render_resources
+            .light_uniform_buffer
+            .as_ref()
+            .unwrap()
+            .clone();
+
+        let cascade_view = shadow_map
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor {
+                label: Some("shadow cascade view"),
+                format: Some(Texture::DEPTH_FORMAT),
+                dimension: Some(wgpu::TextureViewDimension::D2Array),
+                usage: Some(wgpu::TextureUsages::TEXTURE_BINDING),
+                aspect: wgpu::TextureAspect::DepthOnly,
+                array_layer_count: Some(crate::render::light::NUM_CASCADES as u32),
+                ..Default::default()
+            });
+
+        let psv = if let Some(psm_id) = context.render_world.light_render_resources.point_shadow_map
+        {
             let psm = context.render_world.texture_cache.get(psm_id).unwrap();
-            psm.texture.create_view(&wgpu::TextureViewDescriptor { label: Some("psv"), format: Some(Texture::DEPTH_FORMAT), dimension: Some(wgpu::TextureViewDimension::CubeArray), aspect: wgpu::TextureAspect::DepthOnly, array_layer_count: Some(crate::render::light::MAX_POINT_LIGHTS as u32 * 6), ..Default::default() })
+            psm.texture.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("psv"),
+                format: Some(Texture::DEPTH_FORMAT),
+                dimension: Some(wgpu::TextureViewDimension::CubeArray),
+                aspect: wgpu::TextureAspect::DepthOnly,
+                array_layer_count: Some(crate::render::light::MAX_POINT_LIGHTS as u32 * 6),
+                ..Default::default()
+            })
         } else {
-            context.render_world.mesh_render_resources.dummy_cube_view.clone()
+            context
+                .render_world
+                .mesh_render_resources
+                .dummy_cube_view
+                .clone()
         };
 
         let sky_view = if let Some(id) = context.render_world.mesh_render_resources.current_skybox {
-            context.render_world.texture_cache.get(id).unwrap().view.clone()
+            context
+                .render_world
+                .texture_cache
+                .get(id)
+                .unwrap()
+                .view
+                .clone()
         } else {
-            context.render_world.mesh_render_resources.dummy_cube_view.clone()
+            context
+                .render_world
+                .mesh_render_resources
+                .dummy_cube_view
+                .clone()
         };
 
         let light_bg = context.create_bind_group(
@@ -186,18 +247,42 @@ impl Node for TransparentMeshNode {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &mesh_resources_light_layout,
                     entries: &[
-                        wgpu::BindGroupEntry { binding: 0, resource: mesh_resources_light_buffer.as_entire_binding() },
-                        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&cascade_view) },
-                        wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&shadow_sampler) },
-                        wgpu::BindGroupEntry { binding: 3, resource: light_resources_cascade_buffer.as_entire_binding() },
-                        wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&psv) },
-                        wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&ssao_blur.view) },
-                        wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&sky_view) },
-                        wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::Sampler(&skybox_sampler) },
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: mesh_resources_light_buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(&cascade_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::Sampler(&shadow_sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: light_resources_cascade_buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: wgpu::BindingResource::TextureView(&psv),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: wgpu::BindingResource::TextureView(&ssao_blur.view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: wgpu::BindingResource::TextureView(&sky_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: wgpu::BindingResource::Sampler(&skybox_sampler),
+                        },
                     ],
                     label: Some("light bind group (dynamic)"),
                 })
-            }
+            },
         );
         context.render_world.mesh_render_resources.light_bind_group = Some(light_bg);
 

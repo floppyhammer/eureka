@@ -26,8 +26,8 @@ impl Node for SsaoNode {
     }
 
     fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::render_graph::resource::{ResourceId, ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
-        use crate::render::render_graph::resource::{ResourceSpec, TextureKey, ResourceId};
         use crate::render::Texture;
 
         crate::render::render_graph::resource::NodeResources::new()
@@ -41,7 +41,8 @@ impl Node for SsaoNode {
                     width: 0,
                     height: 0,
                     format: Texture::DEPTH_FORMAT,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
             )
@@ -51,7 +52,8 @@ impl Node for SsaoNode {
                     width: 0,
                     height: 0,
                     format: wgpu::TextureFormat::Rgba16Float,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
             )
@@ -61,7 +63,8 @@ impl Node for SsaoNode {
                     width: 0,
                     height: 0,
                     format: wgpu::TextureFormat::R8Unorm,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
             )
@@ -71,7 +74,8 @@ impl Node for SsaoNode {
                     width: 0,
                     height: 0,
                     format: wgpu::TextureFormat::R8Unorm,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
             )
@@ -299,7 +303,8 @@ impl Node for SsaoNode {
         }
 
         // 如果全局禁用，或者没有任何相机需要，或者场景为空，则必须清空输出以防复用脏数据
-        if !world.extracted.ssao_enabled || !camera_wants_ssao || world.extracted.meshes.is_empty() {
+        if !world.extracted.ssao_enabled || !camera_wants_ssao || world.extracted.meshes.is_empty()
+        {
             context
                 .encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {

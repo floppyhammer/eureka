@@ -3,9 +3,9 @@ use anyhow::*;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use uuid;
 use wgpu::Extent3d;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 pub static NEXT_TEXTURE_ID: AtomicU64 = AtomicU64::new(1);
 
