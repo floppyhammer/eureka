@@ -1,17 +1,17 @@
-use std::collections::{HashMap, VecDeque};
-use crate::render::RenderContext;
 use crate::render::render_world::RenderWorld;
+use crate::render::RenderContext;
 use crate::render::Texture;
+use std::collections::{HashMap, VecDeque};
 
 pub mod node;
 pub mod nodes;
-mod resource_pool;
 pub mod resource;
+mod resource_pool;
 
+use crate::render::render_graph::resource_pool::ResourcePool;
 pub use node::*;
 pub use nodes::*;
 pub use resource::*;
-use crate::render::render_graph::resource_pool::ResourcePool;
 
 /// A Bevy-like Render Graph that manages rendering nodes and their execution order.
 pub struct RenderGraph {
@@ -47,17 +47,22 @@ impl RenderGraph {
     /// Adds a new node to the graph.
     pub fn add_node<T: Node>(&mut self, name: impl Into<String>, node: T) {
         let name = name.into();
-        self.nodes.insert(name.clone(), NodeState {
-            node: Box::new(node),
-            name: name.clone(),
-        });
+        self.nodes.insert(
+            name.clone(),
+            NodeState {
+                node: Box::new(node),
+                name: name.clone(),
+            },
+        );
         self.dependencies.entry(name).or_default();
         // Reset cache.
         self.cached_execution_order = None;
     }
 
     pub fn get_node_mut<T: Node>(&mut self, name: &str) -> Option<&mut T> {
-        self.nodes.get_mut(name).and_then(|s| s.node.as_any_mut().downcast_mut::<T>())
+        self.nodes
+            .get_mut(name)
+            .and_then(|s| s.node.as_any_mut().downcast_mut::<T>())
     }
 
     /// Adds a dependency edge between two nodes. Node `to` will run after node `from`.
@@ -92,7 +97,8 @@ impl RenderGraph {
         final_output_view: &wgpu::TextureView,
     ) {
         // 1. 每帧开始时，尝试从冷却队列中回收旧资源
-        self.pool.update(self.frame_count, render_context.frames_in_flight as u64);
+        self.pool
+            .update(self.frame_count, render_context.frames_in_flight as u64);
 
         let mut active_textures: HashMap<ResourceId<()>, (TextureKey, Texture)> = HashMap::new();
         let mut active_buffers: HashMap<ResourceId<()>, (BufferKey, PooledBuffer)> = HashMap::new();
@@ -138,10 +144,12 @@ impl RenderGraph {
 
         // 帧结束，回收所有资源
         for (_, (key, texture)) in active_textures {
-            self.pool.release_texture_deferred(key, texture, self.frame_count);
+            self.pool
+                .release_texture_deferred(key, texture, self.frame_count);
         }
         for (_, (key, buffer)) in active_buffers {
-            self.pool.release_buffer_deferred(key, buffer, self.frame_count);
+            self.pool
+                .release_buffer_deferred(key, buffer, self.frame_count);
         }
 
         self.frame_count += 1;
@@ -206,7 +214,10 @@ impl RenderGraph {
         let mut enables = HashMap::new();
         for (node, deps) in &self.dependencies {
             for dep in deps {
-                enables.entry(dep.clone()).or_insert_with(Vec::new).push(node.clone());
+                enables
+                    .entry(dep.clone())
+                    .or_insert_with(Vec::new)
+                    .push(node.clone());
             }
         }
 
@@ -254,7 +265,11 @@ pub struct ResolvedTransientTexture {
 
 impl<'a> FrameContext<'a> {
     /// 获取一个具名瞬时纹理。返回克隆的句柄以允许连续调用。
-    pub fn get_texture(&mut self, name: impl Into<String>, key: TextureKey) -> ResolvedTransientTexture {
+    pub fn get_texture(
+        &mut self,
+        name: impl Into<String>,
+        key: TextureKey,
+    ) -> ResolvedTransientTexture {
         let name = name.into();
         let res_id = ResourceId::new(name);
         let (_, texture) = self.active_textures.entry(res_id).or_insert_with(|| {
@@ -269,7 +284,11 @@ impl<'a> FrameContext<'a> {
     }
 
     /// 通过类型化资源ID获取纹理
-    pub fn get_texture_by_id(&mut self, id: &ResourceId<()>, key: TextureKey) -> ResolvedTransientTexture {
+    pub fn get_texture_by_id(
+        &mut self,
+        id: &ResourceId<()>,
+        key: TextureKey,
+    ) -> ResolvedTransientTexture {
         let (_, texture) = self.active_textures.entry(id.clone()).or_insert_with(|| {
             let tex = self.pool.acquire_texture(&self.render_context.device, key);
             (key, tex)
@@ -324,6 +343,7 @@ impl<'a> FrameContext<'a> {
         F: FnOnce(&RenderContext) -> wgpu::BindGroup,
     {
         let render_context = self.render_context;
-        self.pool.get_or_create_bind_group(layout, resource_ids, || creator(render_context))
+        self.pool
+            .get_or_create_bind_group(layout, resource_ids, || creator(render_context))
     }
 }

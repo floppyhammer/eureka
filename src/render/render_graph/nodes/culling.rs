@@ -1,5 +1,5 @@
-use crate::render::render_graph::{FrameContext, Node, ResourceId, standard_resources, BufferKey};
 use crate::render::camera::CameraUniform;
+use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node, ResourceId};
 use std::any::Any;
 
 pub struct CullingNode {
@@ -56,10 +56,13 @@ impl Node for CullingNode {
     fn run(&mut self, context: &mut FrameContext) {
         // 获取相机 Buffer (自动参与 FIF 同步)
         let camera_buffer_key = BufferKey {
-            size: (CameraUniform::get_uniform_offset_unit() * context.render_world.extracted.cameras.uniforms.len() as u32) as u64,
+            size: (CameraUniform::get_uniform_offset_unit()
+                * context.render_world.extracted.cameras.uniforms.len() as u32)
+                as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         };
-        let camera_buffer = context.get_buffer_by_id(&standard_resources::camera_buffer(), camera_buffer_key);
+        let camera_buffer =
+            context.get_buffer_by_id(&standard_resources::camera_buffer(), camera_buffer_key);
 
         if let Some(pipeline) = &self.pipeline {
             // 创建 Culling BindGroup（直接创建，不使用缓存）
@@ -74,31 +77,54 @@ impl Node for CullingNode {
             let Some(global_instance_buffer) = resources.global_instance_buffer.as_ref() else {
                 return;
             };
-            let Some(global_visible_instance_buffer) = resources.global_visible_instance_buffer.as_ref() else {
+            let Some(global_visible_instance_buffer) =
+                resources.global_visible_instance_buffer.as_ref()
+            else {
                 return;
             };
             let Some(global_indirect_buffer) = resources.global_indirect_buffer.as_ref() else {
                 return;
             };
 
-            let bind_group = context.render_context.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &resources.cull_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &camera_buffer.buffer,
-                            offset: 0,
-                            size: Some(wgpu::BufferSize::new(std::mem::size_of::<CameraUniform>() as u64).unwrap()),
-                        }),
-                    },
-                    wgpu::BindGroupEntry { binding: 1, resource: mesh_metadata_buffer.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 2, resource: global_instance_buffer.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 3, resource: global_visible_instance_buffer.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 4, resource: global_indirect_buffer.as_entire_binding() },
-                ],
-                label: Some("global cull dynamic bind group"),
-            });
+            let bind_group =
+                context
+                    .render_context
+                    .device
+                    .create_bind_group(&wgpu::BindGroupDescriptor {
+                        layout: &resources.cull_bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                    buffer: &camera_buffer.buffer,
+                                    offset: 0,
+                                    size: Some(
+                                        wgpu::BufferSize::new(
+                                            std::mem::size_of::<CameraUniform>() as u64
+                                        )
+                                        .unwrap(),
+                                    ),
+                                }),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: mesh_metadata_buffer.as_entire_binding(),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: global_instance_buffer.as_entire_binding(),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 3,
+                                resource: global_visible_instance_buffer.as_entire_binding(),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 4,
+                                resource: global_indirect_buffer.as_entire_binding(),
+                            },
+                        ],
+                        label: Some("global cull dynamic bind group"),
+                    });
 
             let mut compute_pass =
                 context

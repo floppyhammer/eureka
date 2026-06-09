@@ -1,12 +1,12 @@
 use crate::render::camera::CameraType;
+use crate::render::camera::{CameraRenderResources, CameraUniform};
+use crate::render::mesh::{ExtractedMesh, MeshCache, MeshRenderResources};
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw, Texture};
-use crate::render::mesh::{ExtractedMesh, MeshCache, MeshRenderResources};
-use crate::render::camera::{CameraRenderResources, CameraUniform};
 use glam::{Mat4, Vec3};
-use std::mem;
 use std::any::Any;
+use std::mem;
 
 pub struct TransparentMeshNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -15,7 +15,7 @@ pub struct TransparentMeshNode {
 
 impl Default for TransparentMeshNode {
     fn default() -> Self {
-        Self { 
+        Self {
             pipeline: None,
             instance_buffer: None,
         }
@@ -155,14 +155,16 @@ fn render_transparent_meshes<'a, 'b: 'a>(
     }
 
     let view_proj = Mat4::from_cols_array_2d(&camera_uniform.view_proj);
-    
+
     let mut sorted_meshes: Vec<_> = extracted_meshes.iter().enumerate().collect();
     sorted_meshes.sort_by(|(_, a), (_, b)| {
         let a_center = a.transform.position;
         let b_center = b.transform.position;
         let a_dist = (view_proj * Vec3::new(a_center.x, a_center.y, a_center.z).extend(1.0)).z;
         let b_dist = (view_proj * Vec3::new(b_center.x, b_center.y, b_center.z).extend(1.0)).z;
-        b_dist.partial_cmp(&a_dist).unwrap_or(std::cmp::Ordering::Equal)
+        b_dist
+            .partial_cmp(&a_dist)
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
 
     let mut sorted_instances: Vec<InstanceRaw> = Vec::new();
@@ -170,7 +172,8 @@ fn render_transparent_meshes<'a, 'b: 'a>(
 
     for (_, mesh) in sorted_meshes {
         if let Some(m) = mesh_cache.get(mesh.mesh_id) {
-            let material_idx = mesh.material_id
+            let material_idx = mesh
+                .material_id
                 .and_then(|id| mesh_render_resources.material_index_map.get(&id))
                 .cloned()
                 .unwrap_or(0);
@@ -180,7 +183,8 @@ fn render_transparent_meshes<'a, 'b: 'a>(
                 scale: mesh.transform.scale,
                 rotation: mesh.transform.rotation,
                 material_idx,
-            }.to_raw();
+            }
+            .to_raw();
 
             sorted_instances.push(instance_raw);
             sorted_mesh_info.push((mesh.mesh_id, m.index_offset, m.index_count));
@@ -191,8 +195,9 @@ fn render_transparent_meshes<'a, 'b: 'a>(
         return;
     }
 
-    let buffer_size = (sorted_instances.len() * mem::size_of::<InstanceRaw>()) as wgpu::BufferAddress;
-    
+    let buffer_size =
+        (sorted_instances.len() * mem::size_of::<InstanceRaw>()) as wgpu::BufferAddress;
+
     if instance_buffer.is_none() || instance_buffer.as_ref().unwrap().size() < buffer_size {
         *instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("transparent instance buffer"),
@@ -202,14 +207,36 @@ fn render_transparent_meshes<'a, 'b: 'a>(
         }));
     }
 
-    queue.write_buffer(instance_buffer.as_ref().unwrap(), 0, bytemuck::cast_slice(&sorted_instances));
+    queue.write_buffer(
+        instance_buffer.as_ref().unwrap(),
+        0,
+        bytemuck::cast_slice(&sorted_instances),
+    );
 
     render_pass.set_pipeline(pipeline);
-    render_pass.set_bind_group(0, camera_render_resources.bind_group.as_ref().unwrap(), &[camera_index as u32 * CameraUniform::get_uniform_offset_unit()]);
-    render_pass.set_bind_group(1, mesh_render_resources.light_bind_group.as_ref().unwrap(), &[]);
-    render_pass.set_bind_group(2, mesh_render_resources.bindless_bind_group.as_ref().unwrap(), &[]);
-    render_pass.set_vertex_buffer(0, mesh_render_resources.mesh_allocator.vertex_buffer.slice(..));
-    render_pass.set_index_buffer(mesh_render_resources.mesh_allocator.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+    render_pass.set_bind_group(
+        0,
+        camera_render_resources.bind_group.as_ref().unwrap(),
+        &[camera_index as u32 * CameraUniform::get_uniform_offset_unit()],
+    );
+    render_pass.set_bind_group(
+        1,
+        mesh_render_resources.light_bind_group.as_ref().unwrap(),
+        &[],
+    );
+    render_pass.set_bind_group(
+        2,
+        mesh_render_resources.bindless_bind_group.as_ref().unwrap(),
+        &[],
+    );
+    render_pass.set_vertex_buffer(
+        0,
+        mesh_render_resources.mesh_allocator.vertex_buffer.slice(..),
+    );
+    render_pass.set_index_buffer(
+        mesh_render_resources.mesh_allocator.index_buffer.slice(..),
+        wgpu::IndexFormat::Uint32,
+    );
     render_pass.set_vertex_buffer(1, instance_buffer.as_ref().unwrap().slice(..));
 
     let mut base_instance = 0u32;

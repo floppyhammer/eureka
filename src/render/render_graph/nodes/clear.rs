@@ -35,7 +35,7 @@ impl Node for ClearNode {
         let main_depth = context.get_texture("main_depth", main_depth_key);
 
         let world = &*context.render_world;
-        
+
         let ssao_ran = {
             let mut wants_ssao = false;
             for (i, cam_type) in world.extracted.cameras.types.iter().enumerate() {

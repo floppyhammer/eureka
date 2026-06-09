@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use super::resource::{BindGroupKey, BufferKey, PooledBuffer, SamplerKey, TextureKey};
 use crate::render::{Texture, NEXT_TEXTURE_ID};
+use std::collections::HashMap;
 use std::sync::atomic::Ordering;
-use super::resource::{TextureKey, BufferKey, PooledBuffer, BindGroupKey, SamplerKey};
 
 /// 瞬时资源池，用于在帧内复用纹理和缓冲区，并支持多帧并行下的延迟回收
 #[derive(Default)]
@@ -150,7 +150,12 @@ impl ResourcePool {
         })
     }
 
-    pub fn release_sampler_deferred(&mut self, key: SamplerKey, sampler: wgpu::Sampler, frame_id: u64) {
+    pub fn release_sampler_deferred(
+        &mut self,
+        key: SamplerKey,
+        sampler: wgpu::Sampler,
+        frame_id: u64,
+    ) {
         self.pending_samplers.push((sampler, key, frame_id));
     }
 
@@ -163,12 +168,15 @@ impl ResourcePool {
         creator: F,
     ) -> wgpu::BindGroup
     where
-        F: FnOnce() -> wgpu::BindGroup
+        F: FnOnce() -> wgpu::BindGroup,
     {
         let key = BindGroupKey {
             layout_ptr: layout as *const _ as usize,
             resource_ids,
         };
-        self.bind_group_cache.entry(key).or_insert_with(creator).clone()
+        self.bind_group_cache
+            .entry(key)
+            .or_insert_with(creator)
+            .clone()
     }
 }

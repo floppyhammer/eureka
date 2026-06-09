@@ -1,5 +1,5 @@
-use crate::render::camera::{CameraUniform};
-use crate::render::render_graph::{FrameContext, Node, BufferKey, standard_resources};
+use crate::render::camera::CameraUniform;
+use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node};
 use std::any::Any;
 
 /// 准备视角数据（相机矩阵等），并上传到池化缓冲区。
@@ -33,7 +33,8 @@ impl Node for PrepareViewNode {
         };
 
         // 1. 动态申请池化 Buffer 并注册到 context
-        let pooled_buffer = context.get_buffer_by_id(&standard_resources::camera_buffer(), buffer_key);
+        let pooled_buffer =
+            context.get_buffer_by_id(&standard_resources::camera_buffer(), buffer_key);
 
         // 2. 准备数据并写入
         let mut aligned_up_data = vec![0u8; offset_unit as usize * camera_count];
@@ -43,39 +44,39 @@ impl Node for PrepareViewNode {
             aligned_up_data[offset..offset + slice.len()].copy_from_slice(slice);
         }
 
-        context.render_context.queue.write_buffer(
-            &pooled_buffer.buffer,
-            0,
-            &aligned_up_data,
-        );
+        context
+            .render_context
+            .queue
+            .write_buffer(&pooled_buffer.buffer, 0, &aligned_up_data);
 
         // 3. 为了兼容现有的渲染函数，暂时将结果存回 CameraRenderResources
-        context.render_world.camera_render_resources.uniform_buffer = Some(pooled_buffer.buffer.clone());
+        context.render_world.camera_render_resources.uniform_buffer =
+            Some(pooled_buffer.buffer.clone());
 
         // 克隆 Layout 以断开借用链
-        let layout = context.render_world.camera_render_resources.bind_group_layout.clone();
+        let layout = context
+            .render_world
+            .camera_render_resources
+            .bind_group_layout
+            .clone();
 
-        let bind_group = context.create_bind_group(
-            &layout,
-            vec![pooled_buffer.id],
-            |ctx| {
-                ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &pooled_buffer.buffer,
-                            offset: 0,
-                            size: Some(
-                                wgpu::BufferSize::new(std::mem::size_of::<CameraUniform>() as u64)
-                                    .unwrap(),
-                            ),
-                        }),
-                    }],
-                    label: Some("camera dynamic bind group"),
-                })
-            },
-        );
+        let bind_group = context.create_bind_group(&layout, vec![pooled_buffer.id], |ctx| {
+            ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &pooled_buffer.buffer,
+                        offset: 0,
+                        size: Some(
+                            wgpu::BufferSize::new(std::mem::size_of::<CameraUniform>() as u64)
+                                .unwrap(),
+                        ),
+                    }),
+                }],
+                label: Some("camera dynamic bind group"),
+            })
+        });
         context.render_world.camera_render_resources.bind_group = Some(bind_group);
     }
 }
