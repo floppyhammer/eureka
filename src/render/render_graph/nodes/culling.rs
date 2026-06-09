@@ -1,5 +1,5 @@
-use crate::render::camera::CameraUniform;
-use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node, ResourceId};
+use crate::render::camera::{CameraType, CameraUniform};
+use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node};
 use std::any::Any;
 
 pub struct CullingNode {
@@ -68,6 +68,19 @@ impl Node for CullingNode {
         let camera_buffer =
             context.get_buffer_by_id(&standard_resources::camera_buffer(), camera_buffer_key);
 
+        // 找到第一个 D3 相机的索引
+        let Some(camera_index) = context
+            .render_world
+            .extracted
+            .cameras
+            .types
+            .iter()
+            .position(|t| *t == CameraType::D3)
+        else {
+            return;
+        };
+        let camera_offset = camera_index as u32 * CameraUniform::get_uniform_offset_unit();
+
         if let Some(pipeline) = &self.pipeline {
             // 创建 Culling BindGroup（直接创建，不使用缓存）
             let world = &*context.render_world;
@@ -104,7 +117,7 @@ impl Node for CullingNode {
                                     offset: 0,
                                     size: Some(
                                         wgpu::BufferSize::new(
-                                            std::mem::size_of::<CameraUniform>() as u64
+                                            size_of::<CameraUniform>() as u64
                                         )
                                         .unwrap(),
                                     ),
@@ -137,8 +150,9 @@ impl Node for CullingNode {
                         label: Some("Global Culling Pass"),
                         timestamp_writes: None,
                     });
+
             compute_pass.set_pipeline(pipeline);
-            compute_pass.set_bind_group(0, &bind_group, &[0]); // Camera offset
+            compute_pass.set_bind_group(0, &bind_group, &[camera_offset]);
 
             if total_instances > 0 {
                 compute_pass.dispatch_workgroups((total_instances + 63) / 64, 1, 1);

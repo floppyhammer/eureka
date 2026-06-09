@@ -293,6 +293,7 @@ pub struct MeshRenderResources {
     pub(crate) cull_bind_group_layout: wgpu::BindGroupLayout,
     pub material_cache: MaterialCache,
     pub(crate) mesh_allocator: MeshAllocator,
+    /// Cull
     pub(crate) global_instance_buffer: Option<wgpu::Buffer>,
     pub(crate) global_visible_instance_buffer: Option<wgpu::Buffer>,
     pub(crate) global_indirect_buffer: Option<wgpu::Buffer>,
