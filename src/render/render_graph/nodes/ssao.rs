@@ -301,8 +301,15 @@ impl Node for SsaoNode {
             layers: 1,
         };
 
-        let main_depth_tex =
-            context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
+        let ssao_depth_key = TextureKey {
+            width,
+            height,
+            format: Texture::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
+        };
+
+        let ssao_depth_tex = context.get_texture("SSAO Normal Depth", ssao_depth_key);
         let normal_tex = context.get_texture_by_id(&standard_resources::ssao_normal(), normal_key);
         let ssao_tex = context.get_texture_by_id(&standard_resources::ssao_output(), r8_key);
         let blur_tex = context.get_texture_by_id(&standard_resources::ssao_blur(), r8_key);
@@ -458,7 +465,7 @@ impl Node for SsaoNode {
                 .clone();
 
             let ssao_bind_group =
-                context.create_bind_group(&ssao_bind_group_layout, vec![ssao_uniform_buffer.id, normal_tex.view_id, main_depth_tex.view_id, noise_texture.view_id], |ctx| {
+                context.create_bind_group(&ssao_bind_group_layout, vec![ssao_uniform_buffer.id, normal_tex.view_id, ssao_depth_tex.view_id, noise_texture.view_id], |ctx| {
                         ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                             layout: &ssao_bind_group_layout,
                             entries: &[
@@ -476,7 +483,7 @@ impl Node for SsaoNode {
                                 },
                                 wgpu::BindGroupEntry {
                                     binding: 3,
-                                    resource: wgpu::BindingResource::TextureView(&main_depth_tex.view),
+                                    resource: wgpu::BindingResource::TextureView(&ssao_depth_tex.view),
                                 },
                                 wgpu::BindGroupEntry {
                                     binding: 4,
@@ -560,9 +567,9 @@ impl Node for SsaoNode {
                         },
                     })],
                     depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                        view: &main_depth_tex.view,
+                        view: &ssao_depth_tex.view,
                         depth_ops: Some(wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(1.0),
+                            load: wgpu::LoadOp::Clear(1.0), // 独立深度，每次执行前必须清空
                             store: wgpu::StoreOp::Store,
                         }),
                         stencil_ops: None,
