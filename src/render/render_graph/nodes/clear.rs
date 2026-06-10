@@ -102,11 +102,7 @@ impl Node for ClearNode {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &main_depth.view,
                     depth_ops: Some(wgpu::Operations {
-                        load: if ssao_ran {
-                            wgpu::LoadOp::Load
-                        } else {
-                            wgpu::LoadOp::Clear(1.0)
-                        },
+                        load: wgpu::LoadOp::Clear(1.0), // 永远清空，确保深度缓冲区干净
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,

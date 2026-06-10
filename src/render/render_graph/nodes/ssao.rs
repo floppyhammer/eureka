@@ -358,8 +358,6 @@ impl Node for SsaoNode {
             }
         }
 
-        let device = &context.render_context.device;
-
         // Noise texture (4x4)
         let noise_texture = context.get_texture(
             "SSAO Noise Texture",
