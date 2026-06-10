@@ -36,12 +36,11 @@ pub(crate) const MAX_POINT_LIGHTS: usize = 4;
 pub(crate) const NUM_CASCADES: usize = 3;
 
 pub(crate) const POINT_SHADOW_FACES: [(Vec3, Vec3); 6] = [
-    // 每一个面的 (Target, Up) 必须严格对应
-    (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0)), // +X
+    (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0)),  // +X
     (Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0)), // -X
-    (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),  // +Y (注意 Up 是 +Z)
-    (Vec3::new(0.0, -1.0, 0.0), Vec3::new(0.0, 0.0, -1.0)), // -Y (注意 Up 是 -Z)
-    (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, -1.0, 0.0)), // +Z
+    (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),   // +Y
+    (Vec3::new(0.0, -1.0, 0.0), Vec3::new(0.0, 0.0, -1.0)), // -Y
+    (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, -1.0, 0.0)),  // +Z
     (Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, -1.0, 0.0)), // -Z
 ];
 

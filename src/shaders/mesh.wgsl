@@ -295,7 +295,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let far = light.shadow_far;
         let shadow_z = (far / (far - near)) - ((far * near) / (far - near)) / dist_along_axis;
         let final_shadow_z = clamp(shadow_z, 0.0, 1.0);
-        let light_to_frag = in.world_position.xyz - light.position;
+        let light_to_frag = (in.world_position.xyz - light.position) * vec3<f32>(1.0, 1.0, -1.0);
         let shadow_factor = textureSampleCompare(t_point_shadow, s_shadow, light_to_frag, i32(i), final_shadow_z - bias);
 
         // Cook-Torrance BRDF

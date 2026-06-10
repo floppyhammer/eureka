@@ -42,7 +42,7 @@ fn main() {
 
         // Add a point light
         let mut light = PointLight::new();
-        light.set_position(Vec3::new(2.0, 5.0, 0.0));
+        light.set_position(Vec3::new(0.0, 5.0, 0.0));
         light.strength = 5.0;
         world.add_node(Box::new(light), None);
 
@@ -86,7 +86,7 @@ fn main() {
         let ground_path = singletons
             .asset_server
             .asset_dir
-            .join("models/ground.glb");
+            .join("models/ground.glb"); // Sponza/Sponza.gltf
         let ground = Model::at_path(ground_path);
         world.add_node(Box::new(ground), None);
     });
