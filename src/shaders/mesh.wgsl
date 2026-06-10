@@ -378,18 +378,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // --- Simple IBL (Environmental Reflection) ---
     let reflect_dir = reflect(-view_dir, world_normal);
+    let n_dot_v = max(dot(world_normal, view_dir), 0.0001);
 
     // Sample from the skybox.
     // We use roughness * 9.0 to simulate blurring (requires mipmaps)
     let env_reflection = textureSampleLevel(t_skybox, s_skybox, reflect_dir, roughness * 9.0).rgb;
 
     // Use the roughness-aware Fresnel for indirect specular
-    let F_env = fresnel_schlick_roughness(max(dot(world_normal, view_dir), 0.0), F0, roughness);
+    let F_env = fresnel_schlick_roughness(n_dot_v, F0, roughness);
+
+    // --- Specular Occlusion (Aggressive Version) ---
+    // We boost the AO contrast first to make it more effective in corners.
+    let ao_contrast = smoothstep(0.1, 0.9, ambient_ao);
+
+    // Using a much harsher power curve. This will drastically cut reflections
+    // even if the AO is only slightly below 1.0.
+    let spec_occlusion = pow(ao_contrast, 4.0);
 
     // Specular part of indirect lighting
-    // Faking the "blurring" effect by reducing intensity if mips are not available
     let env_intensity = 1.0 - (roughness * 0.7);
-    let indirect_specular = env_reflection * F_env * ambient_ao * env_intensity;
+    let indirect_specular = env_reflection * F_env * spec_occlusion * env_intensity;
+
+    // Uncomment the line below to DEBUG AO on the mesh surface
+    // return vec4<f32>(vec3<f32>(spec_occlusion), 1.0);
 
     // Diffuse part of indirect lighting (Ambient)
     let kS_env = F_env;
