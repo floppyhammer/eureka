@@ -1,9 +1,11 @@
-use std::collections::{HashMap, VecDeque};
-use crate::render::render_graph::{standard_resources, Node, ResourceId, ResourceKey, ResourceSpec, VirtualResource};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
+use crate::render::render_graph::{
+    standard_resources, Node, ResourceId, ResourceKey, ResourceSpec, VirtualResource,
+};
 use crate::render::render_world::RenderWorld;
 use crate::render::RenderContext;
+use std::collections::{HashMap, VecDeque};
 
 /// A Bevy-like Render Graph that manages rendering nodes and their execution order.
 pub struct RenderGraph {
@@ -163,13 +165,19 @@ impl RenderGraph {
         if let Err(err) = self.validate_resource_dependencies(&execution_order) {
             log::error!("Resource dependency validation failed: {}", err);
             // 降级：返回一个空的完成编码器，而不是 panic
-            return render_context.device.create_command_encoder(&Default::default()).finish();
+            return render_context
+                .device
+                .create_command_encoder(&Default::default())
+                .finish();
         }
 
         // --- 核心重构：独立录制逻辑 ---
-        let mut encoder = render_context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Graph Encoder"),
-        });
+        let mut encoder =
+            render_context
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Graph Encoder"),
+                });
 
         {
             let mut context = FrameContext {
@@ -255,17 +263,37 @@ impl RenderGraph {
                 let resources = node_state.node.node_resources();
 
                 // 收集 input 和 output 的名称
-                let inputs: Vec<String> = resources.inputs.iter().map(|i| i.id.name().to_string()).collect();
-                let outputs: Vec<String> = resources.outputs.iter().map(|o| o.id.name().to_string()).collect();
+                let inputs: Vec<String> = resources
+                    .inputs
+                    .iter()
+                    .map(|i| i.id.name().to_string())
+                    .collect();
+                let outputs: Vec<String> = resources
+                    .outputs
+                    .iter()
+                    .map(|o| o.id.name().to_string())
+                    .collect();
 
                 // 创建 mermaid 子图节点表示
                 mermaid.push_str(&format!("    subgraph {}[\"{}\"]\n", node_name, node_name));
-                mermaid.push_str(&format!("        {}_inputs[\"Inputs:\\n{}\"]\n",
-                                          node_name,
-                                          if inputs.is_empty() { "none".to_string() } else { inputs.join("\\n") }));
-                mermaid.push_str(&format!("        {}_outputs[\"Outputs:\\n{}\"]\n",
-                                          node_name,
-                                          if outputs.is_empty() { "none".to_string() } else { outputs.join("\\n") }));
+                mermaid.push_str(&format!(
+                    "        {}_inputs[\"Inputs:\\n{}\"]\n",
+                    node_name,
+                    if inputs.is_empty() {
+                        "none".to_string()
+                    } else {
+                        inputs.join("\\n")
+                    }
+                ));
+                mermaid.push_str(&format!(
+                    "        {}_outputs[\"Outputs:\\n{}\"]\n",
+                    node_name,
+                    if outputs.is_empty() {
+                        "none".to_string()
+                    } else {
+                        outputs.join("\\n")
+                    }
+                ));
                 mermaid.push_str("    end\n");
             }
         }

@@ -65,7 +65,6 @@ impl Node for ShadowNode {
 
     fn run(&mut self, context: &mut FrameContext) {
         use crate::render::light::MAX_POINT_LIGHTS;
-        use crate::render::render_graph::TextureKey;
         use crate::render::Texture;
 
         let device = &context.render_context.device;
@@ -133,7 +132,7 @@ impl Node for ShadowNode {
                 buffer_key,
             )
         };
-        
+
         let cascade_uniform_buffer = context.buffer(&standard_resources::shadow_cascade_buffer());
 
         let mut cascade_view_projs = [Mat4::IDENTITY; NUM_CASCADES];

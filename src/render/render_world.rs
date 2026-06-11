@@ -99,6 +99,7 @@ impl RenderWorld {
         graph.add_node_edge("prepare_view", "ssao");
         graph.add_node_edge("prepare_view", "skybox");
         graph.add_node_edge("cull", "mesh");
+        graph.add_node_edge("cull", "ssao"); // SSAO should be done after culling.
         graph.add_node_edge("shadow", "mesh");
         graph.add_node_edge("ssao", "mesh");
         graph.add_node_edge("clear", "skybox");

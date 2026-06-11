@@ -1,6 +1,5 @@
 use crate::render::camera::CameraUniform;
-use crate::render::light::MAX_POINT_LIGHTS;
-use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node};
+use crate::render::render_graph::{standard_resources, FrameContext, Node};
 use std::any::Any;
 
 /// 准备视角数据（相机矩阵等），并上传到池化缓冲区。

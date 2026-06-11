@@ -1,6 +1,6 @@
 use crate::render::camera::{CameraType, CameraUniform};
 use crate::render::render_graph::{
-    standard_resources, BufferKey, FrameContext, Node, NodeResources, ResourceSpec,
+    standard_resources, FrameContext, Node, NodeResources, ResourceSpec,
 };
 use std::any::Any;
 
@@ -20,13 +20,13 @@ impl Node for CullingNode {
     }
 
     fn node_resources(&self) -> NodeResources {
-        let camera_buffer_size = CameraUniform::get_uniform_offset_unit() * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+        let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
+            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
 
-        NodeResources::new()
-            .input(
-                standard_resources::camera_buffer(),
-                ResourceSpec::buffer(camera_buffer_size as u64, wgpu::BufferUsages::UNIFORM),
-            )
+        NodeResources::new().input(
+            standard_resources::camera_buffer(),
+            ResourceSpec::buffer(camera_buffer_size as u64, wgpu::BufferUsages::UNIFORM),
+        )
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {}

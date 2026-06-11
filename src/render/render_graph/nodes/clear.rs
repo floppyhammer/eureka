@@ -1,7 +1,4 @@
-use crate::render::camera::CameraType;
-use crate::render::render_graph::{standard_resources, FrameContext, Node, TextureKey};
-use crate::render::Texture;
-
+use crate::render::render_graph::{standard_resources, FrameContext, Node};
 use std::any::Any;
 
 pub struct ClearNode;

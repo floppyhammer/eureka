@@ -5,16 +5,12 @@ use crate::render::{create_render_pipeline, Texture};
 use std::any::Any;
 
 pub struct SkyboxNode {
-    pipeline_layout: Option<wgpu::PipelineLayout>,
     pipeline: Option<wgpu::RenderPipeline>,
 }
 
 impl Default for SkyboxNode {
     fn default() -> Self {
-        Self {
-            pipeline_layout: None,
-            pipeline: None,
-        }
+        Self { pipeline: None }
     }
 }
 
@@ -43,7 +39,8 @@ impl Node for SkyboxNode {
             layers: 1,
         });
 
-        let buffer_size = CameraUniform::get_uniform_offset_unit() * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+        let buffer_size = CameraUniform::get_uniform_offset_unit()
+            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(
@@ -116,7 +113,6 @@ impl Node for SkyboxNode {
             Some(wgpu::Face::Back),
         );
 
-        self.pipeline_layout = Some(pipeline_layout);
         self.pipeline = Some(pipeline);
         context
             .pool

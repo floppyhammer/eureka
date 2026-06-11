@@ -2,8 +2,6 @@ use crate::render::Texture;
 use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
-use std::num::NonZeroU64;
-use wgpu::wgc::id::{BindGroupLayoutId, SamplerId, TextureViewId};
 
 /// 资源类型标签
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -158,14 +156,10 @@ pub struct ResolvedTransientTexture {
 
 impl ResolvedTransientTexture {
     /// 获取一个稳定的视图及其 ID，用于 BindGroup 缓存优化
-    pub fn get_view(
-        &self,
-        desc: &wgpu::TextureViewDescriptor,
-    ) -> (wgpu::TextureView, u64) {
+    pub fn get_view(&self, desc: &wgpu::TextureViewDescriptor) -> (wgpu::TextureView, u64) {
         self.handle.get_view(desc)
     }
 }
-
 
 /// 池化缓冲区包装，包含物理 Buffer 和其唯一 ID
 #[derive(Clone)]
@@ -355,6 +349,10 @@ pub mod standard_resources {
     }
 
     // SSAO 相关
+    pub fn ssao_depth() -> TextureId {
+        ResourceId::new("ssao_depth")
+    }
+
     pub fn ssao_normal() -> TextureId {
         ResourceId::new("ssao_normal")
     }

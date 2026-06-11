@@ -25,7 +25,8 @@ impl Node for SpriteNode {
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
 
-        let buffer_size = CameraUniform::get_uniform_offset_unit() * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+        let buffer_size = CameraUniform::get_uniform_offset_unit()
+            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(
@@ -38,7 +39,8 @@ impl Node for SpriteNode {
                     width: 0,
                     height: 0,
                     format: Some(Texture::DEPTH_FORMAT),
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
             )
@@ -184,11 +186,7 @@ impl Node for SpriteNode {
             for b in batches {
                 let camera_offset = CameraUniform::get_uniform_offset_unit() * b.camera_index;
 
-                render_pass.set_bind_group(
-                    0,
-                    &camera_bind_group,
-                    &[camera_offset],
-                );
+                render_pass.set_bind_group(0, &camera_bind_group, &[camera_offset]);
 
                 render_pass.draw_indexed(b.index_range.clone(), 0, 0..1);
             }

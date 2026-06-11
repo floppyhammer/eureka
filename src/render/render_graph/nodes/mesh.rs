@@ -1,5 +1,4 @@
 use crate::render::camera::{CameraType, CameraUniform};
-use crate::render::gizmo::GizmoRenderResources;
 use crate::render::light::{CascadeUniform, LightUniform, MAX_POINT_LIGHTS};
 use crate::render::render_graph::resource::BufferKey;
 use crate::render::render_graph::{standard_resources, SamplerKey};
@@ -29,7 +28,8 @@ impl Node for MeshNode {
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
 
-        let camera_buffer_size = CameraUniform::get_uniform_offset_unit() * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+        let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
+            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(
