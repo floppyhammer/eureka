@@ -3,6 +3,7 @@ use crate::render::render_graph::{standard_resources, FrameContext, Node, Sample
 use crate::render::vertex::{VertexBuffer, VertexSky};
 use crate::render::{create_render_pipeline, Texture};
 use std::any::Any;
+use crate::render::render_world::RenderWorld;
 
 pub struct SkyboxNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -19,7 +20,7 @@ impl Node for SkyboxNode {
         self
     }
 
-    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
@@ -51,77 +52,73 @@ impl Node for SkyboxNode {
             .output(standard_resources::main_depth(), depth_spec)
     }
 
-    fn prepare(&mut self, context: &mut FrameContext) {
-        if self.pipeline.is_some() {
-            return;
-        }
-
-        let device = &context.render_context.device;
-
-        let sky_texture_bind_group_layout = {
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::Cube,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler {
-                            0: wgpu::SamplerBindingType::Filtering,
-                        },
-                        count: None,
-                    },
-                ],
-                label: Some("Sky Texture Bind Group Layout"),
-            })
-        };
-
-        let camera_bind_group_layout = context
-            .pool
-            .get_bind_group_layout("camera_bind_group_layout")
-            .unwrap()
-            .clone();
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Skybox Pipeline Layout"),
-            bind_group_layouts: &[&camera_bind_group_layout, &sky_texture_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let shader = wgpu::ShaderModuleDescriptor {
-            label: Some("Skybox Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/skybox.wgsl").into()),
-        };
-
-        let pipeline = create_render_pipeline(
-            device,
-            &pipeline_layout,
-            Some(wgpu::TextureFormat::Rgba16Float),
-            Some(Texture::DEPTH_FORMAT),
-            &[VertexSky::desc()],
-            shader,
-            "Skybox Pipeline",
-            false,
-            Some(wgpu::Face::Back),
-        );
-
-        self.pipeline = Some(pipeline);
-        context
-            .pool
-            .add_bind_group_layout("skybox_bind_group_layout", sky_texture_bind_group_layout);
-    }
-
     fn run(&mut self, context: &mut FrameContext) {
         if context.render_world.extracted.sky.is_none() {
             return;
+        }
+
+        if self.pipeline.is_none() {
+            let device = &context.render_context.device;
+
+            let sky_texture_bind_group_layout = {
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::Cube,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler {
+                                0: wgpu::SamplerBindingType::Filtering,
+                            },
+                            count: None,
+                        },
+                    ],
+                    label: Some("Sky Texture Bind Group Layout"),
+                })
+            };
+
+            let camera_bind_group_layout = context
+                .pool
+                .get_bind_group_layout("camera_bind_group_layout")
+                .unwrap()
+                .clone();
+
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Skybox Pipeline Layout"),
+                bind_group_layouts: &[&camera_bind_group_layout, &sky_texture_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Skybox Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/skybox.wgsl").into()),
+            };
+
+            let pipeline = create_render_pipeline(
+                device,
+                &pipeline_layout,
+                Some(wgpu::TextureFormat::Rgba16Float),
+                Some(Texture::DEPTH_FORMAT),
+                &[VertexSky::desc()],
+                shader,
+                "Skybox Pipeline",
+                false,
+                Some(wgpu::Face::Back),
+            );
+
+            self.pipeline = Some(pipeline);
+            context
+                .pool
+                .add_bind_group_layout("skybox_bind_group_layout", sky_texture_bind_group_layout);
         }
 
         let main_color = context.texture(&standard_resources::main_color());

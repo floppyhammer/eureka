@@ -2,6 +2,7 @@ use crate::render::create_render_pipeline;
 use crate::render::render_graph::{standard_resources, SamplerKey};
 use crate::render::render_graph::{FrameContext, Node};
 use std::any::Any;
+use crate::render::render_world::RenderWorld;
 
 pub struct ToneMappingNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -18,7 +19,7 @@ impl Node for ToneMappingNode {
         self
     }
 
-    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::ResourceSpec;
 
         crate::render::render_graph::resource::NodeResources::new()
@@ -44,66 +45,62 @@ impl Node for ToneMappingNode {
             )
     }
 
-    fn prepare(&mut self, context: &mut FrameContext) {
-        if self.pipeline.is_some() {
-            return;
-        }
-
-        let device = &context.render_context.device;
-
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("ToneMapping Bind Group Layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        });
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("ToneMapping Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let shader = wgpu::ShaderModuleDescriptor {
-            label: Some("ToneMapping Shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                include_str!("../../../shaders/tonemapping.wgsl").into(),
-            ),
-        };
-
-        self.pipeline = Some(create_render_pipeline(
-            device,
-            &pipeline_layout,
-            Some(context.render_context.surface_config.format), // 必须匹配 Surface
-            None,
-            &[],
-            shader,
-            "ToneMapping Pipeline",
-            false,
-            None,
-        ));
-
-        context
-            .pool
-            .add_bind_group_layout("tonemapping_bind_group_layout", bind_group_layout);
-    }
-
     fn run(&mut self, context: &mut FrameContext) {
+        if self.pipeline.is_none() {
+            let device = &context.render_context.device;
+
+            let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("ToneMapping Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
+
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("ToneMapping Pipeline Layout"),
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("ToneMapping Shader"),
+                source: wgpu::ShaderSource::Wgsl(
+                    include_str!("../../../shaders/tonemapping.wgsl").into(),
+                ),
+            };
+
+            self.pipeline = Some(create_render_pipeline(
+                device,
+                &pipeline_layout,
+                Some(context.render_context.surface_config.format), // 必须匹配 Surface
+                None,
+                &[],
+                shader,
+                "ToneMapping Pipeline",
+                false,
+                None,
+            ));
+
+            context
+                .pool
+                .add_bind_group_layout("tonemapping_bind_group_layout", bind_group_layout);
+        }
+        
         let input_texture = context.texture(&standard_resources::main_color());
         let output_texture = context.texture(&standard_resources::hdr_resolved());
 

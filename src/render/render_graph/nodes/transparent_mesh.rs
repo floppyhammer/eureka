@@ -8,6 +8,7 @@ use crate::render::{create_render_pipeline, InstanceRaw, MeshId, Texture};
 use glam::{Mat4, Vec3};
 use std::any::Any;
 use wgpu::BufferAddress;
+use crate::render::render_world::RenderWorld;
 
 pub struct TransparentMeshNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -28,7 +29,7 @@ impl Node for TransparentMeshNode {
         self
     }
 
-    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
@@ -67,9 +68,11 @@ impl Node for TransparentMeshNode {
             .output(standard_resources::main_depth(), depth_spec)
     }
 
-    fn prepare(&mut self, context: &mut FrameContext) {}
-
     fn run(&mut self, context: &mut FrameContext) {
+        if context.render_world.mesh_render_resources.draw_counts.is_empty() {
+            return;
+        }
+        
         let width = context.render_context.surface_config.width;
         let height = context.render_context.surface_config.height;
         let format = Some(context.render_context.surface_config.format);

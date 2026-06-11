@@ -2,10 +2,12 @@ use crate::render::camera::{CameraType, CameraUniform};
 use crate::render::render_graph::{
     standard_resources, BufferKey, FrameContext, Node, SamplerKey, TextureKey,
 };
+use crate::render::render_world::RenderWorld;
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw, Texture};
 use glam::vec3;
 use std::any::Any;
+use wgpu::BufferAddress;
 
 pub struct SsaoNode {
     normal_pipeline: Option<wgpu::RenderPipeline>, // Calc normal map.
@@ -28,7 +30,10 @@ impl Node for SsaoNode {
         self
     }
 
-    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(
+        &self,
+        world: &RenderWorld,
+    ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
 
@@ -39,6 +44,24 @@ impl Node for SsaoNode {
             .input(
                 standard_resources::camera_buffer(),
                 ResourceSpec::buffer(camera_buffer_size as u64, wgpu::BufferUsages::UNIFORM),
+            )
+            .input(
+                standard_resources::cull_visible_instance_buffer(),
+                ResourceSpec::buffer(
+                    world.mesh_render_resources.instance_buffer_size as BufferAddress,
+                    wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::VERTEX
+                        | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
+            .input(
+                standard_resources::cull_indirect_buffer(),
+                ResourceSpec::buffer(
+                    world.mesh_render_resources.indirect_buffer_size as BufferAddress,
+                    wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::INDIRECT
+                        | wgpu::BufferUsages::COPY_DST,
+                ),
             )
             .output(
                 standard_resources::ssao_blur(),
@@ -53,7 +76,21 @@ impl Node for SsaoNode {
             )
     }
 
-    fn prepare(&mut self, context: &mut FrameContext) {
+    fn run(&mut self, context: &mut FrameContext) {
+        if context
+            .render_world
+            .mesh_render_resources
+            .instance_buffer_size
+            == 0
+            || context
+                .render_world
+                .mesh_render_resources
+                .indirect_buffer_size
+                == 0
+        {
+            return;
+        }
+
         let camera_bind_group_layout = context
             .pool
             .get_bind_group_layout("camera_bind_group_layout")
@@ -237,9 +274,7 @@ impl Node for SsaoNode {
                 .pool
                 .add_bind_group_layout("blur_bind_group_layout", blur_bind_group_layout);
         }
-    }
 
-    fn run(&mut self, context: &mut FrameContext) {
         let width = context.render_context.surface_config.width;
         let height = context.render_context.surface_config.height;
 
@@ -513,6 +548,10 @@ impl Node for SsaoNode {
                 })
             });
 
+        let global_visible_instance_buffer =
+            context.buffer(&standard_resources::cull_visible_instance_buffer());
+        let global_indirect_buffer = context.buffer(&standard_resources::cull_indirect_buffer());
+
         {
             let mut render_pass = context
                 .encoder
@@ -540,13 +579,9 @@ impl Node for SsaoNode {
                 });
 
             let mesh_render_resources = &context.render_world.mesh_render_resources;
-            if mesh_render_resources.global_indirect_buffer.is_none() {
-                return;
-            }
-
-            render_pass.set_pipeline(self.normal_pipeline.as_ref().unwrap());
-
             let offset = ssao_camera_index as u32 * CameraUniform::get_uniform_offset_unit();
+            
+            render_pass.set_pipeline(self.normal_pipeline.as_ref().unwrap());
             render_pass.set_bind_group(0, &camera_bind_group, &[offset]);
             render_pass.set_bind_group(
                 1,
@@ -558,14 +593,7 @@ impl Node for SsaoNode {
                 0,
                 mesh_render_resources.mesh_allocator.vertex_buffer.slice(..),
             );
-            render_pass.set_vertex_buffer(
-                1,
-                mesh_render_resources
-                    .global_visible_instance_buffer
-                    .as_ref()
-                    .unwrap()
-                    .slice(..),
-            );
+            render_pass.set_vertex_buffer(1, global_visible_instance_buffer.buffer.slice(..));
             render_pass.set_index_buffer(
                 mesh_render_resources.mesh_allocator.index_buffer.slice(..),
                 wgpu::IndexFormat::Uint32,
@@ -575,10 +603,7 @@ impl Node for SsaoNode {
                 && mesh_render_resources.draw_counts[0] > 0
             {
                 render_pass.multi_draw_indexed_indirect(
-                    mesh_render_resources
-                        .global_indirect_buffer
-                        .as_ref()
-                        .unwrap(),
+                    &global_indirect_buffer.buffer,
                     0,
                     mesh_render_resources.draw_counts[0],
                 );

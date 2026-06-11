@@ -1,12 +1,13 @@
 use crate::math::frustum::Frustum;
 use crate::render::camera::{CameraType, CameraUniform};
-use crate::render::light::{CascadeUniform, MAX_POINT_LIGHTS, NUM_CASCADES};
+use crate::render::light::{CascadeUniform, NUM_CASCADES};
 use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
-use crate::render::{create_render_pipeline, InstanceRaw, Texture};
+use crate::render::{create_render_pipeline, InstanceRaw};
 use glam::{Mat4, Vec3};
 use std::any::Any;
 use wgpu::BufferAddress;
+use crate::render::render_world::RenderWorld;
 
 pub struct ShadowNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -23,7 +24,7 @@ impl Node for ShadowNode {
         self
     }
 
-    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::light::{MAX_POINT_LIGHTS, NUM_CASCADES};
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
@@ -60,8 +61,6 @@ impl Node for ShadowNode {
                 ),
             )
     }
-
-    fn prepare(&mut self, context: &mut FrameContext) {}
 
     fn run(&mut self, context: &mut FrameContext) {
         use crate::render::light::MAX_POINT_LIGHTS;

@@ -3,8 +3,9 @@ use crate::render::light::{CascadeUniform, LightUniform, MAX_POINT_LIGHTS};
 use crate::render::render_graph::resource::BufferKey;
 use crate::render::render_graph::{standard_resources, SamplerKey};
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use crate::render::render_world::RenderWorld;
 use crate::render::vertex::{Vertex3d, VertexBuffer};
-use crate::render::{create_render_pipeline, InstanceRaw, MeshRenderResources, Texture};
+use crate::render::{create_render_pipeline, InstanceRaw, Texture};
 use std::any::Any;
 use wgpu::BufferAddress;
 
@@ -23,7 +24,10 @@ impl Node for MeshNode {
         self
     }
 
-    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(
+        &self,
+        world: &RenderWorld,
+    ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
@@ -41,6 +45,24 @@ impl Node for MeshNode {
                 ResourceSpec::buffer(
                     size_of::<CascadeUniform>() as BufferAddress,
                     wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
+            .input(
+                standard_resources::cull_visible_instance_buffer(),
+                ResourceSpec::buffer(
+                    world.mesh_render_resources.instance_buffer_size as BufferAddress,
+                    wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::VERTEX
+                        | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
+            .input(
+                standard_resources::cull_indirect_buffer(),
+                ResourceSpec::buffer(
+                    world.mesh_render_resources.indirect_buffer_size as BufferAddress,
+                    wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::INDIRECT
+                        | wgpu::BufferUsages::COPY_DST,
                 ),
             )
             .optional_input(
@@ -106,11 +128,15 @@ impl Node for MeshNode {
             )
     }
 
-    fn prepare(&mut self, context: &mut FrameContext) {
+    fn run(&mut self, context: &mut FrameContext) {
         let device = &context.render_context.device;
         let world = &*context.render_world;
         let resources = &world.mesh_render_resources;
 
+        if context.render_world.mesh_render_resources.instance_buffer_size == 0 {
+            return;
+        }
+        
         let camera_bind_group_layout = context
             .pool
             .get_bind_group_layout("camera_bind_group_layout")
@@ -261,9 +287,11 @@ impl Node for MeshNode {
             bytemuck::cast_slice(&[light_uniform]),
         );
         // ------------------------------------------------
-    }
-
-    fn run(&mut self, context: &mut FrameContext) {
+        
+        if context.render_world.mesh_render_resources.draw_counts.is_empty() {
+            return;
+        }
+        
         let main_color = FrameContext::texture(context, &standard_resources::main_color());
         let main_depth = context.texture(&standard_resources::main_depth());
 
@@ -453,6 +481,10 @@ impl Node for MeshNode {
             },
         );
 
+        let global_visible_instance_buffer =
+            context.buffer(&standard_resources::cull_visible_instance_buffer());
+        let global_indirect_buffer = context.buffer(&standard_resources::cull_indirect_buffer());
+
         let world = &*context.render_world;
         let mut render_pass = context
             .encoder
@@ -483,70 +515,50 @@ impl Node for MeshNode {
             let camera_offset = camera_idx as u32 * CameraUniform::get_uniform_offset_unit();
 
             if world.extracted.cameras.types[camera_idx] == CameraType::D3 {
-                render_meshes(
-                    &camera_bind_group,
-                    &light_bind_group,
+                render_pass.set_pipeline(self.pipeline.as_ref().unwrap());
+
+                render_pass.set_bind_group(0, &camera_bind_group, &[camera_offset]);
+                render_pass.set_bind_group(1, &light_bind_group, &[]);
+                render_pass.set_bind_group(
+                    2,
+                    &world.mesh_render_resources.bindless_bind_group,
+                    &[],
+                );
+
+                render_pass.set_vertex_buffer(
+                    0,
                     world
                         .mesh_render_resources
-                        .bindless_bind_group
-                        .as_ref()
-                        .unwrap(),
-                    &world.mesh_render_resources,
-                    camera_offset,
-                    &mut render_pass,
-                    self.pipeline.as_ref().unwrap(),
+                        .mesh_allocator
+                        .vertex_buffer
+                        .slice(..),
                 );
+                render_pass.set_vertex_buffer(1, global_visible_instance_buffer.buffer.slice(..));
+                render_pass.set_index_buffer(
+                    world
+                        .mesh_render_resources
+                        .mesh_allocator
+                        .index_buffer
+                        .slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+
+                if !world.mesh_render_resources.draw_counts.is_empty()
+                    && world.mesh_render_resources.draw_counts[0] > 0
+                {
+                    render_pass.multi_draw_indexed_indirect(
+                        &global_indirect_buffer.buffer,
+                        0,
+                        world.mesh_render_resources.draw_counts[0],
+                    );
+                }
+
+                // // todo: move to its own node
+                // gizmo_render_resources.render(
+                //     render_pass,
+                //     camera_bind_group,
+                // );
             }
         }
     }
-}
-
-pub(crate) fn render_meshes<'a, 'b: 'a>(
-    camera_bind_group: &'b wgpu::BindGroup,
-    light_bind_group: &'b wgpu::BindGroup,
-    bindless_bind_group: &'b wgpu::BindGroup,
-    mesh_render_resources: &'b MeshRenderResources,
-    camera_offset: u32,
-    render_pass: &mut wgpu::RenderPass<'a>,
-    pipeline: &'b wgpu::RenderPipeline,
-) {
-    render_pass.set_pipeline(pipeline);
-
-    render_pass.set_bind_group(0, camera_bind_group, &[camera_offset]);
-    render_pass.set_bind_group(1, light_bind_group, &[]);
-    render_pass.set_bind_group(2, bindless_bind_group, &[]);
-
-    render_pass.set_vertex_buffer(
-        0,
-        mesh_render_resources.mesh_allocator.vertex_buffer.slice(..),
-    );
-    render_pass.set_vertex_buffer(
-        1,
-        mesh_render_resources
-            .global_visible_instance_buffer
-            .as_ref()
-            .unwrap()
-            .slice(..),
-    );
-    render_pass.set_index_buffer(
-        mesh_render_resources.mesh_allocator.index_buffer.slice(..),
-        wgpu::IndexFormat::Uint32,
-    );
-
-    if !mesh_render_resources.draw_counts.is_empty() && mesh_render_resources.draw_counts[0] > 0 {
-        render_pass.multi_draw_indexed_indirect(
-            mesh_render_resources
-                .global_indirect_buffer
-                .as_ref()
-                .unwrap(),
-            0,
-            mesh_render_resources.draw_counts[0],
-        );
-    }
-
-    // // todo: move to its own node
-    // gizmo_render_resources.render(
-    //     render_pass,
-    //     camera_bind_group,
-    // );
 }

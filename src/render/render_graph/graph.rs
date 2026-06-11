@@ -99,7 +99,7 @@ impl RenderGraph {
         // Simple topological sort for execution order
         if self.cached_execution_order.is_none() {
             let order = self.topological_sort();
-            self.log_structure(&order);
+            self.log_structure(render_world, &order);
             self.cached_execution_order = Some(order);
         }
         let execution_order = self.cached_execution_order.as_ref().unwrap().clone();
@@ -108,7 +108,7 @@ impl RenderGraph {
         let mut merged_specs: HashMap<ResourceId<()>, ResourceSpec> = HashMap::new();
         for node_name in &execution_order {
             if let Some(node_state) = self.nodes.get(node_name) {
-                let resources = node_state.node.node_resources();
+                let resources = node_state.node.node_resources(render_world);
                 for decl in resources
                     .inputs
                     .into_iter()
@@ -152,7 +152,11 @@ impl RenderGraph {
                     );
                 }
                 ResourceSpec::Buffer(key) => {
-                    // 可以在这里根据某种逻辑推导 Buffer 大小
+                    // Cannot allocate buffer with zero size.
+                    if key.size == 0 {
+                        continue;
+                    }
+
                     let buf = self.pool.acquire_buffer(&render_context.device, key);
                     active_resources
                         .insert(id, (ResourceKey::Buffer(key), VirtualResource::Buffer(buf)));
@@ -162,7 +166,7 @@ impl RenderGraph {
         }
 
         // 验证资源依赖
-        if let Err(err) = self.validate_resource_dependencies(&execution_order) {
+        if let Err(err) = self.validate_resource_dependencies(render_world, &execution_order) {
             log::error!("Resource dependency validation failed: {}", err);
             // 降级：返回一个空的完成编码器，而不是 panic
             return render_context
@@ -188,13 +192,6 @@ impl RenderGraph {
                 pool: &mut self.pool,
                 active_resources: &mut active_resources,
             };
-
-            // 准备所有节点
-            for node_name in &execution_order {
-                if let Some(node_state) = self.nodes.get_mut(node_name) {
-                    node_state.node.prepare(&mut context);
-                }
-            }
 
             // 执行所有节点
             for node_name in execution_order {
@@ -222,7 +219,7 @@ impl RenderGraph {
         encoder.finish()
     }
 
-    fn validate_resource_dependencies(&self, execution_order: &[String]) -> Result<(), String> {
+    fn validate_resource_dependencies(&self, render_world: &RenderWorld, execution_order: &[String]) -> Result<(), String> {
         let mut available_resources: HashMap<ResourceId<()>, ()> = HashMap::new();
 
         // 添加一些内置的初始资源（如最终输出视图）
@@ -230,7 +227,7 @@ impl RenderGraph {
 
         for node_name in execution_order {
             if let Some(node_state) = self.nodes.get(node_name) {
-                let resources = node_state.node.node_resources();
+                let resources = node_state.node.node_resources(render_world);
 
                 // 检查输入资源是否可用
                 for input in resources.inputs {
@@ -252,7 +249,7 @@ impl RenderGraph {
         Ok(())
     }
 
-    fn log_structure(&self, _order: &[String]) {
+    fn log_structure(&self, render_world: &mut RenderWorld, _order: &[String]) {
         log::info!("RenderGraph Topology Updated (Mermaid):");
 
         let mut mermaid = String::from("\n```mermaid\ngraph TD\n");
@@ -260,7 +257,7 @@ impl RenderGraph {
         // 定义子图，每个节点作为一个子图，显示其 input/output
         for node_name in _order {
             if let Some(node_state) = self.nodes.get(node_name) {
-                let resources = node_state.node.node_resources();
+                let resources = node_state.node.node_resources(render_world);
 
                 // 收集 input 和 output 的名称
                 let inputs: Vec<String> = resources

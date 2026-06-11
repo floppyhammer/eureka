@@ -4,6 +4,7 @@ use crate::render::render_graph::{standard_resources, FrameContext, Node, Textur
 use crate::render::vertex::{Vertex2d, VertexBuffer};
 use crate::render::Texture;
 use std::any::Any;
+use crate::render::render_world::RenderWorld;
 
 pub struct SpriteNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -20,7 +21,7 @@ impl Node for SpriteNode {
         self
     }
 
-    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
@@ -56,52 +57,48 @@ impl Node for SpriteNode {
             )
     }
 
-    fn prepare(&mut self, context: &mut FrameContext) {
-        if self.pipeline.is_some() {
-            return;
-        }
-
-        let device = &context.render_context.device;
-        let world = &*context.render_world;
-
-        let camera_bind_group_layout = context
-            .pool
-            .get_bind_group_layout("camera_bind_group_layout")
-            .unwrap()
-            .clone();
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("sprite bindless pipeline layout"),
-            bind_group_layouts: &[
-                &camera_bind_group_layout,
-                &world.mesh_render_resources.bindless_bind_group_layout,
-            ],
-            push_constant_ranges: &[],
-        });
-
-        let shader = wgpu::ShaderModuleDescriptor {
-            label: Some("sprite shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/sprite.wgsl").into()),
-        };
-
-        self.pipeline = Some(create_render_pipeline(
-            device,
-            &pipeline_layout,
-            Some(context.render_context.surface_config.format),
-            Some(Texture::DEPTH_FORMAT),
-            &[Vertex2d::desc()],
-            shader,
-            "sprite bindless",
-            true,
-            None,
-        ));
-    }
-
     fn run(&mut self, context: &mut FrameContext) {
         let main_depth = context.texture(&standard_resources::main_depth());
 
         if context.render_world.sprite_batches.is_empty() {
             return;
+        }
+
+        if self.pipeline.is_none() {
+            let device = &context.render_context.device;
+            let world = &*context.render_world;
+
+            let camera_bind_group_layout = context
+                .pool
+                .get_bind_group_layout("camera_bind_group_layout")
+                .unwrap()
+                .clone();
+
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("sprite bindless pipeline layout"),
+                bind_group_layouts: &[
+                    &camera_bind_group_layout,
+                    &world.mesh_render_resources.bindless_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("sprite shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/sprite.wgsl").into()),
+            };
+
+            self.pipeline = Some(create_render_pipeline(
+                device,
+                &pipeline_layout,
+                Some(context.render_context.surface_config.format),
+                Some(Texture::DEPTH_FORMAT),
+                &[Vertex2d::desc()],
+                shader,
+                "sprite bindless",
+                true,
+                None,
+            ));
         }
 
         let camera_bind_group_layout = context

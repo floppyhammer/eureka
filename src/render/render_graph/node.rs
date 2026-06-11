@@ -1,16 +1,15 @@
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource::NodeResources;
 use std::any::Any;
+use crate::render::render_world::RenderWorld;
 
 pub trait Node: Send + Sync + 'static {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     /// 声明节点所需的资源声明（输入和输出，包含类型和规格）
-    fn node_resources(&self) -> NodeResources {
+    fn node_resources(&self, _world: &RenderWorld) -> NodeResources {
         NodeResources::new()
     }
-
-    fn prepare(&mut self, _context: &mut FrameContext) {}
 
     fn run(&mut self, context: &mut FrameContext);
 }

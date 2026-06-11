@@ -116,7 +116,7 @@ impl RenderWorld {
         self.extracted = draw_commands.extracted.clone();
     }
 
-    /// Prepare CPU resources and imported GPU resources
+    /// Prepare CPU resources and imported GPU resources, do before running graph.
     pub fn prepare(&mut self, render_server: &RenderContext) {
         // 3. Prepare Bindless Materials (Now includes all 2D textures)
         self.mesh_render_resources.prepare_materials(

@@ -1,5 +1,6 @@
 use crate::render::render_graph::{standard_resources, FrameContext, Node};
 use std::any::Any;
+use crate::render::render_world::RenderWorld;
 
 pub struct ClearNode;
 
@@ -8,7 +9,7 @@ impl Node for ClearNode {
         self
     }
 
-    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;

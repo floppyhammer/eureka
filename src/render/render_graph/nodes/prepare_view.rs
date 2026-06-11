@@ -1,6 +1,7 @@
 use crate::render::camera::CameraUniform;
 use crate::render::render_graph::{standard_resources, FrameContext, Node};
 use std::any::Any;
+use crate::render::render_world::RenderWorld;
 
 /// 准备视角数据（相机矩阵等），并上传到池化缓冲区。
 /// 它是所有 3D 渲染节点的共同输入源。
@@ -14,7 +15,7 @@ impl Node for PrepareViewNode {
         self
     }
 
-    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::camera::CameraUniform;
         use crate::render::render_graph::resource::ResourceSpec;
 
@@ -30,7 +31,7 @@ impl Node for PrepareViewNode {
         )
     }
 
-    fn prepare(&mut self, context: &mut FrameContext) {
+    fn run(&mut self, context: &mut FrameContext) {
         if context
             .pool
             .get_bind_group_layout("camera_bind_group_layout")
@@ -56,9 +57,7 @@ impl Node for PrepareViewNode {
                 .pool
                 .add_bind_group_layout("camera_bind_group_layout", camera_bind_group_layout);
         }
-    }
-
-    fn run(&mut self, context: &mut FrameContext) {
+        
         let extracted_cameras = context.render_world.extracted.cameras.clone();
         let uniforms = extracted_cameras.uniforms.clone();
 

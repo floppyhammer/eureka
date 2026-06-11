@@ -284,7 +284,7 @@ pub struct MeshRenderResources {
     pub(crate) materials_storage_buffer: Option<wgpu::Buffer>,
     pub(crate) texture_index_map: HashMap<TextureId, u32>,
     pub(crate) material_index_map: HashMap<MaterialId, u32>,
-    pub material_cache: MaterialCache,
+    pub(crate) material_cache: MaterialCache,
     pub(crate) mesh_allocator: MeshAllocator,
 
     /// Mesh
@@ -293,10 +293,10 @@ pub struct MeshRenderResources {
     pub(crate) mesh_id_to_index: HashMap<MeshId, u32>,
     pub(crate) draw_counts: Vec<u32>,
     pub(crate) mesh_infos: Vec<MeshInstanceInfo>,
+    pub(crate) indirect_commands: Vec<wgpu::util::DrawIndexedIndirectArgs>,
 
-    /// After cull
-    pub(crate) global_visible_instance_buffer: Option<wgpu::Buffer>,
-    pub(crate) global_indirect_buffer: Option<wgpu::Buffer>,
+    pub(crate) instance_buffer_size: usize,
+    pub(crate) indirect_buffer_size: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -416,12 +416,13 @@ impl MeshRenderResources {
             material_cache: MaterialCache::new(),
             mesh_allocator: MeshAllocator::new(&render_server.device),
             global_instance_buffer: None,
-            global_visible_instance_buffer: None,
-            global_indirect_buffer: None,
             mesh_metadata_buffer: None,
             mesh_id_to_index: HashMap::new(),
             draw_counts: Vec::new(),
             mesh_infos: Vec::new(),
+            indirect_commands: vec![],
+            instance_buffer_size: 0,
+            indirect_buffer_size: 0,
         }
     }
 
@@ -561,6 +562,7 @@ impl MeshRenderResources {
         mesh_cache: &MeshCache,
     ) {
         let mut grouped_instances: HashMap<MeshId, Vec<InstanceRaw>> = HashMap::new();
+
         for mesh in extracted_meshes {
             let material_idx = mesh
                 .material_id
@@ -581,8 +583,10 @@ impl MeshRenderResources {
         let mut all_instances = Vec::new();
         let mut mesh_metadatas = Vec::new();
         let mut indirect_commands = Vec::new();
+
         self.mesh_id_to_index.clear();
         self.mesh_infos.clear();
+
         let mut current_base_instance = 0u32;
         let mut sorted_meshes: Vec<_> = grouped_instances.keys().cloned().collect();
         sorted_meshes.sort_by_key(|id| id.0);
@@ -618,46 +622,28 @@ impl MeshRenderResources {
         if all_instances.is_empty() {
             return;
         }
-        let instance_buffer_size =
-            (all_instances.len() * mem::size_of::<InstanceRaw>()) as BufferAddress;
+
+        self.instance_buffer_size =
+            all_instances.len() * size_of::<InstanceRaw>();
+
+        // 未经过 culling 的 instance 数据
         if self.global_instance_buffer.is_none()
-            || self.global_instance_buffer.as_ref().unwrap().size() < instance_buffer_size
+            || self.global_instance_buffer.as_ref().unwrap().size() < self.instance_buffer_size as u64
         {
             self.global_instance_buffer =
                 Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("global instances"),
-                    size: instance_buffer_size,
-                    usage: wgpu::BufferUsages::STORAGE
-                        | wgpu::BufferUsages::VERTEX
-                        | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                }));
-            self.global_visible_instance_buffer =
-                Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("visible instances"),
-                    size: instance_buffer_size,
+                    size: self.instance_buffer_size as BufferAddress,
                     usage: wgpu::BufferUsages::STORAGE
                         | wgpu::BufferUsages::VERTEX
                         | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 }));
         }
-        let indirect_buffer_size = (indirect_commands.len() * 20) as BufferAddress;
-        if self.global_indirect_buffer.is_none()
-            || self.global_indirect_buffer.as_ref().unwrap().size() < indirect_buffer_size
-        {
-            self.global_indirect_buffer =
-                Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("global indirect"),
-                    size: indirect_buffer_size,
-                    usage: wgpu::BufferUsages::STORAGE
-                        | wgpu::BufferUsages::INDIRECT
-                        | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                }));
-        }
+
         let metadata_buffer_size =
-            (mesh_metadatas.len() * mem::size_of::<MeshMetadata>()) as BufferAddress;
+            (mesh_metadatas.len() * size_of::<MeshMetadata>()) as BufferAddress;
+
         if self.mesh_metadata_buffer.is_none()
             || self.mesh_metadata_buffer.as_ref().unwrap().size() < metadata_buffer_size
         {
@@ -675,11 +661,7 @@ impl MeshRenderResources {
             0,
             bytemuck::cast_slice(&all_instances),
         );
-        render_server.queue.write_buffer(
-            self.global_indirect_buffer.as_ref().unwrap(),
-            0,
-            bytemuck::cast_slice(&indirect_commands),
-        );
+
         render_server.queue.write_buffer(
             self.mesh_metadata_buffer.as_ref().unwrap(),
             0,
@@ -688,5 +670,7 @@ impl MeshRenderResources {
 
         // 移除了 cull_bind_group 的预创建，现在由 CullingNode 在运行时动态创建并缓存
         self.draw_counts = vec![indirect_commands.len() as u32];
+        self.indirect_buffer_size = indirect_commands.len() * 20;
+        self.indirect_commands = indirect_commands;
     }
 }

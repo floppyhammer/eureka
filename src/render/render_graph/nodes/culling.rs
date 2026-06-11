@@ -2,7 +2,9 @@ use crate::render::camera::{CameraType, CameraUniform};
 use crate::render::render_graph::{
     standard_resources, FrameContext, Node, NodeResources, ResourceSpec,
 };
+use crate::render::render_world::RenderWorld;
 use std::any::Any;
+use wgpu::BufferAddress;
 
 pub struct CullingNode {
     pipeline: Option<wgpu::ComputePipeline>,
@@ -19,22 +21,51 @@ impl Node for CullingNode {
         self
     }
 
-    fn node_resources(&self) -> NodeResources {
+    fn node_resources(&self, render_world: &RenderWorld) -> NodeResources {
         let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
             * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
 
-        NodeResources::new().input(
-            standard_resources::camera_buffer(),
-            ResourceSpec::buffer(camera_buffer_size as u64, wgpu::BufferUsages::UNIFORM),
-        )
+        NodeResources::new()
+            .input(
+                standard_resources::camera_buffer(),
+                ResourceSpec::buffer(camera_buffer_size as u64, wgpu::BufferUsages::UNIFORM),
+            )
+            .output(
+                standard_resources::cull_visible_instance_buffer(),
+                ResourceSpec::buffer(
+                    render_world.mesh_render_resources.instance_buffer_size as BufferAddress,
+                    wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::VERTEX
+                        | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
+            .output(
+                standard_resources::cull_indirect_buffer(),
+                ResourceSpec::buffer(
+                    render_world.mesh_render_resources.indirect_buffer_size as BufferAddress,
+                    wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::INDIRECT
+                        | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
     }
-
-    fn prepare(&mut self, context: &mut FrameContext) {}
 
     fn run(&mut self, context: &mut FrameContext) {
         let world = &*context.render_world;
         let resources = &world.mesh_render_resources;
         let device = &context.render_context.device;
+
+        if resources.instance_buffer_size == 0 {
+            return;
+        }
+
+        let global_indirect_buffer = context.buffer(&standard_resources::cull_indirect_buffer());
+
+        context.render_context.queue.write_buffer(
+            &global_indirect_buffer.buffer,
+            0,
+            bytemuck::cast_slice(&context.render_world.mesh_render_resources.indirect_commands),
+        );
 
         let cull_bind_group_layout = context.pool.get_bind_group_layout("cull_bind_group_layout");
         if cull_bind_group_layout.is_none() {
@@ -151,22 +182,13 @@ impl Node for CullingNode {
         let total_instances: u32 = world.extracted.meshes.len() as u32;
 
         // Graph 外部的资源
-        let Some(mesh_metadata_buffer) = resources.mesh_metadata_buffer.as_ref() else {
-            return;
-        };
-        let Some(global_instance_buffer) = resources.global_instance_buffer.as_ref() else {
-            return;
-        };
-        let Some(global_visible_instance_buffer) =
-            resources.global_visible_instance_buffer.as_ref()
-        else {
-            return;
-        };
-        let Some(global_indirect_buffer) = resources.global_indirect_buffer.as_ref() else {
-            return;
-        };
+        let mesh_metadata_buffer = resources.mesh_metadata_buffer.as_ref().expect("mesh_metadata_buffer should be present");
+        let global_instance_buffer = resources.global_instance_buffer.as_ref().expect("global_instance_buffer should be present");
 
-        // todo: use cache
+        let global_visible_instance_buffer =
+            context.buffer(&standard_resources::cull_visible_instance_buffer());
+        let global_indirect_buffer = context.buffer(&standard_resources::cull_indirect_buffer());
+
         let bind_group =
             context
                 .render_context
@@ -195,11 +217,11 @@ impl Node for CullingNode {
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
-                            resource: global_visible_instance_buffer.as_entire_binding(),
+                            resource: global_visible_instance_buffer.buffer.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 4,
-                            resource: global_indirect_buffer.as_entire_binding(),
+                            resource: global_indirect_buffer.buffer.as_entire_binding(),
                         },
                     ],
                     label: Some("Cull Dynamic Bind Group"),
