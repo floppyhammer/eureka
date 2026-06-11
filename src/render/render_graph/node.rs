@@ -1,5 +1,5 @@
-use crate::render::render_graph::resource::{NodeResources, ResourceId};
-use crate::render::render_graph::FrameContext;
+use crate::render::render_graph::frame_context::FrameContext;
+use crate::render::render_graph::resource::NodeResources;
 use std::any::Any;
 
 pub trait Node: Send + Sync + 'static {

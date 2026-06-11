@@ -147,6 +147,26 @@ impl Default for SamplerKey {
     }
 }
 
+/// 包含克隆后的句柄，不绑定生命周期
+pub struct ResolvedTransientTexture {
+    pub texture: wgpu::Texture,
+    pub view: wgpu::TextureView,
+    pub id: u64,
+    pub view_id: u64,
+    pub(crate) handle: Texture,
+}
+
+impl ResolvedTransientTexture {
+    /// 获取一个稳定的视图及其 ID，用于 BindGroup 缓存优化
+    pub fn get_view(
+        &self,
+        desc: &wgpu::TextureViewDescriptor,
+    ) -> (wgpu::TextureView, u64) {
+        self.handle.get_view(desc)
+    }
+}
+
+
 /// 池化缓冲区包装，包含物理 Buffer 和其唯一 ID
 #[derive(Clone)]
 pub struct PooledBuffer {
