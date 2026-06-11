@@ -162,10 +162,6 @@ impl<'a> App<'a> {
                     .surface
                     .configure(&singletons.render_context.device, config);
 
-                if let Some(render_world) = &mut self.render_world {
-                    render_world.recreate_depth_texture(&singletons.render_context);
-                }
-
                 self.world.when_view_size_changes(UVec2::new(new_size.width, new_size.height))
             }
         }

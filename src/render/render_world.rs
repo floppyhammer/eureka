@@ -72,10 +72,10 @@ impl RenderWorld {
     pub fn run_graph(
         &mut self,
         render_server: &RenderContext,
-        output_view: &wgpu::TextureView,
+        final_output_view: &wgpu::TextureView,
     ) -> wgpu::CommandBuffer {
         let mut graph = std::mem::take(&mut self.render_graph);
-        let cmd_buf = graph.run(render_server, self, output_view);
+        let cmd_buf = graph.run(render_server, self, final_output_view);
         self.render_graph = graph;
         cmd_buf
     }
@@ -210,51 +210,5 @@ impl RenderWorld {
                 &mut self.mesh_render_resources.mesh_allocator,
             );
         }
-    }
-
-    pub fn recreate_depth_texture(&mut self, _render_server: &RenderContext) {
-        // 深度纹理现在由 RenderGraph::ResourcePool 按需管理，
-        // 节点的 run 方法会通过 context.get_texture 自动处理 Resize。
-    }
-
-    fn create_main_color_texture(
-        device: &wgpu::Device,
-        config: &wgpu::SurfaceConfiguration,
-        cache: &mut TextureCache,
-    ) -> TextureId {
-        let size = wgpu::Extent3d {
-            width: config.width,
-            height: config.height,
-            depth_or_array_layers: 1,
-        };
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("main color texture"),
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: config.format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
-        cache.add(Texture {
-            size: (config.width, config.height),
-            texture,
-            view,
-            format: config.format,
-            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
-            view_id: 0,
-            view_cache: Arc::new(RefCell::new(Default::default())),
-        })
     }
 }

@@ -20,4 +20,3 @@ pub(crate) mod shader_maker;
 pub(crate) mod sky;
 pub(crate) mod sprite;
 pub(crate) mod view;
-mod general_resource;

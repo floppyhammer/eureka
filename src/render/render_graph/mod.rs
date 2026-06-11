@@ -11,7 +11,6 @@ mod resource_pool;
 mod frame_context;
 mod graph;
 
-use crate::render::render_graph::resource_pool::ResourcePool;
 pub use node::*;
 pub use nodes::*;
 pub use resource::*;

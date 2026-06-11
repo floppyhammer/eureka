@@ -1,16 +1,16 @@
 use super::resource::{BindGroupKey, BufferKey, PooledBuffer, SamplerKey, TextureKey};
 use crate::render::{Texture, NEXT_TEXTURE_ID, NEXT_VIEW_ID};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::cell::RefCell;
 
 /// 瞬时资源池，用于在帧内复用纹理和缓冲区，并支持多帧并行下的延迟回收
 #[derive(Default)]
 pub struct ResourcePool {
     /// 跨帧纹理池（支持 FIF 数据隔离）
-    textures: HashMap<TextureKey, Vec<Texture>>,
-    pending_textures: Vec<(Texture, TextureKey, u64)>,
+    textures: HashMap<TextureKey, Vec<Texture>>, // “就绪”池
+    pending_textures: Vec<(Texture, TextureKey, u64)>, // “待回收”队列
 
     /// 跨帧缓冲区池（支持 FIF 数据隔离）
     buffers: HashMap<BufferKey, Vec<PooledBuffer>>,
@@ -31,6 +31,12 @@ pub struct ResourcePool {
 impl ResourcePool {
     pub fn update(&mut self, current_frame: u64, frames_in_flight: u64) {
         // 1. 回收纹理
+        /*
+        1. 检查 pending_textures：遍历这个队列。
+        2. 判断安全期：如果某个纹理的 frame_count 已经距离现在超过了 MAX_FRAMES_IN_FLIGHT（通常是 2 或 3 帧），说明 GPU 肯定已经用完它了。
+        3. 转移：将这个纹理从 pending_textures 移动到 textures 池中。
+        4. 真正可用：从此，这个纹理才能再次被 acquire_texture 捡走。
+        */
         let mut i = 0;
         while i < self.pending_textures.len() {
             if current_frame >= self.pending_textures[i].2 + frames_in_flight {
@@ -112,6 +118,8 @@ impl ResourcePool {
         }
     }
 
+    /// 调用后，资源并不会立即进入 textures 池。相反，它会被塞进 pending_textures，
+    /// 并打上一个“时间戳”（当前的 frame_count）
     pub fn release_texture_deferred(&mut self, key: TextureKey, texture: Texture, frame_id: u64) {
         self.pending_textures.push((texture, key, frame_id));
     }
@@ -205,8 +213,8 @@ impl ResourcePool {
             .clone()
     }
 
-    // 固定资源
-    
+    // 固定资源存取
+
     pub fn add_bind_group_layout(
         &mut self,
         name: impl Into<String>,

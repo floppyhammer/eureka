@@ -55,7 +55,7 @@ impl<'a> FrameContext<'a> {
         }
     }
 
-    /// 获取一个具名瞬时采样器。返回克隆的句柄以允许连续调用。
+    /// 获取一个瞬时采样器。返回克隆的句柄以允许连续调用。
     pub fn get_sampler(&mut self, key: resource::SamplerKey) -> wgpu::Sampler {
         self.pool.acquire_sampler(&self.render_context.device, key)
     }
