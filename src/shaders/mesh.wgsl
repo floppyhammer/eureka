@@ -387,17 +387,27 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Use the roughness-aware Fresnel for indirect specular
     let F_env = fresnel_schlick_roughness(n_dot_v, F0, roughness);
 
-    // --- Specular Occlusion (Aggressive Version) ---
-    // We boost the AO contrast first to make it more effective in corners.
-    let ao_contrast = smoothstep(0.1, 0.9, ambient_ao);
+    // --- Improved Specular Occlusion for HDR ---
+    let n_dot_v_occl = max(dot(world_normal, view_dir), 0.0001);
 
-    // Using a much harsher power curve. This will drastically cut reflections
-    // even if the AO is only slightly below 1.0.
-    let spec_occlusion = pow(ao_contrast, 4.0);
+    // Physically based specular occlusion (Frostbite/UE4 style)
+    // This formula ensures that reflections are occluded more strongly in crevices (low AO)
+    // while remaining visible at grazing angles.
+    var spec_occlusion = saturate(pow(ambient_ao + n_dot_v_occl, ambient_ao) - 1.0 + ambient_ao);
+
+    // Apply a roughness-dependent boost: smoother surfaces have sharper, harder-to-occlude reflections,
+    // while rough surfaces behave more like diffuse and are occluded more easily.
+    // Increased the exponent significantly to fight HDR environment light.
+    spec_occlusion = pow(spec_occlusion, 1.0 + roughness * 4.0);
+
+    // Optional: Boost the occlusion contrast for dark areas
+    spec_occlusion = smoothstep(0.0, 0.8, spec_occlusion);
 
     // Specular part of indirect lighting
-    let env_intensity = 1.0 - (roughness * 0.7);
-    let indirect_specular = env_reflection * F_env * spec_occlusion * env_intensity;
+    let indirect_specular = env_reflection * F_env * spec_occlusion;
+
+    // --- DEBUG: Uncomment the line below to SEE the specular occlusion factor ---
+    // return vec4<f32>(vec3<f32>(spec_occlusion), 1.0);
 
     // Uncomment the line below to DEBUG AO on the mesh surface
     // return vec4<f32>(vec3<f32>(spec_occlusion), 1.0);
