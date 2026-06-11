@@ -432,7 +432,7 @@ impl Node for ShadowNode {
             let mut render_pass = context
                 .encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some(format!("directional shadow render pass {}", cascade_idx).as_str()),
+                    label: Some(format!("Directional Shadow Render Pass - Cascade {}", cascade_idx).as_str()),
                     color_attachments: &[],
                     depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                         view: &cascade_view.0,
@@ -504,7 +504,7 @@ impl Node for ShadowNode {
                 }
 
                 let psm_face_view = point_shadow_map.get_view(&wgpu::TextureViewDescriptor {
-                    label: Some("point shadow face view"),
+                    label: Some("Point Shadow Face View"),
                     format: Some(Texture::DEPTH_FORMAT),
                     dimension: Some(wgpu::TextureViewDimension::D2),
                     usage: Some(wgpu::TextureUsages::RENDER_ATTACHMENT),
@@ -519,7 +519,7 @@ impl Node for ShadowNode {
                     context
                         .encoder
                         .begin_render_pass(&wgpu::RenderPassDescriptor {
-                            label: Some("point shadow render pass"),
+                            label: Some("Point Shadow Render Pass"),
                             color_attachments: &[],
                             depth_stencil_attachment: Some(
                                 wgpu::RenderPassDepthStencilAttachment {
