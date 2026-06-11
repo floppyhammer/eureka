@@ -76,7 +76,7 @@ impl<T> Display for ResourceId<T> {
 pub struct TextureKey {
     pub width: u32,
     pub height: u32,
-    pub format: wgpu::TextureFormat,
+    pub format: Option<wgpu::TextureFormat>,
     pub usage: wgpu::TextureUsages,
     pub layers: u32,
 }
@@ -86,7 +86,7 @@ impl Default for TextureKey {
         Self {
             width: 0,
             height: 0,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         }
@@ -197,7 +197,7 @@ impl ResourceSpec {
     pub fn texture(
         width: u32,
         height: u32,
-        format: wgpu::TextureFormat,
+        format: Option<wgpu::TextureFormat>,
         usage: wgpu::TextureUsages,
         layers: u32,
     ) -> Self {
@@ -222,12 +222,6 @@ impl ResourceSpec {
                 a.width = a.width.max(b.width);
                 a.height = a.height.max(b.height);
                 a.layers = a.layers.max(b.layers);
-
-                // 核心修复：格式升级逻辑
-                // 如果任意一方要求 HDR (Rgba16Float)，则最终结果必须是 HDR
-                if a.format == wgpu::TextureFormat::Rgba16Float || b.format == wgpu::TextureFormat::Rgba16Float {
-                    a.format = wgpu::TextureFormat::Rgba16Float;
-                }
             }
             (ResourceSpec::Buffer(a), ResourceSpec::Buffer(b)) => {
                 a.usage |= b.usage;
@@ -294,19 +288,19 @@ pub mod standard_resources {
 
     // 颜色缓冲区（HDR）
     pub fn main_color() -> TextureId {
-        ResourceId::new("hdr_color")
+        ResourceId::new("main_color")
     }
 
     // 深度缓冲区
     pub fn main_depth() -> TextureId {
         ResourceId::new("main_depth")
     }
-    
+
     // SDR
     pub fn hdr_resolved() -> TextureId {
         ResourceId::new("hdr_resolved")
     }
-    
+
     // 最终输出，一般是 Surface
     pub fn final_output() -> TextureId {
         ResourceId::new("final_output")
@@ -314,6 +308,14 @@ pub mod standard_resources {
 
     pub fn camera_buffer() -> BufferId {
         ResourceId::new("camera_buffer")
+    }
+
+    pub fn cull_visible_instance_buffer() -> BufferId {
+        ResourceId::new("cull_visible_instance_buffer")
+    }
+
+    pub fn cull_indirect_buffer() -> BufferId {
+        ResourceId::new("cull_indirect_buffer")
     }
 
     pub fn shadow_cascade_buffer() -> BufferId {

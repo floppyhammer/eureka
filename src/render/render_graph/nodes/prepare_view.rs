@@ -8,7 +8,7 @@ use std::any::Any;
 #[derive(Default)]
 pub struct PrepareViewNode;
 
-const MAX_CAMERAS: u32 = 16;
+pub(crate) const MAX_CAMERAS: u32 = 16;
 
 impl Node for PrepareViewNode {
     fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -19,10 +19,7 @@ impl Node for PrepareViewNode {
         use crate::render::camera::CameraUniform;
         use crate::render::render_graph::resource::ResourceSpec;
 
-        let offset_unit = CameraUniform::get_uniform_offset_unit();
-
-        // 假设最大支持 16 个相机，或者由 Prepare 动态调整
-        let buffer_size = offset_unit * MAX_CAMERAS;
+        let buffer_size = CameraUniform::get_uniform_offset_unit() * MAX_CAMERAS;
 
         // 输出为一个包含所有相机uniform的大缓冲区
         crate::render::render_graph::resource::NodeResources::new().output(
@@ -74,11 +71,7 @@ impl Node for PrepareViewNode {
         let camera_count = uniforms.len();
         let offset_unit = CameraUniform::get_uniform_offset_unit();
 
-        let buffer_key = extracted_cameras.get_buffer_key();
-
-        // 1. 动态申请池化 Buffer 并注册到 context
-        let pooled_buffer =
-            context.get_buffer_by_id(&standard_resources::camera_buffer(), buffer_key);
+        let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
         // 2. 准备数据并写入
         let mut aligned_up_data = vec![0u8; offset_unit as usize * camera_count];
@@ -91,7 +84,7 @@ impl Node for PrepareViewNode {
         context
             .render_context
             .queue
-            .write_buffer(&pooled_buffer.buffer, 0, &aligned_up_data);
+            .write_buffer(&camera_buffer.buffer, 0, &aligned_up_data);
 
         let camera_bind_group_layout = context
             .pool
@@ -100,13 +93,13 @@ impl Node for PrepareViewNode {
             .clone();
 
         let _ =
-            context.create_bind_group(&camera_bind_group_layout, vec![pooled_buffer.id], |ctx| {
+            context.create_bind_group(&camera_bind_group_layout, vec![camera_buffer.id], |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &camera_bind_group_layout,
                     entries: &[wgpu::BindGroupEntry {
                         binding: 0,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &pooled_buffer.buffer,
+                            buffer: &camera_buffer.buffer,
                             offset: 0,
                             size: Some(
                                 wgpu::BufferSize::new(size_of::<CameraUniform>() as u64).unwrap(),

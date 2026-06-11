@@ -31,52 +31,20 @@ impl Node for SsaoNode {
     fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
-        use crate::render::Texture;
+
+        let buffer_size = CameraUniform::get_uniform_offset_unit() * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(
                 standard_resources::camera_buffer(),
-                ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
+                ResourceSpec::buffer(buffer_size as u64, wgpu::BufferUsages::UNIFORM),
             )
-            .output(
-                standard_resources::main_depth(),
-                ResourceSpec::Texture(TextureKey {
-                    width: 0,
-                    height: 0,
-                    format: Texture::DEPTH_FORMAT,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                        | wgpu::TextureUsages::TEXTURE_BINDING,
-                    layers: 1,
-                }),
-            )
-            // .output(
-            //     standard_resources::ssao_normal(),
-            //     ResourceSpec::Texture(TextureKey {
-            //         width: 0,
-            //         height: 0,
-            //         format: wgpu::TextureFormat::Rgba16Float,
-            //         usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-            //             | wgpu::TextureUsages::TEXTURE_BINDING,
-            //         layers: 1,
-            //     }),
-            // )
-            // .output(
-            //     standard_resources::ssao_output(),
-            //     ResourceSpec::Texture(TextureKey {
-            //         width: 0,
-            //         height: 0,
-            //         format: wgpu::TextureFormat::R8Unorm,
-            //         usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-            //             | wgpu::TextureUsages::TEXTURE_BINDING,
-            //         layers: 1,
-            //     }),
-            // )
             .output(
                 standard_resources::ssao_blur(),
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
                     height: 0,
-                    format: wgpu::TextureFormat::R8Unorm,
+                    format: Some(wgpu::TextureFormat::R8Unorm),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
@@ -277,18 +245,10 @@ impl Node for SsaoNode {
         let width = context.render_context.surface_config.width;
         let height = context.render_context.surface_config.height;
 
-        let main_depth_key = TextureKey {
-            width,
-            height,
-            format: Texture::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-
         let normal_key = TextureKey {
             width,
             height,
-            format: wgpu::TextureFormat::Rgba16Float,
+            format: Some(wgpu::TextureFormat::Rgba16Float),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         };
@@ -296,7 +256,7 @@ impl Node for SsaoNode {
         let r8_key = TextureKey {
             width,
             height,
-            format: wgpu::TextureFormat::R8Unorm,
+            format: Some(wgpu::TextureFormat::R8Unorm),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         };
@@ -304,15 +264,18 @@ impl Node for SsaoNode {
         let ssao_depth_key = TextureKey {
             width,
             height,
-            format: Texture::DEPTH_FORMAT,
+            format: Some(Texture::DEPTH_FORMAT),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         };
 
-        let ssao_depth_tex = context.get_texture("SSAO Normal Depth", ssao_depth_key);
+        // Intervals
+        let ssao_depth_tex = context.get_texture("SSAO Depth", ssao_depth_key);
         let normal_tex = context.get_texture_by_id(&standard_resources::ssao_normal(), normal_key);
         let ssao_tex = context.get_texture_by_id(&standard_resources::ssao_output(), r8_key);
-        let blur_tex = context.get_texture_by_id(&standard_resources::ssao_blur(), r8_key);
+
+        // Outputs
+        let blur_tex = context.texture(&standard_resources::ssao_blur());
 
         let mut ssao_camera_index = 0;
 
@@ -364,7 +327,7 @@ impl Node for SsaoNode {
             TextureKey {
                 width: 4,
                 height: 4,
-                format: wgpu::TextureFormat::Rgba32Float,
+                format: Some(wgpu::TextureFormat::Rgba32Float),
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 layers: 1,
             },
@@ -522,15 +485,8 @@ impl Node for SsaoNode {
             .get_bind_group_layout("camera_bind_group_layout")
             .unwrap()
             .clone();
-        let buffer_key = context
-            .render_world
-            .extracted
-            .cameras
-            .get_buffer_key()
-            .clone();
-        let camera_buffer = context
-            .get_buffer_by_id(&standard_resources::camera_buffer(), buffer_key)
-            .clone();
+
+        let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
         let camera_bind_group =
             context.create_bind_group(&camera_bind_group_layout, vec![camera_buffer.id], |ctx| {

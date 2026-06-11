@@ -82,11 +82,12 @@ impl RenderWorld {
 
     fn default_graph() -> RenderGraph {
         let mut graph = RenderGraph::new();
+
         graph.add_node("prepare_view", PrepareViewNode::default());
+        graph.add_node("clear", ClearNode);
         graph.add_node("cull", CullingNode::default());
         graph.add_node("shadow", ShadowNode::default());
         graph.add_node("ssao", SsaoNode::default());
-        graph.add_node("clear", ClearNode);
         graph.add_node("skybox", SkyboxNode::default());
         graph.add_node("mesh", MeshNode::default());
         graph.add_node("transparent_mesh", TransparentMeshNode::default());
@@ -96,7 +97,7 @@ impl RenderWorld {
 
         graph.add_node_edge("prepare_view", "cull");
         graph.add_node_edge("prepare_view", "ssao");
-        graph.add_node_edge("cull", "shadow");
+        graph.add_node_edge("prepare_view", "skybox");
         graph.add_node_edge("cull", "mesh");
         graph.add_node_edge("shadow", "mesh");
         graph.add_node_edge("ssao", "mesh");
@@ -106,6 +107,7 @@ impl RenderWorld {
         graph.add_node_edge("transparent_mesh", "tonemapping");
         graph.add_node_edge("tonemapping", "fxaa");
         graph.add_node_edge("fxaa", "sprite");
+
         graph
     }
 

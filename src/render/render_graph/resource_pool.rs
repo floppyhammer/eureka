@@ -87,7 +87,7 @@ impl ResourcePool {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: key.format,
+            format: key.format.unwrap(),
             usage: key.usage,
             view_formats: &[],
         });
@@ -105,7 +105,7 @@ impl ResourcePool {
             size: (key.width, key.height),
             texture: wgpu_texture,
             view,
-            format: key.format,
+            format: key.format.unwrap(),
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
             view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
             view_cache: Arc::new(RefCell::new(HashMap::new())),
@@ -205,18 +205,8 @@ impl ResourcePool {
             .clone()
     }
 
-    pub fn get_bind_group(
-        &mut self,
-        layout: &wgpu::BindGroupLayout,
-        resource_ids: Vec<u64>,
-    ) -> Option<&wgpu::BindGroup> {
-        let key = BindGroupKey {
-            layout_ptr: layout as *const _ as usize,
-            resource_ids,
-        };
-        self.frame_bind_group_cache.get(&key)
-    }
-
+    // 固定资源
+    
     pub fn add_bind_group_layout(
         &mut self,
         name: impl Into<String>,
@@ -227,22 +217,6 @@ impl ResourcePool {
 
     pub fn get_bind_group_layout(&self, name: &str) -> Option<&wgpu::BindGroupLayout> {
         self.bind_group_layouts.get(name)
-    }
-
-    pub fn get_or_create_bind_group_layout<F>(
-        &mut self,
-        name: &str,
-        creator: F,
-    ) -> wgpu::BindGroupLayout
-    where
-        F: FnOnce() -> wgpu::BindGroupLayout,
-    {
-        // 假设内部是 HashMap<String, wgpu::BindGroupLayout>
-        // 利用 entry API 只需要进行一次哈希查找
-        self.bind_group_layouts
-            .entry(name.to_string())
-            .or_insert_with(creator)
-            .clone() // wgpu资源clone很廉价（内部是Arc）
     }
 
     pub fn add_pipeline_layout(&mut self, name: impl Into<String>, layout: wgpu::PipelineLayout) {

@@ -36,21 +36,19 @@ impl Node for TransparentMeshNode {
         let color_spec = ResourceSpec::Texture(TextureKey {
             width: 0,
             height: 0,
-            format: wgpu::TextureFormat::Rgba16Float, // 对齐 HDR
+            format: Some(wgpu::TextureFormat::Rgba16Float), // 对齐 HDR
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         });
         let depth_spec = ResourceSpec::Texture(TextureKey {
             width: 0,
             height: 0,
-            format: Texture::DEPTH_FORMAT,
+            format: Some(Texture::DEPTH_FORMAT),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         });
 
         crate::render::render_graph::resource::NodeResources::new()
-            .input(standard_resources::main_color(), color_spec.clone())
-            .input(standard_resources::main_depth(), depth_spec.clone())
             .input(
                 standard_resources::camera_buffer(),
                 ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
@@ -60,7 +58,7 @@ impl Node for TransparentMeshNode {
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
                     height: 0,
-                    format: wgpu::TextureFormat::R8Unorm,
+                    format: Some(wgpu::TextureFormat::R8Unorm),
                     usage: wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
@@ -74,7 +72,7 @@ impl Node for TransparentMeshNode {
     fn run(&mut self, context: &mut FrameContext) {
         let width = context.render_context.surface_config.width;
         let height = context.render_context.surface_config.height;
-        let format = context.render_context.surface_config.format;
+        let format = Some(context.render_context.surface_config.format);
 
         if context.render_world.extracted.transparent_meshes.is_empty() {
             return;
@@ -135,7 +133,7 @@ impl Node for TransparentMeshNode {
         let main_depth_key = TextureKey {
             width,
             height,
-            format: Texture::DEPTH_FORMAT,
+            format: Some(Texture::DEPTH_FORMAT),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         };
@@ -148,7 +146,7 @@ impl Node for TransparentMeshNode {
         let r8_key = TextureKey {
             width,
             height,
-            format: wgpu::TextureFormat::R8Unorm,
+            format: Some(wgpu::TextureFormat::R8Unorm),
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         };
@@ -157,7 +155,7 @@ impl Node for TransparentMeshNode {
         let shadow_key = TextureKey {
             width: 2048,
             height: 2048,
-            format: Texture::DEPTH_FORMAT,
+            format: Some(Texture::DEPTH_FORMAT),
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             layers: crate::render::light::NUM_CASCADES as u32,
         };
@@ -225,7 +223,7 @@ impl Node for TransparentMeshNode {
             let point_sm_key = TextureKey {
                 width: 512,
                 height: 512,
-                format: Texture::DEPTH_FORMAT,
+                format: Some(Texture::DEPTH_FORMAT),
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                     | wgpu::TextureUsages::TEXTURE_BINDING,
                 layers: (MAX_POINT_LIGHTS * 6) as u32,

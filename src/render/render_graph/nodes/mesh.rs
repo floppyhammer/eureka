@@ -29,17 +29,26 @@ impl Node for MeshNode {
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
 
+        let camera_buffer_size = CameraUniform::get_uniform_offset_unit() * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+
         crate::render::render_graph::resource::NodeResources::new()
             .input(
                 standard_resources::camera_buffer(),
-                ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
+                ResourceSpec::buffer(camera_buffer_size as u64, wgpu::BufferUsages::UNIFORM),
+            )
+            .input(
+                standard_resources::shadow_cascade_buffer(),
+                ResourceSpec::buffer(
+                    size_of::<CascadeUniform>() as BufferAddress,
+                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                ),
             )
             .optional_input(
                 standard_resources::point_shadow_map(),
                 ResourceSpec::Texture(TextureKey {
                     width: 512,
                     height: 512,
-                    format: Texture::DEPTH_FORMAT,
+                    format: Some(Texture::DEPTH_FORMAT),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: (MAX_POINT_LIGHTS * 6) as u32,
@@ -50,8 +59,9 @@ impl Node for MeshNode {
                 ResourceSpec::Texture(TextureKey {
                     width: 2048,
                     height: 2048,
-                    format: Texture::DEPTH_FORMAT,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                    format: Some(Texture::DEPTH_FORMAT),
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: crate::render::light::NUM_CASCADES as u32,
                 }),
             )
@@ -60,17 +70,24 @@ impl Node for MeshNode {
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
                     height: 0,
-                    format: wgpu::TextureFormat::R8Unorm,
+                    format: Some(wgpu::TextureFormat::R8Unorm),
                     usage: wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
             )
             .output(
+                standard_resources::light_uniform_buffer(),
+                ResourceSpec::buffer(
+                    size_of::<LightUniform>() as u64,
+                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
+            .output(
                 standard_resources::main_color(),
                 ResourceSpec::Texture(TextureKey {
-                    width: 0, // 0 表示继承
+                    width: 0,
                     height: 0,
-                    format: wgpu::TextureFormat::Rgba16Float,
+                    format: Some(wgpu::TextureFormat::Rgba16Float),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
@@ -81,7 +98,7 @@ impl Node for MeshNode {
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
                     height: 0,
-                    format: Texture::DEPTH_FORMAT,
+                    format: Some(Texture::DEPTH_FORMAT),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
@@ -226,12 +243,7 @@ impl Node for MeshNode {
         // Upload light uniforms ----------------------
         let lights = world.extracted.lights.clone();
 
-        let buffer_key = BufferKey {
-            size: size_of::<LightUniform>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        };
-        let light_uniform_buffer =
-            context.get_buffer_by_id(&standard_resources::light_uniform_buffer(), buffer_key);
+        let light_uniform_buffer = context.buffer(&standard_resources::light_uniform_buffer());
 
         let mut light_uniform = LightUniform::default();
         light_uniform.ambient_color = [1.0, 1.0, 1.0];
@@ -252,48 +264,12 @@ impl Node for MeshNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let width = context.render_context.surface_config.width;
-        let height = context.render_context.surface_config.height;
+        let main_color = FrameContext::texture(context, &standard_resources::main_color());
+        let main_depth = context.texture(&standard_resources::main_depth());
 
-        let main_color_key = TextureKey {
-            width,
-            height,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-        let main_depth_key = TextureKey {
-            width,
-            height,
-            format: Texture::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-
-        // 使用类型化资源ID获取瞬时资源
-        let main_color =
-            context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
-        let main_depth =
-            context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
-
-        let r8_key = TextureKey {
-            width,
-            height,
-            format: wgpu::TextureFormat::R8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-        let ssao_blur = context.get_texture_by_id(&standard_resources::ssao_blur(), r8_key);
-
-        let shadow_key = TextureKey {
-            width: 2048,
-            height: 2048,
-            format: Texture::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: crate::render::light::NUM_CASCADES as u32,
-        };
-        let directional_shadow_map =
-            context.get_texture_by_id(&standard_resources::directional_shadow_map(), shadow_key);
+        let ssao_blur = context.texture(&standard_resources::ssao_blur());
+        let directional_shadow_map = context.texture(&standard_resources::directional_shadow_map());
+        let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
         let light_bind_group_layout = context
             .pool
@@ -306,16 +282,6 @@ impl Node for MeshNode {
             .get_bind_group_layout("camera_bind_group_layout")
             .unwrap()
             .clone();
-
-        // 获取相机 Buffer (自动参与 FIF 同步)
-        let buffer_key = context.render_world.extracted.cameras.get_buffer_key();
-        let camera_buffer =
-            context.get_buffer_by_id(&standard_resources::camera_buffer(), buffer_key);
-
-        // let camera_bind_group = context
-        //     .pool
-        //     .get_bind_group(&camera_bind_group_layout, vec![camera_buffer.id])
-        //     .unwrap().clone();
 
         let camera_bind_group =
             context.create_bind_group(&camera_bind_group_layout, vec![camera_buffer.id], |ctx| {
@@ -363,29 +329,25 @@ impl Node for MeshNode {
         });
 
         // CSM 视图 ----------------
-        let cascade_view =
-            directional_shadow_map
-                .get_view(&wgpu::TextureViewDescriptor {
-                    label: Some("shadow cascade view"),
-                    format: Some(Texture::DEPTH_FORMAT),
-                    dimension: Some(wgpu::TextureViewDimension::D2Array),
-                    usage: Some(wgpu::TextureUsages::TEXTURE_BINDING),
-                    aspect: wgpu::TextureAspect::DepthOnly,
-                    array_layer_count: Some(crate::render::light::NUM_CASCADES as u32),
-                    ..Default::default()
-                });
-        let cascade_buffer_key = BufferKey {
-            size: size_of::<CascadeUniform>() as BufferAddress,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        };
-        let cascade_uniform_buffer = context.get_buffer_by_id(
-            &standard_resources::shadow_cascade_buffer(),
-            cascade_buffer_key,
-        );
+        let cascade_view = directional_shadow_map.get_view(&wgpu::TextureViewDescriptor {
+            label: Some("shadow cascade view"),
+            format: Some(Texture::DEPTH_FORMAT),
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            usage: Some(wgpu::TextureUsages::TEXTURE_BINDING),
+            aspect: wgpu::TextureAspect::DepthOnly,
+            array_layer_count: Some(crate::render::light::NUM_CASCADES as u32),
+            ..Default::default()
+        });
+
+        let cascade_uniform_buffer = context.buffer(&standard_resources::shadow_cascade_buffer());
         // -----------------------
 
+        // Intervals
         let light_uniform_buffer = {
-            let buffer_key = BufferKey { size: size_of::<LightUniform>() as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST };
+            let buffer_key = BufferKey {
+                size: size_of::<LightUniform>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            };
 
             context.get_buffer_by_id(&standard_resources::light_uniform_buffer(), buffer_key)
         };
@@ -394,24 +356,27 @@ impl Node for MeshNode {
             let point_shadow_map_key = TextureKey {
                 width: 512,
                 height: 512,
-                format: Texture::DEPTH_FORMAT,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                format: Some(Texture::DEPTH_FORMAT),
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
                 layers: (MAX_POINT_LIGHTS * 6) as u32,
             };
 
-            context.get_texture_by_id(&standard_resources::point_shadow_map(), point_shadow_map_key)
+            context.get_texture_by_id(
+                &standard_resources::point_shadow_map(),
+                point_shadow_map_key,
+            )
         };
 
         let point_shadow_map_view = {
-            point_shadow_map
-                .get_view(&wgpu::TextureViewDescriptor {
-                    label: Some("point shadow map view"),
-                    format: Some(Texture::DEPTH_FORMAT),
-                    dimension: Some(wgpu::TextureViewDimension::CubeArray),
-                    aspect: wgpu::TextureAspect::DepthOnly,
-                    array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6),
-                    ..Default::default()
-                })
+            point_shadow_map.get_view(&wgpu::TextureViewDescriptor {
+                label: Some("point shadow map view"),
+                format: Some(Texture::DEPTH_FORMAT),
+                dimension: Some(wgpu::TextureViewDimension::CubeArray),
+                aspect: wgpu::TextureAspect::DepthOnly,
+                array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6),
+                ..Default::default()
+            })
         };
         // } else {
         //     context
@@ -421,24 +386,31 @@ impl Node for MeshNode {
         //         .clone()
         // };
 
-        let (sky_view, sky_view_id) = if let Some(id) = context.render_world.sky_imported_resources.texture {
-            let tex = context
-                .render_world
-                .imported_texture_cache
-                .get(id)
-                .unwrap();
-            (tex.view.clone(), tex.view_id)
-        } else {
-            (context
-                .render_world
-                .mesh_render_resources
-                .dummy_cube_view
-                .clone(), 0)
-        };
+        let (sky_view, sky_view_id) =
+            if let Some(id) = context.render_world.sky_imported_resources.texture {
+                let tex = context.render_world.imported_texture_cache.get(id).unwrap();
+                (tex.view.clone(), tex.view_id)
+            } else {
+                (
+                    context
+                        .render_world
+                        .mesh_render_resources
+                        .dummy_cube_view
+                        .clone(),
+                    0,
+                )
+            };
 
         let light_bind_group = context.create_bind_group(
             &light_bind_group_layout,
-            vec![light_uniform_buffer.id, ssao_blur.view_id, cascade_view.1, cascade_uniform_buffer.id, point_shadow_map_view.1, sky_view_id],
+            vec![
+                light_uniform_buffer.id,
+                ssao_blur.view_id,
+                cascade_view.1,
+                cascade_uniform_buffer.id,
+                point_shadow_map_view.1,
+                sky_view_id,
+            ],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &light_bind_group_layout,

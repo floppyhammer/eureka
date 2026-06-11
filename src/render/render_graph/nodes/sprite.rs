@@ -25,27 +25,29 @@ impl Node for SpriteNode {
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
 
+        let buffer_size = CameraUniform::get_uniform_offset_unit() * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+
         crate::render::render_graph::resource::NodeResources::new()
             .input(
                 standard_resources::camera_buffer(),
-                ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
+                ResourceSpec::buffer(buffer_size as u64, wgpu::BufferUsages::UNIFORM),
             )
             .output(
                 standard_resources::main_depth(),
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
                     height: 0,
-                    format: Texture::DEPTH_FORMAT,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    format: Some(Texture::DEPTH_FORMAT),
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
             )
             .output(
-                standard_resources::hdr_resolved(),
+                standard_resources::final_output(),
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
                     height: 0,
-                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    format: None,
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                     layers: 1,
                 }),
@@ -94,15 +96,7 @@ impl Node for SpriteNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let main_depth_key = TextureKey {
-            width: context.render_context.surface_config.width,
-            height: context.render_context.surface_config.height,
-            format: Texture::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-        let main_depth =
-            context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
+        let main_depth = context.texture(&standard_resources::main_depth());
 
         if context.render_world.sprite_batches.is_empty() {
             return;
@@ -114,15 +108,8 @@ impl Node for SpriteNode {
             .unwrap()
             .clone();
 
-        let buffer_key = context
-            .render_world
-            .extracted
-            .cameras
-            .get_buffer_key()
-            .clone();
-        let camera_buffer = context
-            .get_buffer_by_id(&standard_resources::camera_buffer(), buffer_key)
-            .clone();
+        let camera_buffer = context.buffer(&standard_resources::camera_buffer());
+
         let camera_bind_group =
             context.create_bind_group(&camera_bind_group_layout, vec![camera_buffer.id], |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {

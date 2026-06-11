@@ -22,7 +22,7 @@ impl Node for ClearNode {
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
                     height: 0,
-                    format: wgpu::TextureFormat::Rgba16Float, // 改为 HDR 格式
+                    format: Some(wgpu::TextureFormat::Rgba16Float),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
@@ -33,7 +33,7 @@ impl Node for ClearNode {
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
                     height: 0,
-                    format: Texture::DEPTH_FORMAT,
+                    format: Some(Texture::DEPTH_FORMAT),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
@@ -42,44 +42,8 @@ impl Node for ClearNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let width = context.render_context.surface_config.width;
-        let height = context.render_context.surface_config.height;
-        let format = wgpu::TextureFormat::Rgba16Float;
-
-        let main_color_key = TextureKey {
-            width,
-            height,
-            format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-        let main_color =
-            context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
-
-        let main_depth_key = TextureKey {
-            width,
-            height,
-            format: Texture::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-        let main_depth =
-            context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
-
-        let world = &*context.render_world;
-
-        let ssao_ran = {
-            let mut wants_ssao = false;
-            for (i, cam_type) in world.extracted.cameras.types.iter().enumerate() {
-                if *cam_type == CameraType::D3 {
-                    if world.extracted.cameras.uniforms[i].ssao_enabled == 1 {
-                        wants_ssao = true;
-                        break;
-                    }
-                }
-            }
-            wants_ssao && !world.extracted.meshes.is_empty()
-        };
+        let main_color = context.texture(&standard_resources::main_color());
+        let main_depth = context.texture(&standard_resources::main_depth());
 
         let _render_pass = context
             .encoder

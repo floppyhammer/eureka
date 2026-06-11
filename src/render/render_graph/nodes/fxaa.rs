@@ -23,7 +23,7 @@ impl Node for FxaaNode {
         let color_spec = ResourceSpec::Texture(TextureKey {
             width: 0,
             height: 0,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            format: None,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         });
@@ -93,29 +93,7 @@ impl Node for FxaaNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let input_texture = {
-            let key = TextureKey {
-                width: context.render_context.surface_config.width,
-                height: context.render_context.surface_config.height,
-                format: context.render_context.surface_config.format,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-                layers: 1,
-            };
-
-            context.get_texture_by_id(&standard_resources::hdr_resolved(), key)
-        };
-
-        let output_texture = {
-            let key = TextureKey {
-                width: context.render_context.surface_config.width,
-                height: context.render_context.surface_config.height,
-                format: context.render_context.surface_config.format,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                layers: 1,
-            };
-
-            context.get_texture_by_id(&standard_resources::main_color(), key)
-        };
+        let input_texture =  context.texture(&standard_resources::hdr_resolved());
 
         let pipeline = self.pipeline.as_ref().unwrap();
 
@@ -154,7 +132,7 @@ impl Node for FxaaNode {
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("FXAA Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &output_texture.view,
+                    view: &context.final_output_view,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {

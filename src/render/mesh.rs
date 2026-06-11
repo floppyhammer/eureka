@@ -276,9 +276,6 @@ struct MeshMetadata {
 }
 
 pub struct MeshRenderResources {
-//     pub(crate) light_bind_group_layout: wgpu::BindGroupLayout,
-//     pub(crate) light_bind_group: Option<wgpu::BindGroup>,
-//     pub(crate) light_uniform_buffer: Option<wgpu::Buffer>,
     pub(crate) dummy_2d_view: wgpu::TextureView,
     pub(crate) dummy_cube_view: wgpu::TextureView,
     pub(crate) dummy_sampler: wgpu::Sampler,
@@ -289,15 +286,17 @@ pub struct MeshRenderResources {
     pub(crate) material_index_map: HashMap<MaterialId, u32>,
     pub material_cache: MaterialCache,
     pub(crate) mesh_allocator: MeshAllocator,
-    /// Cull
+
+    /// Mesh
     pub(crate) global_instance_buffer: Option<wgpu::Buffer>,
-    pub(crate) global_visible_instance_buffer: Option<wgpu::Buffer>,
-    pub(crate) global_indirect_buffer: Option<wgpu::Buffer>,
     pub(crate) mesh_metadata_buffer: Option<wgpu::Buffer>,
-    // pub(crate) cull_bind_group: Option<wgpu::BindGroup>,
     pub(crate) mesh_id_to_index: HashMap<MeshId, u32>,
     pub(crate) draw_counts: Vec<u32>,
     pub(crate) mesh_infos: Vec<MeshInstanceInfo>,
+
+    /// After cull
+    pub(crate) global_visible_instance_buffer: Option<wgpu::Buffer>,
+    pub(crate) global_indirect_buffer: Option<wgpu::Buffer>,
 }
 
 #[derive(Clone, Copy)]

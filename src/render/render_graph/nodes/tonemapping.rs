@@ -1,5 +1,5 @@
 use crate::render::create_render_pipeline;
-use crate::render::render_graph::{standard_resources, SamplerKey, TextureId};
+use crate::render::render_graph::{standard_resources, SamplerKey};
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
 use std::any::Any;
 
@@ -19,7 +19,7 @@ impl Node for ToneMappingNode {
     }
 
     fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
-        use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
+        use crate::render::render_graph::resource::ResourceSpec;
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(
@@ -27,18 +27,18 @@ impl Node for ToneMappingNode {
                 ResourceSpec::texture(
                     0,
                     0,
-                    wgpu::TextureFormat::Rgba16Float,
-                    wgpu::TextureUsages::TEXTURE_BINDING,
+                    Some(wgpu::TextureFormat::Rgba16Float),
+                    wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
                     1,
                 ),
             )
             .output(
-                standard_resources::hdr_resolved(),
+                standard_resources::hdr_resolved(), // Draw to SDR texture
                 ResourceSpec::texture(
                     0,
                     0,
-                    wgpu::TextureFormat::Bgra8UnormSrgb,
-                    wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    None,
+                    wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
                     1,
                 ),
             )
@@ -104,30 +104,8 @@ impl Node for ToneMappingNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let input_texture = {
-            let input_key = TextureKey {
-                width: context.render_context.surface_config.width,
-                height: context.render_context.surface_config.height,
-                format: wgpu::TextureFormat::Rgba16Float,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING,
-                layers: 1,
-            };
-
-            context.get_texture_by_id(&standard_resources::main_color(), input_key)
-        };
-
-        // Draw to SDR texture
-        let output_texture = {
-            let output_key = TextureKey {
-                width: context.render_context.surface_config.width,
-                height: context.render_context.surface_config.height,
-                format: context.render_context.surface_config.format,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-                layers: 1,
-            };
-
-            context.get_texture_by_id(&standard_resources::hdr_resolved(), output_key)
-        };
+        let input_texture = context.texture(&standard_resources::main_color());
+        let output_texture = context.texture(&standard_resources::hdr_resolved());
 
         let sampler = context.get_sampler(SamplerKey {
             mag_filter: wgpu::FilterMode::Linear,

@@ -2,6 +2,7 @@ use crate::render::render_world::RenderWorld;
 use crate::render::RenderContext;
 use crate::render::Texture;
 use std::collections::{HashMap, VecDeque};
+use naga::compact::KeepUnused::No;
 
 pub mod node;
 pub mod nodes;
@@ -145,6 +146,10 @@ impl RenderGraph {
                     }
                     if key.height == 0 {
                         key.height = render_context.surface_config.height;
+                    }
+                    // 未指定格式，使用当前 surface 格式
+                    if key.format.is_none() {
+                        key.format = Some(render_context.surface_config.format);
                     }
 
                     let tex = self.pool.acquire_texture(&render_context.device, key);
@@ -420,6 +425,40 @@ impl<'a> FrameContext<'a> {
             buffer.clone()
         } else {
             panic!("Resource type mismatch: expected Buffer");
+        }
+    }
+
+    /// 获取一个已声明的纹理。如果资源未在 node_resources 中声明，则会 panic。
+    pub fn texture(&self, id: &TextureId) -> ResolvedTransientTexture {
+        let res_id = id.clone().erase();
+        let resource = self.active_resources.get(&res_id).map(|(_, res)| res).unwrap_or_else(|| {
+            panic!("Resource '{}' not found. Did you forget to declare it in node_resources()?", id.name());
+        });
+
+        if let VirtualResource::Texture(texture) = resource {
+            ResolvedTransientTexture {
+                texture: texture.texture.clone(),
+                view: texture.view.clone(),
+                id: texture.id,
+                view_id: texture.view_id,
+                handle: texture.clone(),
+            }
+        } else {
+            panic!("Resource type mismatch for '{}': expected Texture", id.name());
+        }
+    }
+
+    /// 获取一个已声明的缓冲区。如果资源未在 node_resources 中声明，则会 panic。
+    pub fn buffer(&self, id: &BufferId) -> PooledBuffer {
+        let res_id = id.clone().erase();
+        let resource = self.active_resources.get(&res_id).map(|(_, res)| res).unwrap_or_else(|| {
+            panic!("Resource '{}' not found. Did you forget to declare it in node_resources()?", id.name());
+        });
+
+        if let VirtualResource::Buffer(buffer) = resource {
+            buffer.clone()
+        } else {
+            panic!("Resource type mismatch for '{}': expected Buffer", id.name());
         }
     }
 

@@ -31,24 +31,24 @@ impl Node for SkyboxNode {
         let color_spec = ResourceSpec::Texture(TextureKey {
             width: 0,
             height: 0,
-            format: wgpu::TextureFormat::Rgba16Float,
+            format: Some(wgpu::TextureFormat::Rgba16Float),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         });
         let depth_spec = ResourceSpec::Texture(TextureKey {
             width: 0,
             height: 0,
-            format: Texture::DEPTH_FORMAT,
+            format: Some(Texture::DEPTH_FORMAT),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         });
 
+        let buffer_size = CameraUniform::get_uniform_offset_unit() * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+
         crate::render::render_graph::resource::NodeResources::new()
-            .input(standard_resources::main_color(), color_spec.clone())
-            .input(standard_resources::main_depth(), depth_spec.clone())
             .input(
                 standard_resources::camera_buffer(),
-                ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
+                ResourceSpec::buffer(buffer_size as u64, wgpu::BufferUsages::UNIFORM),
             )
             .output(standard_resources::main_color(), color_spec)
             .output(standard_resources::main_depth(), depth_spec)
@@ -128,28 +128,8 @@ impl Node for SkyboxNode {
             return;
         }
 
-        let width = context.render_context.surface_config.width;
-        let height = context.render_context.surface_config.height;
-
-        let main_color_key = TextureKey {
-            width,
-            height,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-        let main_depth_key = TextureKey {
-            width,
-            height,
-            format: Texture::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-
-        let main_color =
-            context.get_texture_by_id(&standard_resources::main_color(), main_color_key);
-        let main_depth =
-            context.get_texture_by_id(&standard_resources::main_depth(), main_depth_key);
+        let main_color = context.texture(&standard_resources::main_color());
+        let main_depth = context.texture(&standard_resources::main_depth());
 
         let sampler = context.get_sampler(SamplerKey {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -229,7 +209,6 @@ impl Node for SkyboxNode {
                     label: Some("Camera Bind Group"),
                 })
             });
-
 
         // 3. 执行渲染
         if let Some(mesh) = imported_resources.mesh {

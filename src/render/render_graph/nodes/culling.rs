@@ -1,5 +1,7 @@
 use crate::render::camera::{CameraType, CameraUniform};
-use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node};
+use crate::render::render_graph::{
+    standard_resources, BufferKey, FrameContext, Node, NodeResources, ResourceSpec,
+};
 use std::any::Any;
 
 pub struct CullingNode {
@@ -17,12 +19,14 @@ impl Node for CullingNode {
         self
     }
 
-    fn node_resources(&self) -> crate::render::render_graph::resource::NodeResources {
-        use crate::render::render_graph::resource::ResourceSpec;
-        crate::render::render_graph::resource::NodeResources::new().input(
-            standard_resources::camera_buffer(),
-            ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
-        )
+    fn node_resources(&self) -> NodeResources {
+        let camera_buffer_size = CameraUniform::get_uniform_offset_unit() * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+
+        NodeResources::new()
+            .input(
+                standard_resources::camera_buffer(),
+                ResourceSpec::buffer(camera_buffer_size as u64, wgpu::BufferUsages::UNIFORM),
+            )
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {}
@@ -125,10 +129,7 @@ impl Node for CullingNode {
             ));
         }
 
-        // 获取相机 Buffer (自动参与 FIF 同步)
-        let camera_buffer_key = context.render_world.extracted.cameras.get_buffer_key();
-        let camera_buffer =
-            context.get_buffer_by_id(&standard_resources::camera_buffer(), camera_buffer_key);
+        let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
         // 找到第一个 D3 相机的索引
         let Some(camera_index) = context
@@ -149,7 +150,7 @@ impl Node for CullingNode {
         let resources = &world.mesh_render_resources;
         let total_instances: u32 = world.extracted.meshes.len() as u32;
 
-        // 检查所有必要的 buffer 是否存在
+        // Graph 外部的资源
         let Some(mesh_metadata_buffer) = resources.mesh_metadata_buffer.as_ref() else {
             return;
         };

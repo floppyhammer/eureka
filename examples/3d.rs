@@ -86,7 +86,7 @@ fn main() {
         let ground_path = singletons
             .asset_server
             .asset_dir
-            .join("models/Sponza/Sponza.gltf"); // Sponza/Sponza.gltf
+            .join("models/ground.glb"); // Sponza/Sponza.gltf
         let ground = Model::at_path(ground_path);
         world.add_node(Box::new(ground), None);
     });

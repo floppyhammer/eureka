@@ -35,7 +35,7 @@ impl Node for ShadowNode {
                 ResourceSpec::Texture(TextureKey {
                     width: 2048,
                     height: 2048,
-                    format: Texture::DEPTH_FORMAT,
+                    format: Some(Texture::DEPTH_FORMAT),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: NUM_CASCADES as u32,
@@ -46,11 +46,18 @@ impl Node for ShadowNode {
                 ResourceSpec::Texture(TextureKey {
                     width: 512,
                     height: 512,
-                    format: Texture::DEPTH_FORMAT,
+                    format: Some(Texture::DEPTH_FORMAT),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: (MAX_POINT_LIGHTS * 6) as u32,
                 }),
+            )
+            .output(
+                standard_resources::shadow_cascade_buffer(),
+                ResourceSpec::buffer(
+                    size_of::<CascadeUniform>() as BufferAddress,
+                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                ),
             )
     }
 
@@ -126,15 +133,8 @@ impl Node for ShadowNode {
                 buffer_key,
             )
         };
-
-        let cascade_buffer_key = BufferKey {
-            size: size_of::<CascadeUniform>() as BufferAddress,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        };
-        let cascade_uniform_buffer = context.get_buffer_by_id(
-            &standard_resources::shadow_cascade_buffer(),
-            cascade_buffer_key,
-        );
+        
+        let cascade_uniform_buffer = context.buffer(&standard_resources::shadow_cascade_buffer());
 
         let mut cascade_view_projs = [Mat4::IDENTITY; NUM_CASCADES];
 
@@ -345,27 +345,8 @@ impl Node for ShadowNode {
             );
         }
 
-        let directional_sm_key = TextureKey {
-            width: 2048,
-            height: 2048,
-            format: Texture::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-        let directional_shadow_map = context.get_texture_by_id(
-            &standard_resources::directional_shadow_map(),
-            directional_sm_key,
-        );
-
-        let point_sm_key = TextureKey {
-            width: 512,
-            height: 512,
-            format: Texture::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: (MAX_POINT_LIGHTS * 6) as u32,
-        };
-        let point_shadow_map =
-            context.get_texture_by_id(&standard_resources::point_shadow_map(), point_sm_key);
+        let directional_shadow_map = context.texture(&standard_resources::directional_shadow_map());
+        let point_shadow_map = context.texture(&standard_resources::point_shadow_map());
 
         let directional_shadow_camera_buffer_size =
             CameraUniform::get_uniform_offset_unit() * (NUM_CASCADES as u32);
@@ -409,19 +390,17 @@ impl Node for ShadowNode {
 
         // Draw directional shadow (multiple passes)
         for cascade_idx in 0..NUM_CASCADES {
-            let cascade_view =
-                directional_shadow_map
-                    .get_view(&wgpu::TextureViewDescriptor {
-                        label: Some("shadow cascade view"),
-                        format: Some(Texture::DEPTH_FORMAT),
-                        dimension: Some(wgpu::TextureViewDimension::D2),
-                        usage: Some(wgpu::TextureUsages::RENDER_ATTACHMENT),
-                        aspect: wgpu::TextureAspect::DepthOnly,
-                        base_mip_level: 0,
-                        mip_level_count: None,
-                        base_array_layer: cascade_idx as u32, // Change layer
-                        array_layer_count: Some(1),
-                    });
+            let cascade_view = directional_shadow_map.get_view(&wgpu::TextureViewDescriptor {
+                label: Some("shadow cascade view"),
+                format: Some(Texture::DEPTH_FORMAT),
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                usage: Some(wgpu::TextureUsages::RENDER_ATTACHMENT),
+                aspect: wgpu::TextureAspect::DepthOnly,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: cascade_idx as u32, // Change layer
+                array_layer_count: Some(1),
+            });
 
             let mut render_pass = context
                 .encoder
@@ -497,19 +476,17 @@ impl Node for ShadowNode {
                     break;
                 }
 
-                let psm_face_view =
-                    point_shadow_map
-                        .get_view(&wgpu::TextureViewDescriptor {
-                            label: Some("point shadow face view"),
-                            format: Some(Texture::DEPTH_FORMAT),
-                            dimension: Some(wgpu::TextureViewDimension::D2),
-                            usage: Some(wgpu::TextureUsages::RENDER_ATTACHMENT),
-                            aspect: wgpu::TextureAspect::DepthOnly,
-                            base_mip_level: 0,
-                            mip_level_count: None,
-                            base_array_layer: light_layer_idx as u32,
-                            array_layer_count: Some(1),
-                        });
+                let psm_face_view = point_shadow_map.get_view(&wgpu::TextureViewDescriptor {
+                    label: Some("point shadow face view"),
+                    format: Some(Texture::DEPTH_FORMAT),
+                    dimension: Some(wgpu::TextureViewDimension::D2),
+                    usage: Some(wgpu::TextureUsages::RENDER_ATTACHMENT),
+                    aspect: wgpu::TextureAspect::DepthOnly,
+                    base_mip_level: 0,
+                    mip_level_count: None,
+                    base_array_layer: light_layer_idx as u32,
+                    array_layer_count: Some(1),
+                });
 
                 let mut render_pass =
                     context
