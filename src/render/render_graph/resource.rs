@@ -292,9 +292,9 @@ impl NodeResources {
 pub mod standard_resources {
     use super::{BufferId, ResourceId, TextureId};
 
-    // 颜色缓冲区
+    // 颜色缓冲区（HDR）
     pub fn main_color() -> TextureId {
-        ResourceId::new("main_color")
+        ResourceId::new("hdr_color")
     }
 
     // 深度缓冲区
@@ -302,8 +302,14 @@ pub mod standard_resources {
         ResourceId::new("main_depth")
     }
     
-    pub fn fxaa_color() -> TextureId {
-        ResourceId::new("fxaa_color")
+    // SDR
+    pub fn hdr_resolved() -> TextureId {
+        ResourceId::new("hdr_resolved")
+    }
+    
+    // 最终输出，一般是 Surface
+    pub fn final_output() -> TextureId {
+        ResourceId::new("final_output")
     }
 
     pub fn camera_buffer() -> BufferId {
@@ -339,10 +345,6 @@ pub mod standard_resources {
         ResourceId::new("ssao_blur")
     }
 
-    pub fn hdr_resolved() -> TextureId {
-        ResourceId::new("hdr_resolved")
-    }
-
     // 阴影相关
     pub fn directional_shadow_map() -> TextureId {
         ResourceId::new("directional_shadow_map")
@@ -350,10 +352,5 @@ pub mod standard_resources {
 
     pub fn point_shadow_map() -> TextureId {
         ResourceId::new("point_shadow_map")
-    }
-
-    // 最终输出
-    pub fn final_output() -> TextureId {
-        ResourceId::new("final_output")
     }
 }

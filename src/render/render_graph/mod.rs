@@ -132,10 +132,11 @@ impl RenderGraph {
             HashMap::new();
 
         for (id, spec) in merged_specs {
-            // 跳过内置的 final_output，它不由池管理
+            // 跳过内置的 final_output（一般为 Surface），它不由池管理
             if id == standard_resources::final_output().erase() {
                 continue;
             }
+
             match spec {
                 ResourceSpec::Texture(mut key) => {
                     // 处理 0 尺寸继承（简单实现：使用当前 surface 尺寸）
@@ -146,20 +147,13 @@ impl RenderGraph {
                         key.height = render_context.surface_config.height;
                     }
 
-                    // 自动修正主颜色缓冲区的格式
-                    if id == standard_resources::main_color().erase()
-                        || id == standard_resources::fxaa_color().erase()
-                    {
-                        // 逻辑已移入 ResourceSpec::merge
-                    }
-
                     let tex = self.pool.acquire_texture(&render_context.device, key);
                     active_resources.insert(
                         id,
                         (ResourceKey::Texture(key), VirtualResource::Texture(tex)),
                     );
                 }
-                ResourceSpec::Buffer(mut key) => {
+                ResourceSpec::Buffer(key) => {
                     // 可以在这里根据某种逻辑推导 Buffer 大小
                     let buf = self.pool.acquire_buffer(&render_context.device, key);
                     active_resources

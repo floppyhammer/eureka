@@ -90,8 +90,8 @@ impl RenderWorld {
         graph.add_node("skybox", SkyboxNode::default());
         graph.add_node("mesh", MeshNode::default());
         graph.add_node("transparent_mesh", TransparentMeshNode::default());
-        graph.add_node("fxaa", FxaaNode::default());
         graph.add_node("tonemapping", ToneMappingNode::default());
+        graph.add_node("fxaa", FxaaNode::default());
         graph.add_node("sprite", SpriteNode::default());
 
         graph.add_node_edge("prepare_view", "cull");
@@ -103,10 +103,9 @@ impl RenderWorld {
         graph.add_node_edge("clear", "skybox");
         graph.add_node_edge("skybox", "mesh");
         graph.add_node_edge("mesh", "transparent_mesh");
-        graph.add_node_edge("transparent_mesh", "fxaa");
-        graph.add_node_edge("fxaa", "tonemapping");
         graph.add_node_edge("transparent_mesh", "tonemapping");
-        graph.add_node_edge("tonemapping", "sprite");
+        graph.add_node_edge("tonemapping", "fxaa");
+        graph.add_node_edge("fxaa", "sprite");
         graph
     }
 

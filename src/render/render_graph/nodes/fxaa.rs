@@ -23,14 +23,14 @@ impl Node for FxaaNode {
         let color_spec = ResourceSpec::Texture(TextureKey {
             width: 0,
             height: 0,
-            format: wgpu::TextureFormat::Rgba16Float,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         });
 
         crate::render::render_graph::resource::NodeResources::new()
-            .input(standard_resources::main_color(), color_spec.clone())
-            .output(standard_resources::fxaa_color(), color_spec)
+            .input(standard_resources::hdr_resolved(), color_spec.clone())
+            .output(standard_resources::final_output(), color_spec)
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {
@@ -78,7 +78,7 @@ impl Node for FxaaNode {
         self.pipeline = Some(create_render_pipeline(
             device,
             &pipeline_layout,
-            Some(wgpu::TextureFormat::Rgba16Float), // 输入输出都是 HDR
+            Some(context.render_context.surface_config.format), // 输入输出都是 SDR
             None,
             &[],
             shader,
@@ -93,17 +93,29 @@ impl Node for FxaaNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let device = &context.render_context.device;
+        let input_texture = {
+            let key = TextureKey {
+                width: context.render_context.surface_config.width,
+                height: context.render_context.surface_config.height,
+                format: context.render_context.surface_config.format,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                layers: 1,
+            };
 
-        let key = TextureKey {
-            width: context.render_context.surface_config.width,
-            height: context.render_context.surface_config.height,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
+            context.get_texture_by_id(&standard_resources::hdr_resolved(), key)
         };
-        let input_texture = context.get_texture_by_id(&standard_resources::main_color(), key);
-        let output_texture = context.get_texture_by_id(&standard_resources::fxaa_color(), key);
+
+        let output_texture = {
+            let key = TextureKey {
+                width: context.render_context.surface_config.width,
+                height: context.render_context.surface_config.height,
+                format: context.render_context.surface_config.format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                layers: 1,
+            };
+
+            context.get_texture_by_id(&standard_resources::main_color(), key)
+        };
 
         let pipeline = self.pipeline.as_ref().unwrap();
 
