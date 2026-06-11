@@ -41,7 +41,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var mapped = aces_approx(hdr_color);
 
     // Gamma Correction
-    mapped = pow(mapped, vec3<f32>(1.0 / 2.2));
+//    mapped = pow(mapped, vec3<f32>(1.0 / 2.2));
 
     return vec4<f32>(mapped, 1.0);
 }
