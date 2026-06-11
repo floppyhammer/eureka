@@ -41,7 +41,7 @@ impl Node for SpriteNode {
                 }),
             )
             .output(
-                standard_resources::final_output(),
+                standard_resources::hdr_resolved(),
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
                     height: 0,
@@ -150,11 +150,11 @@ impl Node for SpriteNode {
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("sprite render pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: context.final_output_view,
+                        view: context.final_output_view, // 直接绘制到 Surface
                         depth_slice: None,
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
+                            load: wgpu::LoadOp::Load, // 在 3D 映射后的画面上叠加 UI
                             store: wgpu::StoreOp::Store,
                         },
                     })],

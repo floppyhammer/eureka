@@ -70,7 +70,7 @@ impl Node for MeshNode {
                 ResourceSpec::Texture(TextureKey {
                     width: 0, // 0 表示继承
                     height: 0,
-                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    format: wgpu::TextureFormat::Rgba16Float,
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
@@ -213,7 +213,7 @@ impl Node for MeshNode {
             self.pipeline = Some(create_render_pipeline(
                 device,
                 &pipeline_layout,
-                Some(context.render_context.surface_config.format),
+                Some(wgpu::TextureFormat::Rgba16Float),
                 Some(Texture::DEPTH_FORMAT),
                 &[Vertex3d::desc(), InstanceRaw::desc()],
                 shader,
@@ -254,12 +254,11 @@ impl Node for MeshNode {
     fn run(&mut self, context: &mut FrameContext) {
         let width = context.render_context.surface_config.width;
         let height = context.render_context.surface_config.height;
-        let format = context.render_context.surface_config.format;
 
         let main_color_key = TextureKey {
             width,
             height,
-            format,
+            format: wgpu::TextureFormat::Rgba16Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         };

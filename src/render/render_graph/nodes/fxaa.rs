@@ -23,7 +23,7 @@ impl Node for FxaaNode {
         let color_spec = ResourceSpec::Texture(TextureKey {
             width: 0,
             height: 0,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb, // 暂定，实际会合并
+            format: wgpu::TextureFormat::Rgba16Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         });
@@ -34,69 +34,71 @@ impl Node for FxaaNode {
     }
 
     fn prepare(&mut self, context: &mut FrameContext) {
+        if self.pipeline.is_some() {
+            return;
+        }
 
+        let device = &context.render_context.device;
+
+        let bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("FXAA Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("FXAA Pipeline Layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let shader = wgpu::ShaderModuleDescriptor {
+            label: Some("FXAA Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/fxaa.wgsl").into()),
+        };
+
+        use crate::render::create_render_pipeline;
+        self.pipeline = Some(create_render_pipeline(
+            device,
+            &pipeline_layout,
+            Some(wgpu::TextureFormat::Rgba16Float), // 输入输出都是 HDR
+            None,
+            &[],
+            shader,
+            "FXAA Pipeline",
+            false,
+            None,
+        ));
+
+        context
+            .pool
+            .add_bind_group_layout("fxaa_bind_group_layout", bind_group_layout);
     }
 
     fn run(&mut self, context: &mut FrameContext) {
         let device = &context.render_context.device;
 
-        if self.pipeline.is_none() {
-            let bind_group_layout =
-                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("FXAA Bind Group Layout"),
-                    entries: &[
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Texture {
-                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                                view_dimension: wgpu::TextureViewDimension::D2,
-                                multisampled: false,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                            count: None,
-                        },
-                    ],
-                });
-
-            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("FXAA Pipeline Layout"),
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("FXAA Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/fxaa.wgsl").into()),
-            };
-
-            use crate::render::create_render_pipeline;
-            self.pipeline = Some(create_render_pipeline(
-                device,
-                &pipeline_layout,
-                Some(context.render_context.surface_config.format),
-                None,
-                &[],
-                shader,
-                "FXAA Pipeline",
-                false,
-                None,
-            ));
-
-            context
-                .pool
-                .add_bind_group_layout("fxaa_bind_group_layout", bind_group_layout);
-        }
-        
         let key = TextureKey {
             width: context.render_context.surface_config.width,
             height: context.render_context.surface_config.height,
-            format: context.render_context.surface_config.format,
+            format: wgpu::TextureFormat::Rgba16Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         };

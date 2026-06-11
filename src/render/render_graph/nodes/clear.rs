@@ -22,7 +22,7 @@ impl Node for ClearNode {
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
                     height: 0,
-                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    format: wgpu::TextureFormat::Rgba16Float, // 改为 HDR 格式
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
@@ -44,7 +44,7 @@ impl Node for ClearNode {
     fn run(&mut self, context: &mut FrameContext) {
         let width = context.render_context.surface_config.width;
         let height = context.render_context.surface_config.height;
-        let format = context.render_context.surface_config.format;
+        let format = wgpu::TextureFormat::Rgba16Float;
 
         let main_color_key = TextureKey {
             width,

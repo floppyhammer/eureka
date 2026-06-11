@@ -222,7 +222,12 @@ impl ResourceSpec {
                 a.width = a.width.max(b.width);
                 a.height = a.height.max(b.height);
                 a.layers = a.layers.max(b.layers);
-                // 注意：这里假设 format 必须一致，实际中可能需要处理冲突
+
+                // 核心修复：格式升级逻辑
+                // 如果任意一方要求 HDR (Rgba16Float)，则最终结果必须是 HDR
+                if a.format == wgpu::TextureFormat::Rgba16Float || b.format == wgpu::TextureFormat::Rgba16Float {
+                    a.format = wgpu::TextureFormat::Rgba16Float;
+                }
             }
             (ResourceSpec::Buffer(a), ResourceSpec::Buffer(b)) => {
                 a.usage |= b.usage;
@@ -332,6 +337,10 @@ pub mod standard_resources {
 
     pub fn ssao_blur() -> TextureId {
         ResourceId::new("ssao_blur")
+    }
+
+    pub fn hdr_resolved() -> TextureId {
+        ResourceId::new("hdr_resolved")
     }
 
     // 阴影相关

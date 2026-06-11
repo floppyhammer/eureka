@@ -1,22 +1,21 @@
-use std::cell::RefCell;
-use std::sync::Arc;
-use crate::render::camera::{CameraType, ExtractedCameras};
+use crate::render::camera::ExtractedCameras;
 use crate::render::draw_command::DrawCommands;
-use crate::render::gizmo::GizmoRenderResources;
 use crate::render::light::ExtractedLights;
-use crate::render::render_graph::standard_resources;
 use crate::render::render_graph::{
-    ClearNode, CullingNode, FxaaNode, MeshNode, PrepareViewNode, PresentNode, RenderGraph,
+    ClearNode, CullingNode, FxaaNode, MeshNode, PrepareViewNode, RenderGraph,
     ShadowNode, SkyboxNode, SpriteNode, SsaoNode, TransparentMeshNode,
 };
+use crate::render::render_graph::ToneMappingNode;
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sky::{prepare_sky, ExtractedSky, SkyImportedResources};
 use crate::render::sprite::{
     prepare_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
 };
-use crate::render::{ExtractedMesh, MeshCache, MeshId, MeshInstanceInfo, MeshRenderResources, RenderContext, Texture, TextureCache, TextureId, NEXT_TEXTURE_ID};
+use crate::render::{ExtractedMesh, MeshCache, MeshRenderResources, RenderContext, Texture, TextureCache, TextureId, NEXT_TEXTURE_ID};
 use crate::scene::Bvh;
+use std::cell::RefCell;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 #[derive(Default, Clone)]
 pub struct Extracted {
@@ -73,12 +72,12 @@ impl RenderWorld {
     pub fn run_graph(
         &mut self,
         render_server: &RenderContext,
-        encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
-    ) {
+    ) -> wgpu::CommandBuffer {
         let mut graph = std::mem::take(&mut self.render_graph);
-        graph.run(render_server, self, encoder, output_view);
+        let cmd_buf = graph.run(render_server, self, output_view);
         self.render_graph = graph;
+        cmd_buf
     }
 
     fn default_graph() -> RenderGraph {
@@ -92,7 +91,7 @@ impl RenderWorld {
         graph.add_node("mesh", MeshNode::default());
         graph.add_node("transparent_mesh", TransparentMeshNode::default());
         graph.add_node("fxaa", FxaaNode::default());
-        graph.add_node("present", PresentNode::default());
+        graph.add_node("tonemapping", ToneMappingNode::default());
         graph.add_node("sprite", SpriteNode::default());
 
         graph.add_node_edge("prepare_view", "cull");
@@ -105,9 +104,9 @@ impl RenderWorld {
         graph.add_node_edge("skybox", "mesh");
         graph.add_node_edge("mesh", "transparent_mesh");
         graph.add_node_edge("transparent_mesh", "fxaa");
-        graph.add_node_edge("fxaa", "present");
-        graph.add_node_edge("transparent_mesh", "present");
-        graph.add_node_edge("present", "sprite");
+        graph.add_node_edge("fxaa", "tonemapping");
+        graph.add_node_edge("transparent_mesh", "tonemapping");
+        graph.add_node_edge("tonemapping", "sprite");
         graph
     }
 
@@ -117,17 +116,6 @@ impl RenderWorld {
 
     /// Prepare CPU resources and imported GPU resources
     pub fn prepare(&mut self, render_server: &RenderContext) {
-        // Configure Render Graph based on settings (Optional: only if changed)
-        let final_3d_resource = if self.extracted.fxaa_enabled {
-            standard_resources::fxaa_color()
-        } else {
-            standard_resources::main_color()
-        };
-
-        if let Some(present) = self.render_graph.get_node_mut::<PresentNode>("present") {
-            present.input_resource_id = final_3d_resource;
-        }
-
         // 3. Prepare Bindless Materials (Now includes all 2D textures)
         self.mesh_render_resources.prepare_materials(
             &self.imported_texture_cache,

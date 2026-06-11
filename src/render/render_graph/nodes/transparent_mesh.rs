@@ -36,7 +36,7 @@ impl Node for TransparentMeshNode {
         let color_spec = ResourceSpec::Texture(TextureKey {
             width: 0,
             height: 0,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            format: wgpu::TextureFormat::Rgba16Float, // 对齐 HDR
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
         });
@@ -115,7 +115,7 @@ impl Node for TransparentMeshNode {
             self.pipeline = Some(create_render_pipeline(
                 device,
                 &pipeline_layout,
-                Some(context.render_context.surface_config.format),
+                Some(wgpu::TextureFormat::Rgba16Float), // 对齐 HDR
                 Some(Texture::DEPTH_FORMAT),
                 &[Vertex3d::desc(), InstanceRaw::desc()],
                 shader,

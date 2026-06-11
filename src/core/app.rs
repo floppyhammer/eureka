@@ -236,17 +236,8 @@ impl<'a> App<'a> {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Builds a command buffer that we can then send to the GPU.
-        let mut encoder =
-            render_server
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("main render encoder"),
-                });
-
-        render_world.run_graph(
+        let cmd_buffer = render_world.run_graph(
             render_server,
-            &mut encoder,
             &view,
         );
 
@@ -255,7 +246,7 @@ impl<'a> App<'a> {
         singletons
             .render_context
             .queue
-            .submit(std::iter::once(encoder.finish()));
+            .submit(std::iter::once(cmd_buffer));
 
         // Present the swapchain surface.
         surface_texture.present();

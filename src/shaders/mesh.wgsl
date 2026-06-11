@@ -412,8 +412,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let result = indirect_diffuse + indirect_specular + point_lights_result + directional_light_result;
 
-    // Reinhard Tone Mapping
-    let mapped = result / (result + vec3<f32>(1.0));
-
-    return vec4<f32>(mapped, object_color.a);
+    return vec4<f32>(result, object_color.a);
 }

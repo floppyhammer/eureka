@@ -93,9 +93,8 @@ impl RenderGraph {
         &mut self,
         render_context: &RenderContext,
         render_world: &mut RenderWorld,
-        encoder: &mut wgpu::CommandEncoder,
         final_output_view: &wgpu::TextureView,
-    ) {
+    ) -> wgpu::CommandBuffer {
         // 1. 每帧开始时，尝试从冷却队列中回收旧资源
         self.pool
             .update(self.frame_count, render_context.frames_in_flight as u64);
@@ -147,11 +146,11 @@ impl RenderGraph {
                         key.height = render_context.surface_config.height;
                     }
 
-                    // 自动修正主颜色缓冲区的格式，确保与 Surface 一致，防止验证错误
+                    // 自动修正主颜色缓冲区的格式
                     if id == standard_resources::main_color().erase()
                         || id == standard_resources::fxaa_color().erase()
                     {
-                        key.format = render_context.surface_config.format;
+                        // 逻辑已移入 ResourceSpec::merge
                     }
 
                     let tex = self.pool.acquire_texture(&render_context.device, key);
@@ -173,30 +172,37 @@ impl RenderGraph {
         // 验证资源依赖
         if let Err(err) = self.validate_resource_dependencies(&execution_order) {
             log::error!("Resource dependency validation failed: {}", err);
-            return;
+            // 降级：返回一个空的完成编码器，而不是 panic
+            return render_context.device.create_command_encoder(&Default::default()).finish();
         }
 
-        // 临时包装，方便 Node 使用
-        let mut context = FrameContext {
-            render_context,
-            render_world,
-            encoder,
-            final_output_view,
-            pool: &mut self.pool,
-            active_resources: &mut active_resources,
-        };
+        // --- 核心重构：独立录制逻辑 ---
+        let mut encoder = render_context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Graph Encoder"),
+        });
 
-        // 准备所有节点
-        for node_name in &execution_order {
-            if let Some(node_state) = self.nodes.get_mut(node_name) {
-                node_state.node.prepare(&mut context);
+        {
+            let mut context = FrameContext {
+                render_context,
+                render_world,
+                encoder: &mut encoder,
+                final_output_view,
+                pool: &mut self.pool,
+                active_resources: &mut active_resources,
+            };
+
+            // 准备所有节点
+            for node_name in &execution_order {
+                if let Some(node_state) = self.nodes.get_mut(node_name) {
+                    node_state.node.prepare(&mut context);
+                }
             }
-        }
 
-        // 执行所有节点
-        for node_name in execution_order {
-            if let Some(node_state) = self.nodes.get_mut(&node_name) {
-                node_state.node.run(&mut context);
+            // 执行所有节点
+            for node_name in execution_order {
+                if let Some(node_state) = self.nodes.get_mut(&node_name) {
+                    node_state.node.run(&mut context);
+                }
             }
         }
 
@@ -214,6 +220,8 @@ impl RenderGraph {
         }
 
         self.frame_count += 1;
+
+        encoder.finish()
     }
 
     fn validate_resource_dependencies(&self, execution_order: &[String]) -> Result<(), String> {
