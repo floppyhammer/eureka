@@ -40,28 +40,38 @@ impl Node for FxaaNode {
 
         let device = &context.render_context.device;
 
-        let bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("FXAA Bind Group Layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("FXAA Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                // 新增：Uniform 开关
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
-                ],
-            });
+                    count: None,
+                },
+            ],
+        });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("FXAA Pipeline Layout"),
@@ -78,7 +88,7 @@ impl Node for FxaaNode {
         self.pipeline = Some(create_render_pipeline(
             device,
             &pipeline_layout,
-            Some(context.render_context.surface_config.format), // 输入输出都是 SDR
+            Some(context.render_context.surface_config.format),
             None,
             &[],
             shader,
@@ -93,8 +103,9 @@ impl Node for FxaaNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let input_texture =  context.texture(&standard_resources::hdr_resolved());
+        let input_texture = context.texture(&standard_resources::hdr_resolved());
 
+        let fxaa_enabled = context.render_world.extracted.fxaa_enabled;
         let pipeline = self.pipeline.as_ref().unwrap();
 
         let sampler = context.get_sampler(SamplerKey {
@@ -103,14 +114,28 @@ impl Node for FxaaNode {
             ..Default::default()
         });
 
+        // 使用 context 的方法获取池化 Buffer，并写入开关状态
+        let settings_data = if fxaa_enabled { 1u32 } else { 0u32 };
+        let settings_buffer = context.get_buffer(
+            "fxaa_settings",
+            crate::render::render_graph::BufferKey {
+                size: 4,
+                usage: wgpu::BufferUsages::UNIFORM,
+            },
+        );
+        context.write_buffer(&settings_buffer.buffer, &[settings_data]);
+
         let bind_group_layout = context
             .pool
             .get_bind_group_layout("fxaa_bind_group_layout")
             .unwrap()
             .clone();
 
-        let bind_group =
-            context.create_bind_group(&bind_group_layout, vec![input_texture.id], |ctx| {
+        // 使用 context.create_bind_group 以利用缓存机制
+        let bind_group = context.create_bind_group(
+            &bind_group_layout,
+            vec![input_texture.id, settings_buffer.id],
+            |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("FXAA Bind Group"),
                     layout: &bind_group_layout,
@@ -123,9 +148,14 @@ impl Node for FxaaNode {
                             binding: 1,
                             resource: wgpu::BindingResource::Sampler(&sampler),
                         },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: settings_buffer.buffer.as_entire_binding(),
+                        },
                     ],
                 })
-            });
+            },
+        );
 
         let mut render_pass = context
             .encoder

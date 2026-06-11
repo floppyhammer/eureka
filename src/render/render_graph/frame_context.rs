@@ -156,4 +156,11 @@ impl<'a> FrameContext<'a> {
         self.pool
             .get_or_create_bind_group(layout, resource_ids, || creator(render_context))
     }
+
+    /// 向缓冲区写入数据
+    pub fn write_buffer<T: bytemuck::Pod>(&self, buffer: &wgpu::Buffer, data: &[T]) {
+        self.render_context
+            .queue
+            .write_buffer(buffer, 0, bytemuck::cast_slice(data));
+    }
 }

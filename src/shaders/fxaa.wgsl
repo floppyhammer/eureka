@@ -21,9 +21,15 @@ fn vs_main(
 var t_diffuse: texture_2d<f32>;
 @group(0) @binding(1)
 var s_diffuse: sampler;
+@group(0) @binding(2)
+var<uniform> fxaa_enabled: u32;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    if (fxaa_enabled == 0u) {
+        return textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    }
+
     let screen_size = vec2<f32>(textureDimensions(t_diffuse));
     let inv_screen_size = 1.0 / screen_size;
 
