@@ -69,7 +69,17 @@ impl Node for TransparentMeshNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        if context.render_world.mesh_render_resources.draw_counts.is_empty() {
+        if context
+            .render_world
+            .mesh_render_resources
+            .instance_buffer_size
+            == 0
+            || context
+            .render_world
+            .mesh_render_resources
+            .indirect_buffer_size
+            == 0
+        {
             return;
         }
         

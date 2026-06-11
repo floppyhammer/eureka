@@ -133,7 +133,17 @@ impl Node for MeshNode {
         let world = &*context.render_world;
         let resources = &world.mesh_render_resources;
 
-        if context.render_world.mesh_render_resources.instance_buffer_size == 0 {
+        if context
+            .render_world
+            .mesh_render_resources
+            .instance_buffer_size
+            == 0
+            || context
+            .render_world
+            .mesh_render_resources
+            .indirect_buffer_size
+            == 0
+        {
             return;
         }
         

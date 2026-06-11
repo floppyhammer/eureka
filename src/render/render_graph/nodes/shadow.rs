@@ -68,16 +68,45 @@ impl Node for ShadowNode {
 
         let device = &context.render_context.device;
 
-        let camera_bind_group_layout = context
+        // This is the same as the main camera bind group layout,
+        // but prepare_view node is not guaranteed to run before this node.
+        // So we make a dedicated layout for the shadow camera.
+        if context
             .pool
-            .get_bind_group_layout("camera_bind_group_layout")
+            .get_bind_group_layout("shadow_camera_bind_group_layout")
+            .is_none()
+        {
+            let camera_bind_group_layout = context.render_context.device.create_bind_group_layout(
+                &wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: true,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                    label: Some("Shadow Camera Bind Group Layout"),
+                },
+            );
+
+            context
+                .pool
+                .add_bind_group_layout("shadow_camera_bind_group_layout", camera_bind_group_layout);
+        }
+
+        let shadow_camera_bind_group_layout = context
+            .pool
+            .get_bind_group_layout("shadow_camera_bind_group_layout")
             .unwrap()
             .clone();
 
         if self.pipeline.is_none() {
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("shadow pipeline layout"),
-                bind_group_layouts: &[&camera_bind_group_layout],
+                bind_group_layouts: &[&shadow_camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -254,9 +283,9 @@ impl Node for ShadowNode {
         // Update point shadow buffers
         let point_shadow_camera_buffer_size = offset_unit * (MAX_POINT_LIGHTS * 6) as u32;
 
-        let camera_bind_group_layout = context
+        let shadow_camera_bind_group_layout = context
             .pool
-            .get_bind_group_layout("camera_bind_group_layout")
+            .get_bind_group_layout("shadow_camera_bind_group_layout")
             .unwrap()
             .clone();
 
@@ -273,11 +302,11 @@ impl Node for ShadowNode {
         };
 
         let point_shadow_camera_bind_group = context.create_bind_group(
-            &camera_bind_group_layout,
+            &shadow_camera_bind_group_layout,
             vec![point_shadow_camera_buffer.id],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &camera_bind_group_layout,
+                    layout: &shadow_camera_bind_group_layout,
                     entries: &[wgpu::BindGroupEntry {
                         binding: 0,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
@@ -358,11 +387,11 @@ impl Node for ShadowNode {
         );
 
         let directional_shadow_camera_bind_group = context.create_bind_group(
-            &camera_bind_group_layout,
+            &shadow_camera_bind_group_layout,
             vec![directional_shadow_camera_buffer.id],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &camera_bind_group_layout,
+                    layout: &shadow_camera_bind_group_layout,
                     entries: &[wgpu::BindGroupEntry {
                         binding: 0,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
