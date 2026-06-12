@@ -1,5 +1,5 @@
 use crate::render::camera::CameraUniform;
-use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureKey};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey};
 use crate::render::vertex::{VertexBuffer, VertexSky};
 use crate::render::{create_render_pipeline, Texture};
 use std::any::Any;
@@ -20,7 +20,7 @@ impl Node for SkyboxNode {
         self
     }
 
-    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, _world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;

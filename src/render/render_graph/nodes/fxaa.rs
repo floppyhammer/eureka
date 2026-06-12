@@ -1,5 +1,5 @@
 use crate::render::render_graph::{standard_resources, SamplerKey};
-use crate::render::render_graph::{FrameContext, Node, TextureKey};
+use crate::render::render_graph::{FrameContext, Node};
 use std::any::Any;
 use crate::render::render_world::RenderWorld;
 
@@ -18,7 +18,7 @@ impl Node for FxaaNode {
         self
     }
 
-    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, _world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
 
         let color_spec = ResourceSpec::Texture(TextureKey {

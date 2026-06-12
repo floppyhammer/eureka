@@ -36,7 +36,6 @@ pub struct MouseScroll {
 pub struct MouseMotion {
     pub(crate) delta: (f32, f32),
     pub(crate) position: (f32, f32),
-    consumed: bool,
 }
 
 pub struct InputServer {
@@ -85,7 +84,6 @@ impl InputServer {
                 self.input_events.push(InputEvent::MouseMotion(MouseMotion {
                     delta: (delta.0 as f32, delta.1 as f32),
                     position: self.mouse_position,
-                    consumed: false,
                 }));
             }
         }
@@ -132,7 +130,6 @@ impl InputServer {
                             self.mouse_position.1 - last_pos.1,
                         ),
                         position: self.mouse_position,
-                        consumed: false,
                     })
                 } else {
                     InputEvent::Invalid

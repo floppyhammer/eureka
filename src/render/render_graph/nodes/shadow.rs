@@ -24,7 +24,7 @@ impl Node for ShadowNode {
         self
     }
 
-    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, _world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::light::{MAX_POINT_LIGHTS, NUM_CASCADES};
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
@@ -145,8 +145,6 @@ impl Node for ShadowNode {
         }
 
         let offset_unit = CameraUniform::get_uniform_offset_unit();
-
-        let mut point_shadow_view_projs: Vec<Mat4> = Vec::new();
 
         let directional_shadow_camera_buffer_size = offset_unit * NUM_CASCADES as u32;
         let directional_shadow_camera_buffer = {

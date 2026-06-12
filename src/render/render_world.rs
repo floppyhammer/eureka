@@ -1,21 +1,18 @@
 use crate::render::camera::ExtractedCameras;
 use crate::render::draw_command::DrawCommands;
 use crate::render::light::ExtractedLights;
+use crate::render::render_graph::ToneMappingNode;
 use crate::render::render_graph::{
     ClearNode, CullingNode, FxaaNode, MeshNode, PrepareViewNode, RenderGraph,
     ShadowNode, SkyboxNode, SpriteNode, SsaoNode, TransparentMeshNode,
 };
-use crate::render::render_graph::ToneMappingNode;
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sky::{prepare_sky, ExtractedSky, SkyImportedResources};
 use crate::render::sprite::{
     prepare_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
 };
-use crate::render::{ExtractedMesh, MeshCache, MeshRenderResources, RenderContext, Texture, TextureCache, TextureId, NEXT_TEXTURE_ID};
+use crate::render::{ExtractedMesh, MeshCache, MeshRenderResources, RenderContext, TextureCache};
 use crate::scene::Bvh;
-use std::cell::RefCell;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
 
 #[derive(Default, Clone)]
 pub struct Extracted {
@@ -32,8 +29,8 @@ pub struct Extracted {
 
 pub struct RenderWorld {
     /// Material textures, sprite textures
-    pub imported_texture_cache: TextureCache,
-    pub mesh_cache: MeshCache,
+    pub(crate) imported_texture_cache: TextureCache,
+    pub(crate) mesh_cache: MeshCache,
     pub(crate) shader_maker: ShaderMaker,
     pub(crate) sprite_render_resources: SpriteRenderResources,
     // pub(crate) bindless_bind_group_layout: wgpu::BindGroupLayout,
@@ -42,13 +39,13 @@ pub struct RenderWorld {
     pub(crate) extracted: Extracted,
     pub(crate) sprite_batches: Vec<SpriteBatch>,
     // pub gizmo_render_resources: GizmoRenderResources,
-    pub sky_imported_resources: SkyImportedResources,
-    pub render_graph: RenderGraph,
+    pub(crate) sky_imported_resources: SkyImportedResources,
+    pub(crate) render_graph: RenderGraph,
 }
 
 impl RenderWorld {
     pub fn new(render_server: &RenderContext) -> Self {
-        let mut imported_texture_cache = TextureCache::new();
+        let imported_texture_cache = TextureCache::new();
         let sprite_render_resources = SpriteRenderResources::new(render_server);
         let mesh_render_resources = MeshRenderResources::new(render_server);
         // let gizmo_render_resources =

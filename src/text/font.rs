@@ -11,10 +11,9 @@ use std::fs::File;
 use std::io::Read;
 use std::ops::Range;
 use std::time::Instant;
-use unicode_bidi::{BidiInfo, Level};
+use unicode_bidi::{BidiInfo};
 use unicode_linebreak::{
     break_property, BreakClass,
-    BreakOpportunity::{Allowed, Mandatory},
 };
 
 /// Only scripts in this enum are supported.

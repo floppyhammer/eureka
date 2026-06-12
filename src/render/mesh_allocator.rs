@@ -130,7 +130,7 @@ impl MeshAllocator {
         );
     }
 
-    pub fn setup_skybox(&self, queue: &wgpu::Queue, vertices: &[VertexSky], indices: &[u32]) {
+    pub(crate) fn setup_skybox(&self, queue: &wgpu::Queue, vertices: &[VertexSky], indices: &[u32]) {
         queue.write_buffer(&self.sky_vertex_buffer, 0, bytemuck::cast_slice(vertices));
         queue.write_buffer(&self.sky_index_buffer, 0, bytemuck::cast_slice(indices));
     }

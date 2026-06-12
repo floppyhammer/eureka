@@ -41,7 +41,7 @@ impl AsNode for PointLight {
         NodeType::PointLight
     }
 
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+    fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {
         // let queue = &mut singletons.render_server.queue;
 
         // self.sprite.position = new_position;

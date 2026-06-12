@@ -1,8 +1,4 @@
-use crate::render::camera::CameraUniform;
-use crate::render::{
-    RenderContext, TextureCache, TextureId,
-};
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]

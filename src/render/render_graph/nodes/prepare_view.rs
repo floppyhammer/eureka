@@ -15,7 +15,7 @@ impl Node for PrepareViewNode {
         self
     }
 
-    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, _world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::camera::CameraUniform;
         use crate::render::render_graph::resource::ResourceSpec;
 

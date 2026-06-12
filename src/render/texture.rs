@@ -364,7 +364,7 @@ impl Texture {
         let img = image::open(path_ref).context("Invalid image path")?;
         let (width, height) = img.dimensions();
 
-        let mut pixels = Vec::new();
+        let pixels;
         let format;
 
         match img {

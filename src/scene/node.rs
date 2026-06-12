@@ -62,15 +62,15 @@ pub trait AsNode {
         // Default implementation
     }
 
-    fn input(&mut self, input_event: &mut InputEvent, input_server: &mut InputServer) {
+    fn input(&mut self, _input_event: &mut InputEvent, _input_server: &mut InputServer) {
         // Default implementation
     }
 
-    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+    fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {
         // Default implementation
     }
 
-    fn draw(&self, draw_cmds: &mut DrawCommands) {
+    fn draw(&self, _draw_cmds: &mut DrawCommands) {
         // Default implementation
     }
 

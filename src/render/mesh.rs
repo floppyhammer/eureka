@@ -1,6 +1,5 @@
 use crate::math::aabb::Aabb;
 use crate::math::transform::Transform3d;
-use crate::render::gizmo::GizmoRenderResources;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::mesh_allocator::MeshAllocator;
 use crate::render::shader_maker::ShaderMaker;

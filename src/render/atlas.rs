@@ -9,12 +9,6 @@ pub struct AtlasInstance {
     pub(crate) color: Vec4,
 }
 
-#[derive(Clone)]
-pub struct ExtractedAtlas {
-    pub(crate) atlas: Atlas,
-    pub(crate) view_size: UVec2,
-}
-
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct AtlasInstanceRaw {
@@ -23,6 +17,7 @@ pub(crate) struct AtlasInstanceRaw {
     region: [f32; 4],
     color: [f32; 4],
 }
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct AtlasParamsUniform {
@@ -36,6 +31,7 @@ impl AtlasParamsUniform {
         let size = size_of::<AtlasParamsUniform>() as u32;
         (size + offset_alignment - 1) & !(offset_alignment - 1)
     }
+
     pub(crate) fn new(atlas_size: UVec2, camera_view_size: UVec2) -> Self {
         Self {
             camera_view_size: [camera_view_size.x as f32, camera_view_size.y as f32],

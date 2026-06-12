@@ -1,6 +1,6 @@
 use crate::render::camera::CameraUniform;
 use crate::render::create_render_pipeline;
-use crate::render::render_graph::{standard_resources, FrameContext, Node, TextureKey};
+use crate::render::render_graph::{standard_resources, FrameContext, Node};
 use crate::render::vertex::{Vertex2d, VertexBuffer};
 use crate::render::Texture;
 use std::any::Any;
@@ -21,7 +21,7 @@ impl Node for SpriteNode {
         self
     }
 
-    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(&self, _world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
