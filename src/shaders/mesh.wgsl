@@ -273,12 +273,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let view_to_frag = camera.view_pos.xyz - in.world_position.xyz;
     let view_dir = normalize(view_to_frag + vec3<f32>(0.00001)); // Add epsilon to prevent NaN
 
-    // Ensure normal is always facing towards the camera (fixes back-facing artifacts on spheres)
-    if (dot(world_normal, view_dir) < 0.0) {
-        world_normal = world_normal - 2.0 * dot(world_normal, view_dir) * view_dir;
-        world_normal = normalize(world_normal);
-    }
-
     // F0: Surface reflection at zero incidence
     // For non-metals, we use 0.04. For metals, we use the object color.
     var F0 = vec3<f32>(0.04);
