@@ -1,7 +1,7 @@
 use crate::render::camera::CameraUniform;
+use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{standard_resources, FrameContext, Node};
 use std::any::Any;
-use crate::render::render_world::RenderWorld;
 
 /// 准备视角数据（相机矩阵等），并上传到池化缓冲区。
 /// 它是所有 3D 渲染节点的共同输入源。
@@ -15,7 +15,10 @@ impl Node for PrepareViewNode {
         self
     }
 
-    fn node_resources(&self, _world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(
+        &self,
+        _prepared: &PreparedFrame,
+    ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::camera::CameraUniform;
         use crate::render::render_graph::resource::ResourceSpec;
 
@@ -33,7 +36,7 @@ impl Node for PrepareViewNode {
 
     fn run(&mut self, context: &mut FrameContext) {
         if context
-            .pool
+            .backend
             .get_bind_group_layout("camera_bind_group_layout")
             .is_none()
         {
@@ -54,11 +57,11 @@ impl Node for PrepareViewNode {
             );
 
             context
-                .pool
+                .backend
                 .add_bind_group_layout("camera_bind_group_layout", camera_bind_group_layout);
         }
-        
-        let extracted_cameras = context.render_world.extracted.cameras.clone();
+
+        let extracted_cameras = context.extracted.cameras.clone();
         let uniforms = extracted_cameras.uniforms.clone();
 
         // No cameras.
@@ -85,13 +88,12 @@ impl Node for PrepareViewNode {
             .write_buffer(&camera_buffer.buffer, 0, &aligned_up_data);
 
         let camera_bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("camera_bind_group_layout")
-            .unwrap()
-            .clone();
+            .unwrap().clone();
 
         let _ =
-            context.create_bind_group(&camera_bind_group_layout, vec![camera_buffer.id], |ctx| {
+            context.create_bind_group("camera_bind_group_layout", vec![camera_buffer.id], |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &camera_bind_group_layout,
                     entries: &[wgpu::BindGroupEntry {

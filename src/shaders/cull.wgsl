@@ -7,6 +7,13 @@ struct Camera {
     ssao_enabled: u32,
 }
 
+struct CullParams {
+    total_instances: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
+}
+
 struct MeshMetadata {
     aabb_min: vec4<f32>,
     aabb_max: vec4<f32>,
@@ -25,6 +32,9 @@ struct Instance {
     normal_1: vec4<f32>,
     normal_2: vec4<f32>,
     material_idx: u32,
+    _pad0: u32, // 显式填充，凑够 128 字节
+    _pad1: u32,
+    _pad2: u32,
 }
 
 struct DrawIndexedIndirect {
@@ -40,6 +50,7 @@ struct DrawIndexedIndirect {
 @group(0) @binding(2) var<storage, read> instances: array<Instance>;
 @group(0) @binding(3) var<storage, read_write> visible_instances: array<Instance>;
 @group(0) @binding(4) var<storage, read_write> indirect_commands: array<DrawIndexedIndirect>;
+@group(0) @binding(5) var<uniform> params: CullParams;
 
 fn intersects_frustum(pos: vec3<f32>, radius: f32, planes: array<vec4<f32>, 6>) -> bool {
     for (var i = 0; i < 6; i = i + 1) {
@@ -53,20 +64,28 @@ fn intersects_frustum(pos: vec3<f32>, radius: f32, planes: array<vec4<f32>, 6>) 
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let global_instance_idx = id.x;
-    let total_instances = arrayLength(&instances);
 
-    if (global_instance_idx >= total_instances) {
+    // 使用逻辑计数，完美避开资源池填充区域
+    if (global_instance_idx >= params.total_instances) {
         return;
     }
 
+    // 1. 安全地寻找当前实例所属的网格索引
     var mesh_idx = 0u;
+    var found = false;
     let num_meshes = arrayLength(&mesh_metadatas);
     for (var i = 0u; i < num_meshes; i = i + 1u) {
-        let m_meta = mesh_metadatas[i];
-        if (global_instance_idx >= m_meta.base_instance && global_instance_idx < m_meta.base_instance + m_meta.instance_count) {
+        let m_meta_check = mesh_metadatas[i];
+        if (global_instance_idx >= m_meta_check.base_instance && global_instance_idx < m_meta_check.base_instance + m_meta_check.instance_count) {
             mesh_idx = i;
+            found = true;
             break;
         }
+    }
+
+    // 如果实例索引不在任何已知的网格范围内，直接跳过，防止非法写入
+    if (!found) {
+        return;
     }
 
     let m_meta = mesh_metadatas[mesh_idx];
@@ -97,7 +116,11 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     if (intersects_frustum(world_center, radius, planes)) {
         let out_idx = atomicAdd(&indirect_commands[mesh_idx].instance_count, 1u);
-        let global_out_idx = m_meta.base_instance + out_idx;
-        visible_instances[global_out_idx] = instance;
+
+        // 关键安全检查：确保当前可见实例没有超过该网格预分配的槽位上限
+        if (out_idx < m_meta.instance_count) {
+            let global_out_idx = m_meta.base_instance + out_idx;
+            visible_instances[global_out_idx] = instance;
+        }
     }
 }

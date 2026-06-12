@@ -1,8 +1,9 @@
 use crate::render::camera::{CameraType, CameraUniform};
+use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{
     standard_resources, FrameContext, Node, NodeResources, ResourceSpec,
 };
-use crate::render::render_world::RenderWorld;
+use crate::render::InstanceRaw;
 use std::any::Any;
 use wgpu::BufferAddress;
 
@@ -21,19 +22,39 @@ impl Node for CullingNode {
         self
     }
 
-    fn node_resources(&self, render_world: &RenderWorld) -> NodeResources {
+    fn node_resources(&self, prepared: &PreparedFrame) -> NodeResources {
         let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
             * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+
+        let metadata_buffer_size = (prepared.mesh_metadatas.len()
+            * size_of::<crate::render::mesh::MeshMetadata>())
+            as BufferAddress;
 
         NodeResources::new()
             .input(
                 standard_resources::camera_buffer(),
                 ResourceSpec::buffer(camera_buffer_size as u64, wgpu::BufferUsages::UNIFORM),
             )
+            .input(
+                standard_resources::global_instance_buffer(), // 未经过 culling 的 instance 数据
+                ResourceSpec::buffer(
+                    prepared.instance_buffer_size as u64,
+                    wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::VERTEX
+                        | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
+            .input(
+                standard_resources::mesh_metadata_buffer(),
+                ResourceSpec::buffer(
+                    metadata_buffer_size as u64,
+                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
             .output(
                 standard_resources::cull_visible_instance_buffer(),
                 ResourceSpec::buffer(
-                    render_world.mesh_render_resources.instance_buffer_size as BufferAddress,
+                    prepared.instance_buffer_size as BufferAddress,
                     wgpu::BufferUsages::STORAGE
                         | wgpu::BufferUsages::VERTEX
                         | wgpu::BufferUsages::COPY_DST,
@@ -42,32 +63,47 @@ impl Node for CullingNode {
             .output(
                 standard_resources::cull_indirect_buffer(),
                 ResourceSpec::buffer(
-                    render_world.mesh_render_resources.indirect_buffer_size as BufferAddress,
+                    prepared.indirect_buffer_size as BufferAddress,
                     wgpu::BufferUsages::STORAGE
                         | wgpu::BufferUsages::INDIRECT
                         | wgpu::BufferUsages::COPY_DST,
                 ),
             )
+            .output(
+                standard_resources::cull_params_uniform(), // 临时资源
+                ResourceSpec::buffer(
+                    16,
+                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let world = &*context.render_world;
-        let resources = &world.mesh_render_resources;
         let device = &context.render_context.device;
 
-        if resources.instance_buffer_size == 0 {
+        if context.prepared.instance_buffer_size == 0 {
             return;
         }
 
-        let global_indirect_buffer = context.buffer(&standard_resources::cull_indirect_buffer());
+        let cull_indirect_buffer = context.buffer(&standard_resources::cull_indirect_buffer());
 
         context.render_context.queue.write_buffer(
-            &global_indirect_buffer.buffer,
+            &cull_indirect_buffer.buffer,
             0,
-            bytemuck::cast_slice(&context.render_world.mesh_render_resources.indirect_commands),
+            bytemuck::cast_slice(&context.prepared.indirect_commands),
         );
 
-        let cull_bind_group_layout = context.pool.get_bind_group_layout("cull_bind_group_layout");
+        // 1. 获取逻辑上的实例总数
+        let total_instances = (context.prepared.instance_buffer_size / size_of::<InstanceRaw>()) as u32;
+
+        // 2. 获取参数 Buffer 并写入
+        let cull_params_buffer = context.buffer(&standard_resources::cull_params_uniform());
+        context.render_context.queue.write_buffer(&cull_params_buffer.buffer, 0, bytemuck::cast_slice(&[total_instances]));
+
+        let cull_bind_group_layout = context
+            .backend
+            .get_bind_group_layout("cull_bind_group_layout");
+
         if cull_bind_group_layout.is_none() {
             let cull_bind_group_layout =
                 device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -122,23 +158,34 @@ impl Node for CullingNode {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 5,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                     label: Some("Cull Bind Group Layout"),
                 });
 
             context
-                .pool
+                .backend
                 .add_bind_group_layout("cull_bind_group_layout", cull_bind_group_layout);
         }
+
         let cull_bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("cull_bind_group_layout")
             .unwrap()
             .clone();
 
         if self.pipeline.is_none() {
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Cull Layout"),
+                label: Some("Cull Pipeline Layout"),
                 bind_group_layouts: &[&cull_bind_group_layout],
                 push_constant_ranges: &[],
             });
@@ -164,7 +211,6 @@ impl Node for CullingNode {
 
         // 找到第一个 D3 相机的索引
         let Some(camera_index) = context
-            .render_world
             .extracted
             .cameras
             .types
@@ -176,24 +222,26 @@ impl Node for CullingNode {
 
         let camera_offset = camera_index as u32 * CameraUniform::get_uniform_offset_unit();
 
-        // 创建 Culling BindGroup（直接创建，不使用缓存）
-        let world = &*context.render_world;
-        let resources = &world.mesh_render_resources;
-        let total_instances: u32 = world.extracted.meshes.len() as u32;
+        let global_instance_buffer = context.buffer(&standard_resources::global_instance_buffer());
 
-        // Graph 外部的资源
-        let mesh_metadata_buffer = resources.mesh_metadata_buffer.as_ref().expect("mesh_metadata_buffer should be present");
-        let global_instance_buffer = resources.global_instance_buffer.as_ref().expect("global_instance_buffer should be present");
+        let mesh_metadata_buffer = context.buffer(&standard_resources::mesh_metadata_buffer());
 
-        let global_visible_instance_buffer =
+        let total_instances = context.prepared.instance_buffer_size / size_of::<InstanceRaw>();
+
+        let cull_visible_instance_buffer =
             context.buffer(&standard_resources::cull_visible_instance_buffer());
-        let global_indirect_buffer = context.buffer(&standard_resources::cull_indirect_buffer());
 
-        let bind_group =
-            context
-                .render_context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
+        let cull_bind_group = context.create_bind_group(
+            "cull_bind_group_layout",
+            vec![
+                camera_buffer.id,
+                mesh_metadata_buffer.id,
+                global_instance_buffer.id,
+                cull_visible_instance_buffer.id,
+                cull_indirect_buffer.id,
+            ],
+            |ctx| {
+                ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &cull_bind_group_layout,
                     entries: &[
                         wgpu::BindGroupEntry {
@@ -209,36 +257,42 @@ impl Node for CullingNode {
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
-                            resource: mesh_metadata_buffer.as_entire_binding(),
+                            resource: mesh_metadata_buffer.buffer.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,
-                            resource: global_instance_buffer.as_entire_binding(),
+                            resource: global_instance_buffer.buffer.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
-                            resource: global_visible_instance_buffer.buffer.as_entire_binding(),
+                            resource: cull_visible_instance_buffer.buffer.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 4,
-                            resource: global_indirect_buffer.buffer.as_entire_binding(),
+                            resource: cull_indirect_buffer.buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: cull_params_buffer.buffer.as_entire_binding(),
                         },
                     ],
-                    label: Some("Cull Dynamic Bind Group"),
-                });
+                    label: Some("Cull Bind Group"),
+                })
+            },
+        );
 
         let mut compute_pass = context
             .encoder
             .begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Global Culling Pass"),
+                label: Some("Cull Compute Pass"),
                 timestamp_writes: None,
             });
 
         compute_pass.set_pipeline(self.pipeline.as_ref().unwrap());
-        compute_pass.set_bind_group(0, &bind_group, &[camera_offset]);
+        compute_pass.set_bind_group(0, &cull_bind_group, &[camera_offset]);
 
         if total_instances > 0 {
-            compute_pass.dispatch_workgroups((total_instances + 63) / 64, 1, 1);
+            compute_pass.dispatch_workgroups(((total_instances + 63) / 64) as u32, 1, 1);
         }
     }
 }

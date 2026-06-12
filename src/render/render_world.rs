@@ -1,25 +1,25 @@
 use crate::render::camera::ExtractedCameras;
 use crate::render::draw_command::DrawCommands;
 use crate::render::light::ExtractedLights;
+use crate::render::material::MaterialCache;
+use crate::render::mesh_allocator::MeshAllocator;
+pub(crate) use crate::render::render_backend::{RenderBackend, RenderCommand};
 use crate::render::render_graph::ToneMappingNode;
 use crate::render::render_graph::{
-    ClearNode, CullingNode, FxaaNode, MeshNode, PrepareViewNode, RenderGraph,
-    ShadowNode, SkyboxNode, SpriteNode, SsaoNode, TransparentMeshNode,
+    ClearNode, CullingNode, FxaaNode, MeshNode, PrepareViewNode, RenderGraph, ShadowNode,
+    SkyboxNode, SpriteNode, SsaoNode, TransparentMeshNode,
 };
 use crate::render::shader_maker::ShaderMaker;
-use crate::render::sky::{prepare_sky, ExtractedSky, SkyImportedResources};
-use crate::render::sprite::{
-    prepare_sprite, ExtractedSprite2d, SpriteBatch, SpriteRenderResources,
-};
-use crate::render::{ExtractedMesh, MeshCache, MeshRenderResources, RenderContext, TextureCache};
-use crate::scene::Bvh;
+use crate::render::sky::ExtractedSky;
+use crate::render::sprite::ExtractedSprite2d;
+use crate::render::{ExtractedMesh, MeshCache, RenderContext, TextureCache};
+use std::sync::{Arc, RwLock};
 
-#[derive(Default, Clone)]
+#[derive(Clone, Default)]
 pub struct Extracted {
-    pub(crate) sprites_2d: Vec<ExtractedSprite2d>,
+    pub(crate) sprites: Vec<ExtractedSprite2d>,
     pub(crate) meshes: Vec<ExtractedMesh>,
-    pub(crate) transparent_meshes: Vec<ExtractedMesh>,
-    pub(crate) bvh: Bvh,
+
     pub(crate) cameras: ExtractedCameras,
     pub(crate) lights: ExtractedLights,
     pub(crate) sky: Option<ExtractedSky>,
@@ -27,186 +27,65 @@ pub struct Extracted {
     pub ssao_enabled: bool,
 }
 
+/// Render frontend.
 pub struct RenderWorld {
-    /// Material textures, sprite textures
-    pub(crate) imported_texture_cache: TextureCache,
-    pub(crate) mesh_cache: MeshCache,
-    pub(crate) shader_maker: ShaderMaker,
-    pub(crate) sprite_render_resources: SpriteRenderResources,
-    // pub(crate) bindless_bind_group_layout: wgpu::BindGroupLayout,
-    // pub(crate) bindless_bind_group: Option<wgpu::BindGroup>,
-    pub mesh_render_resources: MeshRenderResources,
-    pub(crate) extracted: Extracted,
-    pub(crate) sprite_batches: Vec<SpriteBatch>,
-    // pub gizmo_render_resources: GizmoRenderResources,
-    pub(crate) sky_imported_resources: SkyImportedResources,
-    pub(crate) render_graph: RenderGraph,
+    pub sender: std::sync::mpsc::SyncSender<RenderCommand>,
+    /// Shared handles: material textures, sprite textures.
+    pub imported_texture_cache: Arc<RwLock<TextureCache>>,
+    pub imported_mesh_cache: Arc<RwLock<MeshCache>>,
+    pub imported_material_cache: Arc<RwLock<MaterialCache>>,
+    pub imported_mesh_allocator: Arc<RwLock<MeshAllocator>>,
+    pub shader_maker: ShaderMaker,
 }
 
 impl RenderWorld {
-    pub fn new(render_server: &RenderContext) -> Self {
-        let imported_texture_cache = TextureCache::new();
-        let sprite_render_resources = SpriteRenderResources::new(render_server);
-        let mesh_render_resources = MeshRenderResources::new(render_server);
-        // let gizmo_render_resources =
-        //     GizmoRenderResources::new(render_server, &camera_render_resources.bind_group_layout);
-        let sky_imported_resources = SkyImportedResources::new();
+    pub fn new(render_context: RenderContext, surface: wgpu::Surface<'static>) -> Self {
+        let imported_texture_cache = Arc::new(RwLock::new(TextureCache::new()));
+        let imported_mesh_cache = Arc::new(RwLock::new(MeshCache::new()));
+        let imported_material_cache = Arc::new(RwLock::new(MaterialCache::new()));
+        let imported_mesh_allocator = Arc::new(RwLock::new(MeshAllocator::new(&render_context.device)));
 
-        Self {
-            imported_texture_cache,
-            mesh_cache: MeshCache::new(),
-            sprite_render_resources,
-            mesh_render_resources,
-            shader_maker: ShaderMaker::new(),
-            extracted: Extracted::default(),
-            sprite_batches: vec![],
-            // gizmo_render_resources,
-            sky_imported_resources,
-            render_graph: Self::default_graph(),
-        }
-    }
+        // Use a capacity based on frames in flight to prevent deadlocks in get_current_texture.
+        let channel_cap = (render_context.frames_in_flight.saturating_sub(1)) as usize;
+        let (tx, rx) = std::sync::mpsc::sync_channel::<RenderCommand>(channel_cap.max(1));
 
-    pub fn run_graph(
-        &mut self,
-        render_server: &RenderContext,
-        final_output_view: &wgpu::TextureView,
-    ) -> wgpu::CommandBuffer {
-        let mut graph = std::mem::take(&mut self.render_graph);
-        let cmd_buf = graph.run(render_server, self, final_output_view);
-        self.render_graph = graph;
-        cmd_buf
-    }
-
-    fn default_graph() -> RenderGraph {
-        let mut graph = RenderGraph::new();
-
-        graph.add_node("prepare_view", PrepareViewNode::default());
-        graph.add_node("clear", ClearNode);
-        graph.add_node("cull", CullingNode::default());
-        graph.add_node("shadow", ShadowNode::default());
-        graph.add_node("ssao", SsaoNode::default());
-        graph.add_node("skybox", SkyboxNode::default());
-        graph.add_node("mesh", MeshNode::default());
-        graph.add_node("transparent_mesh", TransparentMeshNode::default());
-        graph.add_node("tonemapping", ToneMappingNode::default());
-        graph.add_node("fxaa", FxaaNode::default());
-        graph.add_node("sprite", SpriteNode::default());
-
-        graph.add_node_edge("prepare_view", "cull");
-        graph.add_node_edge("prepare_view", "ssao");
-        graph.add_node_edge("prepare_view", "skybox");
-        graph.add_node_edge("cull", "mesh");
-        graph.add_node_edge("cull", "ssao"); // SSAO should be done after culling.
-        graph.add_node_edge("shadow", "mesh");
-        graph.add_node_edge("ssao", "mesh");
-        graph.add_node_edge("clear", "skybox");
-        graph.add_node_edge("skybox", "mesh");
-        graph.add_node_edge("mesh", "transparent_mesh");
-        graph.add_node_edge("transparent_mesh", "tonemapping");
-        graph.add_node_edge("tonemapping", "fxaa");
-        graph.add_node_edge("fxaa", "sprite");
-
-        graph
-    }
-
-    pub fn extract(&mut self, draw_commands: &DrawCommands) {
-        self.extracted = draw_commands.extracted.clone();
-    }
-
-    /// Prepare CPU resources and imported GPU resources, do before running graph.
-    pub fn prepare(&mut self, render_server: &RenderContext) {
-        // 3. Prepare Bindless Materials (Now includes all 2D textures)
-        self.mesh_render_resources.prepare_materials(
-            &self.imported_texture_cache,
-            render_server,
-            &self.extracted.sprites_2d,
+        let mut backend = RenderBackend::new(
+            &render_context,
+            surface,
+            imported_texture_cache.clone(),
+            imported_mesh_cache.clone(),
+            imported_material_cache.clone(),
+            imported_mesh_allocator.clone(),
         );
 
-        // Separate opaque and transparent meshes
-        let mut opaque_meshes = Vec::new();
-        let mut transparent_meshes = Vec::new();
-
-        for mesh in &self.extracted.meshes {
-            let is_transparent = if let Some(material_id) = mesh.material_id {
-                if let Some(material) = self.mesh_render_resources.material_cache.get(&material_id)
-                {
-                    material.transparent || mesh.transparent
-                } else {
-                    mesh.transparent
-                }
-            } else {
-                mesh.transparent
-            };
-
-            if is_transparent {
-                transparent_meshes.push(*mesh);
-            } else {
-                opaque_meshes.push(*mesh);
-            }
-        }
-        self.extracted.transparent_meshes = transparent_meshes;
-        let _ = std::mem::replace(&mut self.extracted.meshes, opaque_meshes);
-
-        // Prepare 3D mesh BVH (only for opaque meshes)
-        if !self.extracted.meshes.is_empty() {
-            let bvh_objects: Vec<_> = self
-                .extracted
-                .meshes
-                .iter()
-                .enumerate()
-                .filter_map(|(i, ext)| {
-                    self.mesh_cache
-                        .get(ext.mesh_id)
-                        .map(|mesh| (mesh.aabb.transform(&ext.transform), i))
-                })
-                .collect();
-            self.extracted.bvh = Bvh::build(bvh_objects);
-        }
-
-        // Prepare unified 2D sprites
-        self.sprite_batches = prepare_sprite(
-            &self.extracted.sprites_2d,
-            &mut self.sprite_render_resources,
-            &self.imported_texture_cache,
-            render_server,
-            &self.mesh_render_resources,
-            &self.extracted.cameras,
-        );
-
-        // Prepare 3D meshes & lights (combine opaque and transparent for instance preparation)
-        let all_meshes: Vec<_> = self
-            .extracted
-            .meshes
-            .iter()
-            .chain(self.extracted.transparent_meshes.iter())
-            .cloned()
-            .collect();
-
-        if !all_meshes.is_empty() || !self.extracted.lights.point_lights.is_empty() {
-            self.mesh_render_resources.prepare_instances(render_server, &all_meshes, &self.mesh_cache);
-        }
-
-        // 6.5 Re-include MASKED transparent meshes for SSAO (normal pre-pass)
-        // This allows leaves/grass to produce SSAO occlusion.
-        let mut ssao_meshes = self.extracted.meshes.clone();
-        for mesh in &self.extracted.transparent_meshes {
-            if let Some(mat_id) = mesh.material_id {
-                if let Some(mat) = self.mesh_render_resources.material_cache.get(&mat_id) {
-                    if mat.alpha_mode == crate::render::material::AlphaMode::Mask {
-                        ssao_meshes.push(*mesh);
+        std::thread::spawn(move || {
+            while let Ok(cmd) = rx.recv() {
+                match cmd {
+                    RenderCommand::Render(extracted) => {
+                        backend.run(&render_context, extracted);
+                    }
+                    RenderCommand::Resize(w, h) => {
+                        let mut config = render_context.surface_config.clone();
+                        config.width = w;
+                        config.height = h;
+                        backend.surface.configure(&render_context.device, &config);
+                        backend.render_graph.pool.clear_bind_group_cache();
                     }
                 }
             }
-        }
-        self.extracted.meshes = ssao_meshes;
+        });
 
-        if let Some(sky) = &self.extracted.sky {
-            prepare_sky(
-                &mut self.sky_imported_resources,
-                render_server,
-                &sky.texture,
-                &mut self.mesh_render_resources.mesh_allocator,
-            );
+        Self {
+            sender: tx,
+            imported_texture_cache,
+            imported_mesh_cache,
+            imported_material_cache,
+            imported_mesh_allocator,
+            shader_maker: ShaderMaker::new(),
         }
+    }
+
+    pub fn extract(&self, draw_commands: &DrawCommands) -> Extracted {
+        draw_commands.extracted.clone()
     }
 }

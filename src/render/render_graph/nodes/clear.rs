@@ -1,6 +1,6 @@
+use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{standard_resources, FrameContext, Node};
 use std::any::Any;
-use crate::render::render_world::RenderWorld;
 
 pub struct ClearNode;
 
@@ -9,7 +9,10 @@ impl Node for ClearNode {
         self
     }
 
-    fn node_resources(&self, _world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(
+        &self,
+        _prepared: &PreparedFrame,
+    ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
@@ -46,25 +49,25 @@ impl Node for ClearNode {
         let _render_pass = context
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("clear pass"),
+                label: Some("Clear Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &main_color.view,
-                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
                     },
+                    depth_slice: None,
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &main_depth.view,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0), // 永远清空，确保深度缓冲区干净
+                        load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,

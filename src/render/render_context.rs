@@ -1,17 +1,16 @@
 use std::time::Instant;
 
 /// Contains render context (but not GPU resources)
-pub struct RenderContext<'a> {
+#[derive(Clone)]
+pub struct RenderContext {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub surface: wgpu::Surface<'a>,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub frames_in_flight: u32,
 }
 
-impl<'a> RenderContext<'a> {
-    pub(crate) fn new<'b: 'a>(
-        surface: wgpu::Surface<'b>,
+impl RenderContext {
+    pub(crate) fn new(
         surface_config: wgpu::SurfaceConfiguration,
         device: wgpu::Device,
         queue: wgpu::Queue,
@@ -22,7 +21,6 @@ impl<'a> RenderContext<'a> {
         let context = Self {
             device,
             queue,
-            surface,
             surface_config,
             frames_in_flight,
         };

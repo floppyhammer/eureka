@@ -4,9 +4,9 @@ use crate::render::RenderContext;
 use crate::text::TextServer;
 use crate::window::InputServer;
 
-pub struct Singletons<'a> {
+pub struct Singletons {
     pub time: Time,
-    pub render_context: RenderContext<'a>,
+    pub render_context: RenderContext,
     pub input_server: InputServer,
     pub text_server: TextServer,
     pub asset_server: AssetServer,

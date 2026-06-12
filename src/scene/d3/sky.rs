@@ -68,7 +68,7 @@ impl AsNode for Sky {
                 self.finalize(
                     raw,
                     &singletons.render_context,
-                    &mut render_world.imported_texture_cache,
+                    &mut render_world.imported_texture_cache.write().unwrap(),
                 );
             }
         }

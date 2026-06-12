@@ -17,6 +17,7 @@ use crate::render::{
 use crate::scene::d3::node3d::{AsNode3d, Node3d};
 use crate::scene::{AsNode, NodeType};
 use crate::animation::property::PropertyProvider;
+use crate::render::mesh_allocator::MeshAllocator;
 
 #[derive(Clone)]
 pub struct RawMeshData {
@@ -515,10 +516,10 @@ impl Model {
         &mut self,
         raw: RawModelData,
         render_server: &RenderContext,
-        imported_texture_cache: &mut TextureCache,
-        material_cache: &mut MaterialCache,
-        mesh_cache: &mut MeshCache,
-        mesh_allocator: &mut crate::render::mesh_allocator::MeshAllocator,
+        global_texture_cache: &mut TextureCache,
+        global_material_cache: &mut MaterialCache,
+        global_mesh_cache: &mut MeshCache,
+        global_mesh_allocator: &mut MeshAllocator,
     ) {
         let mut material_ids = Vec::new();
         let mut material_transparencies = Vec::new();
@@ -529,7 +530,7 @@ impl Model {
                 Texture::from_raw(
                     &render_server.device,
                     &render_server.queue,
-                    imported_texture_cache,
+                    global_texture_cache,
                     raw_tex,
                 )
             });
@@ -537,7 +538,7 @@ impl Model {
                 Texture::from_raw(
                     &render_server.device,
                     &render_server.queue,
-                    imported_texture_cache,
+                    global_texture_cache,
                     raw_tex,
                 )
             });
@@ -545,7 +546,7 @@ impl Model {
                 Texture::from_raw(
                     &render_server.device,
                     &render_server.queue,
-                    imported_texture_cache,
+                    global_texture_cache,
                     raw_tex,
                 )
             });
@@ -553,7 +554,7 @@ impl Model {
                 Texture::from_raw(
                     &render_server.device,
                     &render_server.queue,
-                    imported_texture_cache,
+                    global_texture_cache,
                     raw_tex,
                 )
             });
@@ -564,7 +565,7 @@ impl Model {
                 AlphaMode::Blend => crate::render::material::AlphaMode::Blend,
             };
 
-            material_ids.push(material_cache.add(MaterialStandard {
+            material_ids.push(global_material_cache.add(MaterialStandard {
                 name: m.name,
                 base_color: m.base_color,
                 metallic: m.metallic,
@@ -580,14 +581,14 @@ impl Model {
         }
 
         for m in raw.meshes {
-            let (v_offset, i_offset) = mesh_allocator.allocate(
+            let (v_offset, i_offset) = global_mesh_allocator.allocate(
                 &render_server.device,
                 &render_server.queue,
                 &m.vertices,
                 &m.indices,
             );
 
-            let mesh_id = mesh_cache.add(Mesh::new(
+            let mesh_id = global_mesh_cache.add(Mesh::new(
                 &m.name,
                 v_offset,
                 i_offset,
@@ -615,7 +616,7 @@ impl Model {
         tc: &mut TextureCache,
         mc: &mut MaterialCache,
         msc: &mut MeshCache,
-        ma: &mut crate::render::mesh_allocator::MeshAllocator,
+        ma: &mut MeshAllocator,
     ) -> Self {
         let mut model = Self {
             node_3d: Node3d::default(),
@@ -670,10 +671,10 @@ impl AsNode for Model {
                 self.finalize(
                     raw,
                     &singletons.render_context,
-                    &mut render_world.imported_texture_cache,
-                    &mut render_world.mesh_render_resources.material_cache,
-                    &mut render_world.mesh_cache,
-                    &mut render_world.mesh_render_resources.mesh_allocator,
+                    &mut render_world.imported_texture_cache.write().unwrap(),
+                    &mut render_world.imported_material_cache.write().unwrap(),
+                    &mut render_world.imported_mesh_cache.write().unwrap(),
+                    &mut render_world.imported_mesh_allocator.write().unwrap(),
                 );
             }
         }

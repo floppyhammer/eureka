@@ -1,9 +1,8 @@
 use super::resource::{BindGroupKey, BufferKey, PooledBuffer, SamplerKey, TextureKey};
 use crate::render::{Texture, NEXT_TEXTURE_ID, NEXT_VIEW_ID};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// 瞬时资源池，用于在帧内复用纹理和缓冲区，并支持多帧并行下的延迟回收
 #[derive(Default)]
@@ -16,16 +15,16 @@ pub struct ResourcePool {
     buffers: HashMap<BufferKey, Vec<PooledBuffer>>,
     pending_buffers: Vec<(PooledBuffer, BufferKey, u64)>,
 
-    /// 跨帧采样器池（支持 FIF 数据隔离）
-    samplers: HashMap<SamplerKey, Vec<wgpu::Sampler>>,
-    pending_samplers: Vec<(wgpu::Sampler, SamplerKey, u64)>,
+    /// 统计信息：当前池中管理的所有缓冲区的总内存（字节）
+    total_buffer_memory: u64,
+    /// 统计信息：当前池中管理的所有纹理的总内存（字节）
+    total_texture_memory: u64,
+
+    /// 采样器永久缓存，采样器通常数量有限且不可变，直接缓存即可
+    sampler_cache: HashMap<SamplerKey, wgpu::Sampler>,
 
     /// 帧内 BindGroup 缓存，每帧清空
-    frame_bind_group_cache: HashMap<BindGroupKey, wgpu::BindGroup>,
-
-    /// 持久化存在
-    bind_group_layouts: HashMap<String, wgpu::BindGroupLayout>,
-    pipeline_layouts: HashMap<String, wgpu::PipelineLayout>,
+    bind_group_cache: HashMap<BindGroupKey, wgpu::BindGroup>,
 }
 
 impl ResourcePool {
@@ -57,21 +56,10 @@ impl ResourcePool {
                 i += 1;
             }
         }
-
-        // 3. 回收采样器
-        let mut i = 0;
-        while i < self.pending_samplers.len() {
-            if current_frame >= self.pending_samplers[i].2 + frames_in_flight {
-                let (sampler, key, _) = self.pending_samplers.remove(i);
-                self.samplers.entry(key).or_default().push(sampler);
-            } else {
-                i += 1;
-            }
-        }
     }
 
     pub fn clear_bind_group_cache(&mut self) {
-        self.frame_bind_group_cache.clear();
+        self.bind_group_cache.clear();
     }
 
     // --- 纹理管理 ---
@@ -107,6 +95,34 @@ impl ResourcePool {
             ..Default::default()
         });
 
+        let format = key.format.unwrap();
+        let bpp = match format {
+            wgpu::TextureFormat::R8Unorm => 1,
+            wgpu::TextureFormat::Rg8Unorm => 2,
+            wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => 4,
+            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => 4,
+            wgpu::TextureFormat::Rgba16Float => 8,
+            wgpu::TextureFormat::R32Float => 4,
+            wgpu::TextureFormat::Rg32Float => 8,
+            wgpu::TextureFormat::Rgba32Float => 16,
+            wgpu::TextureFormat::Depth32Float => 4,
+            wgpu::TextureFormat::Depth24Plus => 4, // 估算
+            wgpu::TextureFormat::Depth24PlusStencil8 => 4, // 估算
+            _ => 4, // 默认
+        };
+
+        let estimated_size = (key.width * key.height * key.layers) as u64 * bpp;
+        self.total_texture_memory += estimated_size;
+
+        log::info!(
+            "Allocated new texture (size: {}x{}, format: {:?}, estimated: {:.2} MB). Total texture memory: {:.2} MB",
+            key.width,
+            key.height,
+            key.format,
+            estimated_size as f64 / 1024.0 / 1024.0,
+            self.total_texture_memory as f64 / 1024.0 / 1024.0
+        );
+
         Texture {
             size: (key.width, key.height),
             texture: wgpu_texture,
@@ -114,7 +130,7 @@ impl ResourcePool {
             format: key.format.unwrap(),
             id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
             view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
-            view_cache: Arc::new(RefCell::new(HashMap::new())),
+            view_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -126,13 +142,30 @@ impl ResourcePool {
 
     // --- 缓冲区管理 ---
 
-    pub fn acquire_buffer(&mut self, device: &wgpu::Device, key: BufferKey) -> PooledBuffer {
+    pub fn acquire_buffer(
+        &mut self,
+        device: &wgpu::Device,
+        key: BufferKey,
+    ) -> (PooledBuffer, BufferKey) {
+        let mut search_key = key;
+        // 对尺寸进行向上对齐以提高资源复用率
+        search_key.size = if search_key.size <= 4096 {
+            // 小缓冲区按 256 字节对齐 (通常满足 Uniform Buffer 对齐要求)
+            (search_key.size + 255) & !255
+        } else if search_key.size <= 1024 * 1024 {
+            // 中等缓冲区按 64KB 对齐
+            (search_key.size + 65535) & !65535
+        } else {
+            // 大缓冲区按 1MB 对齐
+            (search_key.size + 1024 * 1024 - 1) & !(1024 * 1024 - 1)
+        };
+
         // 尝试寻找一个大小足够且用法兼容的现有缓冲区
         let mut found_key = None;
         for (pool_key, buffers) in &mut self.buffers {
             if !buffers.is_empty()
-                && pool_key.size >= key.size
-                && pool_key.usage.contains(key.usage)
+                && pool_key.size >= search_key.size
+                && pool_key.usage.contains(search_key.usage)
             {
                 found_key = Some(*pool_key);
                 break;
@@ -140,20 +173,31 @@ impl ResourcePool {
         }
 
         if let Some(k) = found_key {
-            return self.buffers.get_mut(&k).unwrap().pop().unwrap();
+            let buffer = self.buffers.get_mut(&k).unwrap().pop().unwrap();
+            return (buffer, k);
         }
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("transient_buffer"),
-            size: key.size,
-            usage: key.usage | wgpu::BufferUsages::COPY_DST, // 强制包含 COPY_DST 方便写入
+            size: search_key.size,
+            usage: search_key.usage | wgpu::BufferUsages::COPY_DST, // 强制包含 COPY_DST 方便写入
             mapped_at_creation: false,
         });
 
-        PooledBuffer {
-            buffer,
-            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
-        }
+        self.total_buffer_memory += search_key.size;
+        log::info!(
+            "Allocated new buffer (size: {} bytes). Total buffer memory: {:.2} MB",
+            search_key.size,
+            self.total_buffer_memory as f64 / 1024.0 / 1024.0
+        );
+
+        (
+            PooledBuffer {
+                buffer,
+                id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            },
+            search_key,
+        )
     }
 
     pub fn release_buffer_deferred(&mut self, key: BufferKey, buffer: PooledBuffer, frame_id: u64) {
@@ -163,40 +207,39 @@ impl ResourcePool {
     // --- 采样器管理 ---
 
     pub fn acquire_sampler(&mut self, device: &wgpu::Device, key: SamplerKey) -> wgpu::Sampler {
-        if let Some(samplers) = self.samplers.get_mut(&key) {
-            if let Some(sampler) = samplers.pop() {
-                return sampler;
-            }
-        }
-
-        device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: key.address_mode_u,
-            address_mode_v: key.address_mode_v,
-            address_mode_w: key.address_mode_w,
-            mag_filter: key.mag_filter,
-            min_filter: key.min_filter,
-            mipmap_filter: key.mipmap_filter,
-            compare: key.compare,
-            lod_min_clamp: key.lod_min_clamp,
-            lod_max_clamp: key.lod_max_clamp,
-            ..Default::default()
-        })
+        self.sampler_cache
+            .entry(key)
+            .or_insert_with(|| {
+                device.create_sampler(&wgpu::SamplerDescriptor {
+                    address_mode_u: key.address_mode_u,
+                    address_mode_v: key.address_mode_v,
+                    address_mode_w: key.address_mode_w,
+                    mag_filter: key.mag_filter,
+                    min_filter: key.min_filter,
+                    mipmap_filter: key.mipmap_filter,
+                    compare: key.compare,
+                    lod_min_clamp: key.lod_min_clamp,
+                    lod_max_clamp: key.lod_max_clamp,
+                    ..Default::default()
+                })
+            })
+            .clone()
     }
 
     pub fn release_sampler_deferred(
         &mut self,
-        key: SamplerKey,
-        sampler: wgpu::Sampler,
-        frame_id: u64,
+        _key: SamplerKey,
+        _sampler: wgpu::Sampler,
+        _frame_id: u64,
     ) {
-        self.pending_samplers.push((sampler, key, frame_id));
+        // 采样器现在由 sampler_cache 永久管理，不再需要延迟释放逻辑
     }
 
     // --- BindGroup 管理 ---
 
     pub fn get_or_create_bind_group<F>(
         &mut self,
-        layout: &wgpu::BindGroupLayout,
+        layout_name: &str,
         resource_ids: Vec<u64>,
         creator: F,
     ) -> wgpu::BindGroup
@@ -204,34 +247,26 @@ impl ResourcePool {
         F: FnOnce() -> wgpu::BindGroup,
     {
         let key = BindGroupKey {
-            layout_ptr: layout as *const _ as usize,
+            layout_name: layout_name.to_string(),
             resource_ids,
         };
-        self.frame_bind_group_cache
+        self.bind_group_cache
             .entry(key)
             .or_insert_with(creator)
             .clone()
     }
 
-    // 固定资源存取
-
-    pub fn add_bind_group_layout(
-        &mut self,
-        name: impl Into<String>,
-        layout: wgpu::BindGroupLayout,
-    ) {
-        self.bind_group_layouts.insert(name.into(), layout);
-    }
-
-    pub fn get_bind_group_layout(&self, name: &str) -> Option<&wgpu::BindGroupLayout> {
-        self.bind_group_layouts.get(name)
-    }
-
-    pub fn add_pipeline_layout(&mut self, name: impl Into<String>, layout: wgpu::PipelineLayout) {
-        self.pipeline_layouts.insert(name.into(), layout);
-    }
-
-    pub fn get_pipeline_layout(&self, name: &str) -> Option<&wgpu::PipelineLayout> {
-        self.pipeline_layouts.get(name)
+    pub fn get_bind_group(
+        &self,
+        layout_name: &str,
+        resource_ids: Vec<u64>,
+    ) -> &wgpu::BindGroup {
+        let key = BindGroupKey {
+            layout_name: layout_name.to_string(),
+            resource_ids,
+        };
+        self.bind_group_cache
+            .get(&key)
+            .expect("Trying to get a bind group that is not created earlier in the graph!")
     }
 }

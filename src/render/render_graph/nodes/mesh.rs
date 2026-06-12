@@ -1,9 +1,9 @@
 use crate::render::camera::{CameraType, CameraUniform};
 use crate::render::light::{CascadeUniform, LightUniform, MAX_POINT_LIGHTS};
+use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::resource::BufferKey;
 use crate::render::render_graph::{standard_resources, SamplerKey};
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
-use crate::render::render_world::RenderWorld;
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw, Texture};
 use std::any::Any;
@@ -26,7 +26,7 @@ impl Node for MeshNode {
 
     fn node_resources(
         &self,
-        world: &RenderWorld,
+        prepared: &PreparedFrame,
     ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
@@ -34,6 +34,9 @@ impl Node for MeshNode {
 
         let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
             * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+
+        let material_buffer_size = prepared.material_uniforms.len()
+            * size_of::<crate::render::material::MaterialUniform>();
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(
@@ -50,7 +53,7 @@ impl Node for MeshNode {
             .input(
                 standard_resources::cull_visible_instance_buffer(),
                 ResourceSpec::buffer(
-                    world.mesh_render_resources.instance_buffer_size as BufferAddress,
+                    prepared.instance_buffer_size as u64,
                     wgpu::BufferUsages::STORAGE
                         | wgpu::BufferUsages::VERTEX
                         | wgpu::BufferUsages::COPY_DST,
@@ -59,10 +62,17 @@ impl Node for MeshNode {
             .input(
                 standard_resources::cull_indirect_buffer(),
                 ResourceSpec::buffer(
-                    world.mesh_render_resources.indirect_buffer_size as BufferAddress,
+                    prepared.indirect_buffer_size as u64,
                     wgpu::BufferUsages::STORAGE
                         | wgpu::BufferUsages::INDIRECT
                         | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
+            .input(
+                standard_resources::material_storage_buffer(),
+                ResourceSpec::buffer(
+                    material_buffer_size as u64,
+                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 ),
             )
             .optional_input(
@@ -129,33 +139,23 @@ impl Node for MeshNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let device = &context.render_context.device;
-        let world = &*context.render_world;
-        let resources = &world.mesh_render_resources;
-
-        if context
-            .render_world
-            .mesh_render_resources
-            .instance_buffer_size
-            == 0
-            || context
-            .render_world
-            .mesh_render_resources
-            .indirect_buffer_size
-            == 0
-        {
+        if context.prepared.instance_buffer_size == 0 {
             return;
         }
-        
+
+        let device = &context.render_context.device;
+        let extracted = context.extracted;
+
         let camera_bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("camera_bind_group_layout")
             .unwrap()
             .clone();
 
         let light_bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("light_bind_group_layout");
+
         if light_bind_group_layout.is_none() {
             let light_bind_group_layout =
                 device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -237,23 +237,28 @@ impl Node for MeshNode {
                 });
 
             context
-                .pool
+                .backend
                 .add_bind_group_layout("light_bind_group_layout", light_bind_group_layout);
         }
 
         let light_bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("light_bind_group_layout")
             .unwrap()
             .clone();
 
         if self.pipeline.is_none() {
+            let bindless_bind_group_layout = context
+                .backend
+                .get_bind_group_layout("bindless_bind_group_layout")
+                .unwrap();
+
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Mesh Layout"),
                 bind_group_layouts: &[
                     &camera_bind_group_layout,
                     &light_bind_group_layout,
-                    &resources.bindless_bind_group_layout,
+                    &bindless_bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -277,7 +282,7 @@ impl Node for MeshNode {
         }
 
         // Upload light uniforms ----------------------
-        let lights = world.extracted.lights.clone();
+        let lights = extracted.lights.clone();
 
         let light_uniform_buffer = context.buffer(&standard_resources::light_uniform_buffer());
 
@@ -297,11 +302,11 @@ impl Node for MeshNode {
             bytemuck::cast_slice(&[light_uniform]),
         );
         // ------------------------------------------------
-        
-        if context.render_world.mesh_render_resources.draw_counts.is_empty() {
+
+        if context.prepared.draw_counts.is_empty() {
             return;
         }
-        
+
         let main_color = FrameContext::texture(context, &standard_resources::main_color());
         let main_depth = context.texture(&standard_resources::main_depth());
 
@@ -309,20 +314,8 @@ impl Node for MeshNode {
         let directional_shadow_map = context.texture(&standard_resources::directional_shadow_map());
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
-        let light_bind_group_layout = context
-            .pool
-            .get_bind_group_layout("light_bind_group_layout")
-            .unwrap()
-            .clone();
-
-        let camera_bind_group_layout = context
-            .pool
-            .get_bind_group_layout("camera_bind_group_layout")
-            .unwrap()
-            .clone();
-
         let camera_bind_group =
-            context.create_bind_group(&camera_bind_group_layout, vec![camera_buffer.id], |ctx| {
+            context.create_bind_group("camera_bind_group_layout", vec![camera_buffer.id], |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &camera_bind_group_layout,
                     entries: &[wgpu::BindGroupEntry {
@@ -339,7 +332,7 @@ impl Node for MeshNode {
                 })
             });
 
-        if context.render_world.extracted.meshes.is_empty() {
+        if extracted.meshes.is_empty() {
             return;
         }
 
@@ -416,31 +409,18 @@ impl Node for MeshNode {
                 ..Default::default()
             })
         };
-        // } else {
-        //     context
-        //         .render_world
-        //         .mesh_render_resources
-        //         .dummy_cube_view
-        //         .clone()
-        // };
 
         let (sky_view, sky_view_id) =
-            if let Some(id) = context.render_world.sky_imported_resources.texture {
-                let tex = context.render_world.imported_texture_cache.get(id).unwrap();
+            if let Some(id) = context.backend.sky_imported_resources.texture {
+                let texture_cache = context.backend.imported_texture_cache.read().unwrap();
+                let tex = texture_cache.get(id).unwrap();
                 (tex.view.clone(), tex.view_id)
             } else {
-                (
-                    context
-                        .render_world
-                        .mesh_render_resources
-                        .dummy_cube_view
-                        .clone(),
-                    0,
-                )
+                (context.backend.dummy_cube_view.clone(), 0)
             };
 
         let light_bind_group = context.create_bind_group(
-            &light_bind_group_layout,
+            "light_bind_group_layout",
             vec![
                 light_uniform_buffer.id,
                 ssao_blur.view_id,
@@ -494,8 +474,15 @@ impl Node for MeshNode {
         let global_visible_instance_buffer =
             context.buffer(&standard_resources::cull_visible_instance_buffer());
         let global_indirect_buffer = context.buffer(&standard_resources::cull_indirect_buffer());
+        let materials_storage_buffer =
+            context.buffer(&standard_resources::material_storage_buffer());
+        let bindless_bind_group = context
+            .get_bind_group(
+                "bindless_bind_group_layout",
+                vec![materials_storage_buffer.id],
+            )
+            .clone();
 
-        let world = &*context.render_world;
         let mut render_pass = context
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -521,53 +508,35 @@ impl Node for MeshNode {
                 occlusion_query_set: None,
             });
 
-        for camera_idx in 0..world.extracted.cameras.uniforms.len() {
+        let (v_buf, i_buf) = {
+            let allocator = context.backend.imported_mesh_allocator.read().unwrap();
+            (allocator.vertex_buffer.clone(), allocator.index_buffer.clone())
+        };
+
+        for camera_idx in 0..extracted.cameras.uniforms.len() {
             let camera_offset = camera_idx as u32 * CameraUniform::get_uniform_offset_unit();
 
-            if world.extracted.cameras.types[camera_idx] == CameraType::D3 {
+            if extracted.cameras.types[camera_idx] == CameraType::D3 {
                 render_pass.set_pipeline(self.pipeline.as_ref().unwrap());
 
                 render_pass.set_bind_group(0, &camera_bind_group, &[camera_offset]);
                 render_pass.set_bind_group(1, &light_bind_group, &[]);
-                render_pass.set_bind_group(
-                    2,
-                    &world.mesh_render_resources.bindless_bind_group,
-                    &[],
-                );
+                render_pass.set_bind_group(2, &bindless_bind_group, &[]);
 
-                render_pass.set_vertex_buffer(
-                    0,
-                    world
-                        .mesh_render_resources
-                        .mesh_allocator
-                        .vertex_buffer
-                        .slice(..),
-                );
+                render_pass.set_vertex_buffer(0, v_buf.slice(..));
                 render_pass.set_vertex_buffer(1, global_visible_instance_buffer.buffer.slice(..));
                 render_pass.set_index_buffer(
-                    world
-                        .mesh_render_resources
-                        .mesh_allocator
-                        .index_buffer
-                        .slice(..),
+                    i_buf.slice(..),
                     wgpu::IndexFormat::Uint32,
                 );
 
-                if !world.mesh_render_resources.draw_counts.is_empty()
-                    && world.mesh_render_resources.draw_counts[0] > 0
-                {
+                if !context.prepared.draw_counts.is_empty() && context.prepared.draw_counts[0] > 0 {
                     render_pass.multi_draw_indexed_indirect(
                         &global_indirect_buffer.buffer,
                         0,
-                        world.mesh_render_resources.draw_counts[0],
+                        context.prepared.draw_counts[0],
                     );
                 }
-
-                // // todo: move to its own node
-                // gizmo_render_resources.render(
-                //     render_pass,
-                //     camera_bind_group,
-                // );
             }
         }
     }

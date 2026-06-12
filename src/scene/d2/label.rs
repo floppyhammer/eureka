@@ -112,7 +112,7 @@ impl AsNode for Label {
                     // instance.position is Bottom-Left in Y-down.
                     // ExtractedSprite2d with centered=false expects Top-Left.
                     let tl_pos = Vec2::new(instance.position.x, instance.position.y - instance.size.y);
-                    draw_commands.extracted.sprites_2d.push(ExtractedSprite2d {
+                    draw_commands.extracted.sprites.push(ExtractedSprite2d {
                         transform: Transform2d {
                             position: tl_pos,
                             rotation: 0.0,

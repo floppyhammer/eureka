@@ -1,7 +1,7 @@
+use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{standard_resources, SamplerKey};
 use crate::render::render_graph::{FrameContext, Node};
 use std::any::Any;
-use crate::render::render_world::RenderWorld;
 
 pub struct FxaaNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -18,7 +18,10 @@ impl Node for FxaaNode {
         self
     }
 
-    fn node_resources(&self, _world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(
+        &self,
+        _prepared: &PreparedFrame,
+    ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
 
         let color_spec = ResourceSpec::Texture(TextureKey {
@@ -38,38 +41,39 @@ impl Node for FxaaNode {
         if self.pipeline.is_none() {
             let device = &context.render_context.device;
 
-            let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("FXAA Bind Group Layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
+            let bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("FXAA Bind Group Layout"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
                         },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                    // 新增：Uniform 开关
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
                         },
-                        count: None,
-                    },
-                ],
-            });
+                        // 新增：Uniform 开关
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                    ],
+                });
 
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("FXAA Pipeline Layout"),
@@ -96,13 +100,13 @@ impl Node for FxaaNode {
             ));
 
             context
-                .pool
+                .backend
                 .add_bind_group_layout("fxaa_bind_group_layout", bind_group_layout);
         }
-        
+
         let input_texture = context.texture(&standard_resources::hdr_resolved());
 
-        let fxaa_enabled = context.render_world.extracted.fxaa_enabled;
+        let fxaa_enabled = context.extracted.fxaa_enabled;
         let pipeline = self.pipeline.as_ref().unwrap();
 
         let sampler = context.get_sampler(SamplerKey {
@@ -123,14 +127,14 @@ impl Node for FxaaNode {
         context.write_buffer(&settings_buffer.buffer, &[settings_data]);
 
         let bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("fxaa_bind_group_layout")
             .unwrap()
             .clone();
 
         // 使用 context.create_bind_group 以利用缓存机制
         let bind_group = context.create_bind_group(
-            &bind_group_layout,
+            "fxaa_bind_group_layout",
             vec![input_texture.id, settings_buffer.id],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {

@@ -1,8 +1,8 @@
 use crate::render::camera::{CameraType, CameraUniform};
+use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{
     standard_resources, BufferKey, FrameContext, Node, SamplerKey, TextureKey,
 };
-use crate::render::render_world::RenderWorld;
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw, Texture};
 use glam::vec3;
@@ -32,7 +32,7 @@ impl Node for SsaoNode {
 
     fn node_resources(
         &self,
-        world: &RenderWorld,
+        prepared: &PreparedFrame,
     ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
@@ -48,7 +48,7 @@ impl Node for SsaoNode {
             .input(
                 standard_resources::cull_visible_instance_buffer(),
                 ResourceSpec::buffer(
-                    world.mesh_render_resources.instance_buffer_size as BufferAddress,
+                    prepared.instance_buffer_size as BufferAddress,
                     wgpu::BufferUsages::STORAGE
                         | wgpu::BufferUsages::VERTEX
                         | wgpu::BufferUsages::COPY_DST,
@@ -57,7 +57,7 @@ impl Node for SsaoNode {
             .input(
                 standard_resources::cull_indirect_buffer(),
                 ResourceSpec::buffer(
-                    world.mesh_render_resources.indirect_buffer_size as BufferAddress,
+                    prepared.indirect_buffer_size as BufferAddress,
                     wgpu::BufferUsages::STORAGE
                         | wgpu::BufferUsages::INDIRECT
                         | wgpu::BufferUsages::COPY_DST,
@@ -77,37 +77,29 @@ impl Node for SsaoNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        if context
-            .render_world
-            .mesh_render_resources
-            .instance_buffer_size
-            == 0
-            || context
-                .render_world
-                .mesh_render_resources
-                .indirect_buffer_size
-                == 0
-        {
+        if context.prepared.instance_buffer_size == 0 {
             return;
         }
 
         let camera_bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("camera_bind_group_layout")
+            .unwrap()
+            .clone();
+
+        let bindless_bind_group_layout = context
+            .backend
+            .get_bind_group_layout("bindless_bind_group_layout")
             .unwrap()
             .clone();
 
         if self.normal_pipeline.is_none() {
             let device = &context.render_context.device;
-            let world = &*context.render_world;
 
             let normal_pipeline = {
                 let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("SSAO Normal Pipeline Layout"),
-                    bind_group_layouts: &[
-                        &camera_bind_group_layout,
-                        &world.mesh_render_resources.bindless_bind_group_layout,
-                    ],
+                    bind_group_layouts: &[&camera_bind_group_layout, &bindless_bind_group_layout],
                     push_constant_ranges: &[],
                 });
                 let shader = wgpu::ShaderModuleDescriptor {
@@ -116,6 +108,7 @@ impl Node for SsaoNode {
                         include_str!("../../../shaders/normal.wgsl").into(),
                     ),
                 };
+
                 create_render_pipeline(
                     device,
                     &layout,
@@ -268,10 +261,10 @@ impl Node for SsaoNode {
 
             // 永久缓存
             context
-                .pool
+                .backend
                 .add_bind_group_layout("ssao_bind_group_layout", ssao_bind_group_layout);
             context
-                .pool
+                .backend
                 .add_bind_group_layout("blur_bind_group_layout", blur_bind_group_layout);
         }
 
@@ -314,14 +307,12 @@ impl Node for SsaoNode {
         let mut ssao_camera_index = 0;
 
         {
-            let world = &mut *context.render_world;
-
             // 查找是否有任何 3D 相机开启了 SSAO
             let mut camera_wants_ssao = false;
 
-            for i in 0..world.extracted.cameras.types.len() {
-                if world.extracted.cameras.types[i] == CameraType::D3 {
-                    if world.extracted.cameras.uniforms[i].ssao_enabled == 1 {
+            for i in 0..context.extracted.cameras.types.len() {
+                if context.extracted.cameras.types[i] == CameraType::D3 {
+                    if context.extracted.cameras.uniforms[i].ssao_enabled == 1 {
                         camera_wants_ssao = true;
                         ssao_camera_index = i;
                         break;
@@ -330,9 +321,9 @@ impl Node for SsaoNode {
             }
 
             // 如果全局禁用，或者没有任何相机需要，或者场景为空，则必须清空输出以防复用脏数据
-            if !world.extracted.ssao_enabled
+            if !context.extracted.ssao_enabled
                 || !camera_wants_ssao
-                || world.extracted.meshes.is_empty()
+                || context.extracted.meshes.is_empty()
             {
                 context
                     .encoder
@@ -449,18 +440,18 @@ impl Node for SsaoNode {
 
         let (ssao_bind_group, blur_bind_group) = {
             let ssao_bind_group_layout = context
-                .pool
+                .backend
                 .get_bind_group_layout("ssao_bind_group_layout")
                 .unwrap()
                 .clone();
             let blur_bind_group_layout = context
-                .pool
+                .backend
                 .get_bind_group_layout("blur_bind_group_layout")
                 .unwrap()
                 .clone();
 
             let ssao_bind_group = context.create_bind_group(
-                &ssao_bind_group_layout,
+                "ssao_bind_group_layout",
                 vec![
                     ssao_uniform_buffer.id,
                     normal_tex.view_id,
@@ -501,8 +492,10 @@ impl Node for SsaoNode {
                 },
             );
 
-            let blur_bind_group =
-                context.create_bind_group(&blur_bind_group_layout, vec![ssao_tex.view_id], |ctx| {
+            let blur_bind_group = context.create_bind_group(
+                "blur_bind_group_layout",
+                vec![ssao_tex.view_id],
+                |ctx| {
                     ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                         layout: &blur_bind_group_layout,
                         entries: &[
@@ -517,13 +510,14 @@ impl Node for SsaoNode {
                         ],
                         label: Some("SSAO Blur Bind Group"),
                     })
-                });
+                },
+            );
 
             (ssao_bind_group, blur_bind_group)
         };
 
         let camera_bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("camera_bind_group_layout")
             .unwrap()
             .clone();
@@ -531,7 +525,7 @@ impl Node for SsaoNode {
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
         let camera_bind_group =
-            context.create_bind_group(&camera_bind_group_layout, vec![camera_buffer.id], |ctx| {
+            context.create_bind_group("camera_bind_group_layout", vec![camera_buffer.id], |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &camera_bind_group_layout,
                     entries: &[wgpu::BindGroupEntry {
@@ -551,6 +545,16 @@ impl Node for SsaoNode {
         let global_visible_instance_buffer =
             context.buffer(&standard_resources::cull_visible_instance_buffer());
         let global_indirect_buffer = context.buffer(&standard_resources::cull_indirect_buffer());
+        let mesh_allocator = context.backend.imported_mesh_allocator.read().unwrap();
+        let materials_storage_buffer =
+            context.buffer(&standard_resources::material_storage_buffer());
+
+        let bindless_bind_group = context
+            .get_bind_group(
+                "bindless_bind_group_layout",
+                vec![materials_storage_buffer.id],
+            )
+            .clone();
 
         {
             let mut render_pass = context
@@ -578,45 +582,26 @@ impl Node for SsaoNode {
                     occlusion_query_set: None,
                 });
 
-            let mesh_render_resources = &context.render_world.mesh_render_resources;
             let offset = ssao_camera_index as u32 * CameraUniform::get_uniform_offset_unit();
-            
+
             render_pass.set_pipeline(self.normal_pipeline.as_ref().unwrap());
             render_pass.set_bind_group(0, &camera_bind_group, &[offset]);
-            render_pass.set_bind_group(
-                1,
-                mesh_render_resources.bindless_bind_group.as_ref().unwrap(),
-                &[],
-            );
+            render_pass.set_bind_group(1, &bindless_bind_group, &[]);
 
-            render_pass.set_vertex_buffer(
-                0,
-                mesh_render_resources.mesh_allocator.vertex_buffer.slice(..),
-            );
+            render_pass.set_vertex_buffer(0, mesh_allocator.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, global_visible_instance_buffer.buffer.slice(..));
             render_pass.set_index_buffer(
-                mesh_render_resources.mesh_allocator.index_buffer.slice(..),
+                mesh_allocator.index_buffer.slice(..),
                 wgpu::IndexFormat::Uint32,
             );
 
-            if !mesh_render_resources.draw_counts.is_empty()
-                && mesh_render_resources.draw_counts[0] > 0
-            {
+            if !context.prepared.draw_counts.is_empty() && context.prepared.draw_counts[0] > 0 {
                 render_pass.multi_draw_indexed_indirect(
                     &global_indirect_buffer.buffer,
                     0,
-                    mesh_render_resources.draw_counts[0],
+                    context.prepared.draw_counts[0],
                 );
             }
-
-            // Also draw transparent meshes that are using ALPHA_MODE_MASK (like leaves)
-            // These should contribute to SSAO normal/depth buffer
-            // for mesh in extracted_meshes {
-            //     if mesh.transparent {
-            //         // For simplicity in this step, we just draw them individually if they are small in number.
-            //         // In a full implementation, we'd use a dedicated instance buffer for SSAO transparents too.
-            //     }
-            // }
         }
 
         {

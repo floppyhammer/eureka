@@ -6,9 +6,9 @@ enum RenderTarget {
     Image(TextureId),
 }
 
+#[derive(Clone)]
 pub struct ViewInfo {
     pub id: u32,
-
     pub view_size: UVec2,
 }
 

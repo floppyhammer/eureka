@@ -15,8 +15,6 @@ pub struct World {
 
     current_camera2d: Option<NodeId>,
     current_camera3d: Option<NodeId>,
-
-    view_size: UVec2,
 }
 
 impl World {
@@ -28,7 +26,6 @@ impl World {
             root_node: None,
             current_camera2d: None,
             current_camera3d: None,
-            view_size,
         }
     }
 
@@ -188,9 +185,8 @@ impl World {
         singletons.asset_server.update();
     }
 
-    pub fn queue_draw(&mut self) -> DrawCommands {
+    pub fn collect_draw_commands(&mut self) -> DrawCommands {
         let mut draw_cmds = DrawCommands::default();
-        draw_cmds.view_info.view_size = self.view_size;
 
         // Collect draw commands from the scene tree.
         for id in self.traverse() {
@@ -201,8 +197,6 @@ impl World {
     }
 
     pub fn when_view_size_changes(&mut self, new_size: UVec2) {
-        self.view_size = new_size;
-
         if let Some(node_id) = self.current_camera2d {
             if let Some(camera) = self.get_node_mut::<Camera2d>(node_id) {
                 camera.when_view_size_changes(new_size);

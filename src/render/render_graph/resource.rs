@@ -171,7 +171,7 @@ pub struct PooledBuffer {
 /// BindGroup 缓存键
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct BindGroupKey {
-    pub layout_ptr: usize,
+    pub layout_name: String,
     pub resource_ids: Vec<u64>,
 }
 
@@ -324,12 +324,33 @@ pub mod standard_resources {
         ResourceId::new("camera_buffer")
     }
 
+    pub fn material_storage_buffer() -> BufferId {
+        ResourceId::new("material_storage_buffer")
+    }
+    
+    // Sprite node
+    pub fn sprite_vertex_buffer() -> BufferId { ResourceId::new("sprite_vertex_buffer") }
+
+    pub fn sprite_index_buffer() -> BufferId { ResourceId::new("sprite_index_buffer") }
+
+    pub fn global_instance_buffer() -> BufferId {
+        ResourceId::new("global_instance_buffer")
+    }
+
+    pub fn mesh_metadata_buffer() -> BufferId {
+        ResourceId::new("mesh_metadata_buffer")
+    }
+    
     pub fn cull_visible_instance_buffer() -> BufferId {
         ResourceId::new("cull_visible_instance_buffer")
     }
 
     pub fn cull_indirect_buffer() -> BufferId {
         ResourceId::new("cull_indirect_buffer")
+    }
+
+    pub fn cull_params_uniform() -> BufferId {
+        ResourceId::new("cull_params_uniform")
     }
 
     pub fn shadow_cascade_buffer() -> BufferId {

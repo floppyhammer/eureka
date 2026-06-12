@@ -16,7 +16,7 @@ use winit::dpi::{LogicalSize, PhysicalSize, Size};
 // Import local crates.
 use crate::asset::AssetServer;
 use crate::core::singleton::Singletons;
-use crate::render::render_world::RenderWorld;
+use crate::render::render_world::{RenderWorld, RenderCommand};
 use crate::render::RenderContext;
 use crate::scene::{AsNode, World};
 use crate::text::TextServer;
@@ -25,21 +25,21 @@ use crate::window::InputServer;
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
 const INITIAL_WINDOW_HEIGHT: u32 = 720;
 
-pub struct App<'a> {
+pub struct App {
     window: Option<Arc<Window>>,
     window_size: LogicalSize<u32>,
     scale_factor: f64,
     pub world: World,
     pub render_world: Option<RenderWorld>,
-    pub singletons: Option<Singletons<'a>>,
+    pub singletons: Option<Singletons>,
     initialized: bool,
     /// We keep the event loop in an option to take it when running.
     event_loop: Option<EventLoop<()>>,
     /// Callback for user setup logic after initialization.
-    setup_callback: Option<Box<dyn FnOnce(&mut App<'a>)>>,
+    setup_callback: Option<Box<dyn FnOnce(&mut App)>>,
 }
 
-impl<'a> App<'a> {
+impl App {
     pub fn new() -> Self {
         // Config logger
         let env = env_logger::Env::default()
@@ -68,13 +68,13 @@ impl<'a> App<'a> {
 
     pub fn setup<F>(&mut self, f: F)
     where
-        F: FnOnce(&mut App<'a>) + 'static,
+        F: FnOnce(&mut App) + 'static,
     {
         self.setup_callback = Some(Box::new(f));
     }
 
     /// Creating some of the wgpu types requires async code.
-    async fn init_render(window: Arc<Window>) -> RenderContext<'a> {
+    async fn init_render(window: Arc<Window>) -> (RenderContext, wgpu::Surface<'static>) {
         // Context for all other wgpu objects.
         let instance = wgpu::Instance::default();
 
@@ -133,7 +133,7 @@ impl<'a> App<'a> {
         surface.configure(&device, &surface_config);
 
         // Create a render server.
-        RenderContext::new(surface, surface_config, device, queue, frames_in_flight)
+        (RenderContext::new(surface_config, device, queue, frames_in_flight), surface)
     }
 
     pub fn run(&mut self) {
@@ -151,18 +151,18 @@ impl<'a> App<'a> {
         self.window_size = new_size.to_logical(self.scale_factor);
 
         if let Some(singletons) = &mut self.singletons {
-            // Reconfigure the surface everytime the window's size changes.
             if new_size.width > 0 && new_size.height > 0 {
-                let config = &mut singletons.render_context.surface_config;
-                config.width = new_size.width;
-                config.height = new_size.height;
+                // 1. 更新 wgpu surface 配置 (逻辑层记录)
+                singletons.render_context.surface_config.width = new_size.width;
+                singletons.render_context.surface_config.height = new_size.height;
 
-                singletons
-                    .render_context
-                    .surface
-                    .configure(&singletons.render_context.device, config);
+                // 2. 更新逻辑层的视图尺寸
+                self.world.when_view_size_changes(UVec2::new(new_size.width, new_size.height));
 
-                self.world.when_view_size_changes(UVec2::new(new_size.width, new_size.height))
+                // 3. 通知渲染线程执行真正的配置和资源清理
+                if let Some(render_world) = &self.render_world {
+                    let _ = render_world.sender.send(RenderCommand::Resize(new_size.width, new_size.height));
+                }
             }
         }
     }
@@ -188,7 +188,7 @@ impl<'a> App<'a> {
             // Reconcile fonts.
             singletons.text_server.update(
                 &singletons.render_context,
-                &mut render_world.imported_texture_cache,
+                &mut render_world.imported_texture_cache.write().unwrap(),
                 &singletons.asset_server,
             );
 
@@ -209,49 +209,26 @@ impl<'a> App<'a> {
             return Ok(());
         };
 
-        // Collects draw commands from the scene world.
-        let draw_commands = self.world.queue_draw();
+        // Collect draw commands from the scene world.
+        let draw_commands = self.world.collect_draw_commands();
 
         // Extract render entities from the draw commands.
-        render_world.extract(&draw_commands);
+        let extracted = render_world.extract(&draw_commands);
 
-        let render_server = &singletons.render_context;
-
-        render_world.prepare(render_server);
-
-        // Update server GPU resources.
+        // Update server GPU resources (text).
+        // Note: text_server.prepare currently writes to texture cache, so we need a write lock.
         singletons
             .text_server
-            .prepare(&singletons.render_context, &mut render_world.imported_texture_cache);
+            .prepare(&singletons.render_context, &mut render_world.imported_texture_cache.write().unwrap());
 
-        // First we need to get a frame to draw to.
-        let surface_texture = render_server.surface.get_current_texture()?;
-
-        // Creates a TextureView with default settings.
-        let view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let cmd_buffer = render_world.run_graph(
-            render_server,
-            &view,
-        );
-
-        // Finish the command encoder to generate a command buffer,
-        // then submit it for execution.
-        singletons
-            .render_context
-            .queue
-            .submit(std::iter::once(cmd_buffer));
-
-        // Present the swapchain surface.
-        surface_texture.present();
+        // Send to render thread.
+        let _ = render_world.sender.send(RenderCommand::Render(extracted));
 
         Ok(())
     }
 }
 
-impl<'a> ApplicationHandler for App<'a> {
+impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_some() {
             return;
@@ -268,11 +245,11 @@ impl<'a> ApplicationHandler for App<'a> {
         self.window = Some(window.clone());
 
         // App::init_render uses async code, so we're going to wait for it to finish.
-        let render_context = pollster::block_on(Self::init_render(window.clone()));
+        let (render_context, surface) = pollster::block_on(Self::init_render(window.clone()));
 
         let time = Time::new();
         let mut asset_server = AssetServer::new();
-        let render_world = RenderWorld::new(&render_context);
+        let render_world = RenderWorld::new(render_context.clone(), surface);
         let text_server = TextServer::new(&mut asset_server);
 
         self.singletons = Some(Singletons {
@@ -338,13 +315,13 @@ impl<'a> ApplicationHandler for App<'a> {
                         Ok(_) => {
                             window.request_redraw();
                         }
-                        // Reconfigure the surface if lost.
-                        Err(wgpu::SurfaceError::Lost) => {
+                        // Reconfigure the surface if lost or outdated.
+                        Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                             self.resize(self.window_size.to_physical(self.scale_factor))
                         }
                         // The system is out of memory, we should probably quit.
                         Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
-                        // All other errors (Outdated, Timeout) should be resolved by the next frame.
+                        // All other errors (Timeout) should be resolved by the next frame.
                         Err(e) => eprintln!("App resource error: {:?}", e),
                     }
                 }

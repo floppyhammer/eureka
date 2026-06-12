@@ -1,14 +1,12 @@
 use crate::render::camera::CameraType;
 use crate::render::camera::CameraUniform;
 use crate::render::light::{CascadeUniform, LightUniform, MAX_POINT_LIGHTS};
-use crate::render::mesh::{ExtractedMesh, MeshCache, MeshRenderResources};
+use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node, TextureKey};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
-use crate::render::{create_render_pipeline, InstanceRaw, MeshId, Texture};
-use glam::{Mat4, Vec3};
+use crate::render::{create_render_pipeline, InstanceRaw, Texture};
 use std::any::Any;
 use wgpu::BufferAddress;
-use crate::render::render_world::RenderWorld;
 
 pub struct TransparentMeshNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -29,7 +27,10 @@ impl Node for TransparentMeshNode {
         self
     }
 
-    fn node_resources(&self, world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(
+        &self,
+        _prepared: &PreparedFrame,
+    ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
@@ -69,40 +70,36 @@ impl Node for TransparentMeshNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        if context
-            .render_world
-            .mesh_render_resources
-            .instance_buffer_size
-            == 0
-            || context
-            .render_world
-            .mesh_render_resources
-            .indirect_buffer_size
-            == 0
-        {
+        if context.prepared.instance_buffer_size == 0 {
             return;
         }
-        
+
+        return;
+
         let width = context.render_context.surface_config.width;
         let height = context.render_context.surface_config.height;
         let format = Some(context.render_context.surface_config.format);
 
-        if context.render_world.extracted.transparent_meshes.is_empty() {
+        if context.prepared.transparent_meshes.is_empty() {
             return;
         }
 
         let device = &context.render_context.device;
-        let world = &*context.render_world;
-        let resources = &world.mesh_render_resources;
+
+        let bindless_bind_group_layout = context
+            .backend
+            .get_bind_group_layout("bindless_bind_group_layout")
+            .unwrap()
+            .clone();
 
         let camera_bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("camera_bind_group_layout")
             .unwrap()
             .clone();
 
         let light_bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("light_bind_group_layout")
             .unwrap()
             .clone();
@@ -113,7 +110,7 @@ impl Node for TransparentMeshNode {
                 bind_group_layouts: &[
                     &camera_bind_group_layout,
                     &light_bind_group_layout,
-                    &resources.bindless_bind_group_layout,
+                    &bindless_bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -257,24 +254,31 @@ impl Node for TransparentMeshNode {
                     ..Default::default()
                 });
 
-        let sky_view = if let Some(id) = context.render_world.sky_imported_resources.texture {
+        let sky_view = if let Some(id) = context.backend.sky_imported_resources.texture {
             context
-                .render_world
+                .backend
                 .imported_texture_cache
+                .read()
+                .unwrap()
                 .get(id)
                 .unwrap()
                 .view
                 .clone()
         } else {
-            context
-                .render_world
-                .mesh_render_resources
-                .dummy_cube_view
-                .clone()
+            let dummy_cube_view =
+                context
+                    .backend
+                    .dummy_cube_texture
+                    .create_view(&wgpu::TextureViewDescriptor {
+                        label: Some("dummy cube view"),
+                        dimension: Some(wgpu::TextureViewDimension::Cube),
+                        ..Default::default()
+                    });
+            dummy_cube_view
         };
 
         let light_bind_group = context.create_bind_group(
-            &light_bind_group_layout,
+            "light_bind_group_layout",
             vec![
                 ssao_blur.id,
                 light_uniform_buffer.id,
@@ -324,19 +328,14 @@ impl Node for TransparentMeshNode {
         );
 
         let camera_buffer = {
-            let buffer_key = context
-                .render_world
-                .extracted
-                .cameras
-                .get_buffer_key()
-                .clone();
+            let buffer_key = context.extracted.cameras.get_buffer_key().clone();
 
             context
                 .get_buffer_by_id(&standard_resources::camera_buffer(), buffer_key)
                 .clone()
         };
         let camera_bind_group =
-            context.create_bind_group(&camera_bind_group_layout, vec![camera_buffer.id], |ctx| {
+            context.create_bind_group("camera_bind_group_layout", vec![camera_buffer.id], |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: &camera_bind_group_layout,
                     entries: &[wgpu::BindGroupEntry {
@@ -353,7 +352,7 @@ impl Node for TransparentMeshNode {
                 })
             });
 
-        let world = &mut *context.render_world;
+        let world = &mut *context.backend;
 
         let mut render_pass = context
             .encoder
@@ -380,131 +379,133 @@ impl Node for TransparentMeshNode {
                 occlusion_query_set: None,
             });
 
-        for camera_idx in 0..world.extracted.cameras.uniforms.len() {
-            if world.extracted.cameras.types[camera_idx] == CameraType::D3 {
-                render_transparent_meshes(
-                    &world.extracted.transparent_meshes,
-                    &world.mesh_cache,
-                    &world.mesh_render_resources,
-                    &camera_bind_group,
-                    &light_bind_group,
-                    world
-                        .mesh_render_resources
-                        .bindless_bind_group
-                        .as_ref()
-                        .unwrap(),
-                    camera_idx,
-                    &world.extracted.cameras.uniforms[camera_idx],
-                    &mut render_pass,
-                    self.pipeline.as_ref().unwrap(),
-                    &context.render_context.device,
-                    &context.render_context.queue,
-                    &mut self.instance_buffer,
-                );
+        for camera_idx in 0..context.extracted.cameras.uniforms.len() {
+            if context.extracted.cameras.types[camera_idx] == CameraType::D3 {
+                let mesh_cache = world.imported_mesh_cache.read().unwrap();
+
+                // render_transparent_meshes(
+                //     &context.extracted.transparent_meshes,
+                //     &mesh_cache,
+                //     &world.mesh_render_resources,
+                //     &camera_bind_group,
+                //     &light_bind_group,
+                //     world
+                //         .mesh_render_resources
+                //         .bindless_bind_group
+                //         .as_ref()
+                //         .unwrap(),
+                //     camera_idx,
+                //     &context.extracted.cameras.uniforms[camera_idx],
+                //     &mut render_pass,
+                //     self.pipeline.as_ref().unwrap(),
+                //     &context.render_context.device,
+                //     &context.render_context.queue,
+                //     &mut self.instance_buffer,
+                // );
             }
         }
     }
 }
-
-fn render_transparent_meshes<'a, 'b: 'a>(
-    extracted_meshes: &'b Vec<ExtractedMesh>,
-    mesh_cache: &'b MeshCache,
-    mesh_render_resources: &'b MeshRenderResources,
-    camera_bind_group: &'b wgpu::BindGroup,
-    light_bind_group: &'b wgpu::BindGroup,
-    bindless_bind_group: &'b wgpu::BindGroup,
-    camera_index: usize,
-    camera_uniform: &CameraUniform,
-    render_pass: &mut wgpu::RenderPass<'a>,
-    pipeline: &'b wgpu::RenderPipeline,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    instance_buffer: &mut Option<wgpu::Buffer>,
-) {
-    let view_proj = Mat4::from_cols_array_2d(&camera_uniform.view_proj);
-
-    let mut sorted_meshes: Vec<_> = extracted_meshes.iter().enumerate().collect();
-    sorted_meshes.sort_by(|(_, a), (_, b)| {
-        let a_center = a.transform.position;
-        let b_center = b.transform.position;
-        let a_dist = (view_proj * Vec3::new(a_center.x, a_center.y, a_center.z).extend(1.0)).z;
-        let b_dist = (view_proj * Vec3::new(b_center.x, b_center.y, b_center.z).extend(1.0)).z;
-        b_dist
-            .partial_cmp(&a_dist)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-
-    let mut sorted_instances: Vec<InstanceRaw> = Vec::new();
-    let mut sorted_mesh_info: Vec<(MeshId, u32, u32)> = Vec::new();
-
-    for (_, mesh) in sorted_meshes {
-        if let Some(m) = mesh_cache.get(mesh.mesh_id) {
-            let material_idx = mesh
-                .material_id
-                .and_then(|id| mesh_render_resources.material_index_map.get(&id))
-                .cloned()
-                .unwrap_or(0);
-
-            let instance_raw = crate::render::mesh::Instance {
-                position: mesh.transform.position,
-                scale: mesh.transform.scale,
-                rotation: mesh.transform.rotation,
-                material_idx,
-            }
-            .to_raw();
-
-            sorted_instances.push(instance_raw);
-            sorted_mesh_info.push((mesh.mesh_id, m.index_offset, m.index_count));
-        }
-    }
-
-    if sorted_instances.is_empty() {
-        return;
-    }
-
-    let buffer_size = (sorted_instances.len() * size_of::<InstanceRaw>()) as wgpu::BufferAddress;
-
-    if instance_buffer.is_none() || instance_buffer.as_ref().unwrap().size() < buffer_size {
-        *instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("transparent instance buffer"),
-            size: buffer_size,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        }));
-    }
-
-    queue.write_buffer(
-        instance_buffer.as_ref().unwrap(),
-        0,
-        bytemuck::cast_slice(&sorted_instances),
-    );
-
-    render_pass.set_pipeline(pipeline);
-
-    render_pass.set_bind_group(
-        0,
-        camera_bind_group,
-        &[camera_index as u32 * CameraUniform::get_uniform_offset_unit()],
-    );
-    render_pass.set_bind_group(1, light_bind_group, &[]);
-    render_pass.set_bind_group(2, bindless_bind_group, &[]);
-    render_pass.set_vertex_buffer(
-        0,
-        mesh_render_resources.mesh_allocator.vertex_buffer.slice(..),
-    );
-    render_pass.set_index_buffer(
-        mesh_render_resources.mesh_allocator.index_buffer.slice(..),
-        wgpu::IndexFormat::Uint32,
-    );
-    render_pass.set_vertex_buffer(1, instance_buffer.as_ref().unwrap().slice(..));
-
-    let mut base_instance = 0u32;
-    for (_, index_offset, index_count) in sorted_mesh_info {
-        render_pass.draw_indexed(
-            index_offset..index_offset + index_count,
-            0,
-            base_instance..base_instance + 1,
-        );
-        base_instance += 1;
-    }
-}
+//
+// fn render_transparent_meshes<'a, 'b: 'a>(
+//     extracted_meshes: &'b Vec<ExtractedMesh>,
+//     mesh_cache: &'b MeshCache,
+//     prepared_frame: &'b PreparedFrame,
+//     camera_bind_group: &'b wgpu::BindGroup,
+//     light_bind_group: &'b wgpu::BindGroup,
+//     bindless_bind_group: &'b wgpu::BindGroup,
+//     camera_index: usize,
+//     camera_uniform: &CameraUniform,
+//     render_pass: &mut wgpu::RenderPass<'a>,
+//     pipeline: &'b wgpu::RenderPipeline,
+//     device: &wgpu::Device,
+//     queue: &wgpu::Queue,
+//     instance_buffer: &mut Option<wgpu::Buffer>,
+// ) {
+//     let view_proj = Mat4::from_cols_array_2d(&camera_uniform.view_proj);
+//
+//     let mut sorted_meshes: Vec<_> = extracted_meshes.iter().enumerate().collect();
+//     sorted_meshes.sort_by(|(_, a), (_, b)| {
+//         let a_center = a.transform.position;
+//         let b_center = b.transform.position;
+//         let a_dist = (view_proj * Vec3::new(a_center.x, a_center.y, a_center.z).extend(1.0)).z;
+//         let b_dist = (view_proj * Vec3::new(b_center.x, b_center.y, b_center.z).extend(1.0)).z;
+//         b_dist
+//             .partial_cmp(&a_dist)
+//             .unwrap_or(std::cmp::Ordering::Equal)
+//     });
+//
+//     let mut sorted_instances: Vec<InstanceRaw> = Vec::new();
+//     let mut sorted_mesh_info: Vec<(MeshId, u32, u32)> = Vec::new();
+//
+//     for (_, mesh) in sorted_meshes {
+//         if let Some(m) = mesh_cache.get(mesh.mesh_id) {
+//             let material_idx = mesh
+//                 .material_id
+//                 .and_then(|id| prepared_frame.material_index_map.get(&id))
+//                 .cloned()
+//                 .unwrap_or(0);
+//
+//             let instance_raw = crate::render::mesh::Instance {
+//                 position: mesh.transform.position,
+//                 scale: mesh.transform.scale,
+//                 rotation: mesh.transform.rotation,
+//                 material_idx,
+//             }
+//             .to_raw();
+//
+//             sorted_instances.push(instance_raw);
+//             sorted_mesh_info.push((mesh.mesh_id, m.index_offset, m.index_count));
+//         }
+//     }
+//
+//     if sorted_instances.is_empty() {
+//         return;
+//     }
+//
+//     let buffer_size = (sorted_instances.len() * size_of::<InstanceRaw>()) as wgpu::BufferAddress;
+//
+//     if instance_buffer.is_none() || instance_buffer.as_ref().unwrap().size() < buffer_size {
+//         *instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+//             label: Some("transparent instance buffer"),
+//             size: buffer_size,
+//             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+//             mapped_at_creation: false,
+//         }));
+//     }
+//
+//     queue.write_buffer(
+//         instance_buffer.as_ref().unwrap(),
+//         0,
+//         bytemuck::cast_slice(&sorted_instances),
+//     );
+//
+//     render_pass.set_pipeline(pipeline);
+//
+//     render_pass.set_bind_group(
+//         0,
+//         camera_bind_group,
+//         &[camera_index as u32 * CameraUniform::get_uniform_offset_unit()],
+//     );
+//     render_pass.set_bind_group(1, light_bind_group, &[]);
+//     render_pass.set_bind_group(2, bindless_bind_group, &[]);
+//     render_pass.set_vertex_buffer(
+//         0,
+//         mesh_render_resources.mesh_allocator.vertex_buffer.slice(..),
+//     );
+//     render_pass.set_index_buffer(
+//         mesh_render_resources.mesh_allocator.index_buffer.slice(..),
+//         wgpu::IndexFormat::Uint32,
+//     );
+//     render_pass.set_vertex_buffer(1, instance_buffer.as_ref().unwrap().slice(..));
+//
+//     let mut base_instance = 0u32;
+//     for (_, index_offset, index_count) in sorted_mesh_info {
+//         render_pass.draw_indexed(
+//             index_offset..index_offset + index_count,
+//             0,
+//             base_instance..base_instance + 1,
+//         );
+//         base_instance += 1;
+//     }
+// }

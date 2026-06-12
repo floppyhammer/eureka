@@ -1,9 +1,11 @@
+use crate::render::render_backend::{PreparedFrame, RenderBackend};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
 use crate::render::render_graph::{
-    standard_resources, Node, ResourceId, ResourceKey, ResourceSpec, VirtualResource,
+    standard_resources, ClearNode, CullingNode, FxaaNode, MeshNode, Node, PrepareInstancesNode,
+    PrepareMaterialsNode, PrepareViewNode, ResourceId, ResourceKey, ResourceSpec, ShadowNode,
+    SkyboxNode, SpriteNode, SsaoNode, ToneMappingNode, TransparentMeshNode, VirtualResource,
 };
-use crate::render::render_world::RenderWorld;
 use crate::render::RenderContext;
 use std::collections::{HashMap, VecDeque};
 
@@ -12,14 +14,8 @@ pub struct RenderGraph {
     nodes: HashMap<String, NodeState>,
     dependencies: HashMap<String, Vec<String>>,
     cached_execution_order: Option<Vec<String>>,
-    pool: ResourcePool,
+    pub pool: ResourcePool,
     frame_count: u64,
-}
-
-impl Default for RenderGraph {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 struct NodeState {
@@ -27,8 +23,10 @@ struct NodeState {
     name: String,
 }
 
-impl RenderGraph {
-    pub fn new() -> Self {
+impl Default for RenderGraph {
+    /// 默认实现保持轻量，不包含任何节点或资源。
+    /// 这样在 std::mem::take 时非常快，且不会误重置状态。
+    fn default() -> Self {
         Self {
             nodes: HashMap::new(),
             dependencies: HashMap::new(),
@@ -36,6 +34,48 @@ impl RenderGraph {
             pool: ResourcePool::default(),
             frame_count: 0,
         }
+    }
+}
+
+impl RenderGraph {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 初始化标准的渲染管线节点
+    pub fn setup_standard_nodes(&mut self) {
+        self.add_node("prepare_view", PrepareViewNode::default());
+        self.add_node("prepare_materials", PrepareMaterialsNode::default());
+        self.add_node("prepare_instances", PrepareInstancesNode::default());
+        self.add_node("clear", ClearNode);
+        self.add_node("cull", CullingNode::default());
+        self.add_node("shadow", ShadowNode::default());
+        self.add_node("ssao", SsaoNode::default());
+        self.add_node("skybox", SkyboxNode::default());
+        self.add_node("mesh", MeshNode::default());
+        self.add_node("transparent_mesh", TransparentMeshNode::default());
+        self.add_node("tonemapping", ToneMappingNode::default());
+        self.add_node("fxaa", FxaaNode::default());
+        self.add_node("sprite", SpriteNode::default());
+
+        self.add_node_edge("prepare_materials", "mesh");
+        self.add_node_edge("prepare_materials", "ssao");
+        self.add_node_edge("prepare_instances", "cull");
+        self.add_node_edge("prepare_view", "cull");
+        self.add_node_edge("prepare_view", "ssao");
+        self.add_node_edge("prepare_view", "skybox");
+        self.add_node_edge("cull", "mesh");
+        self.add_node_edge("cull", "ssao");
+        self.add_node_edge("shadow", "mesh");
+        self.add_node_edge("ssao", "mesh");
+        self.add_node_edge("clear", "skybox");
+        self.add_node_edge("skybox", "mesh");
+        self.add_node_edge("mesh", "transparent_mesh");
+        self.add_node_edge("transparent_mesh", "tonemapping");
+        self.add_node_edge("tonemapping", "fxaa");
+        self.add_node_edge("prepare_view", "sprite");
+        self.add_node_edge("prepare_materials", "sprite");
+        self.add_node_edge("fxaa", "sprite");
     }
 
     /// Adds a new node to the graph.
@@ -86,7 +126,8 @@ impl RenderGraph {
     pub fn run(
         &mut self,
         render_context: &RenderContext,
-        render_world: &mut RenderWorld,
+        backend: &mut RenderBackend,
+        prepared: &PreparedFrame,
         final_output_view: &wgpu::TextureView,
     ) -> wgpu::CommandBuffer {
         // 1. 每帧开始时，尝试从冷却队列中回收旧资源
@@ -99,7 +140,7 @@ impl RenderGraph {
         // Simple topological sort for execution order
         if self.cached_execution_order.is_none() {
             let order = self.topological_sort();
-            self.log_structure(render_world, &order);
+            self.log_structure(prepared, &order);
             self.cached_execution_order = Some(order);
         }
         let execution_order = self.cached_execution_order.as_ref().unwrap().clone();
@@ -108,7 +149,7 @@ impl RenderGraph {
         let mut merged_specs: HashMap<ResourceId<()>, ResourceSpec> = HashMap::new();
         for node_name in &execution_order {
             if let Some(node_state) = self.nodes.get(node_name) {
-                let resources = node_state.node.node_resources(render_world);
+                let resources = node_state.node.node_resources(prepared);
                 for decl in resources
                     .inputs
                     .into_iter()
@@ -157,16 +198,16 @@ impl RenderGraph {
                         continue;
                     }
 
-                    let buf = self.pool.acquire_buffer(&render_context.device, key);
+                    let (buf, actual_key) = self.pool.acquire_buffer(&render_context.device, key);
                     active_resources
-                        .insert(id, (ResourceKey::Buffer(key), VirtualResource::Buffer(buf)));
+                        .insert(id, (ResourceKey::Buffer(actual_key), VirtualResource::Buffer(buf)));
                 }
                 _ => {} // 其他资源类型暂不预分配
             }
         }
 
         // 验证资源依赖
-        if let Err(err) = self.validate_resource_dependencies(render_world, &execution_order) {
+        if let Err(err) = self.validate_resource_dependencies(prepared, &execution_order) {
             log::error!("Resource dependency validation failed: {}", err);
             // 降级：返回一个空的完成编码器，而不是 panic
             return render_context
@@ -186,10 +227,12 @@ impl RenderGraph {
         {
             let mut context = FrameContext {
                 render_context,
-                render_world,
+                backend,
+                pool: &mut self.pool,
+                prepared,
+                extracted: &prepared.extracted,
                 encoder: &mut encoder,
                 final_output_view,
-                pool: &mut self.pool,
                 active_resources: &mut active_resources,
             };
 
@@ -219,15 +262,19 @@ impl RenderGraph {
         encoder.finish()
     }
 
-    fn validate_resource_dependencies(&self, render_world: &RenderWorld, execution_order: &[String]) -> Result<(), String> {
+    fn validate_resource_dependencies(
+        &self,
+        render_prepared: &PreparedFrame,
+        execution_order: &Vec<String>,
+    ) -> Result<(), String> {
         let mut available_resources: HashMap<ResourceId<()>, ()> = HashMap::new();
 
         // 添加一些内置的初始资源（如最终输出视图）
         available_resources.insert(standard_resources::final_output().erase(), ());
 
         for node_name in execution_order {
-            if let Some(node_state) = self.nodes.get(node_name) {
-                let resources = node_state.node.node_resources(render_world);
+            if let Some(node_state) = self.nodes.get(node_name.as_str()) {
+                let resources = node_state.node.node_resources(render_prepared);
 
                 // 检查输入资源是否可用
                 for input in resources.inputs {
@@ -249,15 +296,15 @@ impl RenderGraph {
         Ok(())
     }
 
-    fn log_structure(&self, render_world: &mut RenderWorld, _order: &[String]) {
+    fn log_structure(&self, render_prepared: &PreparedFrame, _order: &Vec<String>) {
         log::info!("RenderGraph Topology Updated (Mermaid):");
 
         let mut mermaid = String::from("\n```mermaid\ngraph TD\n");
 
         // 定义子图，每个节点作为一个子图，显示其 input/output
         for node_name in _order {
-            if let Some(node_state) = self.nodes.get(node_name) {
-                let resources = node_state.node.node_resources(render_world);
+            if let Some(node_state) = self.nodes.get(node_name.as_str()) {
+                let resources = node_state.node.node_resources(render_prepared);
 
                 // 收集 input 和 output 的名称
                 let inputs: Vec<String> = resources

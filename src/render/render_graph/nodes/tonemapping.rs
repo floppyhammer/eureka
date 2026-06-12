@@ -1,8 +1,8 @@
 use crate::render::create_render_pipeline;
+use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{standard_resources, SamplerKey};
 use crate::render::render_graph::{FrameContext, Node};
 use std::any::Any;
-use crate::render::render_world::RenderWorld;
 
 pub struct ToneMappingNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -19,7 +19,10 @@ impl Node for ToneMappingNode {
         self
     }
 
-    fn node_resources(&self, _world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(
+        &self,
+        _prepared: &PreparedFrame,
+    ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::ResourceSpec;
 
         crate::render::render_graph::resource::NodeResources::new()
@@ -49,27 +52,28 @@ impl Node for ToneMappingNode {
         if self.pipeline.is_none() {
             let device = &context.render_context.device;
 
-            let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("ToneMapping Bind Group Layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
+            let bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("ToneMapping Bind Group Layout"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
                         },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-            });
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                    ],
+                });
 
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("ToneMapping Pipeline Layout"),
@@ -97,10 +101,10 @@ impl Node for ToneMappingNode {
             ));
 
             context
-                .pool
+                .backend
                 .add_bind_group_layout("tonemapping_bind_group_layout", bind_group_layout);
         }
-        
+
         let input_texture = context.texture(&standard_resources::main_color());
         let output_texture = context.texture(&standard_resources::hdr_resolved());
 
@@ -111,12 +115,13 @@ impl Node for ToneMappingNode {
         });
 
         let bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("tonemapping_bind_group_layout")
             .unwrap()
             .clone();
+        
         let bind_group =
-            context.create_bind_group(&bind_group_layout, vec![input_texture.id], |ctx| {
+            context.create_bind_group("tonemapping_bind_group_layout", vec![input_texture.id], |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("ToneMapping Bind Group"),
                     layout: &bind_group_layout,

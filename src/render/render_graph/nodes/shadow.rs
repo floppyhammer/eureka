@@ -1,13 +1,13 @@
 use crate::math::frustum::Frustum;
 use crate::render::camera::{CameraType, CameraUniform};
 use crate::render::light::{CascadeUniform, NUM_CASCADES};
+use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw};
 use glam::{Mat4, Vec3};
 use std::any::Any;
 use wgpu::BufferAddress;
-use crate::render::render_world::RenderWorld;
 
 pub struct ShadowNode {
     pipeline: Option<wgpu::RenderPipeline>,
@@ -24,7 +24,10 @@ impl Node for ShadowNode {
         self
     }
 
-    fn node_resources(&self, _world: &RenderWorld) -> crate::render::render_graph::resource::NodeResources {
+    fn node_resources(
+        &self,
+        _prepared: &PreparedFrame,
+    ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::light::{MAX_POINT_LIGHTS, NUM_CASCADES};
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
@@ -66,17 +69,21 @@ impl Node for ShadowNode {
         use crate::render::light::MAX_POINT_LIGHTS;
         use crate::render::Texture;
 
+        if context.prepared.instance_buffer_size == 0 {
+            return;
+        }
+
         let device = &context.render_context.device;
 
         // This is the same as the main camera bind group layout,
         // but prepare_view node is not guaranteed to run before this node.
         // So we make a dedicated layout for the shadow camera.
         if context
-            .pool
+            .backend
             .get_bind_group_layout("shadow_camera_bind_group_layout")
             .is_none()
         {
-            let camera_bind_group_layout = context.render_context.device.create_bind_group_layout(
+            let shadow_camera_bind_group_layout = context.render_context.device.create_bind_group_layout(
                 &wgpu::BindGroupLayoutDescriptor {
                     entries: &[wgpu::BindGroupLayoutEntry {
                         binding: 0,
@@ -93,19 +100,19 @@ impl Node for ShadowNode {
             );
 
             context
-                .pool
-                .add_bind_group_layout("shadow_camera_bind_group_layout", camera_bind_group_layout);
+                .backend
+                .add_bind_group_layout("shadow_camera_bind_group_layout", shadow_camera_bind_group_layout);
         }
 
         let shadow_camera_bind_group_layout = context
-            .pool
+            .backend
             .get_bind_group_layout("shadow_camera_bind_group_layout")
             .unwrap()
             .clone();
 
         if self.pipeline.is_none() {
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("shadow pipeline layout"),
+                label: Some("Shadow Pipeline Layout"),
                 bind_group_layouts: &[&shadow_camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
@@ -124,7 +131,7 @@ impl Node for ShadowNode {
                 Some(Texture::DEPTH_FORMAT),
                 &[Vertex3d::desc(), InstanceRaw::desc()],
                 shader,
-                "shadow pipeline",
+                "Shadow Pipeline",
                 false,
                 Some(wgpu::Face::Front),
             );
@@ -133,7 +140,6 @@ impl Node for ShadowNode {
         }
 
         let first_d3_cam = context
-            .render_world
             .extracted
             .cameras
             .types
@@ -164,11 +170,10 @@ impl Node for ShadowNode {
         let mut cascade_view_projs = [Mat4::IDENTITY; NUM_CASCADES];
 
         // Prepare directional shadow uniforms
-        if let (Some(directional_light), Some(camera_idx)) = (
-            &context.render_world.extracted.lights.directional_light,
-            first_d3_cam,
-        ) {
-            let camera_uniform = context.render_world.extracted.cameras.uniforms[camera_idx];
+        if let (Some(directional_light), Some(camera_idx)) =
+            (&context.extracted.lights.directional_light, first_d3_cam)
+        {
+            let camera_uniform = context.extracted.cameras.uniforms[camera_idx];
             let light_dir = Vec3::from_array(directional_light.direction).normalize();
 
             // 视锥体分割距离
@@ -281,12 +286,6 @@ impl Node for ShadowNode {
         // Update point shadow buffers
         let point_shadow_camera_buffer_size = offset_unit * (MAX_POINT_LIGHTS * 6) as u32;
 
-        let shadow_camera_bind_group_layout = context
-            .pool
-            .get_bind_group_layout("shadow_camera_bind_group_layout")
-            .unwrap()
-            .clone();
-
         let point_shadow_camera_buffer = {
             let buffer_key = BufferKey {
                 size: point_shadow_camera_buffer_size as BufferAddress,
@@ -300,7 +299,7 @@ impl Node for ShadowNode {
         };
 
         let point_shadow_camera_bind_group = context.create_bind_group(
-            &shadow_camera_bind_group_layout,
+            "shadow_camera_bind_group_layout",
             vec![point_shadow_camera_buffer.id],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -325,14 +324,7 @@ impl Node for ShadowNode {
             let mut point_camera_uniforms = vec![CameraUniform::default(); MAX_POINT_LIGHTS * 6];
             // render_resources.point_shadow_view_projs.clear();
 
-            for (i, light) in context
-                .render_world
-                .extracted
-                .lights
-                .point_lights
-                .iter()
-                .enumerate()
-            {
+            for (i, light) in context.extracted.lights.point_lights.iter().enumerate() {
                 if i >= MAX_POINT_LIGHTS {
                     break;
                 }
@@ -385,7 +377,7 @@ impl Node for ShadowNode {
         );
 
         let directional_shadow_camera_bind_group = context.create_bind_group(
-            &shadow_camera_bind_group_layout,
+            "shadow_camera_bind_group_layout",
             vec![directional_shadow_camera_buffer.id],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -405,11 +397,14 @@ impl Node for ShadowNode {
             },
         );
 
-        let world = &*context.render_world;
-
-        if world.mesh_render_resources.global_instance_buffer.is_none() {
+        if context.prepared.instance_buffer_size == 0 {
             return;
         }
+
+        let backend = &*context.backend;
+        let mesh_cache = backend.imported_mesh_cache.read().unwrap();
+        let mesh_allocator = backend.imported_mesh_allocator.read().unwrap();
+        let global_instance_buffer = context.buffer(&standard_resources::global_instance_buffer());
 
         let offset_unit = CameraUniform::get_uniform_offset_unit();
 
@@ -430,7 +425,10 @@ impl Node for ShadowNode {
             let mut render_pass = context
                 .encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some(format!("Directional Shadow Render Pass - Cascade {}", cascade_idx).as_str()),
+                    label: Some(
+                        format!("Directional Shadow Render Pass - Cascade {}", cascade_idx)
+                            .as_str(),
+                    ),
                     color_attachments: &[],
                     depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                         view: &cascade_view.0,
@@ -450,40 +448,21 @@ impl Node for ShadowNode {
             let frustum = Frustum::from_view_proj(cascade_view_projs[cascade_idx]);
 
             let mut visible_indices = Vec::new();
-            if world.extracted.bvh.root.is_some() {
-                world.extracted.bvh.query(&frustum, &mut visible_indices);
+            if context.prepared.bvh.root.is_some() {
+                context.prepared.bvh.query(&frustum, &mut visible_indices);
             } else {
-                visible_indices = (0..world.extracted.meshes.len()).collect();
+                visible_indices = (0..context.extracted.meshes.len()).collect();
             }
 
-            render_pass.set_vertex_buffer(
-                0,
-                world
-                    .mesh_render_resources
-                    .mesh_allocator
-                    .vertex_buffer
-                    .slice(..),
-            );
-            render_pass.set_vertex_buffer(
-                1,
-                world
-                    .mesh_render_resources
-                    .global_instance_buffer
-                    .as_ref()
-                    .unwrap()
-                    .slice(..),
-            );
+            render_pass.set_vertex_buffer(0, mesh_allocator.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, global_instance_buffer.buffer.slice(..));
             render_pass.set_index_buffer(
-                world
-                    .mesh_render_resources
-                    .mesh_allocator
-                    .index_buffer
-                    .slice(..),
+                mesh_allocator.index_buffer.slice(..),
                 wgpu::IndexFormat::Uint32,
             );
 
-            for info in &world.mesh_render_resources.mesh_infos {
-                let mesh = world.mesh_cache.get(info.mesh_id).unwrap();
+            for info in &context.prepared.mesh_infos {
+                let mesh = mesh_cache.get(info.mesh_id).unwrap();
 
                 render_pass.set_pipeline(self.pipeline.as_ref().unwrap());
                 render_pass.draw_indexed(
@@ -496,7 +475,7 @@ impl Node for ShadowNode {
 
         // Draw point shadow
         {
-            for light_layer_idx in 0..(world.extracted.lights.point_lights.len() * 6) {
+            for light_layer_idx in 0..(context.extracted.lights.point_lights.len() * 6) {
                 if light_layer_idx >= MAX_POINT_LIGHTS * 6 {
                     break;
                 }
@@ -536,34 +515,15 @@ impl Node for ShadowNode {
                 let dynamic_offset = (light_layer_idx as u32) * offset_unit;
                 render_pass.set_bind_group(0, &point_shadow_camera_bind_group, &[dynamic_offset]);
 
-                render_pass.set_vertex_buffer(
-                    0,
-                    world
-                        .mesh_render_resources
-                        .mesh_allocator
-                        .vertex_buffer
-                        .slice(..),
-                );
-                render_pass.set_vertex_buffer(
-                    1,
-                    world
-                        .mesh_render_resources
-                        .global_instance_buffer
-                        .as_ref()
-                        .unwrap()
-                        .slice(..),
-                );
+                render_pass.set_vertex_buffer(0, mesh_allocator.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, global_instance_buffer.buffer.slice(..));
                 render_pass.set_index_buffer(
-                    world
-                        .mesh_render_resources
-                        .mesh_allocator
-                        .index_buffer
-                        .slice(..),
+                    mesh_allocator.index_buffer.slice(..),
                     wgpu::IndexFormat::Uint32,
                 );
 
-                for info in &world.mesh_render_resources.mesh_infos {
-                    let mesh = world.mesh_cache.get(info.mesh_id).unwrap();
+                for info in &context.prepared.mesh_infos {
+                    let mesh = mesh_cache.get(info.mesh_id).unwrap();
 
                     render_pass.set_pipeline(self.pipeline.as_ref().unwrap());
                     render_pass.draw_indexed(
