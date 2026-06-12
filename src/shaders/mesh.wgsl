@@ -248,9 +248,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (material.metallic_roughness_texture_idx >= 0) {
         let mr_sample = textureSample(t_textures[u32(material.metallic_roughness_texture_idx)], s_sampler, in.tex_coords);
         // glTF standard: Metallic is B channel, Roughness is G channel
-        metallic *= mr_sample.b;
-        roughness *= mr_sample.g;
+        metallic = mr_sample.b;
+        roughness = mr_sample.g;
     }
+
+    // --- DEBUG: Uncomment to SEE the metallic and roughness factor ---
+    // return vec4<f32>(vec3<f32>(roughness), 1.0);
+    // return vec4<f32>(vec3<f32>(metallic), 1.0);
 
     // Clamp roughness to a safe minimum to prevent specular highlight disappearing
     // and avoid division by zero in BRDF equations.
@@ -262,6 +266,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let ssao_coords = vec2<i32>(in.clip_position.xy);
         ambient_ao = textureLoad(t_ssao, ssao_coords, 0).r;
     }
+
+    // Uncomment to debug ambient_ao factor
+    // return vec4<f32>(vec3<f32>(ambient_ao), 1.0);
 
     let view_to_frag = camera.view_pos.xyz - in.world_position.xyz;
     let view_dir = normalize(view_to_frag + vec3<f32>(0.00001)); // Add epsilon to prevent NaN
@@ -407,9 +414,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let indirect_specular = env_reflection * F_env * spec_occlusion;
 
     // --- DEBUG: Uncomment the line below to SEE the specular occlusion factor ---
-    // return vec4<f32>(vec3<f32>(spec_occlusion), 1.0);
-
-    // Uncomment the line below to DEBUG AO on the mesh surface
     // return vec4<f32>(vec3<f32>(spec_occlusion), 1.0);
 
     // Diffuse part of indirect lighting (Ambient)
