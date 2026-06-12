@@ -17,8 +17,8 @@ struct Material {
     color_texture_idx: i32,
     normal_texture_idx: i32,
     metallic_roughness_texture_idx: i32,
+    occlusion_texture_idx: i32,
     alpha_mode: u32,
-    _pad0: u32,
 }
 
 @group(1) @binding(0)

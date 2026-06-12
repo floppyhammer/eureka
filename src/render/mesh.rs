@@ -446,6 +446,7 @@ impl MeshRenderResources {
                 material.color_texture,
                 material.normal_texture,
                 material.metallic_roughness_texture,
+                material.occlusion_texture,
             ]
             .into_iter()
             .flatten()

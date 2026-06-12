@@ -18,6 +18,7 @@ pub struct MaterialStandard {
     pub color_texture: Option<TextureId>,
     pub normal_texture: Option<TextureId>,
     pub metallic_roughness_texture: Option<TextureId>,
+    pub occlusion_texture: Option<TextureId>,
     pub transparent: bool,
     pub alpha_cutoff: f32,
     pub alpha_mode: AlphaMode,
@@ -33,8 +34,8 @@ pub struct MaterialUniform {
     pub color_texture_idx: i32,
     pub normal_texture_idx: i32,
     pub metallic_roughness_texture_idx: i32,
+    pub occlusion_texture_idx: i32,
     pub alpha_mode: u32,
-    pub _pad0: u32,
 }
 
 impl MaterialStandard {
@@ -47,6 +48,7 @@ impl MaterialStandard {
             color_texture: None,
             normal_texture: None,
             metallic_roughness_texture: None,
+            occlusion_texture: None,
             transparent: false,
             alpha_cutoff: 0.5,
             alpha_mode: AlphaMode::Opaque,
@@ -74,8 +76,8 @@ impl MaterialStandard {
             color_texture_idx: get_idx(self.color_texture),
             normal_texture_idx: get_idx(self.normal_texture),
             metallic_roughness_texture_idx: get_idx(self.metallic_roughness_texture),
+            occlusion_texture_idx: get_idx(self.occlusion_texture),
             alpha_mode: alpha_mode_enum,
-            _pad0: 0u32,
         }
     }
 }
@@ -85,7 +87,8 @@ bitflags! {
         const COLOR_TEXTURE = 1 << 0;
         const NORMAL_TEXTURE = 1 << 1;
         const METALLIC_ROUGHNESS_TEXTURE = 1 << 2;
-        const TRANSPARENT = 1 << 3;
+        const OCCLUSION_TEXTURE = 1 << 3;
+        const TRANSPARENT = 1 << 4;
     }
 }
 
@@ -105,6 +108,10 @@ impl MaterialStandard {
             flags = flags | MaterialFlags::METALLIC_ROUGHNESS_TEXTURE.bits();
         }
 
+        if self.occlusion_texture.is_some() {
+            flags = flags | MaterialFlags::OCCLUSION_TEXTURE.bits();
+        }
+
         flags
     }
 
@@ -121,6 +128,10 @@ impl MaterialStandard {
 
         if self.metallic_roughness_texture.is_some() {
             shader_defs.push("METALLIC_ROUGHNESS_MAP");
+        }
+
+        if self.occlusion_texture.is_some() {
+            shader_defs.push("OCCLUSION_MAP");
         }
 
         shader_defs

@@ -139,8 +139,8 @@ struct Material {
     color_texture_idx: i32,
     normal_texture_idx: i32,
     metallic_roughness_texture_idx: i32,
+    occlusion_texture_idx: i32,
     alpha_mode: u32,
-    _pad0: u32,
 }
 
 const ALPHA_MODE_OPAQUE: u32 = 0u;
@@ -259,6 +259,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Clamp roughness to a safe minimum to prevent specular highlight disappearing
     // and avoid division by zero in BRDF equations.
     roughness = max(roughness, 0.045);
+
+    var material_ao = 1.0;
+    if (material.occlusion_texture_idx >= 0) {
+        material_ao = textureSample(t_textures[u32(material.occlusion_texture_idx)], s_sampler, in.tex_coords).r;
+    }
 
     var ambient_ao = 1.0;
     if (camera.ssao_enabled == 1u) {
@@ -404,8 +409,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Optional: Boost the occlusion contrast for dark areas
     spec_occlusion = smoothstep(0.0, 0.8, spec_occlusion);
 
+    let combined_ao = material_ao * ambient_ao;
+
     // Specular part of indirect lighting
-    let indirect_specular = env_reflection * F_env * spec_occlusion;
+    let indirect_specular = env_reflection * F_env * spec_occlusion * combined_ao;
 
     // --- DEBUG: Uncomment the line below to SEE the specular occlusion factor ---
     // return vec4<f32>(vec3<f32>(spec_occlusion), 1.0);
@@ -415,7 +422,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var kD_env = vec3<f32>(1.0) - kS_env;
     kD_env *= 1.0 - metallic;
 
-    let indirect_diffuse = kD_env * lights.ambient_color * lights.ambient_strength * object_color.xyz * ambient_ao;
+    let indirect_diffuse = kD_env * lights.ambient_color * lights.ambient_strength * object_color.xyz * combined_ao;
     // --- End Simple IBL ---
 
     let result = indirect_diffuse + indirect_specular + point_lights_result + directional_light_result;

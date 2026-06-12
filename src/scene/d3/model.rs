@@ -37,6 +37,7 @@ pub struct RawMaterialData {
     pub color_texture: Option<RawTextureData>,
     pub normal_texture: Option<RawTextureData>,
     pub metallic_roughness_texture: Option<RawTextureData>,
+    pub occlusion_texture: Option<RawTextureData>,
     pub transparent: bool,
     pub alpha_cutoff: f32,
     pub alpha_mode: AlphaMode,
@@ -134,6 +135,7 @@ impl Model {
                 color_texture,
                 normal_texture,
                 metallic_roughness_texture: None,
+                occlusion_texture: None,
                 transparent: false,
                 alpha_cutoff: 0.5,
                 alpha_mode: AlphaMode::Opaque,
@@ -334,6 +336,31 @@ impl Model {
                 }
             });
 
+            let occlusion_texture = m.occlusion_texture().map(|t| {
+                let img = &images[t.texture().source().index()];
+                let (data, format) = match img.format {
+                    gltf::image::Format::R8G8B8 => {
+                        let mut rgba = Vec::with_capacity(img.width as usize * img.height as usize * 4);
+                        for chunk in img.pixels.chunks_exact(3) {
+                            rgba.push(chunk[0]);
+                            rgba.push(chunk[1]);
+                            rgba.push(chunk[2]);
+                            rgba.push(255);
+                        }
+                        (rgba, wgpu::TextureFormat::Rgba8Unorm)
+                    }
+                    gltf::image::Format::R8G8B8A8 => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
+                    _ => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
+                };
+                RawTextureData {
+                    name: format!("{}_occlusion", m.name().unwrap_or("")),
+                    pixels: data,
+                    width: img.width,
+                    height: img.height,
+                    format,
+                }
+            });
+
             let alpha_mode = m.alpha_mode();
             let alpha_cutoff = m.alpha_cutoff().unwrap_or(0.5);
             
@@ -357,6 +384,7 @@ impl Model {
                 color_texture,
                 normal_texture,
                 metallic_roughness_texture,
+                occlusion_texture,
                 transparent: is_transparent,
                 alpha_cutoff,
                 alpha_mode: alpha_mode_enum,
@@ -372,6 +400,7 @@ impl Model {
             color_texture: None,
             normal_texture: None,
             metallic_roughness_texture: None,
+            occlusion_texture: None,
             transparent: false,
             alpha_cutoff: 0.5,
             alpha_mode: AlphaMode::Opaque,
@@ -520,6 +549,14 @@ impl Model {
                     raw_tex,
                 )
             });
+            let occlusion_texture = m.occlusion_texture.map(|raw_tex| {
+                Texture::from_raw(
+                    &render_server.device,
+                    &render_server.queue,
+                    imported_texture_cache,
+                    raw_tex,
+                )
+            });
 
             let alpha_mode = match m.alpha_mode {
                 AlphaMode::Opaque => crate::render::material::AlphaMode::Opaque,
@@ -535,6 +572,7 @@ impl Model {
                 color_texture,
                 normal_texture,
                 metallic_roughness_texture,
+                occlusion_texture,
                 transparent: m.transparent,
                 alpha_cutoff: m.alpha_cutoff,
                 alpha_mode,

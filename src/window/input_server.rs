@@ -29,7 +29,6 @@ pub struct MouseButton {
 #[derive(Debug, Copy, Clone)]
 pub struct MouseScroll {
     pub(crate) delta: f32,
-    consumed: bool,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -109,7 +108,6 @@ impl InputServer {
                 };
                 InputEvent::MouseScroll(MouseScroll {
                     delta: scroll,
-                    consumed: false,
                 })
             }
             WindowEvent::MouseInput { button, state, .. } => InputEvent::MouseButton(MouseButton {
