@@ -1,7 +1,7 @@
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard, MaterialUniform};
 use crate::render::mesh_allocator::MeshAllocator;
 use crate::render::render_graph::RenderGraph;
-use crate::render::render_world::{Extracted, RenderWorld};
+use crate::render::render_world::Extracted;
 use crate::render::sky::{prepare_sky, SkyImportedResources};
 use crate::render::sprite::ExtractedSprite2d;
 use crate::render::{
@@ -61,6 +61,14 @@ pub struct RenderBackend {
     /// 持久化存在，各帧共享
     bind_group_layouts: HashMap<String, wgpu::BindGroupLayout>,
     pipeline_layouts: HashMap<String, wgpu::PipelineLayout>,
+
+    // GPU Profiling (Multi-buffered)
+    timestamp_query_set: Option<wgpu::QuerySet>,
+    timestamp_resolve_buffer: Option<wgpu::Buffer>,
+    timestamp_destination_buffers: Vec<wgpu::Buffer>,
+    timestamp_mapped_flags: Vec<Arc<std::sync::atomic::AtomicBool>>,
+    timestamp_active: Vec<bool>, // 新增：追踪缓冲区是否正在被 GPU 或 CPU 使用
+    current_timestamp_index: usize,
 }
 
 impl RenderBackend {
@@ -117,6 +125,45 @@ impl RenderBackend {
         let mut render_graph = RenderGraph::new();
         render_graph.setup_standard_nodes();
 
+        // --- GPU Profiling Setup ---
+        let mut timestamp_query_set = None;
+        let mut timestamp_resolve_buffer = None;
+        let mut timestamp_destination_buffers = Vec::new();
+        let mut timestamp_mapped_flags = Vec::new();
+        let mut timestamp_active = Vec::new();
+
+        let has_basic_query = render_server.device.features().contains(wgpu::Features::TIMESTAMP_QUERY);
+        let has_encoder_query = render_server.device.features().contains(wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS);
+
+        if has_basic_query && has_encoder_query {
+            log::info!("GPU Profiling: Enabled (using hardware timestamps)");
+            timestamp_query_set = Some(render_server.device.create_query_set(&wgpu::QuerySetDescriptor {
+                label: Some("timestamp query set"),
+                count: 2,
+                ty: wgpu::QueryType::Timestamp,
+            }));
+
+            timestamp_resolve_buffer = Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("timestamp resolve buffer"),
+                size: 16,
+                usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
+                mapped_at_creation: false,
+            }));
+
+            for i in 0..render_server.frames_in_flight {
+                timestamp_destination_buffers.push(render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some(&format!("timestamp destination buffer {}", i)),
+                    size: 16,
+                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                    mapped_at_creation: false,
+                }));
+                timestamp_mapped_flags.push(Arc::new(std::sync::atomic::AtomicBool::new(false)));
+                timestamp_active.push(false);
+            }
+        } else {
+            log::warn!("GPU Profiling: Disabled (hardware doesn't support TIMESTAMP_QUERY_INSIDE_ENCODERS)");
+        }
+
         Self {
             surface,
             dummy_2d_texture: Arc::new(dummy_2d_texture),
@@ -131,6 +178,12 @@ impl RenderBackend {
             imported_mesh_allocator,
             bind_group_layouts: Default::default(),
             pipeline_layouts: Default::default(),
+            timestamp_query_set,
+            timestamp_resolve_buffer,
+            timestamp_destination_buffers,
+            timestamp_mapped_flags,
+            timestamp_active,
+            current_timestamp_index: 0,
         }
     }
 
@@ -140,6 +193,9 @@ impl RenderBackend {
         mut extracted: Extracted,
     ) {
         let cpu_render_start = std::time::Instant::now();
+
+        // 处理旧数据并释放缓冲区
+        self.process_timestamps(render_context);
 
         let surface_texture = match self.surface.get_current_texture() {
             Ok(texture) => texture,
@@ -167,24 +223,85 @@ impl RenderBackend {
             std::sync::atomic::Ordering::Relaxed,
         );
 
-        // --- GPU Measurement Start ---
-        let gpu_start_instant = std::time::Instant::now();
+        // --- 提交渲染工作和时间戳解析 ---
+        let mut submission = Vec::new();
+        let mut timestamp_recorded = false;
 
-        // 3. Submit render commands
-        render_context.queue.submit(std::iter::once(cmd_buf));
+        if let (Some(query_set), Some(resolve_buf)) = (&self.timestamp_query_set, &self.timestamp_resolve_buffer) {
+            // 关键修复：只有当缓冲区不处于 Active (映射中) 时才使用它
+            if !self.timestamp_active[self.current_timestamp_index] {
+                // 1. 创建起始时间戳
+                let mut start_encoder = render_context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("GPU Start Timer"),
+                });
+                start_encoder.write_timestamp(query_set, 0);
+                submission.push(start_encoder.finish());
 
-        // 4. Present (and do v-sync)
+                // 2. 加入主渲染任务
+                submission.push(cmd_buf);
+
+                // 3. 创建结束时间戳并解析
+                let mut end_encoder = render_context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("GPU End Timer"),
+                });
+                end_encoder.write_timestamp(query_set, 1);
+
+                let dest_buf = &self.timestamp_destination_buffers[self.current_timestamp_index];
+                end_encoder.resolve_query_set(query_set, 0..2, resolve_buf, 0);
+                end_encoder.copy_buffer_to_buffer(resolve_buf, 0, dest_buf, 0, 16);
+                submission.push(end_encoder.finish());
+
+                self.timestamp_active[self.current_timestamp_index] = true;
+                timestamp_recorded = true;
+            } else {
+                submission.push(cmd_buf);
+            }
+        } else {
+            submission.push(cmd_buf);
+        }
+
+        render_context.queue.submit(submission);
         surface_texture.present();
 
-        // --- GPU Measurement End (Synchronize) ---
-        // 通过等待队列完成，我们可以得到 GPU 处理这一帧的真实墙钟时间
-        let _ = render_context.device.poll(wgpu::PollType::wait());
-        let gpu_duration = gpu_start_instant.elapsed();
+        if timestamp_recorded {
+            let dest_buf = &self.timestamp_destination_buffers[self.current_timestamp_index];
+            let flag = self.timestamp_mapped_flags[self.current_timestamp_index].clone();
 
-        render_context.gpu_time.store(
-            gpu_duration.as_nanos() as u64,
-            std::sync::atomic::Ordering::Relaxed,
-        );
+            dest_buf.slice(..).map_async(wgpu::MapMode::Read, move |result| {
+                if result.is_ok() {
+                    flag.store(true, std::sync::atomic::Ordering::Release);
+                }
+            });
+
+            self.current_timestamp_index = (self.current_timestamp_index + 1) % self.timestamp_destination_buffers.len();
+        }
+
+        // 必须调用 poll(Poll) 来推进异步映射的进度，但这不会阻塞线程
+        let _ = render_context.device.poll(wgpu::PollType::Poll);
+    }
+
+    fn process_timestamps(&mut self, render_context: &RenderContext) {
+        // 检查所有缓冲区，看看哪个已经准备好读取了
+        for (i, buffer) in self.timestamp_destination_buffers.iter().enumerate() {
+            let flag = &self.timestamp_mapped_flags[i];
+
+            if flag.load(std::sync::atomic::Ordering::Acquire) {
+                let slice = buffer.slice(..);
+                {
+                    let data = slice.get_mapped_range();
+                    let timestamps: &[u64] = bytemuck::cast_slice(&data[..]);
+                    if timestamps.len() >= 2 {
+                        let diff = timestamps[1].wrapping_sub(timestamps[0]);
+                        let period = render_context.queue.get_timestamp_period();
+                        let gpu_nanos = diff as f64 * period as f64;
+                        render_context.gpu_time.store(gpu_nanos as u64, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
+                buffer.unmap();
+                flag.store(false, std::sync::atomic::Ordering::Release);
+                self.timestamp_active[i] = false; // 释放标志，该缓冲区现在可以再次被 GPU 使用
+            }
+        }
     }
 
     fn prepare(

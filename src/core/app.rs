@@ -104,6 +104,10 @@ impl App {
             features |= wgpu::Features::TIMESTAMP_QUERY;
         }
 
+        if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS) {
+            features |= wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
+        }
+
         // Use the adapter to create a device and a queue.
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
