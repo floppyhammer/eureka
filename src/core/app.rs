@@ -74,7 +74,11 @@ impl App {
     }
 
     /// Creating some of the wgpu types requires async code.
-    async fn init_render(window: Arc<Window>) -> (RenderContext, wgpu::Surface<'static>) {
+    async fn init_render(
+        window: Arc<Window>,
+        render_cpu_time: Arc<std::sync::atomic::AtomicU64>,
+        gpu_time: Arc<std::sync::atomic::AtomicU64>,
+    ) -> (RenderContext, wgpu::Surface<'static>) {
         // Context for all other wgpu objects.
         let instance = wgpu::Instance::default();
 
@@ -91,14 +95,20 @@ impl App {
             .await
             .expect("Failed to find an appropriate adapter!");
 
+        let mut features = wgpu::Features::TEXTURE_BINDING_ARRAY
+            | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
+            | wgpu::Features::INDIRECT_FIRST_INSTANCE
+            | wgpu::Features::MULTI_DRAW_INDIRECT;
+
+        if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+            features |= wgpu::Features::TIMESTAMP_QUERY;
+        }
+
         // Use the adapter to create a device and a queue.
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::TEXTURE_BINDING_ARRAY
-                    | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
-                    | wgpu::Features::INDIRECT_FIRST_INSTANCE
-                    | wgpu::Features::MULTI_DRAW_INDIRECT,
+                required_features: features,
                 // 移除了 STORAGE_RESOURCE_BINDING_ARRAY，因为目前没用到
                 required_limits: wgpu::Limits {
                     max_binding_array_elements_per_shader_stage: 1024,
@@ -133,7 +143,17 @@ impl App {
         surface.configure(&device, &surface_config);
 
         // Create a render server.
-        (RenderContext::new(surface_config, device, queue, frames_in_flight), surface)
+        (
+            RenderContext::new(
+                surface_config,
+                device,
+                queue,
+                frames_in_flight,
+                render_cpu_time,
+                gpu_time,
+            ),
+            surface,
+        )
     }
 
     pub fn run(&mut self) {
@@ -244,10 +264,15 @@ impl ApplicationHandler for App {
         let window = Arc::new(event_loop.create_window(attributes).unwrap());
         self.window = Some(window.clone());
 
-        // App::init_render uses async code, so we're going to wait for it to finish.
-        let (render_context, surface) = pollster::block_on(Self::init_render(window.clone()));
-
         let time = Time::new();
+
+        // App::init_render uses async code, so we're going to wait for it to finish.
+        let (render_context, surface) = pollster::block_on(Self::init_render(
+            window.clone(),
+            time.render_cpu_time.clone(),
+            time.gpu_time.clone(),
+        ));
+
         let mut asset_server = AssetServer::new();
         let render_world = RenderWorld::new(render_context.clone(), surface);
         let text_server = TextServer::new(&mut asset_server);
@@ -303,15 +328,29 @@ impl ApplicationHandler for App {
             }
             // Redraw request.
             WindowEvent::RedrawRequested => {
-                if let Some(singletons) = &mut self.singletons {
-                    singletons.input_server.update(&window);
+                if self.singletons.is_some() {
+                    let logic_start = std::time::Instant::now();
 
-                    self.world.input(&mut singletons.input_server);
-                    singletons.input_server.input_events.clear();
+                    {
+                        let singletons = self.singletons.as_mut().unwrap();
+                        singletons.input_server.update(&window);
+                        self.world.input(&mut singletons.input_server);
+                        singletons.input_server.input_events.clear();
+                    }
 
                     self.update();
 
-                    match self.render() {
+                    let render_result = self.render();
+
+                    // Store logic time (including extraction).
+                    if let Some(singletons) = &mut self.singletons {
+                        singletons.time.logic_time.store(
+                            logic_start.elapsed().as_nanos() as u64,
+                            std::sync::atomic::Ordering::Relaxed,
+                        );
+                    }
+
+                    match render_result {
                         Ok(_) => {
                             window.request_redraw();
                         }

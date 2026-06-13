@@ -1,4 +1,6 @@
 use std::time::Instant;
+use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 
 /// Contains render context (but not GPU resources)
 #[derive(Clone)]
@@ -7,6 +9,9 @@ pub struct RenderContext {
     pub queue: wgpu::Queue,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub frames_in_flight: u32,
+
+    pub render_cpu_time: Arc<AtomicU64>,
+    pub gpu_time: Arc<AtomicU64>,
 }
 
 impl RenderContext {
@@ -15,6 +20,8 @@ impl RenderContext {
         device: wgpu::Device,
         queue: wgpu::Queue,
         frames_in_flight: u32,
+        render_cpu_time: Arc<AtomicU64>,
+        gpu_time: Arc<AtomicU64>,
     ) -> Self {
         let now = Instant::now();
 
@@ -23,6 +30,8 @@ impl RenderContext {
             queue,
             surface_config,
             frames_in_flight,
+            render_cpu_time,
+            gpu_time,
         };
 
         let elapsed_time = now.elapsed();

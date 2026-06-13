@@ -139,6 +139,8 @@ impl RenderBackend {
         render_context: &RenderContext,
         mut extracted: Extracted,
     ) {
+        let cpu_render_start = std::time::Instant::now();
+
         let surface_texture = match self.surface.get_current_texture() {
             Ok(texture) => texture,
             Err(e) => {
@@ -159,11 +161,30 @@ impl RenderBackend {
         let cmd_buf = graph.run(render_context, self, &prepared_frame, &final_output_view);
         self.render_graph = graph;
 
+        // --- GPU Measurement Start ---
+        let gpu_start_instant = std::time::Instant::now();
+
         // 3. Submit render commands
         render_context.queue.submit(std::iter::once(cmd_buf));
 
         // 4. Present (and do v-sync)
         surface_texture.present();
+
+        // --- GPU Measurement End (Synchronize) ---
+        // 通过等待队列完成，我们可以得到 GPU 处理这一帧的真实墙钟时间
+        let _ = render_context.device.poll(wgpu::PollType::wait());
+        let gpu_duration = gpu_start_instant.elapsed();
+
+        render_context.gpu_time.store(
+            gpu_duration.as_nanos() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+
+        // Update CPU render time
+        render_context.render_cpu_time.store(
+            cpu_render_start.elapsed().as_nanos() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
     }
 
     fn prepare(
