@@ -161,6 +161,12 @@ impl RenderBackend {
         let cmd_buf = graph.run(render_context, self, &prepared_frame, &final_output_view);
         self.render_graph = graph;
 
+        // 记录 CPU Render Time (仅包含命令录制和数据准备，不包含 GPU 等待)
+        render_context.render_cpu_time.store(
+            cpu_render_start.elapsed().as_nanos() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+
         // --- GPU Measurement Start ---
         let gpu_start_instant = std::time::Instant::now();
 
@@ -177,12 +183,6 @@ impl RenderBackend {
 
         render_context.gpu_time.store(
             gpu_duration.as_nanos() as u64,
-            std::sync::atomic::Ordering::Relaxed,
-        );
-
-        // Update CPU render time
-        render_context.render_cpu_time.store(
-            cpu_render_start.elapsed().as_nanos() as u64,
             std::sync::atomic::Ordering::Relaxed,
         );
     }

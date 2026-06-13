@@ -131,14 +131,18 @@ impl App {
 
         // 如果无法从 capabilities 获取，通常根据显示模式推断：
         // Fifo (V-Sync) 通常需要 2 张图，Mailbox (Triple Buffering) 通常需要 3 张。
-        let is_mailbox = surface_capabilities.present_modes.contains(&wgpu::PresentMode::Mailbox);
-        let frames_in_flight = if is_mailbox { 3 } else { 2 };
-
-        surface_config.present_mode = if is_mailbox {
+        // 为了看到真实的 release 性能，我们优先尝试使用 Mailbox 或 Immediate (不锁帧)
+        let present_mode = if surface_capabilities.present_modes.contains(&wgpu::PresentMode::Mailbox) {
             wgpu::PresentMode::Mailbox
+        } else if surface_capabilities.present_modes.contains(&wgpu::PresentMode::Immediate) {
+            wgpu::PresentMode::Immediate
         } else {
             wgpu::PresentMode::Fifo
         };
+
+        let frames_in_flight = if present_mode == wgpu::PresentMode::Mailbox { 3 } else { 2 };
+
+        surface_config.present_mode = present_mode;
 
         surface.configure(&device, &surface_config);
 
