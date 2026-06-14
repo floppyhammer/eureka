@@ -18,6 +18,7 @@ pub enum NodeType {
     Sky,
     PointLight,
     DirectionalLight,
+    EmptyNode3d,
     
     // Logic
     AnimationPlayer,
@@ -34,6 +35,7 @@ impl std::fmt::Display for NodeType {
             NodeType::Sky => write!(f, "Sky"),
             NodeType::PointLight => write!(f, "PointLight"),
             NodeType::DirectionalLight => write!(f, "DirectionalLight"),
+            NodeType::EmptyNode3d => write!(f, "EmptyNode3d"),
             NodeType::AnimationPlayer => write!(f, "AnimationPlayer"),
         }
     }

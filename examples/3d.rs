@@ -1,22 +1,13 @@
+use std::any::Any;
 use eureka::core::{App, Singletons};
 use eureka::render::draw_command::DrawCommands;
 use eureka::render::render_world::RenderWorld;
-use eureka::scene::{AsNode, AsNode2d, AsNode3d, Camera2d, Camera3d, DirectionalLight, Label, Model, NodeType, PointLight, Sky};
+use eureka::scene::{AsNode, AsNode2d, AsNode3d, Camera2d, Camera3d, DirectionalLight, Label, Model, Node3d, NodeType, PointLight, Sky};
 use eureka::window::{InputEvent, InputServer};
 use glam::{Quat, Vec2, Vec3};
-use std::any::Any;
 use std::path::PathBuf;
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
-
-/// A simple empty node that can be used as a root node.
-pub struct EmptyNode;
-
-impl AsNode for EmptyNode {
-    fn as_any(&self) -> &dyn Any { self }
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
-    fn node_type(&self) -> NodeType { NodeType::AnimationPlayer } // Use existing type for now
-}
 
 fn main() {
     let mut app = App::new();
@@ -26,10 +17,11 @@ fn main() {
         let world = &mut app.world;
 
         // Add a root node first to prevent camera from becoming the root
-        world.add_node(Box::new(EmptyNode), None);
+        world.add_node(Box::new(Node3d::default()), None);
 
         // Add a fly camera with controller
-        let fly_camera = FlyCamera::new();
+        let mut fly_camera = FlyCamera::new();
+        fly_camera.camera.node_3d.transform.position = Vec3::new(-5.0, 2.0, 0.0);
         world.add_node(Box::new(fly_camera), None);
 
         // Add an orthographic 2D camera for the UI overlay.
@@ -95,7 +87,7 @@ fn main() {
         let ground_path = singletons
             .asset_server
             .asset_dir
-            .join("models/Sponza/Sponza.gltf"); // Sponza/Sponza.gltf
+            .join("models/ground.glb"); // Sponza/Sponza.gltf
         let ground = Model::at_path(ground_path);
         world.add_node(Box::new(ground), None);
     });

@@ -1,6 +1,9 @@
 use crate::animation::property::{PropertyPath, PropertyProvider, PropertyValue};
+use crate::core::singleton::Singletons;
 use crate::math::transform::Transform3d;
+use crate::scene::{AsNode, NodeType};
 use glam::{FloatExt, Quat, Vec3};
+use std::any::Any;
 
 pub struct Node3d {
     pub transform: Transform3d,
@@ -13,6 +16,36 @@ impl Default for Node3d {
             transform: Transform3d::default(),
             global_transform: Transform3d::default(),
         }
+    }
+}
+
+impl AsNode for Node3d {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn node_type(&self) -> NodeType {
+        NodeType::EmptyNode3d
+    }
+
+    fn update(&mut self, _dt: f32, singletons: &mut Singletons) {
+        self.global_transform = self.transform;
+    }
+
+    fn as_node_3d(&self) -> Option<&dyn AsNode3d> {
+        Some(self)
+    }
+
+    fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
+        Some(self)
+    }
+
+    fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {
+        Some(self)
     }
 }
 
