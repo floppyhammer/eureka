@@ -25,7 +25,7 @@ struct DirectionalLight {
     direction: vec3<f32>,
     strength: f32,
     color: vec3<f32>,
-    _pad: f32,
+    shadow_distance: f32,
 }
 
 const MAX_POINT_LIGHTS = 4;

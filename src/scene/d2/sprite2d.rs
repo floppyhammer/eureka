@@ -1,3 +1,4 @@
+use crate::animation::property::PropertyProvider;
 use crate::core::singleton::Singletons;
 use crate::math::transform::Transform2d;
 use crate::render::draw_command::DrawCommands;
@@ -5,7 +6,6 @@ use crate::render::sprite::ExtractedSprite2d;
 use crate::render::{RawTextureData, RenderContext, Texture, TextureCache, TextureId};
 use crate::scene::d2::node2d::{AsNode2d, Node2d};
 use crate::scene::{AsNode, NodeType};
-use crate::animation::property::PropertyProvider;
 use glam::{Vec2, Vec4};
 use std::any::Any;
 use std::path::{Path, PathBuf};
@@ -105,7 +105,11 @@ impl AsNode for Sprite2d {
         Some(self)
     }
 
-    fn reconcile(&mut self, singletons: &mut Singletons, render_world: &mut crate::render::render_world::RenderWorld) {
+    fn reconcile(
+        &mut self,
+        singletons: &mut Singletons,
+        render_world: &mut crate::render::render_world::RenderWorld,
+    ) {
         if let Some(path) = &self.asset_path {
             singletons.asset_server.request_texture(path);
             if let Some(raw) = singletons.asset_server.loaded_raw_textures.get(path) {

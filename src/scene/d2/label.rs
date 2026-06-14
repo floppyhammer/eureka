@@ -1,12 +1,12 @@
+use crate::animation::property::PropertyProvider;
 use crate::core::singleton::Singletons;
+use crate::math::transform::Transform2d;
 use crate::render::atlas::Atlas;
 use crate::render::draw_command::DrawCommands;
 use crate::scene::d2::node2d::{AsNode2d, Node2d};
 use crate::scene::{AsNode, NodeType};
-use crate::animation::property::PropertyProvider;
 use glam::Vec2;
 use std::any::Any;
-use crate::math::transform::Transform2d;
 
 use crate::render::sprite::ExtractedSprite2d;
 
@@ -86,10 +86,17 @@ impl AsNode for Label {
     }
 
     fn update(&mut self, _dt: f32, singletons: &mut Singletons) {
-        let transform_changed = (self.node_2d.global_transform.position - self.last_global_transform.position).length_squared() > 0.0001
-            || (self.node_2d.global_transform.rotation - self.last_global_transform.rotation).abs() > 0.0001;
+        let transform_changed = (self.node_2d.global_transform.position
+            - self.last_global_transform.position)
+            .length_squared()
+            > 0.0001
+            || (self.node_2d.global_transform.rotation - self.last_global_transform.rotation).abs()
+                > 0.0001;
 
-        if self.text_is_dirty || self.atlas.as_ref().map_or(true, |a| a.texture.is_none()) || transform_changed {
+        if self.text_is_dirty
+            || self.atlas.as_ref().map_or(true, |a| a.texture.is_none())
+            || transform_changed
+        {
             let atlas = singletons.text_server.get_atlas(
                 self.text.as_str(),
                 self.font_id.clone(),
@@ -111,7 +118,8 @@ impl AsNode for Label {
                 for instance in &atlas.instances {
                     // instance.position is Bottom-Left in Y-down.
                     // ExtractedSprite2d with centered=false expects Top-Left.
-                    let tl_pos = Vec2::new(instance.position.x, instance.position.y - instance.size.y);
+                    let tl_pos =
+                        Vec2::new(instance.position.x, instance.position.y - instance.size.y);
                     draw_commands.extracted.sprites.push(ExtractedSprite2d {
                         transform: Transform2d {
                             position: tl_pos,

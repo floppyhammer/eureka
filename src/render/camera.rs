@@ -130,6 +130,11 @@ impl PerspectiveProjection {
     pub fn update(&mut self, width: f32, height: f32) {
         self.aspect = width / height;
     }
+    
+    /// 设置垂直视野角度（弧度）
+    pub fn set_fovy(&mut self, fovy_radians: f32) {
+        self.fovy = fovy_radians;
+    }
 
     pub fn calc_matrix(&self) -> Mat4 {
         Mat4::perspective_rh(self.fovy, self.aspect, self.near, self.far)

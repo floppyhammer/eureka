@@ -1,17 +1,18 @@
+use crate::animation::property::PropertyProvider;
 use crate::core::singleton::Singletons;
 use crate::math::color::ColorU;
 use crate::math::transform::Transform3d;
-use std::any::Any;
 use crate::render::draw_command::DrawCommands;
 use crate::render::light::DirectionalLightUniform;
 use crate::scene::{AsNode, AsNode3d, Node3d, NodeType};
-use crate::animation::property::PropertyProvider;
 use glam::{Quat, Vec3};
+use std::any::Any;
 
 pub struct DirectionalLight {
     pub node_3d: Node3d,
     pub color: ColorU,
     pub strength: f32,
+    pub shadow_distance: f32,
 }
 
 impl DirectionalLight {
@@ -20,6 +21,7 @@ impl DirectionalLight {
             node_3d: Node3d::default(),
             color: ColorU::white(),
             strength: 1.0,
+            shadow_distance: 20.0,
         }
     }
 }
@@ -54,7 +56,7 @@ impl AsNode for DirectionalLight {
             direction: direction.to_array(),
             strength: self.strength,
             color: self.color.to_vec3().into(),
-            distance: 20.0, // Default distance for shadow mapping
+            shadow_distance: self.shadow_distance,
         };
 
         draw_cmds.extracted.lights.directional_light = Some(directional_light);

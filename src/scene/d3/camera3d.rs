@@ -11,6 +11,7 @@ use winit::event::*;
 use winit::keyboard::KeyCode;
 
 const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
+const DEFAULT_FOV: f32 = 60.0_f32.to_radians();
 
 pub struct Camera3d {
     position: Vec3,
@@ -34,7 +35,7 @@ impl Camera3d {
     ) -> Self {
         let config = &render_server.surface_config;
 
-        let fov = 45.0f32.to_radians();
+        let fov = DEFAULT_FOV;
 
         let projection = PerspectiveProjection::new(
             config.width, // Render target size

@@ -19,7 +19,7 @@ pub(crate) struct DirectionalLightUniform {
     pub(crate) direction: [f32; 3],
     pub(crate) strength: f32,
     pub(crate) color: [f32; 3],
-    pub(crate) distance: f32,
+    pub(crate) shadow_distance: f32,
 }
 
 #[derive(Debug, Default, Clone)]

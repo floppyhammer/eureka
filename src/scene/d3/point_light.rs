@@ -3,10 +3,10 @@ use crate::math::color::ColorU;
 use glam::{Quat, Vec3};
 use std::any::Any;
 
+use crate::animation::property::PropertyProvider;
 use crate::render::draw_command::DrawCommands;
 use crate::render::light::PointLightUniform;
 use crate::scene::{AsNode, AsNode3d, Node3d, NodeType};
-use crate::animation::property::PropertyProvider;
 
 pub struct PointLight {
     pub node_3d: Node3d,
@@ -41,12 +41,7 @@ impl AsNode for PointLight {
         NodeType::PointLight
     }
 
-    fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {
-        // let queue = &mut singletons.render_server.queue;
-
-        // self.sprite.position = new_position;
-        // self.sprite.update(dt, camera_info, singletons);
-    }
+    fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {}
 
     fn draw(&self, draw_cmds: &mut DrawCommands) {
         let point_light = PointLightUniform {

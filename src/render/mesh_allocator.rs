@@ -37,7 +37,6 @@ impl MeshAllocator {
 
     pub fn allocate(
         &mut self,
-        _device: &wgpu::Device,
         queue: &wgpu::Queue,
         vertices: &Vec<Vertex3d>,
         indices: &Vec<u32>,

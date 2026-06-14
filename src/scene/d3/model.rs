@@ -1,3 +1,16 @@
+use crate::animation::property::PropertyProvider;
+use crate::core::Singletons;
+use crate::math::aabb::Aabb;
+use crate::math::transform::Transform3d;
+use crate::render::draw_command::DrawCommands;
+use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
+use crate::render::mesh_allocator::MeshAllocator;
+use crate::render::vertex::Vertex3d;
+use crate::render::{
+    ExtractedMesh, Mesh, MeshCache, MeshId, RawTextureData, RenderContext, Texture, TextureCache,
+};
+use crate::scene::d3::node3d::{AsNode3d, Node3d};
+use crate::scene::{AsNode, NodeType};
 use anyhow::Context;
 use anyhow::*;
 use glam::{Mat4, Quat, Vec2, Vec3};
@@ -5,19 +18,6 @@ use std::any::Any;
 use std::path::{Path, PathBuf};
 use std::result::Result::Ok;
 use tobj::LoadOptions;
-use crate::core::Singletons;
-use crate::math::aabb::Aabb;
-use crate::math::transform::Transform3d;
-use crate::render::draw_command::DrawCommands;
-use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
-use crate::render::vertex::Vertex3d;
-use crate::render::{
-    ExtractedMesh, Mesh, MeshCache, MeshId, RawTextureData, RenderContext, Texture, TextureCache,
-};
-use crate::scene::d3::node3d::{AsNode3d, Node3d};
-use crate::scene::{AsNode, NodeType};
-use crate::animation::property::PropertyProvider;
-use crate::render::mesh_allocator::MeshAllocator;
 
 #[derive(Clone)]
 pub struct RawMeshData {
@@ -265,7 +265,8 @@ impl Model {
                 let img = &images[t.texture().source().index()];
                 let (data, format) = match img.format {
                     gltf::image::Format::R8G8B8 => {
-                        let mut rgba = Vec::with_capacity(img.width as usize * img.height as usize * 4);
+                        let mut rgba =
+                            Vec::with_capacity(img.width as usize * img.height as usize * 4);
                         for chunk in img.pixels.chunks_exact(3) {
                             rgba.push(chunk[0]);
                             rgba.push(chunk[1]);
@@ -274,7 +275,9 @@ impl Model {
                         }
                         (rgba, wgpu::TextureFormat::Rgba8UnormSrgb)
                     }
-                    gltf::image::Format::R8G8B8A8 => (img.pixels.clone(), wgpu::TextureFormat::Rgba8UnormSrgb),
+                    gltf::image::Format::R8G8B8A8 => {
+                        (img.pixels.clone(), wgpu::TextureFormat::Rgba8UnormSrgb)
+                    }
                     _ => (img.pixels.clone(), wgpu::TextureFormat::Rgba8UnormSrgb),
                 };
 
@@ -291,7 +294,8 @@ impl Model {
                 let img = &images[t.texture().source().index()];
                 let (data, format) = match img.format {
                     gltf::image::Format::R8G8B8 => {
-                        let mut rgba = Vec::with_capacity(img.width as usize * img.height as usize * 4);
+                        let mut rgba =
+                            Vec::with_capacity(img.width as usize * img.height as usize * 4);
                         for chunk in img.pixels.chunks_exact(3) {
                             rgba.push(chunk[0]);
                             rgba.push(chunk[1]);
@@ -300,7 +304,9 @@ impl Model {
                         }
                         (rgba, wgpu::TextureFormat::Rgba8Unorm)
                     }
-                    gltf::image::Format::R8G8B8A8 => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
+                    gltf::image::Format::R8G8B8A8 => {
+                        (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm)
+                    }
                     _ => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
                 };
                 RawTextureData {
@@ -312,36 +318,43 @@ impl Model {
                 }
             });
 
-            let metallic_roughness_texture = m.pbr_metallic_roughness().metallic_roughness_texture().map(|t| {
-                let img = &images[t.texture().source().index()];
-                let (data, format) = match img.format {
-                    gltf::image::Format::R8G8B8 => {
-                        let mut rgba = Vec::with_capacity(img.width as usize * img.height as usize * 4);
-                        for chunk in img.pixels.chunks_exact(3) {
-                            rgba.push(chunk[0]);
-                            rgba.push(chunk[1]);
-                            rgba.push(chunk[2]);
-                            rgba.push(255);
+            let metallic_roughness_texture = m
+                .pbr_metallic_roughness()
+                .metallic_roughness_texture()
+                .map(|t| {
+                    let img = &images[t.texture().source().index()];
+                    let (data, format) = match img.format {
+                        gltf::image::Format::R8G8B8 => {
+                            let mut rgba =
+                                Vec::with_capacity(img.width as usize * img.height as usize * 4);
+                            for chunk in img.pixels.chunks_exact(3) {
+                                rgba.push(chunk[0]);
+                                rgba.push(chunk[1]);
+                                rgba.push(chunk[2]);
+                                rgba.push(255);
+                            }
+                            (rgba, wgpu::TextureFormat::Rgba8Unorm)
                         }
-                        (rgba, wgpu::TextureFormat::Rgba8Unorm)
+                        gltf::image::Format::R8G8B8A8 => {
+                            (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm)
+                        }
+                        _ => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
+                    };
+                    RawTextureData {
+                        name: format!("{}_metallic_roughness", m.name().unwrap_or("")),
+                        pixels: data,
+                        width: img.width,
+                        height: img.height,
+                        format,
                     }
-                    gltf::image::Format::R8G8B8A8 => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
-                    _ => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
-                };
-                RawTextureData {
-                    name: format!("{}_metallic_roughness", m.name().unwrap_or("")),
-                    pixels: data,
-                    width: img.width,
-                    height: img.height,
-                    format,
-                }
-            });
+                });
 
             let occlusion_texture = m.occlusion_texture().map(|t| {
                 let img = &images[t.texture().source().index()];
                 let (data, format) = match img.format {
                     gltf::image::Format::R8G8B8 => {
-                        let mut rgba = Vec::with_capacity(img.width as usize * img.height as usize * 4);
+                        let mut rgba =
+                            Vec::with_capacity(img.width as usize * img.height as usize * 4);
                         for chunk in img.pixels.chunks_exact(3) {
                             rgba.push(chunk[0]);
                             rgba.push(chunk[1]);
@@ -350,7 +363,9 @@ impl Model {
                         }
                         (rgba, wgpu::TextureFormat::Rgba8Unorm)
                     }
-                    gltf::image::Format::R8G8B8A8 => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
+                    gltf::image::Format::R8G8B8A8 => {
+                        (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm)
+                    }
                     _ => (img.pixels.clone(), wgpu::TextureFormat::Rgba8Unorm),
                 };
                 RawTextureData {
@@ -364,7 +379,7 @@ impl Model {
 
             let alpha_mode = m.alpha_mode();
             let alpha_cutoff = m.alpha_cutoff().unwrap_or(0.5);
-            
+
             let is_transparent = match alpha_mode {
                 gltf::material::AlphaMode::Blend => true,
                 gltf::material::AlphaMode::Mask => false,
@@ -413,7 +428,16 @@ impl Model {
 
         for scene in document.scenes() {
             for node in scene.nodes() {
-                Self::process_node(&node, &buffers, &images, &mut raw_meshes, &mut model_aabb, &mut first, Mat4::IDENTITY, default_material_index);
+                Self::process_node(
+                    &node,
+                    &buffers,
+                    &images,
+                    &mut raw_meshes,
+                    &mut model_aabb,
+                    &mut first,
+                    Mat4::IDENTITY,
+                    default_material_index,
+                );
             }
         }
 
@@ -453,12 +477,23 @@ impl Model {
                     let mut tangents = reader.read_tangents();
 
                     for pos in positions {
-                        let normal = normals.as_mut().and_then(|n| n.next()).unwrap_or([0.0, 1.0, 0.0]);
-                        let uv = tex_coords.as_mut().and_then(|tc| tc.next()).unwrap_or([0.0, 0.0]);
-                        let tangent = tangents.as_mut().and_then(|t| t.next()).unwrap_or([1.0, 0.0, 0.0, 1.0]);
+                        let normal = normals
+                            .as_mut()
+                            .and_then(|n| n.next())
+                            .unwrap_or([0.0, 1.0, 0.0]);
+                        let uv = tex_coords
+                            .as_mut()
+                            .and_then(|tc| tc.next())
+                            .unwrap_or([0.0, 0.0]);
+                        let tangent = tangents
+                            .as_mut()
+                            .and_then(|t| t.next())
+                            .unwrap_or([1.0, 0.0, 0.0, 1.0]);
 
                         let tangent_vec3 = [tangent[0], tangent[1], tangent[2]];
-                        let bitangent = Vec3::from_array(normal).cross(Vec3::from_array(tangent_vec3)) * tangent[3];
+                        let bitangent = Vec3::from_array(normal)
+                            .cross(Vec3::from_array(tangent_vec3))
+                            * tangent[3];
 
                         vertices.push(Vertex3d {
                             position: pos,
@@ -470,13 +505,14 @@ impl Model {
                     }
                 }
 
-                let indices = reader.read_indices().map(|indices| {
-                    match indices {
+                let indices = reader
+                    .read_indices()
+                    .map(|indices| match indices {
                         gltf::mesh::util::ReadIndices::U8(it) => it.map(|x| x as u32).collect(),
                         gltf::mesh::util::ReadIndices::U16(it) => it.map(|x| x as u32).collect(),
                         gltf::mesh::util::ReadIndices::U32(it) => it.collect(),
-                    }
-                }).unwrap_or_else(|| (0..vertices.len() as u32).collect());
+                    })
+                    .unwrap_or_else(|| (0..vertices.len() as u32).collect());
 
                 let aabb = Aabb::from_vertices(&vertices);
 
@@ -499,7 +535,12 @@ impl Model {
                     name: mesh.name().unwrap_or("").to_string(),
                     vertices,
                     indices,
-                    material_index: Some(primitive.material().index().unwrap_or(default_material_index)),
+                    material_index: Some(
+                        primitive
+                            .material()
+                            .index()
+                            .unwrap_or(default_material_index),
+                    ),
                     aabb,
                     local_transform: transform,
                 });
@@ -507,7 +548,16 @@ impl Model {
         }
 
         for child in node.children() {
-            Self::process_node(&child, buffers, images, raw_meshes, model_aabb, first, world_mat, default_material_index);
+            Self::process_node(
+                &child,
+                buffers,
+                images,
+                raw_meshes,
+                model_aabb,
+                first,
+                world_mat,
+                default_material_index,
+            );
         }
     }
 
@@ -581,12 +631,8 @@ impl Model {
         }
 
         for m in raw.meshes {
-            let (v_offset, i_offset) = global_mesh_allocator.allocate(
-                &render_server.device,
-                &render_server.queue,
-                &m.vertices,
-                &m.indices,
-            );
+            let (v_offset, i_offset) =
+                global_mesh_allocator.allocate(&render_server.queue, &m.vertices, &m.indices);
 
             let mesh_id = global_mesh_cache.add(Mesh::new(
                 &m.name,
@@ -599,7 +645,11 @@ impl Model {
             self.materials
                 .push(m.material_index.map(|idx| material_ids[idx]));
             self.mesh_transforms.push(m.local_transform);
-            self.mesh_transparency.push(m.material_index.map(|idx| material_transparencies[idx]).unwrap_or(false));
+            self.mesh_transparency.push(
+                m.material_index
+                    .map(|idx| material_transparencies[idx])
+                    .unwrap_or(false),
+            );
         }
 
         self.aabb = raw.aabb;
@@ -664,7 +714,11 @@ impl AsNode for Model {
         Some(self)
     }
 
-    fn reconcile(&mut self, singletons: &mut Singletons, render_world: &mut crate::render::render_world::RenderWorld) {
+    fn reconcile(
+        &mut self,
+        singletons: &mut Singletons,
+        render_world: &mut crate::render::render_world::RenderWorld,
+    ) {
         if let Some(path) = &self.asset_path {
             singletons.asset_server.request_load(path);
             if let Some(raw) = singletons.asset_server.loaded_raw_models.remove(path) {

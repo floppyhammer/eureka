@@ -60,7 +60,11 @@ impl AsNode for Sky {
         self
     }
 
-    fn reconcile(&mut self, singletons: &mut crate::core::singleton::Singletons, render_world: &mut crate::render::render_world::RenderWorld) {
+    fn reconcile(
+        &mut self,
+        singletons: &mut crate::core::singleton::Singletons,
+        render_world: &mut crate::render::render_world::RenderWorld,
+    ) {
         if let Some(path) = &self.asset_path {
             singletons.asset_server.request_cubemap(path);
             if let Some(raw) = singletons.asset_server.loaded_raw_cubemaps.get(path) {
