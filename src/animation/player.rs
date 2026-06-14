@@ -3,10 +3,7 @@ use std::sync::Arc;
 
 use crate::animation::property::PropertyChange;
 use crate::animation::{AnimationClip, PropertyPath, PropertyValue};
-use crate::render::draw_command::DrawCommands;
-use crate::scene::{AsNode, NodeType};
-use indextree::NodeId;
-use std::any::Any;
+use hecs::Entity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayState {
@@ -24,7 +21,7 @@ struct AnimationTrack {
 
 #[derive(Debug, Clone)]
 pub struct AnimationBinding {
-    pub target_entity: NodeId,
+    pub target_entity: Entity,
     pub property_path: PropertyPath,
     pub curve_name: String,
     pub weight: f32,
@@ -125,7 +122,7 @@ impl AnimationPlayer {
         self.speed = speed;
     }
 
-    pub fn bind_to(&mut self, entity_id: NodeId, property: &str, curve_name: &str) {
+    pub fn bind_to(&mut self, entity_id: Entity, property: &str, curve_name: &str) {
         self.bindings.push(AnimationBinding {
             target_entity: entity_id,
             property_path: PropertyPath::parse(property),
@@ -134,11 +131,11 @@ impl AnimationPlayer {
         });
     }
 
-    pub fn unbind_from(&mut self, entity_id: NodeId) {
+    pub fn unbind_from(&mut self, entity_id: Entity) {
         self.bindings.retain(|b| b.target_entity != entity_id);
     }
 
-    pub fn set_binding_weight(&mut self, entity_id: NodeId, weight: f32) {
+    pub fn set_binding_weight(&mut self, entity_id: Entity, weight: f32) {
         if let Some(binding) = self.bindings.iter_mut().find(|b| b.target_entity == entity_id) {
             binding.weight = weight;
         }
@@ -202,24 +199,8 @@ impl AnimationPlayer {
     pub fn take_changes(&mut self) -> Vec<PropertyChange> {
         std::mem::take(&mut self.pending_changes)
     }
-}
 
-impl AsNode for AnimationPlayer {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn node_type(&self) -> NodeType {
-        NodeType::AnimationPlayer
-    }
-
-    fn ready(&mut self) {}
-
-    fn update(&mut self, dt: f32, _singletons: &mut crate::core::singleton::Singletons) {
+    pub fn update(&mut self, dt: f32) {
         if self.play_state == PlayState::Playing {
             self.time += dt * self.speed;
             self.update_crossfade(dt);
@@ -241,6 +222,4 @@ impl AsNode for AnimationPlayer {
 
         self.apply_animation();
     }
-
-    fn draw(&self, _draw_cmds: &mut DrawCommands) {}
 }

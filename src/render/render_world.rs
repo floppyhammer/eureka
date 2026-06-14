@@ -84,8 +84,4 @@ impl RenderWorld {
             shader_maker: ShaderMaker::new(),
         }
     }
-
-    pub fn extract(&self, draw_commands: &DrawCommands) -> Extracted {
-        draw_commands.extracted.clone()
-    }
 }

@@ -24,7 +24,7 @@ tobj = "4.0.0"
 gltf = "1.4.1"
 # For JSON parsing.
 # Tree structure.
-indextree = "4.4.0"
+hecs = "0.10"
 # Text rasterization.
 fontdue = "0.9.3"
 # Text shaping.

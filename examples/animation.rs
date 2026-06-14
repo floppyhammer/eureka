@@ -1,7 +1,10 @@
 use eureka::animation::{AnimationClip, AnimationCurve, AnimationPlayer, Interpolation, Keyframe};
 use eureka::core::App;
-use eureka::scene::{AsNode2d, Camera2d};
-use eureka::scene::Label;
+use eureka::scene::{
+    ActiveCamera, Camera2dComponent, GlobalTransform, LabelComponent,
+    Name, Transform2dComponent
+};
+use eureka::math::transform::Transform2d;
 use glam::Vec2;
 
 fn main() {
@@ -10,23 +13,33 @@ fn main() {
     app.setup(|app| {
         let world = &mut app.world;
 
-        // Add a 2D camera
-        let camera = Camera2d::default();
-        world.add_node(Box::new(camera), None);
+        // 1. Add a 2D camera
+        world.ecs.spawn((
+            Name("MainCamera2D".into()),
+            Transform2dComponent(Transform2d::default()),
+            GlobalTransform::default(),
+            Camera2dComponent::default(),
+            ActiveCamera,
+        ));
 
-        // Create a label to animate
-        let mut label = Label::new("Animated Text!");
-        label.set_position(Vec2::new(640.0, 360.0));
-        let label_id = world.add_node(Box::new(label), None);
+        // 2. Create a label to animate
+        let label_id = world.ecs.spawn((
+            Name("AnimatedLabel".into()),
+            LabelComponent::new("Animated Text!"),
+            Transform2dComponent(Transform2d {
+                position: Vec2::new(640.0, 360.0),
+                ..Transform2d::default()
+            }),
+            GlobalTransform::default(),
+        ));
 
-        // Create animation clip with position.x curve (left-right movement)
+        // 3. Create animation clips
         let position_x_curve = AnimationCurve::new(vec![
             Keyframe::new(0.0, 500.0),
             Keyframe::new(1.0, 780.0),
             Keyframe::new(2.0, 500.0),
         ]);
 
-        // Create animation clip with position.y curve (up-down movement)
         let position_y_curve = AnimationCurve::new(vec![
             Keyframe::new(0.0, 300.0),
             Keyframe::new(1.0, 420.0),
@@ -37,46 +50,39 @@ fn main() {
             .add_curve("transform.position.x".to_string(), position_x_curve)
             .add_curve("transform.position.y".to_string(), position_y_curve);
 
-        // Create a smooth version with Catmull-Rom interpolation
-        let smooth_position_x_curve = AnimationCurve::new(vec![
-            Keyframe::new(0.0, 500.0).with_interpolation(Interpolation::Smooth),
-            Keyframe::new(1.0, 780.0).with_interpolation(Interpolation::Smooth),
-            Keyframe::new(2.0, 500.0).with_interpolation(Interpolation::Smooth),
-        ]);
-
-        let smooth_position_y_curve = AnimationCurve::new(vec![
-            Keyframe::new(0.0, 300.0).with_interpolation(Interpolation::Smooth),
-            Keyframe::new(1.0, 420.0).with_interpolation(Interpolation::Smooth),
-            Keyframe::new(2.0, 300.0).with_interpolation(Interpolation::Smooth),
-        ]);
-
-        let smooth_clip = AnimationClip::new("smooth_bounce".to_string())
-            .add_curve("transform.position.x".to_string(), smooth_position_x_curve)
-            .add_curve("transform.position.y".to_string(), smooth_position_y_curve);
-
-        // Create animation player
+        // 4. Create animation player
         let mut player = AnimationPlayer::new();
         player.add_clip(clip);
-        player.add_clip(smooth_clip);
 
-        // Bind to the label's properties
+        // Bind to the label's properties (using Entity ID now)
         player.bind_to(label_id, "transform.position.x", "transform.position.x");
         player.bind_to(label_id, "transform.position.y", "transform.position.y");
 
-        // Play the animation (loop forever)
+        // Play the animation
         player.play("bounce", -1);
 
-        // Add the animation player to the world
-        let _player_id = world.add_node(Box::new(player), None);
+        // 5. Add the animation player to the world as a component
+        // In ECS, we can add it to the same entity or a separate one.
+        // Here we add it to its own entity for clarity.
+        world.ecs.spawn((
+            Name("AnimationPlayer".into()),
+            player,
+        ));
 
-        // Create a static label to show instructions
-        let mut instructions = Label::new("Animation Demo: Text bounces smoothly");
-        instructions.set_position(Vec2::new(10.0, 30.0));
-        let _instructions_id = world.add_node(Box::new(instructions), None);
+        // 6. Create a static label to show instructions
+        world.ecs.spawn((
+            Name("Instructions".into()),
+            LabelComponent::new("Animation Demo: Text bounces using ECS systems"),
+            Transform2dComponent(Transform2d {
+                position: Vec2::new(10.0, 30.0),
+                ..Transform2d::default()
+            }),
+            GlobalTransform::default(),
+        ));
 
-        println!("Animation Example:");
-        println!("  - Label text will bounce with smooth animation");
-        println!("  - Animation is looped and runs automatically");
+        println!("Animation Example (ECS):");
+        println!("  - Label text will bounce with animation system");
+        println!("  - AnimationPlayer is now a component");
     });
 
     app.run();

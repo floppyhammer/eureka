@@ -2,15 +2,12 @@ use crate::animation::property::PropertyProvider;
 use crate::core::Singletons;
 use crate::math::aabb::Aabb;
 use crate::math::transform::Transform3d;
-use crate::render::draw_command::DrawCommands;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
 use crate::render::mesh_allocator::MeshAllocator;
 use crate::render::vertex::Vertex3d;
 use crate::render::{
-    ExtractedMesh, Mesh, MeshCache, MeshId, RawTextureData, RenderContext, Texture, TextureCache,
+    Mesh, MeshCache, MeshId, RawTextureData, RenderContext, Texture, TextureCache,
 };
-use crate::scene::d3::node3d::{AsNode3d, Node3d};
-use crate::scene::{AsNode, NodeType};
 use anyhow::Context;
 use anyhow::*;
 use glam::{Mat4, Quat, Vec2, Vec3};
@@ -59,29 +56,39 @@ pub struct RawModelData {
 }
 
 pub struct Model {
-    pub node_3d: Node3d,
     pub meshes: Vec<MeshId>,
     pub materials: Vec<Option<MaterialId>>,
     pub mesh_transforms: Vec<Transform3d>,
     pub mesh_transparency: Vec<bool>,
     pub aabb: Aabb,
-    pub name: String,
-    // New: Track if this model is still waiting for its asset.
-    pub asset_path: Option<PathBuf>,
+}
+
+/// 标记一个实体正在等待模型资产加载
+pub struct AssetPending(pub PathBuf);
+
+pub struct SettingsState {
+    pub ssao: bool,
+    pub fxaa: bool,
+}
+
+impl Default for SettingsState {
+    fn default() -> Self {
+        Self {
+            ssao: true,
+            fxaa: true,
+        }
+    }
 }
 
 impl Model {
     /// Create a placeholder model that will be populated later.
-    pub fn at_path<P: AsRef<Path>>(path: P) -> Self {
+    pub fn empty() -> Self {
         Self {
-            node_3d: Node3d::default(),
             meshes: Vec::new(),
             materials: Vec::new(),
             mesh_transforms: Vec::new(),
             mesh_transparency: Vec::new(),
             aabb: Aabb::default(),
-            name: path.as_ref().to_string_lossy().into_owned(),
-            asset_path: Some(path.as_ref().to_path_buf()),
         }
     }
 
@@ -653,11 +660,10 @@ impl Model {
         }
 
         self.aabb = raw.aabb;
-        self.asset_path = None; // Marked as loaded
     }
 
-    pub fn get_world_aabb(&self) -> Aabb {
-        self.aabb.transform(&self.node_3d.transform)
+    pub fn get_world_aabb(&self, transform: &Transform3d) -> Aabb {
+        self.aabb.transform(transform)
     }
 
     pub fn from_raw(
@@ -668,16 +674,7 @@ impl Model {
         msc: &mut MeshCache,
         ma: &mut MeshAllocator,
     ) -> Self {
-        let mut model = Self {
-            node_3d: Node3d::default(),
-            meshes: Vec::new(),
-            materials: Vec::new(),
-            mesh_transforms: Vec::new(),
-            mesh_transparency: Vec::new(),
-            aabb: Aabb::default(),
-            name: "".to_string(),
-            asset_path: None,
-        };
+        let mut model = Self::empty();
         model.finalize(raw, rs, tc, mc, msc, ma);
         model
     }
@@ -692,103 +689,5 @@ impl Model {
     ) -> Result<Self> {
         let raw = Self::parse(path)?;
         Ok(Self::from_raw(raw, rs, tc, mc, msc, ma))
-    }
-}
-
-impl AsNode for Model {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-    fn node_type(&self) -> NodeType {
-        NodeType::Model
-    }
-
-    fn as_node_3d(&self) -> Option<&dyn AsNode3d> {
-        Some(self)
-    }
-
-    fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
-        Some(self)
-    }
-
-    fn reconcile(
-        &mut self,
-        singletons: &mut Singletons,
-        render_world: &mut crate::render::render_world::RenderWorld,
-    ) {
-        if let Some(path) = &self.asset_path {
-            singletons.asset_server.request_load(path);
-            if let Some(raw) = singletons.asset_server.loaded_raw_models.remove(path) {
-                self.finalize(
-                    raw,
-                    &singletons.render_context,
-                    &mut render_world.imported_texture_cache.write().unwrap(),
-                    &mut render_world.imported_material_cache.write().unwrap(),
-                    &mut render_world.imported_mesh_cache.write().unwrap(),
-                    &mut render_world.imported_mesh_allocator.write().unwrap(),
-                );
-            }
-        }
-    }
-
-    fn draw(&self, draw_cmds: &mut DrawCommands) {
-        if self.asset_path.is_some() {
-            return;
-        }
-
-        for i in 0..self.meshes.len() {
-            let local_transform = self.mesh_transforms[i];
-            let combined_transform = self.node_3d.global_transform.combine(&local_transform);
-
-            let extracted_mesh = ExtractedMesh {
-                transform: combined_transform,
-                mesh_id: self.meshes[i],
-                material_id: self.materials[i],
-                transparent: self.mesh_transparency[i],
-            };
-            draw_cmds.extracted.meshes.push(extracted_mesh);
-        }
-    }
-
-    fn update(&mut self, _dt: f32, _singletons: &mut Singletons) {}
-
-    fn as_property_provider_mut(&mut self) -> Option<&mut dyn PropertyProvider> {
-        Some(&mut self.node_3d)
-    }
-}
-
-impl AsNode3d for Model {
-    fn get_position(&self) -> Vec3 {
-        self.node_3d.transform.position
-    }
-    fn set_position(&mut self, position: Vec3) {
-        self.node_3d.transform.position = position;
-    }
-    fn get_rotation(&self) -> Quat {
-        self.node_3d.transform.rotation
-    }
-    fn set_rotation(&mut self, rotation: Quat) {
-        self.node_3d.transform.rotation = rotation;
-    }
-    fn get_scale(&self) -> Vec3 {
-        self.node_3d.transform.scale
-    }
-    fn set_scale(&mut self, scale: Vec3) {
-        self.node_3d.transform.scale = scale;
-    }
-
-    fn get_transform(&self) -> Transform3d {
-        self.node_3d.transform
-    }
-
-    fn get_global_transform(&self) -> Transform3d {
-        self.node_3d.global_transform
-    }
-
-    fn set_global_transform(&mut self, transform: Transform3d) {
-        self.node_3d.global_transform = transform;
     }
 }

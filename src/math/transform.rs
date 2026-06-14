@@ -37,6 +37,14 @@ impl Transform2d {
             scale: self.scale * other.scale,
         }
     }
+
+    pub fn to_mat4(&self) -> glam::Mat4 {
+        glam::Mat4::from_scale_rotation_translation(
+            self.scale.extend(1.0),
+            glam::Quat::from_rotation_z(self.rotation),
+            self.position.extend(0.0),
+        )
+    }
 }
 
 #[derive(Copy, Clone, Debug)]

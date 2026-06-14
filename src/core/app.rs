@@ -6,10 +6,6 @@ use winit::{
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     window::{Window, WindowAttributes, WindowId},
 };
-
-use glam::UVec2;
-use indextree::NodeId;
-
 use crate::core::time::Time;
 use winit::dpi::{LogicalSize, PhysicalSize, Size};
 
@@ -18,7 +14,7 @@ use crate::asset::AssetServer;
 use crate::core::singleton::Singletons;
 use crate::render::render_world::{RenderWorld, RenderCommand};
 use crate::render::RenderContext;
-use crate::scene::{AsNode, World};
+use crate::scene::World;
 use crate::text::TextServer;
 use crate::window::InputServer;
 
@@ -37,6 +33,8 @@ pub struct App {
     event_loop: Option<EventLoop<()>>,
     /// Callback for user setup logic after initialization.
     setup_callback: Option<Box<dyn FnOnce(&mut App)>>,
+    /// Callback for user-defined update logic, called every frame after the world update.
+    update_callbacks: Vec<Box<dyn FnMut(&mut App, f32)>>,
 }
 
 impl App {
@@ -51,7 +49,8 @@ impl App {
         let event_loop = EventLoop::new().unwrap();
 
         let window_size = LogicalSize::new(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT);
-        let world = World::new(UVec2::new(window_size.width, window_size.height));
+
+        let world = World::new();
 
         Self {
             window: None,
@@ -63,6 +62,7 @@ impl App {
             initialized: false,
             event_loop: Some(event_loop),
             setup_callback: None,
+            update_callbacks: Vec::new(),
         }
     }
 
@@ -71,6 +71,15 @@ impl App {
         F: FnOnce(&mut App) + 'static,
     {
         self.setup_callback = Some(Box::new(f));
+    }
+
+    /// Register a callback that will be invoked every frame after the world update.
+    /// The callback receives a mutable reference to the app and the delta time in seconds.
+    pub fn add_update<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut App, f32) + 'static,
+    {
+        self.update_callbacks.push(Box::new(f));
     }
 
     /// Creating some of the wgpu types requires async code.
@@ -170,9 +179,6 @@ impl App {
         event_loop.run_app(self).expect("Failed to run event loop");
     }
 
-    pub fn add_node(&mut self, new_node: impl AsNode + 'static, parent: Option<NodeId>) {
-        self.world.add_node(Box::new(new_node), parent);
-    }
 
     /// Resize window.
     fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -183,9 +189,6 @@ impl App {
                 // 1. 更新 wgpu surface 配置 (逻辑层记录)
                 singletons.render_context.surface_config.width = new_size.width;
                 singletons.render_context.surface_config.height = new_size.height;
-
-                // 2. 更新逻辑层的视图尺寸
-                self.world.when_view_size_changes(UVec2::new(new_size.width, new_size.height));
 
                 // 3. 通知渲染线程执行真正的配置和资源清理
                 if let Some(render_world) = &self.render_world {
@@ -210,9 +213,6 @@ impl App {
         if let (Some(singletons), Some(render_world)) =
             (&mut self.singletons, &mut self.render_world)
         {
-            // Update asset server (collects background loads)
-            singletons.asset_server.update();
-
             // Reconcile fonts.
             singletons.text_server.update(
                 &singletons.render_context,
@@ -220,14 +220,16 @@ impl App {
                 &singletons.asset_server,
             );
 
-            // Reconcile pending assets.
-            let ids = self.world.traverse();
-            for id in ids {
-                self.world.arena[id].get_mut().reconcile(singletons, render_world);
-            }
-
             singletons.time.tick();
-            self.world.update(singletons.time.get_delta() as f32, singletons);
+            self.world.update(singletons.time.get_delta() as f32, singletons, render_world);
+
+            // Run user-defined update callbacks.
+            let dt = singletons.time.get_delta() as f32;
+            let callbacks = std::mem::take(&mut self.update_callbacks);
+            for mut callback in callbacks {
+                callback(self, dt);
+                self.update_callbacks.push(callback);
+            }
         }
     }
 
@@ -237,11 +239,8 @@ impl App {
             return Ok(());
         };
 
-        // Collect draw commands from the scene world.
-        let draw_commands = self.world.collect_draw_commands();
-
         // Extract render entities from the draw commands.
-        let extracted = render_world.extract(&draw_commands);
+        let extracted = self.world.extract_render_objects();
 
         // Update server GPU resources (text).
         // Note: text_server.prepare currently writes to texture cache, so we need a write lock.

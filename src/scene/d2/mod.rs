@@ -1,4 +1,4 @@
-pub(crate) mod camera2d;
+pub mod camera2d;
 pub(crate) mod label;
 pub(crate) mod node2d;
 pub(crate) mod sprite2d;

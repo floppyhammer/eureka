@@ -1,10 +1,10 @@
 use glam::{Quat, Vec2, Vec3, Vec4};
-use indextree::NodeId;
+use hecs::Entity;
 use std::any::Any;
 
 #[derive(Debug, Clone)]
 pub struct PropertyChange {
-    pub target_entity: NodeId,
+    pub target_entity: Entity,
     pub property_path: PropertyPath,
     pub value: PropertyValue,
     pub weight: f32,
