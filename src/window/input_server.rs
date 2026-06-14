@@ -20,21 +20,21 @@ pub struct Key {
 
 #[derive(Debug, Copy, Clone)]
 pub struct MouseButton {
-    pub(crate) button: winit::event::MouseButton,
-    pub(crate) pressed: bool,
+    pub button: winit::event::MouseButton,
+    pub pressed: bool,
     pub(crate) position: (f32, f32),
     consumed: bool,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct MouseScroll {
-    pub(crate) delta: f32,
+    pub delta: f32,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct MouseMotion {
-    pub(crate) delta: (f32, f32),
-    pub(crate) position: (f32, f32),
+    pub delta: (f32, f32),
+    pub position: (f32, f32),
 }
 
 pub struct InputServer {

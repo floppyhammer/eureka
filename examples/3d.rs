@@ -6,7 +6,17 @@ use eureka::window::{InputEvent, InputServer};
 use glam::{Quat, Vec2, Vec3};
 use std::any::Any;
 use std::path::PathBuf;
+use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
+
+/// A simple empty node that can be used as a root node.
+pub struct EmptyNode;
+
+impl AsNode for EmptyNode {
+    fn as_any(&self) -> &dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn node_type(&self) -> NodeType { NodeType::AnimationPlayer } // Use existing type for now
+}
 
 fn main() {
     let mut app = App::new();
@@ -15,13 +25,12 @@ fn main() {
         let singletons = app.singletons.as_mut().unwrap();
         let world = &mut app.world;
 
-        let camera3d = Camera3d::new(
-            Vec3::new(-10.0, 2.0, 0.0),
-            0.0,
-            0.0,
-            &singletons.render_context,
-        );
-        world.add_node(Box::new(camera3d), None);
+        // Add a root node first to prevent camera from becoming the root
+        world.add_node(Box::new(EmptyNode), None);
+
+        // Add a fly camera with controller
+        let fly_camera = FlyCamera::new();
+        world.add_node(Box::new(fly_camera), None);
 
         // Add an orthographic 2D camera for the UI overlay.
         let mut camera2d = Camera2d::default();
@@ -86,12 +95,233 @@ fn main() {
         let ground_path = singletons
             .asset_server
             .asset_dir
-            .join("models/ground.glb"); // Sponza/Sponza.gltf
+            .join("models/Sponza/Sponza.gltf"); // Sponza/Sponza.gltf
         let ground = Model::at_path(ground_path);
         world.add_node(Box::new(ground), None);
     });
 
     app.run();
+}
+
+/// A simple 3D fly camera controller.
+#[derive(Debug)]
+pub struct Camera3dController {
+    amount_left: f32,
+    amount_right: f32,
+    amount_forward: f32,
+    amount_backward: f32,
+    amount_up: f32,
+    amount_down: f32,
+    yaw: f32,
+    pitch: f32,
+    scroll: f32,
+    speed: f32,
+    sensitivity: f32,
+
+    pub cursor_captured: bool,
+    pub cursor_captured_position: Vec2,
+    cursor_capture_state_changed: bool,
+}
+
+impl Camera3dController {
+    pub fn new(speed: f32, sensitivity: f32) -> Self {
+        Self {
+            amount_left: 0.0,
+            amount_right: 0.0,
+            amount_forward: 0.0,
+            amount_backward: 0.0,
+            amount_up: 0.0,
+            amount_down: 0.0,
+            yaw: -90.0f32.to_radians(), // -90 degrees to face -Z initially
+            pitch: 0.0,
+            scroll: 0.0,
+            speed,
+            sensitivity,
+            cursor_captured: false,
+            cursor_captured_position: Vec2::ZERO,
+            cursor_capture_state_changed: false,
+        }
+    }
+
+    pub fn process_keyboard(&mut self, key: KeyCode, pressed: bool) -> bool {
+        let amount = if pressed { 1.0 } else { 0.0 };
+        match key {
+            KeyCode::KeyW => {
+                self.amount_forward = amount;
+                true
+            }
+            KeyCode::KeyS => {
+                self.amount_backward = amount;
+                true
+            }
+            KeyCode::KeyA => {
+                self.amount_left = amount;
+                true
+            }
+            KeyCode::KeyD => {
+                self.amount_right = amount;
+                true
+            }
+            KeyCode::KeyE => {
+                self.amount_up = amount;
+                true
+            }
+            KeyCode::KeyQ => {
+                self.amount_down = amount;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn process_mouse_motion(
+        &mut self,
+        mouse_dx: f32,
+        mouse_dy: f32,
+        mouse_x: f32,
+        mouse_y: f32,
+    ) {
+        if self.cursor_captured {
+            self.yaw -= mouse_dx * self.sensitivity;
+            self.pitch -= mouse_dy * self.sensitivity;
+            
+            // Clamp pitch between -89 and 89 degrees to prevent gimbal lock
+            self.pitch = self.pitch.clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
+        } else {
+            self.cursor_captured_position.x = mouse_x;
+            self.cursor_captured_position.y = mouse_y;
+        }
+    }
+
+    pub fn process_mouse_button(&mut self, button: MouseButton, pressed: bool) {
+        // If the right button is not pressed.
+        if button != MouseButton::Right {
+            return;
+        }
+
+        let old_pressed = self.cursor_captured;
+
+        if pressed != old_pressed {
+            self.cursor_captured = pressed;
+
+            self.cursor_capture_state_changed = true;
+        }
+    }
+
+    pub fn process_scroll(&mut self, delta: f32) {
+        self.scroll = delta;
+    }
+
+    pub fn update_camera(&mut self, camera: &mut Camera3d, dt: f32) {
+        // Update camera rotation based on yaw and pitch first
+        camera.node_3d.transform.rotation = Quat::from_euler(
+            glam::EulerRot::ZYX,
+            0.0,
+            self.yaw,
+            self.pitch,
+        );
+
+        // Get forward and right vectors from the camera's actual rotation
+        let forward = camera.node_3d.transform.rotation * Vec3::NEG_Z;
+        let right = camera.node_3d.transform.rotation * Vec3::X;
+
+        // Move forward/backward and left/right.
+        camera.node_3d.transform.position += forward
+            * (self.amount_forward - self.amount_backward)
+            * self.speed
+            * dt;
+        camera.node_3d.transform.position += right
+            * (self.amount_right - self.amount_left)
+            * self.speed
+            * dt;
+
+        // Adjust navigation speed by scrolling.
+        self.speed += self.scroll * 0.001;
+        self.speed = self.speed.clamp(0.1, 10.0);
+        self.scroll = 0.0;
+
+        // Move up/down. Since we don't use roll, we can just
+        // modify the y coordinate directly.
+        camera.node_3d.transform.position.y += (self.amount_up - self.amount_down)
+            * self.speed
+            * dt;
+    }
+}
+
+/// A fly camera that combines Camera3d with a controller.
+pub struct FlyCamera {
+    camera: Camera3d,
+    controller: Camera3dController,
+}
+
+impl FlyCamera {
+    pub fn new() -> Self {
+        Self {
+            camera: Camera3d::new(),
+            controller: Camera3dController::new(4.0, 0.003),
+        }
+    }
+}
+
+impl AsNode for FlyCamera {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn node_type(&self) -> NodeType {
+        NodeType::Camera3d
+    }
+
+    fn as_node_3d(&self) -> Option<&dyn AsNode3d> {
+        Some(&self.camera)
+    }
+
+    fn as_node_3d_mut(&mut self) -> Option<&mut dyn AsNode3d> {
+        Some(&mut self.camera)
+    }
+
+    fn input(&mut self, input_event: &mut InputEvent, input_server: &mut InputServer) {
+        self.controller.cursor_capture_state_changed = false;
+
+        match input_event {
+            InputEvent::MouseButton(event) => {
+                self.controller
+                    .process_mouse_button(event.button, event.pressed);
+            }
+            InputEvent::MouseMotion(event) => {
+                self.controller.process_mouse_motion(
+                    event.delta.0,
+                    event.delta.1,
+                    event.position.0,
+                    event.position.1,
+                );
+            }
+            InputEvent::MouseScroll(event) => {
+                self.controller.process_scroll(event.delta);
+            }
+            InputEvent::Key(key) => {
+                self.controller.process_keyboard(key.key_code, key.pressed);
+            }
+            _ => {}
+        }
+
+        if self.controller.cursor_capture_state_changed {
+            input_server.set_cursor_capture(self.controller.cursor_captured);
+        }
+    }
+
+    fn update(&mut self, dt: f32, singletons: &mut Singletons) {
+        self.controller.update_camera(&mut self.camera, dt);
+        self.camera.update(dt, singletons);
+    }
+
+    fn draw(&self, draw_cmds: &mut DrawCommands) {
+        self.camera.draw(draw_cmds);
+    }
 }
 
 pub struct MyCube {
