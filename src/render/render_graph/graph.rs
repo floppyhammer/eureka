@@ -312,52 +312,49 @@ impl RenderGraph {
             if let Some(node_state) = self.nodes.get(node_name.as_str()) {
                 let resources = node_state.node.node_resources(render_prepared);
 
-                // 收集 input 和 output 的名称
-                let inputs: Vec<String> = resources
-                    .inputs
-                    .iter()
-                    .map(|i| i.id.name().to_string())
-                    .collect();
-                let outputs: Vec<String> = resources
-                    .outputs
-                    .iter()
-                    .map(|o| o.id.name().to_string())
-                    .collect();
-                let internals: Vec<String> = resources
-                    .internals
-                    .iter()
-                    .map(|o| o.id.name().to_string())
-                    .collect();
-
                 // 创建 mermaid 子图节点表示
                 mermaid.push_str(&format!("    subgraph {}[\"{}\"]\n", node_name, node_name));
-                mermaid.push_str(&format!(
-                    "        {}_inputs[\"Inputs:\\n{}\"]\n",
-                    node_name,
-                    if inputs.is_empty() {
-                        "none".to_string()
-                    } else {
+
+                // 收集 input 和 output 的名称
+                if !resources.inputs.is_empty() {
+                    let inputs: Vec<String> = resources
+                        .inputs
+                        .iter()
+                        .map(|i| i.id.name().to_string())
+                        .collect();
+                    mermaid.push_str(&format!(
+                        "        {}_inputs[\"Inputs:\\n{}\"]\n",
+                        node_name,
                         inputs.join("\\n")
-                    }
-                ));
-                mermaid.push_str(&format!(
-                    "        {}_outputs[\"Outputs:\\n{}\"]\n",
-                    node_name,
-                    if outputs.is_empty() {
-                        "none".to_string()
-                    } else {
-                        outputs.join("\\n")
-                    }
-                ));
-                mermaid.push_str(&format!(
-                    "        {}_internals[\"Internals:\\n{}\"]\n",
-                    node_name,
-                    if internals.is_empty() {
-                        "none".to_string()
-                    } else {
+                    ));
+                }
+
+                if !resources.internals.is_empty() {
+                    let internals: Vec<String> = resources
+                        .internals
+                        .iter()
+                        .map(|i| i.id.name().to_string())
+                        .collect();
+                    mermaid.push_str(&format!(
+                        "        {}_internals[\"Internals:\\n{}\"]\n",
+                        node_name,
                         internals.join("\\n")
-                    }
-                ));
+                    ));
+                }
+
+                if !resources.outputs.is_empty() {
+                    let outputs: Vec<String> = resources
+                        .outputs
+                        .iter()
+                        .map(|o| o.id.name().to_string())
+                        .collect();
+                    mermaid.push_str(&format!(
+                        "        {}_outputs[\"Outputs:\\n{}\"]\n",
+                        node_name,
+                        outputs.join("\\n")
+                    ));
+                }
+
                 mermaid.push_str("    end\n");
             }
         }
@@ -365,7 +362,8 @@ impl RenderGraph {
         // 添加依赖边
         for (to, froms) in &self.dependencies {
             for from in froms {
-                mermaid.push_str(&format!("    {}_outputs --> {}_inputs\n", from, to));
+                // 直接连线节点（子图），表示节点间的逻辑依赖
+                mermaid.push_str(&format!("    {} --> {}\n", from, to));
             }
         }
         mermaid.push_str("```\n");
