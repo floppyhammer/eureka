@@ -1,9 +1,7 @@
 use crate::render::camera::CameraUniform;
 use crate::render::create_render_pipeline;
 use crate::render::render_backend::PreparedFrame;
-use crate::render::render_graph::{
-    standard_resources, BufferKey, FrameContext, Node, PooledBuffer,
-};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, PooledBuffer};
 use crate::render::sprite::ExtractedSprite2d;
 use crate::render::vertex::{Vertex2d, VertexBuffer};
 use crate::render::Texture;
@@ -40,6 +38,8 @@ impl Node for SpriteNode {
         let material_buffer_size = prepared.material_uniforms.len()
             * size_of::<crate::render::material::MaterialUniform>();
 
+        let total_quads = prepared.extracted.sprites.len();
+
         crate::render::render_graph::resource::NodeResources::new()
             .input(
                 standard_resources::camera_buffer(),
@@ -73,17 +73,30 @@ impl Node for SpriteNode {
                     layers: 1,
                 }),
             )
+            .internal(
+                standard_resources::sprite_vertex_buffer(),
+                ResourceSpec::buffer(
+                    (size_of::<Vertex2d>() * 4 * total_quads) as u64,
+                    wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
+            .internal(
+                standard_resources::sprite_index_buffer(),
+                ResourceSpec::buffer(
+                    (size_of::<u32>() * 6 * total_quads) as u64,
+                    wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        let prepared_sprites = prepare_sprite(
+        let batches = create_batches(
             &context.extracted.sprites,
             context,
             &context.extracted.cameras,
         );
 
-        let sprite_batches = prepared_sprites.batches;
-        if sprite_batches.is_empty() {
+        if batches.is_empty() {
             return;
         }
 
@@ -137,13 +150,16 @@ impl Node for SpriteNode {
 
         let materials_storage_buffer =
             context.buffer(&standard_resources::material_storage_buffer());
-        
+
         let bindless_bind_group = context
             .get_bind_group(
                 "bindless_bind_group_layout",
                 vec![materials_storage_buffer.id],
             )
             .clone();
+
+        let vertex_buffer = context.buffer(&standard_resources::sprite_vertex_buffer());
+        let index_buffer = context.buffer(&standard_resources::sprite_index_buffer());
 
         let mut render_pass = context
             .encoder
@@ -172,16 +188,13 @@ impl Node for SpriteNode {
 
         render_pass.set_pipeline(self.pipeline.as_ref().unwrap());
 
-        render_pass.set_vertex_buffer(0, prepared_sprites.vertex_buffer.unwrap().buffer.slice(..));
+        render_pass.set_vertex_buffer(0, vertex_buffer.buffer.slice(..));
 
-        render_pass.set_index_buffer(
-            prepared_sprites.index_buffer.unwrap().buffer.slice(..),
-            wgpu::IndexFormat::Uint32,
-        );
+        render_pass.set_index_buffer(index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
 
         render_pass.set_bind_group(1, &bindless_bind_group, &[]);
 
-        for b in sprite_batches {
+        for b in batches {
             let camera_offset = CameraUniform::get_uniform_offset_unit() * b.camera_index;
 
             render_pass.set_bind_group(0, &camera_bind_group, &[camera_offset]);
@@ -192,19 +205,13 @@ impl Node for SpriteNode {
 }
 
 /// Prepare the sprite vertex buffer, index buffer, and the sprite batches.
-pub(crate) fn prepare_sprite(
+fn create_batches(
     sprites: &Vec<ExtractedSprite2d>,
     context: &mut FrameContext,
     extracted_cameras: &crate::render::camera::ExtractedCameras,
-) -> PreparedSprites {
-    let prepared_sprites = PreparedSprites {
-        vertex_buffer: None,
-        index_buffer: None,
-        batches: vec![],
-    };
-
+) -> Vec<SpriteBatch> {
     if sprites.is_empty() {
-        return prepared_sprites;
+        return vec![];
     }
 
     // 找到第一个 D2 类型的相机
@@ -216,7 +223,7 @@ pub(crate) fn prepare_sprite(
     // 如果没有 2D 相机，则不渲染任何 2D 元素
     let camera_index = match camera_index {
         Some(idx) => idx as u32,
-        None => return prepared_sprites,
+        None => return vec![],
     };
 
     let total_quads = sprites.len();
@@ -275,22 +282,8 @@ pub(crate) fn prepare_sprite(
         }
     }
 
-    let vertex_buffer = {
-        let buffer_key = BufferKey {
-            size: (size_of::<Vertex2d>() * 4 * total_quads) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        };
-
-        context.get_buffer_by_id(&standard_resources::sprite_vertex_buffer(), buffer_key)
-    };
-    let index_buffer = {
-        let buffer_key = BufferKey {
-            size: (size_of::<u32>() * all_indices.len()) as u64,
-            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-        };
-
-        context.get_buffer_by_id(&standard_resources::sprite_index_buffer(), buffer_key)
-    };
+    let vertex_buffer = context.buffer(&standard_resources::sprite_vertex_buffer());
+    let index_buffer = context.buffer(&standard_resources::sprite_index_buffer());
 
     // Write to buffers.
     context.render_context.queue.write_buffer(
@@ -309,11 +302,7 @@ pub(crate) fn prepare_sprite(
         camera_index,
     }];
 
-    PreparedSprites {
-        vertex_buffer: Some(vertex_buffer),
-        index_buffer: Some(index_buffer),
-        batches,
-    }
+    batches
 }
 
 pub(crate) const QUAD_INDICES: [u32; 6] = [0, 2, 3, 0, 1, 2];

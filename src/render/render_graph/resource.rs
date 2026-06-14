@@ -258,6 +258,7 @@ pub struct ResourceDecl {
 pub struct NodeResources {
     pub inputs: Vec<ResourceDecl>,
     pub outputs: Vec<ResourceDecl>,
+    pub internals: Vec<ResourceDecl>,
 }
 
 impl NodeResources {
@@ -265,6 +266,7 @@ impl NodeResources {
         Self {
             inputs: Vec::new(),
             outputs: Vec::new(),
+            internals: Vec::new(),
         }
     }
 
@@ -288,6 +290,15 @@ impl NodeResources {
 
     pub fn output<T>(mut self, id: ResourceId<T>, spec: ResourceSpec) -> Self {
         self.outputs.push(ResourceDecl {
+            id: id.erase(),
+            spec,
+            optional: false,
+        });
+        self
+    }
+
+    pub fn internal<T>(mut self, id: ResourceId<T>, spec: ResourceSpec) -> Self {
+        self.internals.push(ResourceDecl {
             id: id.erase(),
             spec,
             optional: false,
@@ -327,11 +338,15 @@ pub mod standard_resources {
     pub fn material_storage_buffer() -> BufferId {
         ResourceId::new("material_storage_buffer")
     }
-    
-    // Sprite node
-    pub fn sprite_vertex_buffer() -> BufferId { ResourceId::new("sprite_vertex_buffer") }
 
-    pub fn sprite_index_buffer() -> BufferId { ResourceId::new("sprite_index_buffer") }
+    // Sprite node
+    pub fn sprite_vertex_buffer() -> BufferId {
+        ResourceId::new("sprite_vertex_buffer")
+    }
+
+    pub fn sprite_index_buffer() -> BufferId {
+        ResourceId::new("sprite_index_buffer")
+    }
 
     pub fn global_instance_buffer() -> BufferId {
         ResourceId::new("global_instance_buffer")
@@ -340,7 +355,7 @@ pub mod standard_resources {
     pub fn mesh_metadata_buffer() -> BufferId {
         ResourceId::new("mesh_metadata_buffer")
     }
-    
+
     pub fn cull_visible_instance_buffer() -> BufferId {
         ResourceId::new("cull_visible_instance_buffer")
     }
@@ -367,6 +382,10 @@ pub mod standard_resources {
 
     pub fn light_uniform_buffer() -> BufferId {
         ResourceId::new("light_uniform_buffer")
+    }
+    
+    pub fn fxaa_settings() -> BufferId {
+        ResourceId::new("fxaa_settings")
     }
 
     // SSAO 相关

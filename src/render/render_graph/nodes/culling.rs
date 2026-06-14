@@ -69,7 +69,7 @@ impl Node for CullingNode {
                         | wgpu::BufferUsages::COPY_DST,
                 ),
             )
-            .output(
+            .internal(
                 standard_resources::cull_params_uniform(), // 临时资源
                 ResourceSpec::buffer(
                     16,

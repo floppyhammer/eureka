@@ -154,6 +154,7 @@ impl RenderGraph {
                     .inputs
                     .into_iter()
                     .chain(resources.outputs.into_iter())
+                    .chain(resources.internals.into_iter())
                 {
                     merged_specs
                         .entry(decl.id)
@@ -199,8 +200,13 @@ impl RenderGraph {
                     }
 
                     let (buf, actual_key) = self.pool.acquire_buffer(&render_context.device, key);
-                    active_resources
-                        .insert(id, (ResourceKey::Buffer(actual_key), VirtualResource::Buffer(buf)));
+                    active_resources.insert(
+                        id,
+                        (
+                            ResourceKey::Buffer(actual_key),
+                            VirtualResource::Buffer(buf),
+                        ),
+                    );
                 }
                 _ => {} // 其他资源类型暂不预分配
             }
@@ -286,8 +292,8 @@ impl RenderGraph {
                     }
                 }
 
-                // 将输出资源标记为可用
-                for output in resources.outputs {
+                // 将输出和内部资源标记为可用
+                for output in resources.outputs.into_iter().chain(resources.internals.into_iter()) {
                     available_resources.insert(output.id, ());
                 }
             }
@@ -317,6 +323,11 @@ impl RenderGraph {
                     .iter()
                     .map(|o| o.id.name().to_string())
                     .collect();
+                let internals: Vec<String> = resources
+                    .internals
+                    .iter()
+                    .map(|o| o.id.name().to_string())
+                    .collect();
 
                 // 创建 mermaid 子图节点表示
                 mermaid.push_str(&format!("    subgraph {}[\"{}\"]\n", node_name, node_name));
@@ -336,6 +347,15 @@ impl RenderGraph {
                         "none".to_string()
                     } else {
                         outputs.join("\\n")
+                    }
+                ));
+                mermaid.push_str(&format!(
+                    "        {}_internals[\"Internals:\\n{}\"]\n",
+                    node_name,
+                    if internals.is_empty() {
+                        "none".to_string()
+                    } else {
+                        internals.join("\\n")
                     }
                 ));
                 mermaid.push_str("    end\n");

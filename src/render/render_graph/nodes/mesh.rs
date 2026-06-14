@@ -108,13 +108,6 @@ impl Node for MeshNode {
                 }),
             )
             .output(
-                standard_resources::light_uniform_buffer(),
-                ResourceSpec::buffer(
-                    size_of::<LightUniform>() as u64,
-                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                ),
-            )
-            .output(
                 standard_resources::main_color(),
                 ResourceSpec::Texture(TextureKey {
                     width: 0,
@@ -135,6 +128,13 @@ impl Node for MeshNode {
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
                 }),
+            )
+            .internal(
+                standard_resources::light_uniform_buffer(),
+                ResourceSpec::buffer(
+                    size_of::<LightUniform>() as u64,
+                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                ),
             )
     }
 
@@ -312,6 +312,19 @@ impl Node for MeshNode {
 
         let ssao_blur = context.texture(&standard_resources::ssao_blur());
         let directional_shadow_map = context.texture(&standard_resources::directional_shadow_map());
+        let point_shadow_map = context.texture(&standard_resources::point_shadow_map());
+
+        let point_shadow_map_view = {
+            point_shadow_map.get_view(&wgpu::TextureViewDescriptor {
+                label: Some("point shadow map view"),
+                format: Some(Texture::DEPTH_FORMAT),
+                dimension: Some(wgpu::TextureViewDimension::CubeArray),
+                aspect: wgpu::TextureAspect::DepthOnly,
+                array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6),
+                ..Default::default()
+            })
+        };
+
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
         let camera_bind_group =
@@ -372,43 +385,6 @@ impl Node for MeshNode {
 
         let cascade_uniform_buffer = context.buffer(&standard_resources::shadow_cascade_buffer());
         // -----------------------
-
-        // Intervals
-        let light_uniform_buffer = {
-            let buffer_key = BufferKey {
-                size: size_of::<LightUniform>() as u64,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            };
-
-            context.get_buffer_by_id(&standard_resources::light_uniform_buffer(), buffer_key)
-        };
-
-        let point_shadow_map = {
-            let point_shadow_map_key = TextureKey {
-                width: 512,
-                height: 512,
-                format: Some(Texture::DEPTH_FORMAT),
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::TEXTURE_BINDING,
-                layers: (MAX_POINT_LIGHTS * 6) as u32,
-            };
-
-            context.get_texture_by_id(
-                &standard_resources::point_shadow_map(),
-                point_shadow_map_key,
-            )
-        };
-
-        let point_shadow_map_view = {
-            point_shadow_map.get_view(&wgpu::TextureViewDescriptor {
-                label: Some("point shadow map view"),
-                format: Some(Texture::DEPTH_FORMAT),
-                dimension: Some(wgpu::TextureViewDimension::CubeArray),
-                aspect: wgpu::TextureAspect::DepthOnly,
-                array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6),
-                ..Default::default()
-            })
-        };
 
         let (sky_view, sky_view_id) =
             if let Some(id) = context.backend.sky_imported_resources.texture {
@@ -510,7 +486,10 @@ impl Node for MeshNode {
 
         let (v_buf, i_buf) = {
             let allocator = context.backend.imported_mesh_allocator.read().unwrap();
-            (allocator.vertex_buffer.clone(), allocator.index_buffer.clone())
+            (
+                allocator.vertex_buffer.clone(),
+                allocator.index_buffer.clone(),
+            )
         };
 
         for camera_idx in 0..extracted.cameras.uniforms.len() {
@@ -525,10 +504,7 @@ impl Node for MeshNode {
 
                 render_pass.set_vertex_buffer(0, v_buf.slice(..));
                 render_pass.set_vertex_buffer(1, global_visible_instance_buffer.buffer.slice(..));
-                render_pass.set_index_buffer(
-                    i_buf.slice(..),
-                    wgpu::IndexFormat::Uint32,
-                );
+                render_pass.set_index_buffer(i_buf.slice(..), wgpu::IndexFormat::Uint32);
 
                 if !context.prepared.draw_counts.is_empty() && context.prepared.draw_counts[0] > 0 {
                     render_pass.multi_draw_indexed_indirect(

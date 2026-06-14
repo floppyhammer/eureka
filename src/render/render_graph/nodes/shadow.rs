@@ -2,7 +2,7 @@ use crate::math::frustum::Frustum;
 use crate::render::camera::{CameraType, CameraUniform};
 use crate::render::light::{CascadeUniform, NUM_CASCADES};
 use crate::render::render_backend::PreparedFrame;
-use crate::render::render_graph::{standard_resources, BufferKey, FrameContext, Node};
+use crate::render::render_graph::{standard_resources, FrameContext, Node};
 use crate::render::vertex::{Vertex3d, VertexBuffer};
 use crate::render::{create_render_pipeline, InstanceRaw};
 use glam::{Mat4, Vec3};
@@ -32,6 +32,10 @@ impl Node for ShadowNode {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
+
+        let offset_unit = CameraUniform::get_uniform_offset_unit();
+        let directional_shadow_camera_buffer_size = offset_unit * NUM_CASCADES as u32;
+        let point_shadow_camera_buffer_size = offset_unit * (MAX_POINT_LIGHTS * 6) as u32;
 
         crate::render::render_graph::resource::NodeResources::new()
             .output(
@@ -63,6 +67,20 @@ impl Node for ShadowNode {
                     wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 ),
             )
+            .internal(
+                standard_resources::directional_shadow_camera_buffer(),
+                ResourceSpec::buffer(
+                    directional_shadow_camera_buffer_size as BufferAddress,
+                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
+            .internal(
+                standard_resources::point_shadow_camera_buffer(),
+                ResourceSpec::buffer(
+                    point_shadow_camera_buffer_size as BufferAddress,
+                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -83,8 +101,10 @@ impl Node for ShadowNode {
             .get_bind_group_layout("shadow_camera_bind_group_layout")
             .is_none()
         {
-            let shadow_camera_bind_group_layout = context.render_context.device.create_bind_group_layout(
-                &wgpu::BindGroupLayoutDescriptor {
+            let shadow_camera_bind_group_layout = context
+                .render_context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     entries: &[wgpu::BindGroupLayoutEntry {
                         binding: 0,
                         visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
@@ -96,12 +116,12 @@ impl Node for ShadowNode {
                         count: None,
                     }],
                     label: Some("Shadow Camera Bind Group Layout"),
-                },
-            );
+                });
 
-            context
-                .backend
-                .add_bind_group_layout("shadow_camera_bind_group_layout", shadow_camera_bind_group_layout);
+            context.backend.add_bind_group_layout(
+                "shadow_camera_bind_group_layout",
+                shadow_camera_bind_group_layout,
+            );
         }
 
         let shadow_camera_bind_group_layout = context
@@ -152,18 +172,8 @@ impl Node for ShadowNode {
 
         let offset_unit = CameraUniform::get_uniform_offset_unit();
 
-        let directional_shadow_camera_buffer_size = offset_unit * NUM_CASCADES as u32;
-        let directional_shadow_camera_buffer = {
-            let buffer_key = BufferKey {
-                size: directional_shadow_camera_buffer_size as BufferAddress,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            };
-
-            context.get_buffer_by_id(
-                &standard_resources::directional_shadow_camera_buffer(),
-                buffer_key,
-            )
-        };
+        let directional_shadow_camera_buffer =
+            context.buffer(&standard_resources::directional_shadow_camera_buffer());
 
         let cascade_uniform_buffer = context.buffer(&standard_resources::shadow_cascade_buffer());
 
@@ -262,6 +272,8 @@ impl Node for ShadowNode {
                 cascade_view_projs[i] = view_proj;
             }
 
+            let directional_shadow_camera_buffer_size = offset_unit * NUM_CASCADES as u32;
+
             // 写入缓冲区逻辑保持不变
             let mut shadow_camera_data = vec![0u8; directional_shadow_camera_buffer_size as usize];
             for i in 0..NUM_CASCADES {
@@ -284,19 +296,9 @@ impl Node for ShadowNode {
         }
 
         // Update point shadow buffers
-        let point_shadow_camera_buffer_size = offset_unit * (MAX_POINT_LIGHTS * 6) as u32;
 
-        let point_shadow_camera_buffer = {
-            let buffer_key = BufferKey {
-                size: point_shadow_camera_buffer_size as BufferAddress,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            };
-
-            context.get_buffer_by_id(
-                &standard_resources::point_shadow_camera_buffer(),
-                buffer_key,
-            )
-        };
+        let point_shadow_camera_buffer =
+            context.buffer(&standard_resources::point_shadow_camera_buffer());
 
         let point_shadow_camera_bind_group = context.create_bind_group(
             "shadow_camera_bind_group_layout",
@@ -349,6 +351,8 @@ impl Node for ShadowNode {
                 }
             }
 
+            let point_shadow_camera_buffer_size = offset_unit * (MAX_POINT_LIGHTS * 6) as u32;
+
             let mut point_shadow_camera_data = vec![0u8; point_shadow_camera_buffer_size as usize];
             for i in 0..(MAX_POINT_LIGHTS * 6) {
                 let bytes = bytemuck::bytes_of(&point_camera_uniforms[i]);
@@ -364,17 +368,6 @@ impl Node for ShadowNode {
 
         let directional_shadow_map = context.texture(&standard_resources::directional_shadow_map());
         let point_shadow_map = context.texture(&standard_resources::point_shadow_map());
-
-        let directional_shadow_camera_buffer_size =
-            CameraUniform::get_uniform_offset_unit() * (NUM_CASCADES as u32);
-        let directional_shadow_camera_buffer_key = BufferKey {
-            size: directional_shadow_camera_buffer_size as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        };
-        let directional_shadow_camera_buffer = context.get_buffer_by_id(
-            &standard_resources::directional_shadow_camera_buffer(),
-            directional_shadow_camera_buffer_key,
-        );
 
         let directional_shadow_camera_bind_group = context.create_bind_group(
             "shadow_camera_bind_group_layout",

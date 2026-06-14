@@ -35,6 +35,13 @@ impl Node for FxaaNode {
         crate::render::render_graph::resource::NodeResources::new()
             .input(standard_resources::hdr_resolved(), color_spec.clone())
             .output(standard_resources::final_output(), color_spec)
+            .internal(
+                standard_resources::fxaa_settings(),
+                ResourceSpec::buffer(
+                    4,
+                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -117,13 +124,7 @@ impl Node for FxaaNode {
 
         // 使用 context 的方法获取池化 Buffer，并写入开关状态
         let settings_data = if fxaa_enabled { 1u32 } else { 0u32 };
-        let settings_buffer = context.get_buffer(
-            "fxaa_settings",
-            crate::render::render_graph::BufferKey {
-                size: 4,
-                usage: wgpu::BufferUsages::UNIFORM,
-            },
-        );
+        let settings_buffer = context.buffer(&standard_resources::fxaa_settings());
         context.write_buffer(&settings_buffer.buffer, &[settings_data]);
 
         let bind_group_layout = context

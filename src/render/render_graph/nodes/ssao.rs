@@ -63,6 +63,39 @@ impl Node for SsaoNode {
                         | wgpu::BufferUsages::COPY_DST,
                 ),
             )
+            .internal(
+                standard_resources::ssao_depth(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: Some(Texture::DEPTH_FORMAT),
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
+                    layers: 1,
+                }),
+            )
+            .internal(
+                standard_resources::ssao_normal(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: Some(wgpu::TextureFormat::Rgba16Float),
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
+                    layers: 1,
+                }),
+            )
+            .internal(
+                standard_resources::ssao_output(),
+                ResourceSpec::Texture(TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: Some(wgpu::TextureFormat::R8Unorm),
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
+                    layers: 1,
+                }),
+            )
             .output(
                 standard_resources::ssao_blur(),
                 ResourceSpec::Texture(TextureKey {
@@ -268,38 +301,10 @@ impl Node for SsaoNode {
                 .add_bind_group_layout("blur_bind_group_layout", blur_bind_group_layout);
         }
 
-        let width = context.render_context.surface_config.width;
-        let height = context.render_context.surface_config.height;
-
-        let ssao_depth_key = TextureKey {
-            width,
-            height,
-            format: Some(Texture::DEPTH_FORMAT),
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-
-        let normal_key = TextureKey {
-            width,
-            height,
-            format: Some(wgpu::TextureFormat::Rgba16Float),
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-
-        let r8_key = TextureKey {
-            width,
-            height,
-            format: Some(wgpu::TextureFormat::R8Unorm),
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            layers: 1,
-        };
-
-        // Intervals
-        let ssao_depth_tex =
-            context.get_texture_by_id(&standard_resources::ssao_depth(), ssao_depth_key);
-        let normal_tex = context.get_texture_by_id(&standard_resources::ssao_normal(), normal_key);
-        let ssao_tex = context.get_texture_by_id(&standard_resources::ssao_output(), r8_key);
+        // Internals
+        let ssao_depth_tex = context.texture(&standard_resources::ssao_depth());
+        let normal_tex = context.texture(&standard_resources::ssao_normal());
+        let ssao_tex = context.texture(&standard_resources::ssao_output());
 
         // Outputs
         let blur_tex = context.texture(&standard_resources::ssao_blur());
