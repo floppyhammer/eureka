@@ -69,7 +69,7 @@ impl World {
     fn update_example_logic(&mut self, dt: f32) {
         // 摄像机移动系统
         for (_id, (transform, controller)) in self.ecs.query_mut::<(
-            &mut Transform,
+            &mut CTransform3d,
             &mut crate::scene::d3::camera3d::Camera3dController,
         )>() {
             transform.0.rotation =
@@ -155,7 +155,7 @@ impl World {
             let path = change.property_path.path();
 
             // 尝试应用到 3D Transform
-            if let Ok(mut transform) = self.ecs.get::<&mut Transform>(change.target_entity) {
+            if let Ok(mut transform) = self.ecs.get::<&mut CTransform3d>(change.target_entity) {
                 match (path, &change.value) {
                     ("transform.position", PropertyValue::Vec3(v)) => {
                         transform.0.position = transform.0.position.lerp(*v, change.weight)
@@ -180,10 +180,7 @@ impl World {
             }
 
             // 尝试应用到 2D Transform
-            if let Ok(mut transform) = self
-                .ecs
-                .get::<&mut Transform2dComponent>(change.target_entity)
-            {
+            if let Ok(mut transform) = self.ecs.get::<&mut CTransform2d>(change.target_entity) {
                 match (path, &change.value) {
                     ("transform.position", PropertyValue::Vec2(v)) => {
                         transform.0.position = transform.0.position.lerp(*v, change.weight)
@@ -301,7 +298,7 @@ impl World {
         // 1. 先更新所有 3D 根节点 (没有 Parent 的)
         for (_id, (local, global)) in self
             .ecs
-            .query_mut::<(&Transform, &mut GlobalTransform)>()
+            .query_mut::<(&CTransform3d, &mut GlobalTransform)>()
             .without::<&Parent>()
         {
             global.0 = local.0.matrix();
@@ -310,7 +307,7 @@ impl World {
         // 2. 先更新所有 2D 根节点
         for (_id, (local, global)) in self
             .ecs
-            .query_mut::<(&Transform2dComponent, &mut GlobalTransform)>()
+            .query_mut::<(&CTransform2d, &mut GlobalTransform)>()
             .without::<&Parent>()
         {
             global.0 = local.0.to_mat4();
@@ -335,9 +332,9 @@ impl World {
             };
 
             // 获取子节点的局部矩阵
-            let local_mat = if let Ok(t) = self.ecs.get::<&Transform>(child_id) {
+            let local_mat = if let Ok(t) = self.ecs.get::<&CTransform3d>(child_id) {
                 t.0.matrix()
-            } else if let Ok(t2d) = self.ecs.get::<&Transform2dComponent>(child_id) {
+            } else if let Ok(t2d) = self.ecs.get::<&CTransform2d>(child_id) {
                 t2d.0.to_mat4()
             } else {
                 continue;

@@ -1,9 +1,10 @@
 use eureka::core::App;
+use eureka::math::color::ColorU;
 use eureka::math::transform::{Transform2d, Transform3d};
 use eureka::scene::{
-    ActiveCamera, AssetPending, Camera3dComponent, Camera3dController, DirectionalLightComponent,
-    GlobalTransform, LabelComponent, Name, PointLightComponent, SkyAssetPending, Transform,
-    Transform2dComponent,
+    ActiveCamera, AssetPending, Camera3dComponent, Camera3dController,
+    DirectionalLightComponent, GlobalTransform, LabelComponent, Name, PointLightComponent,
+    SkyAssetPending, CTransform3d, CTransform2d,
 };
 use eureka::window::InputEvent;
 use glam::{Quat, Vec2, Vec3};
@@ -29,7 +30,7 @@ fn main() {
 
         world.ecs.spawn((
             Name("MainCamera".into()),
-            Transform(Transform3d {
+            CTransform3d(Transform3d {
                 position: Vec3::new(-5.0, 2.0, 0.0),
                 ..Transform3d::default()
             }),
@@ -42,7 +43,7 @@ fn main() {
         // 2. 添加 UI 覆盖层 (2D 摄像机)
         world.ecs.spawn((
             Name("UICamera".into()),
-            Transform2dComponent(Transform2d::default()),
+            CTransform2d(Transform2d::default()),
             GlobalTransform::default(),
             eureka::scene::d2::camera2d::Camera2dComponent::default(),
             ActiveCamera,
@@ -52,7 +53,7 @@ fn main() {
         world.ecs.spawn((
             Name("Settings".into()),
             LabelComponent::new("SSAO (1): ON | FXAA (2): ON"),
-            Transform2dComponent(Transform2d {
+            CTransform2d(Transform2d {
                 position: Vec2::new(20.0, 20.0),
                 ..Transform2d::default()
             }),
@@ -68,19 +69,21 @@ fn main() {
         // 5. 灯光
         world.ecs.spawn((
             "PointLight",
-            Transform3d {
-                position: Vec3::new(0.0, 5.0, 0.0),
+            CTransform3d(Transform3d {
+                position: Vec3::new(2.0, 5.0, 2.0),
                 ..Transform3d::default()
-            },
+            }),
+            GlobalTransform::default(),
             PointLightComponent {
                 strength: 5.0,
+                // color: ColorU::new(255, 0, 0, 255),
                 ..PointLightComponent::default()
             },
         ));
 
         world.ecs.spawn((
             Name("DirLight".into()),
-            Transform(Transform3d {
+            CTransform3d(Transform3d {
                 rotation: Quat::from_rotation_x(-135.0f32.to_radians()),
                 ..Transform3d::default()
             }),
@@ -97,7 +100,7 @@ fn main() {
         // 螃蟹 (漂浮)
         world.ecs.spawn((
             Name("Ferris".into()),
-            Transform(Transform3d {
+            CTransform3d(Transform3d {
                 position: Vec3::new(0.0, 0.1, 0.0),
                 ..Transform3d::default()
             }),
@@ -112,7 +115,7 @@ fn main() {
         // 旋转立方体
         world.ecs.spawn((
             Name("Cube".into()),
-            Transform(Transform3d {
+            CTransform3d(Transform3d {
                 position: Vec3::new(2.0, 1.2, 2.0),
                 scale: Vec3::splat(0.5),
                 ..Transform3d::default()
@@ -125,7 +128,7 @@ fn main() {
         // 金属球 (MetalRoughSpheres)
         world.ecs.spawn((
             Name("Spheres".into()),
-            Transform(Transform3d {
+            CTransform3d(Transform3d {
                 position: Vec3::new(-2.0, 2.0, -2.0),
                 scale: Vec3::splat(0.1),
                 rotation: Quat::from_rotation_z(90.0f32.to_radians()),
@@ -139,7 +142,7 @@ fn main() {
             Name("Ground".to_string()),
             Transform3d::default(),
             GlobalTransform::default(),
-            AssetPending(asset_dir.join("models/ground.glb")),
+            AssetPending(asset_dir.join("models/ground.glb")), // "models/Sponza/Sponza.gltf"
         ));
     });
 
@@ -148,7 +151,7 @@ fn main() {
         let world = &mut app.world;
         for (_id, transform) in world
             .ecs
-            .query_mut::<&mut Transform>()
+            .query_mut::<&mut CTransform3d>()
             .with::<&RotatingLogic>()
         {
             transform.0.rotation *= Quat::from_rotation_y(dt);
@@ -160,7 +163,7 @@ fn main() {
         let world = &mut app.world;
         for (_id, (transform, logic)) in world
             .ecs
-            .query_mut::<(&mut Transform, &mut FloatingLogic)>()
+            .query_mut::<(&mut CTransform3d, &mut FloatingLogic)>()
         {
             logic.timer += dt * logic.speed;
             transform.0.position.y = 1.0 + logic.timer.sin() * 1.0;

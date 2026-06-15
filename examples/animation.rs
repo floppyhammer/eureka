@@ -2,7 +2,7 @@ use eureka::animation::{AnimationClip, AnimationCurve, AnimationPlayer, Keyframe
 use eureka::core::App;
 use eureka::math::transform::Transform2d;
 use eureka::scene::{
-    ActiveCamera, Camera2dComponent, GlobalTransform, LabelComponent, Name, Transform2dComponent,
+    ActiveCamera, CTransform2d, Camera2dComponent, GlobalTransform, LabelComponent, Name,
 };
 use glam::Vec2;
 
@@ -15,7 +15,7 @@ fn main() {
         // 1. Add a 2D camera
         world.ecs.spawn((
             Name("MainCamera2D".into()),
-            Transform2dComponent(Transform2d::default()),
+            CTransform2d(Transform2d::default()),
             GlobalTransform::default(),
             Camera2dComponent::default(),
             ActiveCamera,
@@ -25,7 +25,7 @@ fn main() {
         let label_id = world.ecs.spawn((
             Name("AnimatedLabel".into()),
             LabelComponent::new("Animated Text!"),
-            Transform2dComponent(Transform2d {
+            CTransform2d(Transform2d {
                 position: Vec2::new(640.0, 360.0),
                 ..Transform2d::default()
             }),
@@ -69,7 +69,7 @@ fn main() {
         world.ecs.spawn((
             Name("Instructions".into()),
             LabelComponent::new("Animation Demo: Text bounces using ECS systems"),
-            Transform2dComponent(Transform2d {
+            CTransform2d(Transform2d {
                 position: Vec2::new(10.0, 30.0),
                 ..Transform2d::default()
             }),

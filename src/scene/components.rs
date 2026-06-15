@@ -3,10 +3,10 @@ use glam::{Mat4, Vec2};
 use hecs::Entity;
 
 /// 3D 局部变换组件
-pub struct Transform(pub Transform3d);
+pub struct CTransform3d(pub Transform3d);
 
 /// 2D 局部变换组件
-pub struct Transform2dComponent(pub Transform2d);
+pub struct CTransform2d(pub Transform2d);
 
 /// 全局变换组件
 pub struct GlobalTransform(pub Mat4);

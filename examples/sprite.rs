@@ -1,8 +1,8 @@
 use eureka::core::App;
 use eureka::math::transform::Transform2d;
 use eureka::scene::{
-    ActiveCamera, Camera2dComponent, GlobalTransform, Name, Parent, Size, SpriteAssetPending,
-    SpriteComponent, Transform2dComponent,
+    ActiveCamera, CTransform2d, Camera2dComponent, GlobalTransform, Name, Parent, Size,
+    SpriteAssetPending, SpriteComponent,
 };
 use glam::Vec2;
 
@@ -25,7 +25,7 @@ fn main() {
         // 1. 2D 摄像机
         world.ecs.spawn((
             Name("MainCamera2D".into()),
-            Transform2dComponent(Transform2d::default()),
+            CTransform2d(Transform2d::default()),
             GlobalTransform::default(),
             Camera2dComponent::default(),
             ActiveCamera,
@@ -35,7 +35,7 @@ fn main() {
         // 父节点 - 绕中心旋转的大圆
         let parent = world.ecs.spawn((
             Name("Parent_Circle".into()),
-            Transform2dComponent(Transform2d {
+            CTransform2d(Transform2d {
                 position: Vec2::new(640.0, 360.0), // 屏幕中心
                 scale: Vec2::splat(3.0),
                 ..Transform2d::default()
@@ -50,7 +50,7 @@ fn main() {
         // 子节点1 - 跟随父节点旋转的小圆 (在父节点内部)
         world.ecs.spawn((
             Name("Child_Circle_1".into()),
-            Transform2dComponent(Transform2d {
+            CTransform2d(Transform2d {
                 position: Vec2::new(150.0, 0.0), // 相对于父节点
                 scale: Vec2::splat(0.8),
                 ..Transform2d::default()
@@ -65,7 +65,7 @@ fn main() {
         // 子节点2 - 跟随父节点旋转的小圆
         world.ecs.spawn((
             Name("Child_Circle_2".into()),
-            Transform2dComponent(Transform2d {
+            CTransform2d(Transform2d {
                 position: Vec2::new(-150.0, 0.0), // 相对于父节点
                 scale: Vec2::splat(0.8),
                 ..Transform2d::default()
@@ -80,7 +80,7 @@ fn main() {
         // 3. 另一组父子关系 - 上下摆动的小精灵
         let swing_parent = world.ecs.spawn((
             Name("Swing_Parent".into()),
-            Transform2dComponent(Transform2d {
+            CTransform2d(Transform2d {
                 position: Vec2::new(200.0, 100.0),
                 scale: Vec2::splat(1.5),
                 ..Transform2d::default()
@@ -94,7 +94,7 @@ fn main() {
         // 挂在摆动父节点上的子节点
         world.ecs.spawn((
             Name("Swing_Child".into()),
-            Transform2dComponent(Transform2d {
+            CTransform2d(Transform2d {
                 position: Vec2::new(0.0, 120.0), // 相对于父节点，向下偏移
                 scale: Vec2::splat(0.6),
                 ..Transform2d::default()
@@ -115,7 +115,7 @@ fn main() {
         // 1. 让标记 RotatingLogic 的精灵旋转
         for (_id, transform) in world
             .ecs
-            .query_mut::<&mut Transform2dComponent>()
+            .query_mut::<&mut CTransform2d>()
             .with::<&RotatingLogic>()
         {
             transform.0.rotation += dt;
@@ -124,7 +124,7 @@ fn main() {
         // 2. 让摆动父节点上下移动
         for (_id, transform) in world
             .ecs
-            .query_mut::<&mut Transform2dComponent>()
+            .query_mut::<&mut CTransform2d>()
             .with::<&Name>()
             .with::<&Parent>()
             .without::<&RotatingLogic>()
@@ -141,7 +141,7 @@ fn main() {
             .map(|(id, _)| id);
 
         if let Some(id) = swing_parent_id {
-            if let Ok(mut transform) = world.ecs.get::<&mut Transform2dComponent>(id) {
+            if let Ok(mut transform) = world.ecs.get::<&mut CTransform2d>(id) {
                 transform.0.position.y = 100.0 + (time * 2.0).sin() * 80.0;
             }
         }
