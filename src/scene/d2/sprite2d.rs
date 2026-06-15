@@ -1,6 +1,6 @@
 use crate::render::{RawTextureData, RenderContext, Texture, TextureCache, TextureId};
 use glam::{Vec2, Vec4};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub struct SpriteComponent {
     pub use_original_size: bool,

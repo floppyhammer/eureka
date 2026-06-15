@@ -1,6 +1,6 @@
-use std::time::SystemTime;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::SystemTime;
 
 pub struct Time {
     startup_time: SystemTime,

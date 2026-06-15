@@ -1,10 +1,9 @@
-use eureka::animation::{AnimationClip, AnimationCurve, AnimationPlayer, Interpolation, Keyframe};
+use eureka::animation::{AnimationClip, AnimationCurve, AnimationPlayer, Keyframe};
 use eureka::core::App;
-use eureka::scene::{
-    ActiveCamera, Camera2dComponent, GlobalTransform, LabelComponent,
-    Name, Transform2dComponent
-};
 use eureka::math::transform::Transform2d;
+use eureka::scene::{
+    ActiveCamera, Camera2dComponent, GlobalTransform, LabelComponent, Name, Transform2dComponent,
+};
 use glam::Vec2;
 
 fn main() {
@@ -64,10 +63,7 @@ fn main() {
         // 5. Add the animation player to the world as a component
         // In ECS, we can add it to the same entity or a separate one.
         // Here we add it to its own entity for clarity.
-        world.ecs.spawn((
-            Name("AnimationPlayer".into()),
-            player,
-        ));
+        world.ecs.spawn((Name("AnimationPlayer".into()), player));
 
         // 6. Create a static label to show instructions
         world.ecs.spawn((

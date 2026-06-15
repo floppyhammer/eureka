@@ -113,7 +113,9 @@ impl AssetServer {
 
     pub fn request_font<P: AsRef<Path>>(&mut self, path: P) {
         let path_buf = path.as_ref().to_path_buf();
-        if self.loading_paths.contains_key(&path_buf) || self.loaded_raw_fonts.contains_key(&path_buf) {
+        if self.loading_paths.contains_key(&path_buf)
+            || self.loaded_raw_fonts.contains_key(&path_buf)
+        {
             return;
         }
 

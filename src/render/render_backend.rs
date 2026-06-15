@@ -81,7 +81,7 @@ impl RenderBackend {
         imported_mesh_allocator: Arc<RwLock<MeshAllocator>>,
     ) -> Self {
         let sky_imported_resources = SkyImportedResources::new();
-        
+
         let dummy_2d_texture = render_server
             .device
             .create_texture(&wgpu::TextureDescriptor {
@@ -98,7 +98,7 @@ impl RenderBackend {
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             });
-        
+
         let dummy_cube_texture = render_server
             .device
             .create_texture(&wgpu::TextureDescriptor {
@@ -132,31 +132,42 @@ impl RenderBackend {
         let mut timestamp_mapped_flags = Vec::new();
         let mut timestamp_active = Vec::new();
 
-        let has_basic_query = render_server.device.features().contains(wgpu::Features::TIMESTAMP_QUERY);
-        let has_encoder_query = render_server.device.features().contains(wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS);
+        let has_basic_query = render_server
+            .device
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY);
+        let has_encoder_query = render_server
+            .device
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS);
 
         if has_basic_query && has_encoder_query {
             log::info!("GPU Profiling: Enabled (using hardware timestamps)");
-            timestamp_query_set = Some(render_server.device.create_query_set(&wgpu::QuerySetDescriptor {
-                label: Some("timestamp query set"),
-                count: 2,
-                ty: wgpu::QueryType::Timestamp,
-            }));
+            timestamp_query_set = Some(render_server.device.create_query_set(
+                &wgpu::QuerySetDescriptor {
+                    label: Some("timestamp query set"),
+                    count: 2,
+                    ty: wgpu::QueryType::Timestamp,
+                },
+            ));
 
-            timestamp_resolve_buffer = Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("timestamp resolve buffer"),
-                size: 16,
-                usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
-                mapped_at_creation: false,
-            }));
-
-            for i in 0..render_server.frames_in_flight {
-                timestamp_destination_buffers.push(render_server.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some(&format!("timestamp destination buffer {}", i)),
+            timestamp_resolve_buffer =
+                Some(render_server.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("timestamp resolve buffer"),
                     size: 16,
-                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                    usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
                     mapped_at_creation: false,
                 }));
+
+            for i in 0..render_server.frames_in_flight {
+                timestamp_destination_buffers.push(render_server.device.create_buffer(
+                    &wgpu::BufferDescriptor {
+                        label: Some(&format!("timestamp destination buffer {}", i)),
+                        size: 16,
+                        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                        mapped_at_creation: false,
+                    },
+                ));
                 timestamp_mapped_flags.push(Arc::new(std::sync::atomic::AtomicBool::new(false)));
                 timestamp_active.push(false);
             }
@@ -187,11 +198,7 @@ impl RenderBackend {
         }
     }
 
-    pub fn run(
-        &mut self,
-        render_context: &RenderContext,
-        mut extracted: Extracted,
-    ) {
+    pub fn run(&mut self, render_context: &RenderContext, mut extracted: Extracted) {
         let cpu_render_start = std::time::Instant::now();
 
         // 处理旧数据并释放缓冲区
@@ -227,13 +234,18 @@ impl RenderBackend {
         let mut submission = Vec::new();
         let mut timestamp_recorded = false;
 
-        if let (Some(query_set), Some(resolve_buf)) = (&self.timestamp_query_set, &self.timestamp_resolve_buffer) {
+        if let (Some(query_set), Some(resolve_buf)) =
+            (&self.timestamp_query_set, &self.timestamp_resolve_buffer)
+        {
             // 关键修复：只有当缓冲区不处于 Active (映射中) 时才使用它
             if !self.timestamp_active[self.current_timestamp_index] {
                 // 1. 创建起始时间戳
-                let mut start_encoder = render_context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("GPU Start Timer"),
-                });
+                let mut start_encoder =
+                    render_context
+                        .device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("GPU Start Timer"),
+                        });
                 start_encoder.write_timestamp(query_set, 0);
                 submission.push(start_encoder.finish());
 
@@ -241,9 +253,12 @@ impl RenderBackend {
                 submission.push(cmd_buf);
 
                 // 3. 创建结束时间戳并解析
-                let mut end_encoder = render_context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("GPU End Timer"),
-                });
+                let mut end_encoder =
+                    render_context
+                        .device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("GPU End Timer"),
+                        });
                 end_encoder.write_timestamp(query_set, 1);
 
                 let dest_buf = &self.timestamp_destination_buffers[self.current_timestamp_index];
@@ -267,13 +282,16 @@ impl RenderBackend {
             let dest_buf = &self.timestamp_destination_buffers[self.current_timestamp_index];
             let flag = self.timestamp_mapped_flags[self.current_timestamp_index].clone();
 
-            dest_buf.slice(..).map_async(wgpu::MapMode::Read, move |result| {
-                if result.is_ok() {
-                    flag.store(true, std::sync::atomic::Ordering::Release);
-                }
-            });
+            dest_buf
+                .slice(..)
+                .map_async(wgpu::MapMode::Read, move |result| {
+                    if result.is_ok() {
+                        flag.store(true, std::sync::atomic::Ordering::Release);
+                    }
+                });
 
-            self.current_timestamp_index = (self.current_timestamp_index + 1) % self.timestamp_destination_buffers.len();
+            self.current_timestamp_index =
+                (self.current_timestamp_index + 1) % self.timestamp_destination_buffers.len();
         }
 
         // 必须调用 poll(Poll) 来推进异步映射的进度，但这不会阻塞线程
@@ -294,7 +312,9 @@ impl RenderBackend {
                         let diff = timestamps[1].wrapping_sub(timestamps[0]);
                         let period = render_context.queue.get_timestamp_period();
                         let gpu_nanos = diff as f64 * period as f64;
-                        render_context.gpu_time.store(gpu_nanos as u64, std::sync::atomic::Ordering::Relaxed);
+                        render_context
+                            .gpu_time
+                            .store(gpu_nanos as u64, std::sync::atomic::Ordering::Relaxed);
                     }
                 }
                 buffer.unmap();

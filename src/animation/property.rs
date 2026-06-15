@@ -29,7 +29,7 @@ impl PropertyPath {
     pub fn get_component(&self) -> (String, Option<usize>) {
         let parts: Vec<&str> = self.path.split('.').collect();
         if parts.len() >= 3 {
-            let base_path = parts[0..parts.len()-1].join(".");
+            let base_path = parts[0..parts.len() - 1].join(".");
             let component = match *parts.last().unwrap() {
                 "x" | "r" => Some(0),
                 "y" | "g" => Some(1),

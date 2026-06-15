@@ -31,19 +31,19 @@ pub struct AnimationPlayer {
     clips: HashMap<String, Arc<AnimationClip>>,
     active_clip: Option<String>,
     tracks: Vec<AnimationTrack>,
-    
+
     bindings: Vec<AnimationBinding>,
-    
+
     play_state: PlayState,
     speed: f32,
     time: f32,
     loop_count: i32,
-    
+
     blend_weight: f32,
     crossfade_duration: f32,
     crossfade_progress: f32,
     crossfading_to: Option<String>,
-    
+
     pending_changes: Vec<PropertyChange>,
 }
 
@@ -136,17 +136,21 @@ impl AnimationPlayer {
     }
 
     pub fn set_binding_weight(&mut self, entity_id: Entity, weight: f32) {
-        if let Some(binding) = self.bindings.iter_mut().find(|b| b.target_entity == entity_id) {
+        if let Some(binding) = self
+            .bindings
+            .iter_mut()
+            .find(|b| b.target_entity == entity_id)
+        {
             binding.weight = weight;
         }
     }
 
     fn update_crossfade(&mut self, dt: f32) {
         let target_clip_name = self.crossfading_to.clone();
-        
+
         if let Some(target_clip_name) = target_clip_name {
             self.crossfade_progress += dt / self.crossfade_duration;
-            
+
             if self.crossfade_progress >= 1.0 {
                 let loop_count = self.loop_count;
                 self.play(&target_clip_name, loop_count);
@@ -207,7 +211,7 @@ impl AnimationPlayer {
 
             for track in &mut self.tracks {
                 track.time += dt * self.speed;
-                
+
                 let duration = track.clip.duration;
                 if duration > 0.0 {
                     if track.clip.loop_count == -1 {

@@ -1,7 +1,7 @@
 pub mod app;
-pub(crate) mod time;
 pub(crate) mod singleton;
+pub(crate) mod time;
 
 pub use app::*;
-pub use time::*;
 pub use singleton::*;
+pub use time::*;

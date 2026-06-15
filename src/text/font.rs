@@ -11,10 +11,8 @@ use std::fs::File;
 use std::io::Read;
 use std::ops::Range;
 use std::time::Instant;
-use unicode_bidi::{BidiInfo};
-use unicode_linebreak::{
-    break_property, BreakClass,
-};
+use unicode_bidi::BidiInfo;
+use unicode_linebreak::{break_property, BreakClass};
 
 /// Only scripts in this enum are supported.
 #[derive(Clone)]
@@ -175,7 +173,11 @@ impl DynamicFont {
     }
 
     /// Upload atlas data to the atlas texture.
-    pub(crate) fn upload(&mut self, render_server: &RenderContext, imported_texture_cache: &TextureCache) {
+    pub(crate) fn upload(
+        &mut self,
+        render_server: &RenderContext,
+        imported_texture_cache: &TextureCache,
+    ) {
         let texture = imported_texture_cache.get(self.atlas_texture).unwrap();
 
         if let Some(region) = self.updated_atlas_region {

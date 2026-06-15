@@ -108,7 +108,7 @@ impl ResourcePool {
             wgpu::TextureFormat::Depth32Float => 4,
             wgpu::TextureFormat::Depth24Plus => 4, // 估算
             wgpu::TextureFormat::Depth24PlusStencil8 => 4, // 估算
-            _ => 4, // 默认
+            _ => 4,                                // 默认
         };
 
         let estimated_size = (key.width * key.height * key.layers) as u64 * bpp;
@@ -256,11 +256,7 @@ impl ResourcePool {
             .clone()
     }
 
-    pub fn get_bind_group(
-        &self,
-        layout_name: &str,
-        resource_ids: Vec<u64>,
-    ) -> &wgpu::BindGroup {
+    pub fn get_bind_group(&self, layout_name: &str, resource_ids: Vec<u64>) -> &wgpu::BindGroup {
         let key = BindGroupKey {
             layout_name: layout_name.to_string(),
             resource_ids,

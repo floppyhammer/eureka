@@ -1,15 +1,10 @@
 use crate::math::aabb::Aabb;
 use crate::math::transform::Transform3d;
-use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
+use crate::render::material::{MaterialCache, MaterialId};
 use crate::render::mesh_allocator::MeshAllocator;
-use crate::render::shader_maker::ShaderMaker;
-use crate::render::sprite::ExtractedSprite2d;
-use crate::render::{RenderContext, TextureCache, TextureId};
 use glam::{Mat3, Mat4, Quat, Vec3};
 use std::collections::HashMap;
 use std::mem;
-use wgpu::BufferAddress;
-use crate::render::render_backend::RenderBackend;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MeshId(pub(crate) uuid::Uuid);
@@ -188,7 +183,7 @@ pub struct MeshRenderResources {
     pub(crate) bindless_bind_group: Option<wgpu::BindGroup>,
 
     pub(crate) materials_storage_buffer: Option<wgpu::Buffer>,
-    
+
     pub(crate) material_cache: MaterialCache,
     pub(crate) mesh_allocator: MeshAllocator,
 
@@ -209,7 +204,7 @@ pub(crate) struct MeshInstanceInfo {
 
 // impl MeshRenderResources {
 //     pub(crate) fn new(render_server: &RenderContext) -> Self {
-// 
+//
 //         Self {
 //             bindless_bind_group_layout,
 //             bindless_bind_group: None,
@@ -224,6 +219,6 @@ pub(crate) struct MeshInstanceInfo {
 //             indirect_commands: vec![],
 //         }
 //     }
-// 
-// 
+//
+//
 // }

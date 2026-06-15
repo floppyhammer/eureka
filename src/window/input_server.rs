@@ -106,9 +106,7 @@ impl InputServer {
                         *scroll as f32
                     }
                 };
-                InputEvent::MouseScroll(MouseScroll {
-                    delta: scroll,
-                })
+                InputEvent::MouseScroll(MouseScroll { delta: scroll })
             }
             WindowEvent::MouseInput { button, state, .. } => InputEvent::MouseButton(MouseButton {
                 button: *button,

@@ -1,18 +1,18 @@
 use std::sync::Arc;
 
+use crate::core::time::Time;
+use winit::dpi::{LogicalSize, PhysicalSize, Size};
 use winit::{
     application::ApplicationHandler,
     event::*,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     window::{Window, WindowAttributes, WindowId},
 };
-use crate::core::time::Time;
-use winit::dpi::{LogicalSize, PhysicalSize, Size};
 
 // Import local crates.
 use crate::asset::AssetServer;
 use crate::core::singleton::Singletons;
-use crate::render::render_world::{RenderWorld, RenderCommand};
+use crate::render::render_world::{RenderCommand, RenderWorld};
 use crate::render::RenderContext;
 use crate::scene::World;
 use crate::text::TextServer;
@@ -113,7 +113,10 @@ impl App {
             features |= wgpu::Features::TIMESTAMP_QUERY;
         }
 
-        if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS) {
+        if adapter
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS)
+        {
             features |= wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
         }
 
@@ -145,15 +148,25 @@ impl App {
         // 如果无法从 capabilities 获取，通常根据显示模式推断：
         // Fifo (V-Sync) 通常需要 2 张图，Mailbox (Triple Buffering) 通常需要 3 张。
         // 为了看到真实的 release 性能，我们优先尝试使用 Mailbox 或 Immediate (不锁帧)
-        let present_mode = if surface_capabilities.present_modes.contains(&wgpu::PresentMode::Mailbox) {
+        let present_mode = if surface_capabilities
+            .present_modes
+            .contains(&wgpu::PresentMode::Mailbox)
+        {
             wgpu::PresentMode::Mailbox
-        } else if surface_capabilities.present_modes.contains(&wgpu::PresentMode::Immediate) {
+        } else if surface_capabilities
+            .present_modes
+            .contains(&wgpu::PresentMode::Immediate)
+        {
             wgpu::PresentMode::Immediate
         } else {
             wgpu::PresentMode::Fifo
         };
 
-        let frames_in_flight = if present_mode == wgpu::PresentMode::Mailbox { 3 } else { 2 };
+        let frames_in_flight = if present_mode == wgpu::PresentMode::Mailbox {
+            3
+        } else {
+            2
+        };
 
         surface_config.present_mode = present_mode;
 
@@ -179,7 +192,6 @@ impl App {
         event_loop.run_app(self).expect("Failed to run event loop");
     }
 
-
     /// Resize window.
     fn resize(&mut self, new_size: PhysicalSize<u32>) {
         self.window_size = new_size.to_logical(self.scale_factor);
@@ -192,7 +204,9 @@ impl App {
 
                 // 3. 通知渲染线程执行真正的配置和资源清理
                 if let Some(render_world) = &self.render_world {
-                    let _ = render_world.sender.send(RenderCommand::Resize(new_size.width, new_size.height));
+                    let _ = render_world
+                        .sender
+                        .send(RenderCommand::Resize(new_size.width, new_size.height));
                 }
             }
         }
@@ -221,7 +235,8 @@ impl App {
             );
 
             singletons.time.tick();
-            self.world.update(singletons.time.get_delta() as f32, singletons, render_world);
+            self.world
+                .update(singletons.time.get_delta() as f32, singletons, render_world);
 
             // Run user-defined update callbacks.
             let dt = singletons.time.get_delta() as f32;
@@ -244,9 +259,10 @@ impl App {
 
         // Update server GPU resources (text).
         // Note: text_server.prepare currently writes to texture cache, so we need a write lock.
-        singletons
-            .text_server
-            .prepare(&singletons.render_context, &mut render_world.imported_texture_cache.write().unwrap());
+        singletons.text_server.prepare(
+            &singletons.render_context,
+            &mut render_world.imported_texture_cache.write().unwrap(),
+        );
 
         // Send to render thread.
         let _ = render_world.sender.send(RenderCommand::Render(extracted));

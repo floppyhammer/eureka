@@ -42,7 +42,7 @@ impl Node for PrepareInstancesNode {
         if context.prepared.instance_buffer_size == 0 {
             return;
         }
-        
+
         let global_instance_buffer = context.buffer(&standard_resources::global_instance_buffer());
         let mesh_metadata_buffer = context.buffer(&standard_resources::mesh_metadata_buffer());
 

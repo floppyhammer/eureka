@@ -31,7 +31,7 @@ impl World {
         // 1. 资产加载系统
         self.update_assets(singletons, render_world);
 
-        // 2. 摄像机同步系统 
+        // 2. 摄像机同步系统
         self.update_cameras(singletons);
 
         // 3. 动画系统

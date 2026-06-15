@@ -1,5 +1,5 @@
-use glam::Mat4;
 use crate::render::render_graph::BufferKey;
+use glam::Mat4;
 
 /// This only manages CPU resources.
 
@@ -20,8 +20,8 @@ impl ExtractedCameras {
         self.types.push(camera_type);
         self.uniforms.push(uniform);
     }
-    
-    pub fn get_buffer_key(& self) -> BufferKey {
+
+    pub fn get_buffer_key(&self) -> BufferKey {
         let camera_count = self.uniforms.len();
         let offset_unit = CameraUniform::get_uniform_offset_unit();
         let buffer_size = offset_unit * camera_count as u32;
@@ -130,7 +130,7 @@ impl PerspectiveProjection {
     pub fn update(&mut self, width: f32, height: f32) {
         self.aspect = width / height;
     }
-    
+
     /// 设置垂直视野角度（弧度）
     pub fn set_fovy(&mut self, fovy_radians: f32) {
         self.fovy = fovy_radians;

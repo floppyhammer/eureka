@@ -3,11 +3,6 @@ use crate::render::light::ExtractedLights;
 use crate::render::material::MaterialCache;
 use crate::render::mesh_allocator::MeshAllocator;
 pub(crate) use crate::render::render_backend::{RenderBackend, RenderCommand};
-use crate::render::render_graph::ToneMappingNode;
-use crate::render::render_graph::{
-    ClearNode, CullingNode, FxaaNode, MeshNode, PrepareViewNode, RenderGraph, ShadowNode,
-    SkyboxNode, SpriteNode, SsaoNode, TransparentMeshNode,
-};
 use crate::render::shader_maker::ShaderMaker;
 use crate::render::sky::ExtractedSky;
 use crate::render::sprite::ExtractedSprite2d;
@@ -42,7 +37,8 @@ impl RenderWorld {
         let imported_texture_cache = Arc::new(RwLock::new(TextureCache::new()));
         let imported_mesh_cache = Arc::new(RwLock::new(MeshCache::new()));
         let imported_material_cache = Arc::new(RwLock::new(MaterialCache::new()));
-        let imported_mesh_allocator = Arc::new(RwLock::new(MeshAllocator::new(&render_context.device)));
+        let imported_mesh_allocator =
+            Arc::new(RwLock::new(MeshAllocator::new(&render_context.device)));
 
         // Use a capacity based on frames in flight to prevent deadlocks in get_current_texture.
         let channel_cap = (render_context.frames_in_flight.saturating_sub(1)) as usize;

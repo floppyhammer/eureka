@@ -40,7 +40,9 @@ where
 {
     pub fn new(keyframes: Vec<Keyframe<T>>) -> Self {
         let mut curve = Self { keyframes };
-        curve.keyframes.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
+        curve
+            .keyframes
+            .sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
         curve
     }
 
@@ -68,7 +70,11 @@ where
                 return match curr.interpolation {
                     Interpolation::Linear => T::interpolate(&curr.value, &next.value, t),
                     Interpolation::Smooth => {
-                        let prev = if i > 0 { &self.keyframes[i - 1].value } else { &curr.value };
+                        let prev = if i > 0 {
+                            &self.keyframes[i - 1].value
+                        } else {
+                            &curr.value
+                        };
                         let next_next = if i + 2 <= last_idx {
                             &self.keyframes[i + 2].value
                         } else {

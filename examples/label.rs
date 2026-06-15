@@ -1,9 +1,8 @@
 use eureka::core::App;
-use eureka::scene::{
-    ActiveCamera, Camera2dComponent, GlobalTransform, Name,
-    LabelComponent, Transform2dComponent
-};
 use eureka::math::transform::Transform2d;
+use eureka::scene::{
+    ActiveCamera, Camera2dComponent, GlobalTransform, LabelComponent, Name, Transform2dComponent,
+};
 use glam::Vec2;
 
 fn main() {

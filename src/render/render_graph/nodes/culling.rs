@@ -94,11 +94,16 @@ impl Node for CullingNode {
         );
 
         // 1. 获取逻辑上的实例总数
-        let total_instances = (context.prepared.instance_buffer_size / size_of::<InstanceRaw>()) as u32;
+        let total_instances =
+            (context.prepared.instance_buffer_size / size_of::<InstanceRaw>()) as u32;
 
         // 2. 获取参数 Buffer 并写入
         let cull_params_buffer = context.buffer(&standard_resources::cull_params_uniform());
-        context.render_context.queue.write_buffer(&cull_params_buffer.buffer, 0, bytemuck::cast_slice(&[total_instances]));
+        context.render_context.queue.write_buffer(
+            &cull_params_buffer.buffer,
+            0,
+            bytemuck::cast_slice(&[total_instances]),
+        );
 
         let cull_bind_group_layout = context
             .backend

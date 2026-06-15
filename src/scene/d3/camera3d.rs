@@ -33,11 +33,7 @@ impl Camera3dComponent {
         let (scale, rotation, translation) = global_transform.to_scale_rotation_translation();
         let forward = rotation * Vec3::NEG_Z;
 
-        Mat4::look_to_rh(
-            translation,
-            forward,
-            Vec3::Y,
-        )
+        Mat4::look_to_rh(translation, forward, Vec3::Y)
     }
 
     pub fn build_uniform(&self, global_transform: &Mat4) -> CameraUniform {
@@ -106,7 +102,9 @@ impl Camera3dController {
                 if self.cursor_captured {
                     self.yaw -= e.delta.0 * self.sensitivity;
                     self.pitch -= e.delta.1 * self.sensitivity;
-                    self.pitch = self.pitch.clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
+                    self.pitch = self
+                        .pitch
+                        .clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
                 }
             }
             InputEvent::Key(e) => {

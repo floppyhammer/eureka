@@ -1,6 +1,6 @@
-use glam::Quat;
-use std::path::{Path, PathBuf};
 use crate::render::{RawCubeTextureData, RenderContext, Texture, TextureCache, TextureId};
+use glam::Quat;
+use std::path::PathBuf;
 
 pub struct SkyComponent {
     pub rotation: Quat,

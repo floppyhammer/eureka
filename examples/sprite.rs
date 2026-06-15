@@ -1,9 +1,9 @@
 use eureka::core::App;
-use eureka::scene::{
-    ActiveCamera, Camera2dComponent, GlobalTransform, Name,
-    SpriteAssetPending, SpriteComponent, Transform2dComponent, Size, Parent,
-};
 use eureka::math::transform::Transform2d;
+use eureka::scene::{
+    ActiveCamera, Camera2dComponent, GlobalTransform, Name, Parent, Size, SpriteAssetPending,
+    SpriteComponent, Transform2dComponent,
+};
 use glam::Vec2;
 
 // 示例专用的逻辑组件
@@ -14,7 +14,13 @@ fn main() {
 
     app.setup(|app| {
         let world = &mut app.world;
-        let asset_dir = app.singletons.as_ref().unwrap().asset_server.asset_dir.clone();
+        let asset_dir = app
+            .singletons
+            .as_ref()
+            .unwrap()
+            .asset_server
+            .asset_dir
+            .clone();
 
         // 1. 2D 摄像机
         world.ecs.spawn((
@@ -127,7 +133,9 @@ fn main() {
         }
 
         // 更精确地处理摆动
-        let swing_parent_id = world.ecs.query::<&Name>()
+        let swing_parent_id = world
+            .ecs
+            .query::<&Name>()
             .iter()
             .find(|(_, name)| name.0 == "Swing_Parent")
             .map(|(id, _)| id);

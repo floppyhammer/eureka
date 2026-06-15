@@ -1,6 +1,4 @@
 use crate::math::color::ColorU;
-use crate::render::light::DirectionalLightUniform;
-use glam::Vec3;
 
 pub struct DirectionalLightComponent {
     pub color: ColorU,

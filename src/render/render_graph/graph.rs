@@ -293,7 +293,11 @@ impl RenderGraph {
                 }
 
                 // 将输出和内部资源标记为可用
-                for output in resources.outputs.into_iter().chain(resources.internals.into_iter()) {
+                for output in resources
+                    .outputs
+                    .into_iter()
+                    .chain(resources.internals.into_iter())
+                {
                     available_resources.insert(output.id, ());
                 }
             }

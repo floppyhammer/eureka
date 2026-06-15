@@ -1,7 +1,4 @@
 use crate::math::color::ColorU;
-use crate::scene::components::*;
-use crate::math::transform::Transform3d;
-use hecs::Entity;
 
 /// 点光源组件
 pub struct PointLightComponent {

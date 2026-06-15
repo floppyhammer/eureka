@@ -90,7 +90,8 @@ impl Node for PrepareViewNode {
         let camera_bind_group_layout = context
             .backend
             .get_bind_group_layout("camera_bind_group_layout")
-            .unwrap().clone();
+            .unwrap()
+            .clone();
 
         let _ =
             context.create_bind_group("camera_bind_group_layout", vec![camera_buffer.id], |ctx| {

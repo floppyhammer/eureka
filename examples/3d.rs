@@ -2,8 +2,8 @@ use eureka::core::App;
 use eureka::math::transform::{Transform2d, Transform3d};
 use eureka::scene::{
     ActiveCamera, AssetPending, Camera3dComponent, Camera3dController, DirectionalLightComponent,
-    GlobalTransform, LabelComponent, Name, PointLightComponent, SkyAssetPending,
-    Transform, Transform2dComponent,
+    GlobalTransform, LabelComponent, Name, PointLightComponent, SkyAssetPending, Transform,
+    Transform2dComponent,
 };
 use eureka::window::InputEvent;
 use glam::{Quat, Vec2, Vec3};

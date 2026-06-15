@@ -14,9 +14,9 @@ pub use texture::*;
 
 pub(crate) mod camera;
 pub(crate) mod material;
+mod render_backend;
 pub mod render_world;
 pub(crate) mod shader_maker;
 pub(crate) mod sky;
 pub(crate) mod sprite;
 pub(crate) mod view;
-mod render_backend;

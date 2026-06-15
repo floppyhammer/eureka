@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::path::Path;
 use crate::render::RenderContext;
 use anyhow::*;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
-use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use uuid;
 use wgpu::Extent3d;
 
@@ -474,10 +474,7 @@ impl Texture {
 
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
-    pub fn get_view(
-        &self,
-        desc: &wgpu::TextureViewDescriptor,
-    ) -> (wgpu::TextureView, u64) {
+    pub fn get_view(&self, desc: &wgpu::TextureViewDescriptor) -> (wgpu::TextureView, u64) {
         let key = ViewKey::from(desc);
         let mut cache = self.view_cache.lock().unwrap();
 
@@ -644,7 +641,9 @@ impl Texture {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: raw.format,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
 
@@ -742,7 +741,9 @@ impl Texture {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
 

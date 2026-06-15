@@ -39,9 +39,7 @@ impl<'a> FrameContext<'a> {
     ) -> ResolvedTransientTexture {
         let res_id = id.clone().erase();
         let (_, resource) = self.active_resources.entry(res_id).or_insert_with(|| {
-            let tex = self
-                .pool
-                .acquire_texture(&self.render_context.device, key);
+            let tex = self.pool.acquire_texture(&self.render_context.device, key);
             (ResourceKey::Texture(key), VirtualResource::Texture(tex))
         });
 
@@ -60,8 +58,7 @@ impl<'a> FrameContext<'a> {
 
     /// 获取一个瞬时采样器。返回克隆的句柄以允许连续调用。
     pub fn get_sampler(&mut self, key: resource::SamplerKey) -> wgpu::Sampler {
-        self.pool
-            .acquire_sampler(&self.render_context.device, key)
+        self.pool.acquire_sampler(&self.render_context.device, key)
     }
 
     /// 获取一个瞬时缓冲区。返回其克隆句柄。
@@ -75,10 +72,11 @@ impl<'a> FrameContext<'a> {
     pub fn get_buffer_by_id(&mut self, id: &BufferId, key: BufferKey) -> PooledBuffer {
         let res_id = id.clone().erase();
         let (_, resource) = self.active_resources.entry(res_id).or_insert_with(|| {
-            let (buf, actual_key) = self
-                .pool
-                .acquire_buffer(&self.render_context.device, key);
-            (ResourceKey::Buffer(actual_key), VirtualResource::Buffer(buf))
+            let (buf, actual_key) = self.pool.acquire_buffer(&self.render_context.device, key);
+            (
+                ResourceKey::Buffer(actual_key),
+                VirtualResource::Buffer(buf),
+            )
         });
 
         if let VirtualResource::Buffer(buffer) = resource {
@@ -163,13 +161,8 @@ impl<'a> FrameContext<'a> {
             .get_or_create_bind_group(layout_name, resource_ids, || creator(render_context))
     }
 
-    pub fn get_bind_group(
-        &self,
-        layout_name: &str,
-        resource_ids: Vec<u64>,
-    ) -> &wgpu::BindGroup {
-        self.pool
-            .get_bind_group(layout_name, resource_ids)
+    pub fn get_bind_group(&self, layout_name: &str, resource_ids: Vec<u64>) -> &wgpu::BindGroup {
+        self.pool.get_bind_group(layout_name, resource_ids)
     }
 
     /// 向缓冲区写入数据

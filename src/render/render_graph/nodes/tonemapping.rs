@@ -119,9 +119,11 @@ impl Node for ToneMappingNode {
             .get_bind_group_layout("tonemapping_bind_group_layout")
             .unwrap()
             .clone();
-        
-        let bind_group =
-            context.create_bind_group("tonemapping_bind_group_layout", vec![input_texture.id], |ctx| {
+
+        let bind_group = context.create_bind_group(
+            "tonemapping_bind_group_layout",
+            vec![input_texture.id],
+            |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("ToneMapping Bind Group"),
                     layout: &bind_group_layout,
@@ -136,7 +138,8 @@ impl Node for ToneMappingNode {
                         },
                     ],
                 })
-            });
+            },
+        );
 
         let mut render_pass = context
             .encoder

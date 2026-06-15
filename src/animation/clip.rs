@@ -33,7 +33,9 @@ impl AnimationClip {
 
     pub fn add_curve(mut self, name: String, curve: AnimationCurve<f32>) -> Self {
         self.curves.insert(name, curve);
-        self.duration = self.curves.values()
+        self.duration = self
+            .curves
+            .values()
             .map(|c| c.duration())
             .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or(0.0);

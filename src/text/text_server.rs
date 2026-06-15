@@ -49,8 +49,11 @@ impl TextServer {
             };
 
             if !self.fonts.contains_key(&key) {
-                let font =
-                    DynamicFont::load_from_memory(buffer.clone(), render_server, imported_texture_cache);
+                let font = DynamicFont::load_from_memory(
+                    buffer.clone(),
+                    render_server,
+                    imported_texture_cache,
+                );
                 self.fonts.insert(key, font);
             }
         }

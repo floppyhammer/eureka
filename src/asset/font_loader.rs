@@ -25,12 +25,7 @@ pub fn find_system_font(font_name: &str) -> Option<Vec<u8>> {
         }
 
         if font.is_none() {
-            let handle = source
-                .all_fonts()
-                .unwrap()
-                .first()
-                .unwrap()
-                .clone();
+            let handle = source.all_fonts().unwrap().first().unwrap().clone();
 
             font = Some(handle.load().unwrap());
         }

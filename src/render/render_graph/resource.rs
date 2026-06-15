@@ -383,7 +383,7 @@ pub mod standard_resources {
     pub fn light_uniform_buffer() -> BufferId {
         ResourceId::new("light_uniform_buffer")
     }
-    
+
     pub fn fxaa_settings() -> BufferId {
         ResourceId::new("fxaa_settings")
     }
