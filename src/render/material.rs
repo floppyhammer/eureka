@@ -13,12 +13,15 @@ pub enum AlphaMode {
 pub struct MaterialStandard {
     pub name: String,
     pub base_color: [f32; 4],
+    pub emissive: [f32; 3],
+    pub emissive_strength: f32,
     pub metallic: f32,
     pub roughness: f32,
     pub color_texture: Option<TextureId>,
     pub normal_texture: Option<TextureId>,
     pub metallic_roughness_texture: Option<TextureId>,
     pub occlusion_texture: Option<TextureId>,
+    pub emissive_texture: Option<TextureId>,
     pub transparent: bool,
     pub alpha_cutoff: f32,
     pub alpha_mode: AlphaMode,
@@ -28,6 +31,8 @@ pub struct MaterialStandard {
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct MaterialUniform {
     pub base_color: [f32; 4],
+    pub emissive: [f32; 3],
+    pub emissive_strength: f32,
     pub metallic: f32,
     pub roughness: f32,
     pub alpha_cutoff: f32,
@@ -35,7 +40,9 @@ pub struct MaterialUniform {
     pub normal_texture_idx: i32,
     pub metallic_roughness_texture_idx: i32,
     pub occlusion_texture_idx: i32,
+    pub emissive_texture_idx: i32,
     pub alpha_mode: u32,
+    pub _pad: [u32; 3], // 显式填充，使结构体达到 80 字节（16的倍数）
 }
 
 impl MaterialStandard {
@@ -43,12 +50,15 @@ impl MaterialStandard {
         Self {
             name: name.to_string(),
             base_color: [1.0, 1.0, 1.0, 1.0],
+            emissive: [0.0, 0.0, 0.0],
+            emissive_strength: 1.0,
             metallic: 0.5,
             roughness: 0.5,
             color_texture: None,
             normal_texture: None,
             metallic_roughness_texture: None,
             occlusion_texture: None,
+            emissive_texture: None,
             transparent: false,
             alpha_cutoff: 0.5,
             alpha_mode: AlphaMode::Opaque,
@@ -70,6 +80,8 @@ impl MaterialStandard {
 
         MaterialUniform {
             base_color: self.base_color,
+            emissive: self.emissive,
+            emissive_strength: self.emissive_strength,
             metallic: self.metallic,
             roughness: self.roughness,
             alpha_cutoff: self.alpha_cutoff,
@@ -77,7 +89,9 @@ impl MaterialStandard {
             normal_texture_idx: get_idx(self.normal_texture),
             metallic_roughness_texture_idx: get_idx(self.metallic_roughness_texture),
             occlusion_texture_idx: get_idx(self.occlusion_texture),
+            emissive_texture_idx: get_idx(self.emissive_texture),
             alpha_mode: alpha_mode_enum,
+            _pad: [0; 3],
         }
     }
 }
@@ -110,6 +124,10 @@ impl MaterialStandard {
 
         if self.occlusion_texture.is_some() {
             flags = flags | MaterialFlags::OCCLUSION_TEXTURE.bits();
+        }
+
+        if self.emissive_texture.is_some() {
+            flags = flags | (1 << 5); // TBD: MaterialFlags upgrade
         }
 
         flags

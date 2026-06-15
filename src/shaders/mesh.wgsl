@@ -133,6 +133,8 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
 // -------------------------
 struct Material {
     base_color: vec4<f32>,
+    emissive: vec3<f32>,
+    emissive_strength: f32,
     metallic: f32,
     roughness: f32,
     alpha_cutoff: f32,
@@ -140,7 +142,11 @@ struct Material {
     normal_texture_idx: i32,
     metallic_roughness_texture_idx: i32,
     occlusion_texture_idx: i32,
+    emissive_texture_idx: i32,
     alpha_mode: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 }
 
 const ALPHA_MODE_OPAQUE: u32 = 0u;
@@ -425,7 +431,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let indirect_diffuse = kD_env * lights.ambient_color * lights.ambient_strength * object_color.xyz * combined_ao;
     // --- End Simple IBL ---
 
-    let result = indirect_diffuse + indirect_specular + point_lights_result + directional_light_result;
+    // --- Emissive ---
+    var emissive = material.emissive * material.emissive_strength;
+    if (material.emissive_texture_idx >= 0) {
+        emissive *= textureSample(t_textures[u32(material.emissive_texture_idx)], s_sampler, in.tex_coords).rgb;
+    }
+
+    let result = indirect_diffuse + indirect_specular + point_lights_result + directional_light_result + emissive;
 
     return vec4<f32>(result, object_color.a);
 }

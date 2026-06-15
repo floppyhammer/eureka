@@ -485,6 +485,7 @@ impl RenderBackend {
                 material.normal_texture,
                 material.metallic_roughness_texture,
                 material.occlusion_texture,
+                material.emissive_texture,
             ]
             .into_iter()
             .flatten()

@@ -30,12 +30,15 @@ pub struct RawMeshData {
 pub struct RawMaterialData {
     pub name: String,
     pub base_color: [f32; 4],
+    pub emissive: [f32; 3],
+    pub emissive_strength: f32,
     pub metallic: f32,
     pub roughness: f32,
     pub color_texture: Option<RawTextureData>,
     pub normal_texture: Option<RawTextureData>,
     pub metallic_roughness_texture: Option<RawTextureData>,
     pub occlusion_texture: Option<RawTextureData>,
+    pub emissive_texture: Option<RawTextureData>,
     pub transparent: bool,
     pub alpha_cutoff: f32,
     pub alpha_mode: AlphaMode,
@@ -124,12 +127,15 @@ impl Model {
             raw_materials.push(RawMaterialData {
                 name: m.name,
                 base_color: [1.0, 1.0, 1.0, 1.0],
+                emissive: [0.0, 0.0, 0.0],
+                emissive_strength: 1.0,
                 metallic: 0.0,
                 roughness: 1.0,
                 color_texture,
                 normal_texture,
                 metallic_roughness_texture: None,
                 occlusion_texture: None,
+                emissive_texture: None,
                 transparent: false,
                 alpha_cutoff: 0.5,
                 alpha_mode: AlphaMode::Opaque,
@@ -370,6 +376,34 @@ impl Model {
                 }
             });
 
+            let emissive_texture = m.emissive_texture().map(|t| {
+                let img = &images[t.texture().source().index()];
+                let (data, format) = match img.format {
+                    gltf::image::Format::R8G8B8 => {
+                        let mut rgba =
+                            Vec::with_capacity(img.width as usize * img.height as usize * 4);
+                        for chunk in img.pixels.chunks_exact(3) {
+                            rgba.push(chunk[0]);
+                            rgba.push(chunk[1]);
+                            rgba.push(chunk[2]);
+                            rgba.push(255);
+                        }
+                        (rgba, wgpu::TextureFormat::Rgba8UnormSrgb)
+                    }
+                    gltf::image::Format::R8G8B8A8 => {
+                        (img.pixels.clone(), wgpu::TextureFormat::Rgba8UnormSrgb)
+                    }
+                    _ => (img.pixels.clone(), wgpu::TextureFormat::Rgba8UnormSrgb),
+                };
+                RawTextureData {
+                    name: format!("{}_emissive", m.name().unwrap_or("")),
+                    pixels: data,
+                    width: img.width,
+                    height: img.height,
+                    format,
+                }
+            });
+
             let alpha_mode = m.alpha_mode();
             let alpha_cutoff = m.alpha_cutoff().unwrap_or(0.5);
 
@@ -388,12 +422,15 @@ impl Model {
             raw_materials.push(RawMaterialData {
                 name: m.name().unwrap_or("").to_string(),
                 base_color: base_color_factor,
+                emissive: m.emissive_factor(),
+                emissive_strength: 1.0, // Default for glTF
                 metallic: pbr.metallic_factor(),
                 roughness: pbr.roughness_factor(),
                 color_texture,
                 normal_texture,
                 metallic_roughness_texture,
                 occlusion_texture,
+                emissive_texture,
                 transparent: is_transparent,
                 alpha_cutoff,
                 alpha_mode: alpha_mode_enum,
@@ -404,12 +441,15 @@ impl Model {
         raw_materials.push(RawMaterialData {
             name: "Default glTF Material".to_string(),
             base_color: [1.0, 1.0, 1.0, 1.0],
+            emissive: [0.0, 0.0, 0.0],
+            emissive_strength: 1.0,
             metallic: 0.0,
             roughness: 1.0,
             color_texture: None,
             normal_texture: None,
             metallic_roughness_texture: None,
             occlusion_texture: None,
+            emissive_texture: None,
             transparent: false,
             alpha_cutoff: 0.5,
             alpha_mode: AlphaMode::Opaque,
@@ -601,6 +641,14 @@ impl Model {
                     raw_tex,
                 )
             });
+            let emissive_texture = m.emissive_texture.map(|raw_tex| {
+                Texture::from_raw(
+                    &render_server.device,
+                    &render_server.queue,
+                    global_texture_cache,
+                    raw_tex,
+                )
+            });
 
             let alpha_mode = match m.alpha_mode {
                 AlphaMode::Opaque => crate::render::material::AlphaMode::Opaque,
@@ -611,12 +659,15 @@ impl Model {
             material_ids.push(global_material_cache.add(MaterialStandard {
                 name: m.name,
                 base_color: m.base_color,
+                emissive: m.emissive,
+                emissive_strength: m.emissive_strength,
                 metallic: m.metallic,
                 roughness: m.roughness,
                 color_texture,
                 normal_texture,
                 metallic_roughness_texture,
                 occlusion_texture,
+                emissive_texture,
                 transparent: m.transparent,
                 alpha_cutoff: m.alpha_cutoff,
                 alpha_mode,
