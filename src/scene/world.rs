@@ -1,12 +1,11 @@
 use crate::core::singleton::Singletons;
 use crate::math::transform::{Transform2d, Transform3d};
-use crate::render::draw_command::DrawCommands;
+use crate::render::render_world::Extracted;
 use crate::scene::components::*;
 use crate::scene::{Camera2dComponent, Camera3dComponent, PointLightComponent};
 use crate::window::InputServer;
-use glam::{Mat4, UVec2, Vec3};
+use glam::{UVec2, Vec3};
 use hecs::{Entity, World as EcsWorld};
-use crate::render::render_world::Extracted;
 
 pub struct World {
     pub ecs: EcsWorld,
@@ -19,75 +18,7 @@ impl World {
         }
     }
 
-    /// 创建一个基础的 3D 实体
-    pub fn spawn_3d(&mut self, name: &str, transform: Transform3d) -> Entity {
-        let entity = self.ecs.spawn((
-            Name(name.to_string()),
-            Transform(transform),
-            GlobalTransform(Mat4::IDENTITY),
-        ));
-
-        entity
-    }
-
-    /// 便捷创建点光源
-    pub fn spawn_point_light(
-        &mut self,
-        name: &str,
-        transform: Transform3d,
-        light: PointLightComponent,
-    ) -> Entity {
-        self.ecs
-            .spawn(crate::scene::d3::point_light_bundle(name, transform, light))
-    }
-
-    /// 便捷创建模型 (异步加载)
-    pub fn spawn_model(
-        &mut self,
-        name: &str,
-        transform: crate::math::transform::Transform3d,
-        path: std::path::PathBuf,
-    ) -> Entity {
-        use crate::scene::d3::model::AssetPending;
-        self.ecs.spawn((
-            Name(name.to_string()),
-            Transform(transform),
-            GlobalTransform::default(),
-            AssetPending(path),
-        ))
-    }
-
-    /// 便捷创建 3D 摄像机
-    pub fn spawn_camera_3d(&mut self, name: &str, transform: Transform3d) -> Entity {
-        use Camera3dComponent;
-        self.ecs.spawn((
-            Name(name.to_string()),
-            Transform(transform),
-            GlobalTransform::default(),
-            Camera3dComponent::new(),
-            ActiveCamera,
-        ))
-    }
-
-    /// 便捷创建 2D Sprite (异步加载)
-    pub fn spawn_sprite(
-        &mut self,
-        name: &str,
-        transform: Transform2d,
-        path: std::path::PathBuf,
-    ) -> Entity {
-        use crate::scene::d2::sprite2d::{SpriteAssetPending, SpriteComponent};
-
-        self.ecs.spawn((
-            Name(name.to_string()),
-            Transform2dComponent(transform),
-            GlobalTransform::default(),
-            SpriteComponent::empty(),
-            SpriteAssetPending(path),
-        ))
-    }
-
-    /// 核心更新逻辑：现在它是“系统”的集合
+    /// 核心更新逻辑：它是“系统”的集合
     pub fn update(
         &mut self,
         dt: f32,

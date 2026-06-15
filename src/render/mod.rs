@@ -13,7 +13,6 @@ pub use render_context::*;
 pub use texture::*;
 
 pub(crate) mod camera;
-pub mod draw_command;
 pub(crate) mod material;
 pub mod render_world;
 pub(crate) mod shader_maker;

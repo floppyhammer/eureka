@@ -1,11 +1,10 @@
 use eureka::core::App;
+use eureka::math::transform::{Transform2d, Transform3d};
 use eureka::scene::{
-    ActiveCamera, Camera3dComponent, DirectionalLightComponent, GlobalTransform,
-    LabelComponent, Name, PointLightComponent, SkyAssetPending,
-    Transform, Transform2dComponent, AssetPending, Camera3dController,
-    SettingsState
+    ActiveCamera, AssetPending, Camera3dComponent, Camera3dController, DirectionalLightComponent,
+    GlobalTransform, LabelComponent, Name, PointLightComponent, SettingsState, SkyAssetPending,
+    Transform, Transform2dComponent,
 };
-use eureka::math::transform::{Transform3d, Transform2d};
 use glam::{Quat, Vec2, Vec3};
 
 // 示例专用的逻辑组件
@@ -61,16 +60,22 @@ fn main() {
 
         // 4. 添加环境
         let skybox_path = singletons.asset_server.asset_dir.join("images/skybox.jpg");
-        world.ecs.spawn((
-            Name("Skybox".into()),
-            SkyAssetPending(skybox_path),
-        ));
+        world
+            .ecs
+            .spawn((Name("Skybox".into()), SkyAssetPending(skybox_path)));
 
         // 5. 灯光
-        world.spawn_point_light("PointLight",
-            Transform3d { position: Vec3::new(0.0, 5.0, 0.0), ..Transform3d::default() },
-            PointLightComponent { strength: 5.0, ..PointLightComponent::default() }
-        );
+        world.ecs.spawn((
+            "PointLight",
+            Transform3d {
+                position: Vec3::new(0.0, 5.0, 0.0),
+                ..Transform3d::default()
+            },
+            PointLightComponent {
+                strength: 5.0,
+                ..PointLightComponent::default()
+            },
+        ));
 
         world.ecs.spawn((
             Name("DirLight".into()),
@@ -79,7 +84,10 @@ fn main() {
                 ..Transform3d::default()
             }),
             GlobalTransform::default(),
-            DirectionalLightComponent { strength: 1.5, ..DirectionalLightComponent::default() },
+            DirectionalLightComponent {
+                strength: 1.5,
+                ..DirectionalLightComponent::default()
+            },
         ));
 
         // 6. 模型
@@ -88,10 +96,16 @@ fn main() {
         // 螃蟹 (漂浮)
         world.ecs.spawn((
             Name("Ferris".into()),
-            Transform(Transform3d { position: Vec3::new(0.0, 0.1, 0.0), ..Transform3d::default() }),
+            Transform(Transform3d {
+                position: Vec3::new(0.0, 0.1, 0.0),
+                ..Transform3d::default()
+            }),
             GlobalTransform::default(),
             AssetPending(asset_dir.join("models/ferris/ferris3d_v1.0.obj")),
-            FloatingLogic { speed: 1.0, timer: 0.0 },
+            FloatingLogic {
+                speed: 1.0,
+                timer: 0.0,
+            },
         ));
 
         // 旋转立方体
@@ -120,7 +134,12 @@ fn main() {
         ));
 
         // 地面
-        world.spawn_model("Ground", Transform3d::default(), asset_dir.join("models/ground.glb"));
+        world.ecs.spawn((
+            Name("Ground".to_string()),
+            Transform3d::default(),
+            GlobalTransform::default(),
+            AssetPending(asset_dir.join("models/ground.glb")),
+        ));
     });
 
     // 添加自定义更新逻辑：3D 旋转

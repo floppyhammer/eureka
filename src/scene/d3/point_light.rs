@@ -21,17 +21,3 @@ impl Default for PointLightComponent {
         }
     }
 }
-
-/// 辅助函数：定义一个点光源实体的组件包 (Bundle)
-pub fn point_light_bundle(
-    name: &str,
-    transform: Transform3d,
-    light: PointLightComponent,
-) -> (Name, Transform, GlobalTransform, PointLightComponent) {
-    (
-        Name(name.to_string()),
-        Transform(transform),
-        GlobalTransform(Default::default()),
-        light,
-    )
-}
