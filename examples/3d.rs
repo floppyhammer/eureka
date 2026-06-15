@@ -16,6 +16,10 @@ struct FloatingLogic {
     speed: f32,
     timer: f32,
 }
+struct SunLogic {
+    timer: f32,
+    speed: f32,
+}
 
 fn main() {
     let mut app = App::new();
@@ -70,13 +74,13 @@ fn main() {
         world.ecs.spawn((
             "PointLight",
             CTransform3d(Transform3d {
-                position: Vec3::new(2.0, 5.0, 2.0),
+                position: Vec3::new(0.0, 5.0, 0.0),
                 ..Transform3d::default()
             }),
             GlobalTransform::default(),
             PointLightComponent {
-                strength: 5.0,
-                // color: ColorU::new(255, 0, 0, 255),
+                strength: 1.0,
+                color: ColorU::new(255, 0, 0, 255),
                 ..PointLightComponent::default()
             },
         ));
@@ -91,6 +95,10 @@ fn main() {
             DirectionalLightComponent {
                 strength: 1.5,
                 ..DirectionalLightComponent::default()
+            },
+            SunLogic {
+                timer: 0.0,
+                speed: 1.0, // 调整这个值控制日夜交替速度
             },
         ));
 
@@ -167,6 +175,20 @@ fn main() {
         {
             logic.timer += dt * logic.speed;
             transform.0.position.y = 1.0 + logic.timer.sin() * 1.0;
+        }
+    });
+
+    // 添加自定义更新逻辑：太阳（方向光）旋转
+    app.add_update(|app, dt| {
+        let world = &mut app.world;
+        for (_id, (transform, light, logic)) in world
+            .ecs
+            .query_mut::<(&mut CTransform3d, &mut DirectionalLightComponent, &mut SunLogic)>()
+        {
+            logic.timer += dt * logic.speed;
+
+            // 让太阳绕 X 轴旋转（模拟东升西落）
+            transform.0.rotation = Quat::from_rotation_x(logic.timer);
         }
     });
 
