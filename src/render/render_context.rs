@@ -56,6 +56,34 @@ pub fn create_render_pipeline(
     transparency: bool,
     cull_mode: Option<wgpu::Face>,
 ) -> wgpu::RenderPipeline {
+    create_render_pipeline_with_entry(
+        device,
+        layout,
+        color_format,
+        depth_format,
+        vertex_layouts,
+        shader,
+        label,
+        transparency,
+        cull_mode,
+        "vs_main",
+        "fs_main",
+    )
+}
+
+pub fn create_render_pipeline_with_entry(
+    device: &wgpu::Device,
+    layout: &wgpu::PipelineLayout,
+    color_format: Option<wgpu::TextureFormat>,
+    depth_format: Option<wgpu::TextureFormat>,
+    vertex_layouts: &[wgpu::VertexBufferLayout],
+    shader: wgpu::ShaderModuleDescriptor,
+    label: &str,
+    transparency: bool,
+    cull_mode: Option<wgpu::Face>,
+    vs_entry: &str,
+    fs_entry: &str,
+) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(shader);
 
     // 1. 先准备好混合状态
@@ -91,7 +119,7 @@ pub fn create_render_pipeline(
     // 3. 将数组引用映射到 FragmentState
     let fragment = targets.as_ref().map(|targets| wgpu::FragmentState {
         module: &shader,
-        entry_point: Some("fs_main"),
+        entry_point: Some(fs_entry),
         compilation_options: Default::default(),
         targets,
     });
@@ -101,7 +129,7 @@ pub fn create_render_pipeline(
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: Some("vs_main"),
+            entry_point: Some(vs_entry),
             compilation_options: Default::default(),
             buffers: vertex_layouts,
         },

@@ -19,6 +19,8 @@ fn vs_main(
 var t_diffuse: texture_2d<f32>;
 @group(0) @binding(1)
 var s_diffuse: sampler;
+@group(0) @binding(2)
+var t_bloom: texture_2d<f32>;
 
 // ACES Tone Mapping
 fn aces_approx(v: vec3<f32>) -> vec3<f32> {
@@ -33,9 +35,15 @@ fn aces_approx(v: vec3<f32>) -> vec3<f32> {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let raw_sample = textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    let bloom_sample = textureSample(t_bloom, s_diffuse, in.tex_coords);
 
     // 防御 NaN: 强制非负
     var hdr_color = max(raw_sample.rgb, vec3<f32>(0.0));
+    let bloom_color = max(bloom_sample.rgb, vec3<f32>(0.0));
+
+    // Combine Bloom
+    let bloom_intensity = 0.04;
+    hdr_color += bloom_color * bloom_intensity;
 
     // Apply Tone Mapping
     var mapped = aces_approx(hdr_color);

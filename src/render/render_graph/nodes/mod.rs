@@ -1,3 +1,4 @@
+pub mod bloom;
 pub mod clear;
 pub mod culling;
 pub mod fxaa;
@@ -12,6 +13,7 @@ pub mod ssao;
 pub mod tonemapping;
 pub mod transparent_mesh;
 
+pub use bloom::*;
 pub use clear::*;
 pub use culling::*;
 pub use fxaa::*;

@@ -36,6 +36,16 @@ impl Node for ToneMappingNode {
                     1,
                 ),
             )
+            .input(
+                standard_resources::bloom_texture(),
+                ResourceSpec::texture(
+                    0,
+                    0,
+                    Some(wgpu::TextureFormat::Rgba16Float),
+                    wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    1,
+                ),
+            )
             .output(
                 standard_resources::hdr_resolved(), // Draw to SDR texture
                 ResourceSpec::texture(
@@ -72,6 +82,17 @@ impl Node for ToneMappingNode {
                             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                             count: None,
                         },
+                        // Bloom Texture
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
                     ],
                 });
 
@@ -106,6 +127,7 @@ impl Node for ToneMappingNode {
         }
 
         let input_texture = context.texture(&standard_resources::main_color());
+        let bloom_texture = context.texture(&standard_resources::bloom_texture());
         let output_texture = context.texture(&standard_resources::hdr_resolved());
 
         let sampler = context.get_sampler(SamplerKey {
@@ -122,7 +144,7 @@ impl Node for ToneMappingNode {
 
         let bind_group = context.create_bind_group(
             "tonemapping_bind_group_layout",
-            vec![input_texture.id],
+            vec![input_texture.id, bloom_texture.id],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("ToneMapping Bind Group"),
@@ -135,6 +157,10 @@ impl Node for ToneMappingNode {
                         wgpu::BindGroupEntry {
                             binding: 1,
                             resource: wgpu::BindingResource::Sampler(&sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::TextureView(&bloom_texture.view),
                         },
                     ],
                 })

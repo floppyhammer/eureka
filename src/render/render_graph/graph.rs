@@ -2,9 +2,10 @@ use crate::render::render_backend::{PreparedFrame, RenderBackend};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
 use crate::render::render_graph::{
-    standard_resources, ClearNode, CullingNode, FxaaNode, MeshNode, Node, PrepareInstancesNode,
-    PrepareMaterialsNode, PrepareViewNode, ResourceId, ResourceKey, ResourceSpec, ShadowNode,
-    SkyboxNode, SpriteNode, SsaoNode, ToneMappingNode, TransparentMeshNode, VirtualResource,
+    standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, MeshNode, Node,
+    PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceId, ResourceKey,
+    ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, ToneMappingNode,
+    TransparentMeshNode, VirtualResource,
 };
 use crate::render::RenderContext;
 use std::collections::{HashMap, VecDeque};
@@ -54,6 +55,7 @@ impl RenderGraph {
         self.add_node("skybox", SkyboxNode::default());
         self.add_node("mesh", MeshNode::default());
         self.add_node("transparent_mesh", TransparentMeshNode::default());
+        self.add_node("bloom", BloomNode::default());
         self.add_node("tonemapping", ToneMappingNode::default());
         self.add_node("fxaa", FxaaNode::default());
         self.add_node("sprite", SpriteNode::default());
@@ -71,7 +73,8 @@ impl RenderGraph {
         self.add_node_edge("clear", "skybox");
         self.add_node_edge("skybox", "mesh");
         self.add_node_edge("mesh", "transparent_mesh");
-        self.add_node_edge("transparent_mesh", "tonemapping");
+        self.add_node_edge("transparent_mesh", "bloom");
+        self.add_node_edge("bloom", "tonemapping");
         self.add_node_edge("tonemapping", "fxaa");
         self.add_node_edge("prepare_view", "sprite");
         self.add_node_edge("prepare_materials", "sprite");

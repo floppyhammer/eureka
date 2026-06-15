@@ -405,6 +405,10 @@ pub mod standard_resources {
         ResourceId::new("ssao_blur")
     }
 
+    pub fn bloom_texture() -> TextureId {
+        ResourceId::new("bloom_texture")
+    }
+
     // 阴影相关
     pub fn directional_shadow_map() -> TextureId {
         ResourceId::new("directional_shadow_map")
