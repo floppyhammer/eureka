@@ -66,20 +66,6 @@ pub struct Model {
 /// 标记一个实体正在等待模型资产加载
 pub struct AssetPending(pub PathBuf);
 
-pub struct SettingsState {
-    pub ssao: bool,
-    pub fxaa: bool,
-}
-
-impl Default for SettingsState {
-    fn default() -> Self {
-        Self {
-            ssao: true,
-            fxaa: true,
-        }
-    }
-}
-
 impl Model {
     /// Create a placeholder model that will be populated later.
     pub fn empty() -> Self {

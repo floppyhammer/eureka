@@ -2,10 +2,12 @@ use eureka::core::App;
 use eureka::math::transform::{Transform2d, Transform3d};
 use eureka::scene::{
     ActiveCamera, AssetPending, Camera3dComponent, Camera3dController, DirectionalLightComponent,
-    GlobalTransform, LabelComponent, Name, PointLightComponent, SettingsState, SkyAssetPending,
+    GlobalTransform, LabelComponent, Name, PointLightComponent, SkyAssetPending,
     Transform, Transform2dComponent,
 };
+use eureka::window::InputEvent;
 use glam::{Quat, Vec2, Vec3};
+use winit::keyboard::KeyCode;
 
 // 示例专用的逻辑组件
 struct RotatingLogic;
@@ -46,11 +48,10 @@ fn main() {
             ActiveCamera,
         ));
 
-        // 3. 添加设置状态实体 (取代 SettingsController)
+        // 3. 添加标签实体
         world.ecs.spawn((
             Name("Settings".into()),
-            SettingsState::default(),
-            LabelComponent::new(""),
+            LabelComponent::new("SSAO (1): ON | FXAA (2): ON"),
             Transform2dComponent(Transform2d {
                 position: Vec2::new(20.0, 20.0),
                 ..Transform2d::default()
@@ -163,6 +164,52 @@ fn main() {
         {
             logic.timer += dt * logic.speed;
             transform.0.position.y = 1.0 + logic.timer.sin() * 1.0;
+        }
+    });
+
+    // 添加自定义输入处理：设置控制
+    app.add_update(|app, _dt| {
+        let world = &mut app.world;
+        let input_server = &app.singletons.as_ref().unwrap().input_server;
+
+        for event in input_server.get_input_events() {
+            if let InputEvent::Key(e) = &event {
+                if e.pressed {
+                    match e.key_code {
+                        KeyCode::Digit1 => {
+                            // 切换 SSAO
+                            for (_id, camera) in world.ecs.query_mut::<&mut Camera3dComponent>() {
+                                camera.ssao_enabled = !camera.ssao_enabled;
+                            }
+                        }
+                        KeyCode::Digit2 => {
+                            // 切换 FXAA
+                            for (_id, camera) in world.ecs.query_mut::<&mut Camera3dComponent>() {
+                                camera.fxaa_enabled = !camera.fxaa_enabled;
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    // 更新标签显示
+                    let mut ssao_enabled = true;
+                    let mut fxaa_enabled = true;
+                    for (_id, camera) in world.ecs.query::<&Camera3dComponent>().iter() {
+                        ssao_enabled = camera.ssao_enabled;
+                        fxaa_enabled = camera.fxaa_enabled;
+                        break;
+                    }
+
+                    for (_id, label) in world.ecs.query_mut::<&mut LabelComponent>() {
+                        label.text = format!(
+                            "SSAO (1): {} | FXAA (2): {}",
+                            if ssao_enabled { "ON" } else { "OFF" },
+                            if fxaa_enabled { "ON" } else { "OFF" }
+                        );
+                        label.text_is_dirty = true;
+                    }
+                }
+            }
         }
     });
 

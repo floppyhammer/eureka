@@ -140,4 +140,9 @@ impl InputServer {
             self.input_events.push(input_event);
         }
     }
+
+    /// 获取输入事件的克隆（用于用户自定义输入处理）
+    pub fn get_input_events(&self) -> Vec<InputEvent> {
+        self.input_events.clone()
+    }
 }

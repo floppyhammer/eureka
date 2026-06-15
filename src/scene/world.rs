@@ -354,14 +354,16 @@ impl World {
     pub fn extract_render_objects(&self) -> Extracted {
         let mut extracted = Extracted::default();
 
-        // 提取全局设置 (FXAA/SSAO)
-        for (_id, settings) in self
+        // 提取渲染设置 (从摄像机组件获取)
+        for (_id, camera) in self
             .ecs
-            .query::<&crate::scene::d3::model::SettingsState>()
+            .query::<&crate::scene::d3::camera3d::Camera3dComponent>()
             .iter()
         {
-            extracted.fxaa_enabled = settings.fxaa;
-            extracted.ssao_enabled = settings.ssao;
+            extracted.fxaa_enabled = camera.fxaa_enabled;
+            extracted.ssao_enabled = camera.ssao_enabled;
+            // 只取第一个摄像机的设置
+            break;
         }
 
         // 1. 提取摄像机
@@ -552,64 +554,13 @@ impl World {
     }
 
     pub fn input(&mut self, input_server: &mut InputServer) {
-        // 1. 设置控制系统
+        // 摄像机控制器输入处理
         for event in input_server.input_events.clone() {
-            if let crate::window::InputEvent::Key(e) = &event {
-                if e.pressed {
-                    for (_id, (settings, label)) in self.ecs.query_mut::<(
-                        &mut crate::scene::d3::model::SettingsState,
-                        &mut crate::scene::d2::label::LabelComponent,
-                    )>() {
-                        match e.key_code {
-                            winit::keyboard::KeyCode::Digit1 => settings.ssao = !settings.ssao,
-                            winit::keyboard::KeyCode::Digit2 => settings.fxaa = !settings.fxaa,
-                            _ => {}
-                        }
-                        label.text = format!(
-                            "SSAO (1): {} | FXAA (2): {}",
-                            if settings.ssao { "ON" } else { "OFF" },
-                            if settings.fxaa { "ON" } else { "OFF" }
-                        );
-                        label.text_is_dirty = true;
-                    }
-                }
-            }
-
-            // 2. 专门处理摄像机控制器输入的系统
             for (_id, controller) in self
                 .ecs
                 .query_mut::<&mut crate::scene::d3::camera3d::Camera3dController>()
             {
-                match &event {
-                    crate::window::InputEvent::MouseButton(e) => {
-                        if e.button == winit::event::MouseButton::Right {
-                            controller.cursor_captured = e.pressed;
-                            input_server.set_cursor_capture(e.pressed);
-                        }
-                    }
-                    crate::window::InputEvent::MouseMotion(e) => {
-                        if controller.cursor_captured {
-                            controller.yaw -= e.delta.0 * controller.sensitivity;
-                            controller.pitch -= e.delta.1 * controller.sensitivity;
-                            controller.pitch = controller
-                                .pitch
-                                .clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
-                        }
-                    }
-                    crate::window::InputEvent::Key(e) => {
-                        let amount = if e.pressed { 1.0 } else { 0.0 };
-                        match e.key_code {
-                            winit::keyboard::KeyCode::KeyW => controller.amount_forward = amount,
-                            winit::keyboard::KeyCode::KeyS => controller.amount_backward = amount,
-                            winit::keyboard::KeyCode::KeyA => controller.amount_left = amount,
-                            winit::keyboard::KeyCode::KeyD => controller.amount_right = amount,
-                            winit::keyboard::KeyCode::KeyE => controller.amount_up = amount,
-                            winit::keyboard::KeyCode::KeyQ => controller.amount_down = amount,
-                            _ => {}
-                        }
-                    }
-                    _ => {}
-                }
+                controller.handle_input(&event, input_server);
             }
         }
     }

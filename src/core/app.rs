@@ -342,10 +342,15 @@ impl ApplicationHandler for App {
                         let singletons = self.singletons.as_mut().unwrap();
                         singletons.input_server.update(&window);
                         self.world.input(&mut singletons.input_server);
-                        singletons.input_server.input_events.clear();
                     }
 
+                    // 在清空事件之前执行更新，让用户回调能访问输入事件
                     self.update();
+
+                    {
+                        let singletons = self.singletons.as_mut().unwrap();
+                        singletons.input_server.input_events.clear();
+                    }
 
                     let render_result = self.render();
 

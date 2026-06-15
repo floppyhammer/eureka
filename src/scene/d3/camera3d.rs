@@ -1,7 +1,8 @@
-use crate::math::transform::Transform3d;
-use crate::render::camera::{CameraType, CameraUniform};
-use crate::scene::components::*;
-use glam::{Mat4, Quat, UVec2, Vec3};
+use crate::render::camera::CameraUniform;
+use crate::window::{InputEvent, InputServer};
+use glam::{Mat4, UVec2, Vec3};
+use winit::event::MouseButton;
+use winit::keyboard::KeyCode;
 
 const DEFAULT_FOV: f32 = 60.0_f32.to_radians();
 const DEFAULT_NEAR: f32 = 0.1;
@@ -12,6 +13,7 @@ pub struct Camera3dComponent {
     pub near: f32,
     pub far: f32,
     pub ssao_enabled: bool,
+    pub fxaa_enabled: bool,
     pub viewport_size: UVec2,
 }
 
@@ -22,6 +24,7 @@ impl Camera3dComponent {
             near: DEFAULT_NEAR,
             far: DEFAULT_FAR,
             ssao_enabled: true,
+            fxaa_enabled: true,
             viewport_size: UVec2::new(1280, 720),
         }
     }
@@ -57,7 +60,6 @@ impl Camera3dComponent {
     }
 }
 
-#[derive(Debug)]
 pub struct Camera3dController {
     pub amount_left: f32,
     pub amount_right: f32,
@@ -88,6 +90,38 @@ impl Camera3dController {
             speed,
             sensitivity,
             cursor_captured: false,
+        }
+    }
+
+    /// 处理输入事件，更新控制器状态
+    pub fn handle_input(&mut self, event: &InputEvent, input_server: &mut InputServer) {
+        match event {
+            InputEvent::MouseButton(e) => {
+                if e.button == MouseButton::Right {
+                    self.cursor_captured = e.pressed;
+                    input_server.set_cursor_capture(e.pressed);
+                }
+            }
+            InputEvent::MouseMotion(e) => {
+                if self.cursor_captured {
+                    self.yaw -= e.delta.0 * self.sensitivity;
+                    self.pitch -= e.delta.1 * self.sensitivity;
+                    self.pitch = self.pitch.clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
+                }
+            }
+            InputEvent::Key(e) => {
+                let amount = if e.pressed { 1.0 } else { 0.0 };
+                match e.key_code {
+                    KeyCode::KeyW => self.amount_forward = amount,
+                    KeyCode::KeyS => self.amount_backward = amount,
+                    KeyCode::KeyA => self.amount_left = amount,
+                    KeyCode::KeyD => self.amount_right = amount,
+                    KeyCode::KeyE => self.amount_up = amount,
+                    KeyCode::KeyQ => self.amount_down = amount,
+                    _ => {}
+                }
+            }
+            _ => {}
         }
     }
 }
