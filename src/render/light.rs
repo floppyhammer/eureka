@@ -6,11 +6,10 @@ pub(crate) struct PointLightUniform {
     pub(crate) position: [f32; 3],
     pub(crate) strength: f32,
     pub(crate) color: [f32; 3],
-    pub(crate) constant: f32,
-    pub(crate) linear: f32,
-    pub(crate) quadratic: f32,
+    pub(crate) radius: f32,
     pub(crate) shadow_near: f32,
     pub(crate) shadow_far: f32,
+    pub(crate) _pad: [f32; 2], // 填充以保持 16 字节对齐
 }
 
 #[repr(C)]

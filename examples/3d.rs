@@ -65,10 +65,10 @@ fn main() {
         ));
 
         // 4. 添加环境
-        let skybox_path = singletons.asset_server.asset_dir.join("images/skybox.jpg");
-        world
-            .ecs
-            .spawn((Name("Skybox".into()), SkyAssetPending(skybox_path)));
+        // let skybox_path = singletons.asset_server.asset_dir.join("images/skybox.jpg");
+        // world
+        //     .ecs
+        //     .spawn((Name("Skybox".into()), SkyAssetPending(skybox_path)));
 
         // 5. 灯光
         world.ecs.spawn((
@@ -79,8 +79,9 @@ fn main() {
             }),
             GlobalTransform::default(),
             PointLightComponent {
-                strength: 1.0,
-                color: ColorU::new(255, 0, 0, 255),
+                strength: 10.0,
+                radius: 10.0,
+                color: ColorU::new(255, 255, 0, 255),
                 ..PointLightComponent::default()
             },
         ));

@@ -387,11 +387,10 @@ impl World {
                     position: position.into(),
                     strength: light.strength,
                     color: light.color.to_vec3().into(),
-                    constant: 1.0,
-                    linear: 0.09,
-                    quadratic: 0.032,
+                    radius: light.radius,
                     shadow_near: light.shadow_near,
                     shadow_far: light.shadow_far,
+                    _pad: [0.0; 2],
                 });
         }
 

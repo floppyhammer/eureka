@@ -14,11 +14,10 @@ struct PointLight {
     position: vec3<f32>,
     strength: f32,
     color: vec3<f32>,
-    constant: f32,
-    linear0: f32,
-    quadratic: f32,
+    radius: f32,
     shadow_near: f32,
     shadow_far: f32,
+    _pad: vec2<f32>,
 }
 
 struct DirectionalLight {
@@ -323,7 +322,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         var kD = vec3<f32>(1.0) - kS;
         kD *= 1.0 - metallic;
 
-        let attenuation = 1.0 / (light.constant + light.linear0 * distance + light.quadratic * (distance * distance));
+        // 现代基于半径的衰减公式 (Physically Based)
+        let dist_ratio = distance / light.radius;
+        let attenuation = pow(saturate(1.0 - pow(dist_ratio, 4.0)), 2.0) / (distance * distance + 1.0);
         let radiance = light.color * light.strength * attenuation;
 
         point_lights_result += (kD * object_color.xyz / PI + specular) * radiance * n_dot_l * shadow_factor;
