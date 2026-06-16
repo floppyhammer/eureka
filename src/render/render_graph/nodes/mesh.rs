@@ -1,5 +1,5 @@
 use crate::render::camera::{CameraType, CameraUniform};
-use crate::render::light::{CascadeUniform, LightUniform, MAX_POINT_LIGHTS};
+use crate::render::light::{CascadeUniform, LightUniform, MAX_SHADOWED_POINT_LIGHTS};
 use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{standard_resources, SamplerKey};
 use crate::render::render_graph::{FrameContext, Node, TextureKey};
@@ -82,7 +82,7 @@ impl Node for MeshNode {
                     format: Some(Texture::DEPTH_FORMAT),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
-                    layers: (MAX_POINT_LIGHTS * 6) as u32,
+                    layers: (MAX_SHADOWED_POINT_LIGHTS * 6) as u32,
                 }),
             )
             .optional_input(
@@ -134,6 +134,25 @@ impl Node for MeshNode {
                     size_of::<LightUniform>() as u64,
                     wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 ),
+            )
+            .input(
+                standard_resources::point_light_storage_buffer(),
+                ResourceSpec::buffer(
+                    (size_of::<crate::render::light::PointLightUniform>() * 1024) as u64,
+                    wgpu::BufferUsages::STORAGE,
+                ),
+            )
+            .input(
+                standard_resources::light_grid_buffer(),
+                ResourceSpec::buffer(0, wgpu::BufferUsages::STORAGE),
+            )
+            .input(
+                standard_resources::light_index_list_buffer(),
+                ResourceSpec::buffer(0, wgpu::BufferUsages::STORAGE),
+            )
+            .input(
+                standard_resources::cluster_config_buffer(),
+                ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
             )
     }
 
@@ -231,6 +250,50 @@ impl Node for MeshNode {
                             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                             count: None,
                         },
+                        // All Point Lights
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 8,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        // Light Grid
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 9,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        // Light Index List
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 10,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        // Cluster Config
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 11,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                     label: Some("mesh light bind group layout"),
                 });
@@ -288,10 +351,6 @@ impl Node for MeshNode {
         let mut light_uniform = LightUniform::default();
         light_uniform.ambient_color = [1.0, 1.0, 1.0];
         light_uniform.ambient_strength = 0.01;
-        light_uniform.point_light_count = lights.point_lights.len() as u32;
-        for i in 0..lights.point_lights.len() {
-            light_uniform.point_lights[i] = lights.point_lights[i];
-        }
         if let Some(dl) = lights.directional_light {
             light_uniform.directional_light = dl;
         }
@@ -319,7 +378,7 @@ impl Node for MeshNode {
                 format: Some(Texture::DEPTH_FORMAT),
                 dimension: Some(wgpu::TextureViewDimension::CubeArray),
                 aspect: wgpu::TextureAspect::DepthOnly,
-                array_layer_count: Some(MAX_POINT_LIGHTS as u32 * 6),
+                array_layer_count: Some(MAX_SHADOWED_POINT_LIGHTS as u32 * 6),
                 ..Default::default()
             })
         };
@@ -394,6 +453,11 @@ impl Node for MeshNode {
                 (context.backend.dummy_cube_view.clone(), 0)
             };
 
+        let point_light_storage_buffer = context.buffer(&standard_resources::point_light_storage_buffer());
+        let light_grid_buffer = context.buffer(&standard_resources::light_grid_buffer());
+        let light_index_list_buffer = context.buffer(&standard_resources::light_index_list_buffer());
+        let cluster_config_buffer = context.buffer(&standard_resources::cluster_config_buffer());
+
         let light_bind_group = context.create_bind_group(
             "light_bind_group_layout",
             vec![
@@ -403,6 +467,10 @@ impl Node for MeshNode {
                 cascade_uniform_buffer.id,
                 point_shadow_map_view.1,
                 sky_view_id,
+                point_light_storage_buffer.id,
+                light_grid_buffer.id,
+                light_index_list_buffer.id,
+                cluster_config_buffer.id,
             ],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -439,6 +507,22 @@ impl Node for MeshNode {
                         wgpu::BindGroupEntry {
                             binding: 7,
                             resource: wgpu::BindingResource::Sampler(&skybox_sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 8,
+                            resource: point_light_storage_buffer.buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 9,
+                            resource: light_grid_buffer.buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 10,
+                            resource: light_index_list_buffer.buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 11,
+                            resource: cluster_config_buffer.buffer.as_entire_binding(),
                         },
                     ],
                     label: Some("light bind group (dynamic)"),

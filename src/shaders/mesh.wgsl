@@ -27,14 +27,24 @@ struct DirectionalLight {
     shadow_distance: f32,
 }
 
-const MAX_POINT_LIGHTS = 4;
-
 struct Lights {
     ambient_color: vec3<f32>,
     ambient_strength: f32,
     directional_light: DirectionalLight,
-    point_lights: array<PointLight, MAX_POINT_LIGHTS>,
-    point_light_count: u32,
+}
+
+struct Cluster {
+    offset: u32,
+    count: u32,
+}
+
+struct ClusterConfig {
+    screen_size: vec2<f32>,
+    _pad0: vec2<f32>,
+    grid_size: vec3<u32>,
+    _pad1: u32,
+    z_near: f32,
+    z_far: f32,
 }
 
 @group(1) @binding(0)
@@ -60,6 +70,15 @@ var t_ssao: texture_2d<f32>;
 var t_skybox: texture_cube<f32>;
 @group(1) @binding(7)
 var s_skybox: sampler;
+
+@group(1) @binding(8)
+var<storage, read> all_point_lights: array<PointLight>;
+@group(1) @binding(9)
+var<storage, read> light_grid: array<Cluster>;
+@group(1) @binding(10)
+var<storage, read> light_index_list: array<u32>;
+@group(1) @binding(11)
+var<uniform> cluster_config: ClusterConfig;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -288,16 +307,30 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var F0 = vec3<f32>(0.04);
     F0 = mix(F0, object_color.xyz, metallic);
 
+    // --- Clustered Point Lights ---
+    let view_pos_for_cluster = camera.view * in.world_position;
+    let cluster_depth = -view_pos_for_cluster.z;
+
+    // Calculate Cluster Index
+    let x_slice = min(u32(in.clip_position.x / (cluster_config.screen_size.x / f32(cluster_config.grid_size.x))), cluster_config.grid_size.x - 1u);
+    let y_slice = min(u32(in.clip_position.y / (cluster_config.screen_size.y / f32(cluster_config.grid_size.y))), cluster_config.grid_size.y - 1u);
+    let z_slice = min(u32(max(log2(max(cluster_depth, cluster_config.z_near) / cluster_config.z_near) * f32(cluster_config.grid_size.z) / log2(cluster_config.z_far / cluster_config.z_near), 0.0)), cluster_config.grid_size.z - 1u);
+
+    let cluster_idx = x_slice + y_slice * cluster_config.grid_size.x + z_slice * cluster_config.grid_size.x * cluster_config.grid_size.y;
+    let cluster = light_grid[cluster_idx];
+
     var point_lights_result = vec3<f32>(0.0, 0.0, 0.0);
-    for (var i: u32 = 0; i < lights.point_light_count; i++) {
-        let light = lights.point_lights[i];
+    for (var i: u32 = 0u; i < cluster.count; i++) {
+        let light_idx = light_index_list[cluster.offset + i];
+        let light = all_point_lights[light_idx];
+
         let light_vec = light.position - in.world_position.xyz;
         let distance = length(light_vec);
         let light_dir = normalize(light_vec);
         let half_dir = normalize(view_dir + light_dir);
         let n_dot_l = max(dot(world_normal, light_dir), 0.0);
 
-        // Adaptive Bias: Using dot product to increase bias at grazing angles
+        // Adaptive Bias
         let bias = max(0.005 * (1.0 - n_dot_l), 0.0005);
 
         let dist_vec = abs(light_vec);
@@ -307,7 +340,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let shadow_z = (far / (far - near)) - ((far * near) / (far - near)) / dist_along_axis;
         let final_shadow_z = clamp(shadow_z, 0.0, 1.0);
         let light_to_frag = (in.world_position.xyz - light.position) * vec3<f32>(1.0, 1.0, -1.0);
-        let shadow_factor = textureSampleCompare(t_point_shadow, s_shadow, light_to_frag, i32(i), final_shadow_z - bias);
+
+        // Only calculate shadows for the first N lights that have shadow slots
+        var shadow_factor = 1.0;
+        if (light_idx < 4u) {
+            shadow_factor = textureSampleCompare(t_point_shadow, s_shadow, light_to_frag, i32(light_idx), final_shadow_z - bias);
+        }
 
         // Cook-Torrance BRDF
         let NDF = distribution_ggx(world_normal, half_dir, roughness);

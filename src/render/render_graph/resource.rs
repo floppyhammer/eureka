@@ -417,4 +417,24 @@ pub mod standard_resources {
     pub fn point_shadow_map() -> TextureId {
         ResourceId::new("point_shadow_map")
     }
+
+    pub fn point_light_storage_buffer() -> BufferId {
+        ResourceId::new("point_light_storage_buffer")
+    }
+
+    pub fn light_grid_buffer() -> BufferId {
+        ResourceId::new("light_grid_buffer")
+    }
+
+    pub fn light_index_list_buffer() -> BufferId {
+        ResourceId::new("light_index_list_buffer")
+    }
+
+    pub fn light_index_count_buffer() -> BufferId {
+        ResourceId::new("light_index_count_buffer")
+    }
+
+    pub fn cluster_config_buffer() -> BufferId {
+        ResourceId::new("cluster_config_buffer")
+    }
 }

@@ -28,14 +28,14 @@ impl Node for ShadowNode {
         &self,
         _prepared: &PreparedFrame,
     ) -> crate::render::render_graph::resource::NodeResources {
-        use crate::render::light::{MAX_POINT_LIGHTS, NUM_CASCADES};
+        use crate::render::light::{MAX_SHADOWED_POINT_LIGHTS, NUM_CASCADES};
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
 
         let offset_unit = CameraUniform::get_uniform_offset_unit();
         let directional_shadow_camera_buffer_size = offset_unit * NUM_CASCADES as u32;
-        let point_shadow_camera_buffer_size = offset_unit * (MAX_POINT_LIGHTS * 6) as u32;
+        let point_shadow_camera_buffer_size = offset_unit * (MAX_SHADOWED_POINT_LIGHTS * 6) as u32;
 
         crate::render::render_graph::resource::NodeResources::new()
             .output(
@@ -57,7 +57,7 @@ impl Node for ShadowNode {
                     format: Some(Texture::DEPTH_FORMAT),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
-                    layers: (MAX_POINT_LIGHTS * 6) as u32,
+                    layers: (MAX_SHADOWED_POINT_LIGHTS * 6) as u32,
                 }),
             )
             .output(
@@ -84,7 +84,7 @@ impl Node for ShadowNode {
     }
 
     fn run(&mut self, context: &mut FrameContext) {
-        use crate::render::light::MAX_POINT_LIGHTS;
+        use crate::render::light::MAX_SHADOWED_POINT_LIGHTS;
         use crate::render::Texture;
 
         if context.prepared.instance_buffer_size == 0 {
@@ -323,11 +323,11 @@ impl Node for ShadowNode {
 
         // Upload data
         {
-            let mut point_camera_uniforms = vec![CameraUniform::default(); MAX_POINT_LIGHTS * 6];
+            let mut point_camera_uniforms = vec![CameraUniform::default(); MAX_SHADOWED_POINT_LIGHTS * 6];
             // render_resources.point_shadow_view_projs.clear();
 
             for (i, light) in context.extracted.lights.point_lights.iter().enumerate() {
-                if i >= MAX_POINT_LIGHTS {
+                if i >= MAX_SHADOWED_POINT_LIGHTS {
                     break;
                 }
                 let light_pos = Vec3::from_array(light.position);
@@ -351,10 +351,10 @@ impl Node for ShadowNode {
                 }
             }
 
-            let point_shadow_camera_buffer_size = offset_unit * (MAX_POINT_LIGHTS * 6) as u32;
+            let point_shadow_camera_buffer_size = offset_unit * (MAX_SHADOWED_POINT_LIGHTS * 6) as u32;
 
             let mut point_shadow_camera_data = vec![0u8; point_shadow_camera_buffer_size as usize];
-            for i in 0..(MAX_POINT_LIGHTS * 6) {
+            for i in 0..(MAX_SHADOWED_POINT_LIGHTS * 6) {
                 let bytes = bytemuck::bytes_of(&point_camera_uniforms[i]);
                 let offset = i * (offset_unit as usize);
                 point_shadow_camera_data[offset..offset + bytes.len()].copy_from_slice(bytes);
@@ -469,7 +469,7 @@ impl Node for ShadowNode {
         // Draw point shadow
         {
             for light_layer_idx in 0..(context.extracted.lights.point_lights.len() * 6) {
-                if light_layer_idx >= MAX_POINT_LIGHTS * 6 {
+                if light_layer_idx >= MAX_SHADOWED_POINT_LIGHTS * 6 {
                     break;
                 }
 
