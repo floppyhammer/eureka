@@ -80,18 +80,24 @@ impl ResourcePool {
             },
             mip_level_count: 1,
             sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
+            dimension: key.dimension,
             format: key.format.unwrap(),
             usage: key.usage,
             view_formats: &[],
         });
 
         let view = wgpu_texture.create_view(&wgpu::TextureViewDescriptor {
-            dimension: if key.layers > 1 {
-                Some(wgpu::TextureViewDimension::D2Array)
-            } else {
-                Some(wgpu::TextureViewDimension::D2)
-            },
+            dimension: Some(match key.dimension {
+                wgpu::TextureDimension::D1 => wgpu::TextureViewDimension::D1,
+                wgpu::TextureDimension::D2 => {
+                    if key.layers > 1 {
+                        wgpu::TextureViewDimension::D2Array
+                    } else {
+                        wgpu::TextureViewDimension::D2
+                    }
+                }
+                wgpu::TextureDimension::D3 => wgpu::TextureViewDimension::D3,
+            }),
             ..Default::default()
         });
 

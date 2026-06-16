@@ -13,6 +13,7 @@ pub mod sprite;
 pub mod ssao;
 pub mod tonemapping;
 pub mod transparent_mesh;
+pub mod volumetric;
 
 pub use bloom::*;
 pub use clear::*;
@@ -29,3 +30,4 @@ pub use sprite::*;
 pub use ssao::*;
 pub use tonemapping::*;
 pub use transparent_mesh::*;
+pub use volumetric::*;

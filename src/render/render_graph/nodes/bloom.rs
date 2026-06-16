@@ -35,6 +35,7 @@ impl Node for BloomNode {
             format: Some(wgpu::TextureFormat::Rgba16Float),
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
             layers: 1,
+            dimension: wgpu::TextureDimension::D2,
         });
 
         crate::render::render_graph::resource::NodeResources::new()
@@ -162,6 +163,7 @@ impl Node for BloomNode {
                 format: Some(wgpu::TextureFormat::Rgba16Float),
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
                 layers: 1,
+                dimension: wgpu::TextureDimension::D2,
             };
 
             let name = format!("bloom_down_{}", i);
@@ -230,6 +232,7 @@ impl Node for BloomNode {
                 format: Some(target_tex.texture.format()),
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
                 layers: 1,
+                dimension: wgpu::TextureDimension::D2,
             };
             let upsample_rt = context.get_texture(format!("bloom_up_{}", i), key);
 

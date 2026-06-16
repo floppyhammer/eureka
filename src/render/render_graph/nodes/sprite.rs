@@ -61,6 +61,7 @@ impl Node for SpriteNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .output(
@@ -71,6 +72,7 @@ impl Node for SpriteNode {
                     format: None,
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .internal(

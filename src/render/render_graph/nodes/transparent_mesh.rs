@@ -41,6 +41,7 @@ impl Node for TransparentMeshNode {
             format: Some(wgpu::TextureFormat::Rgba16Float), // 对齐 HDR
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
+            dimension: wgpu::TextureDimension::D2,
         });
         let depth_spec = ResourceSpec::Texture(TextureKey {
             width: 0,
@@ -48,6 +49,7 @@ impl Node for TransparentMeshNode {
             format: Some(Texture::DEPTH_FORMAT),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
+            dimension: wgpu::TextureDimension::D2,
         });
 
         crate::render::render_graph::resource::NodeResources::new()
@@ -63,6 +65,7 @@ impl Node for TransparentMeshNode {
                     format: Some(wgpu::TextureFormat::R8Unorm),
                     usage: wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .output(standard_resources::main_color(), color_spec)

@@ -56,7 +56,7 @@ fn main() {
         // 3. 添加标签实体
         world.ecs.spawn((
             Name("Settings".into()),
-            LabelComponent::new("SSAO (1): ON | FXAA (2): ON"),
+            LabelComponent::new("SSAO (1): ON | FXAA (2): ON | Volumetric (3): ON"),
             CTransform2d(Transform2d {
                 position: Vec2::new(20.0, 20.0),
                 ..Transform2d::default()
@@ -65,31 +65,31 @@ fn main() {
         ));
 
         // 4. 添加环境
-        // let skybox_path = singletons.asset_server.asset_dir.join("images/skybox.jpg");
-        // world
-        //     .ecs
-        //     .spawn((Name("Skybox".into()), SkyAssetPending(skybox_path)));
+        let skybox_path = singletons.asset_server.asset_dir.join("images/skybox.jpg");
+        world
+            .ecs
+            .spawn((Name("Skybox".into()), SkyAssetPending(skybox_path)));
 
         // 5. 灯光
-        world.ecs.spawn((
-            "PointLight",
-            CTransform3d(Transform3d {
-                position: Vec3::new(0.0, 5.0, 0.0),
-                ..Transform3d::default()
-            }),
-            GlobalTransform::default(),
-            PointLightComponent {
-                strength: 10.0,
-                radius: 10.0,
-                color: ColorU::new(255, 255, 0, 255),
-                ..PointLightComponent::default()
-            },
-        ));
+        // world.ecs.spawn((
+        //     "PointLight",
+        //     CTransform3d(Transform3d {
+        //         position: Vec3::new(0.0, 5.0, 0.0),
+        //         ..Transform3d::default()
+        //     }),
+        //     GlobalTransform::default(),
+        //     PointLightComponent {
+        //         strength: 10.0,
+        //         radius: 10.0,
+        //         color: ColorU::new(255, 255, 255, 255),
+        //         ..PointLightComponent::default()
+        //     },
+        // ));
 
         world.ecs.spawn((
             Name("DirLight".into()),
             CTransform3d(Transform3d {
-                rotation: Quat::from_rotation_x(-135.0f32.to_radians()),
+                rotation: Quat::from_rotation_x(-90.0f32.to_radians()),
                 ..Transform3d::default()
             }),
             GlobalTransform::default(),
@@ -151,7 +151,7 @@ fn main() {
             Name("Ground".to_string()),
             Transform3d::default(),
             GlobalTransform::default(),
-            AssetPending(asset_dir.join("models/ground.glb")), // "models/Sponza/Sponza.gltf"
+            AssetPending(asset_dir.join("models/Sponza/Sponza.gltf")), // "models/Sponza/Sponza.gltf"
         ));
     });
 
@@ -180,18 +180,18 @@ fn main() {
     });
 
     // 添加自定义更新逻辑：太阳（方向光）旋转
-    app.add_update(|app, dt| {
-        let world = &mut app.world;
-        for (_id, (transform, light, logic)) in world
-            .ecs
-            .query_mut::<(&mut CTransform3d, &mut DirectionalLightComponent, &mut SunLogic)>()
-        {
-            logic.timer += dt * logic.speed;
-
-            // 让太阳绕 X 轴旋转（模拟东升西落）
-            transform.0.rotation = Quat::from_rotation_x(logic.timer);
-        }
-    });
+    // app.add_update(|app, dt| {
+    //     let world = &mut app.world;
+    //     for (_id, (transform, light, logic)) in world
+    //         .ecs
+    //         .query_mut::<(&mut CTransform3d, &mut DirectionalLightComponent, &mut SunLogic)>()
+    //     {
+    //         logic.timer += dt * logic.speed;
+    //
+    //         // 让太阳绕 X 轴旋转（模拟东升西落）
+    //         transform.0.rotation = Quat::from_rotation_x(logic.timer);
+    //     }
+    // });
 
     // 添加自定义输入处理：设置控制
     app.add_update(|app, _dt| {
@@ -214,23 +214,32 @@ fn main() {
                                 camera.fxaa_enabled = !camera.fxaa_enabled;
                             }
                         }
+                        KeyCode::Digit3 => {
+                            // 切换 Volumetric
+                            for (_id, camera) in world.ecs.query_mut::<&mut Camera3dComponent>() {
+                                camera.volumetric_enabled = !camera.volumetric_enabled;
+                            }
+                        }
                         _ => {}
                     }
 
                     // 更新标签显示
                     let mut ssao_enabled = true;
                     let mut fxaa_enabled = true;
+                    let mut volumetric_enabled = true;
                     for (_id, camera) in world.ecs.query::<&Camera3dComponent>().iter() {
                         ssao_enabled = camera.ssao_enabled;
                         fxaa_enabled = camera.fxaa_enabled;
+                        volumetric_enabled = camera.volumetric_enabled;
                         break;
                     }
 
                     for (_id, label) in world.ecs.query_mut::<&mut LabelComponent>() {
                         label.text = format!(
-                            "SSAO (1): {} | FXAA (2): {}",
+                            "SSAO (1): {} | FXAA (2): {} | Volumetric (3): {}",
                             if ssao_enabled { "ON" } else { "OFF" },
-                            if fxaa_enabled { "ON" } else { "OFF" }
+                            if fxaa_enabled { "ON" } else { "OFF" },
+                            if volumetric_enabled { "ON" } else { "OFF" }
                         );
                         label.text_is_dirty = true;
                     }

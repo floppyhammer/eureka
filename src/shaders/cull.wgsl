@@ -4,7 +4,9 @@ struct Camera {
     proj: mat4x4<f32>,
     view_proj: mat4x4<f32>,
     inv_proj: mat4x4<f32>,
+    inv_view: mat4x4<f32>,
     ssao_enabled: u32,
+    volumetric_enabled: u32,
 }
 
 struct CullParams {

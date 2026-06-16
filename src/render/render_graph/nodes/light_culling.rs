@@ -73,6 +73,13 @@ impl Node for LightCullingNode {
                     wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 ),
             )
+            .output(
+                standard_resources::light_uniform_buffer(),
+                ResourceSpec::buffer(
+                    size_of::<crate::render::light::LightUniform>() as u64,
+                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                ),
+            )
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -172,13 +179,33 @@ impl Node for LightCullingNode {
         }
 
         // 1. Update Buffers
-        let lights = &context.extracted.lights.point_lights;
+        let lights_extracted = &context.extracted.lights;
+
+        let light_uniform_buffer = context.buffer(&standard_resources::light_uniform_buffer());
+        let mut light_uniform = crate::render::light::LightUniform::default();
+        light_uniform.ambient_color = [1.0, 1.0, 1.0];
+        light_uniform.ambient_strength = 0.01;
+
+        // 体积雾默认参数 (增强版用于测试)
+        light_uniform.fog_color = [0.5, 0.6, 0.7];
+        light_uniform.fog_density = 1.0;
+        light_uniform.fog_height_falloff = 0.2;
+        light_uniform.fog_base_height = -1.0;
+        light_uniform.fog_scattering = 0.8;
+        light_uniform.fog_absorption = 0.01;
+
+        if let Some(dl) = lights_extracted.directional_light {
+            light_uniform.directional_light = dl;
+        }
+        queue.write_buffer(&light_uniform_buffer.buffer, 0, bytemuck::cast_slice(&[light_uniform]));
+
+        let point_lights = &lights_extracted.point_lights;
         let light_storage_buffer =
             context.buffer(&standard_resources::point_light_storage_buffer());
         queue.write_buffer(
             &light_storage_buffer.buffer,
             0,
-            bytemuck::cast_slice(lights),
+            bytemuck::cast_slice(point_lights),
         );
 
         let config_buffer = context.buffer(&standard_resources::cluster_config_buffer());
@@ -189,7 +216,7 @@ impl Node for LightCullingNode {
             ],
             _pad0: [0.0; 2],
             grid_size: CLUSTER_GRID_SIZE,
-            num_lights: lights.len() as u32,
+            num_lights: point_lights.len() as u32,
             z_near: 0.1,
             z_far: 100.0,
             _pad1: [0.0; 2],

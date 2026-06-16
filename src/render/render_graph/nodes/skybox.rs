@@ -34,6 +34,7 @@ impl Node for SkyboxNode {
             format: Some(wgpu::TextureFormat::Rgba16Float),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
+            dimension: wgpu::TextureDimension::D2,
         });
         let depth_spec = ResourceSpec::Texture(TextureKey {
             width: 0,
@@ -41,6 +42,7 @@ impl Node for SkyboxNode {
             format: Some(Texture::DEPTH_FORMAT),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
+            dimension: wgpu::TextureDimension::D2,
         });
 
         let buffer_size = CameraUniform::get_uniform_offset_unit()

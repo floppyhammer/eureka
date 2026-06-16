@@ -83,6 +83,7 @@ impl Node for MeshNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: (MAX_SHADOWED_POINT_LIGHTS * 6) as u32,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .optional_input(
@@ -94,6 +95,7 @@ impl Node for MeshNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: crate::render::light::NUM_CASCADES as u32,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .optional_input(
@@ -104,6 +106,7 @@ impl Node for MeshNode {
                     format: Some(wgpu::TextureFormat::R8Unorm),
                     usage: wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .output(
@@ -115,6 +118,7 @@ impl Node for MeshNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .output(
@@ -126,9 +130,10 @@ impl Node for MeshNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
-            .internal(
+            .input(
                 standard_resources::light_uniform_buffer(),
                 ResourceSpec::buffer(
                     size_of::<LightUniform>() as u64,
@@ -153,6 +158,17 @@ impl Node for MeshNode {
             .input(
                 standard_resources::cluster_config_buffer(),
                 ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
+            )
+            .input(
+                standard_resources::volumetric_lighting_texture(),
+                ResourceSpec::Texture(TextureKey {
+                    width: crate::render::light::CLUSTER_GRID_SIZE[0],
+                    height: crate::render::light::CLUSTER_GRID_SIZE[1],
+                    layers: crate::render::light::CLUSTER_GRID_SIZE[2],
+                    format: Some(wgpu::TextureFormat::Rgba16Float),
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                    dimension: wgpu::TextureDimension::D3,
+                }),
             )
     }
 
@@ -294,6 +310,17 @@ impl Node for MeshNode {
                             },
                             count: None,
                         },
+                        // Volumetric Texture
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 12,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::D3,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
+                        },
                     ],
                     label: Some("mesh light bind group layout"),
                 });
@@ -343,23 +370,8 @@ impl Node for MeshNode {
             ));
         }
 
-        // Upload light uniforms ----------------------
-        let lights = extracted.lights.clone();
-
+        // --- 全局灯光 Uniform 的更新已移动到 LightCullingNode ---
         let light_uniform_buffer = context.buffer(&standard_resources::light_uniform_buffer());
-
-        let mut light_uniform = LightUniform::default();
-        light_uniform.ambient_color = [1.0, 1.0, 1.0];
-        light_uniform.ambient_strength = 0.01;
-        if let Some(dl) = lights.directional_light {
-            light_uniform.directional_light = dl;
-        }
-        context.render_context.queue.write_buffer(
-            &light_uniform_buffer.buffer,
-            0,
-            bytemuck::cast_slice(&[light_uniform]),
-        );
-        // ------------------------------------------------
 
         if context.prepared.draw_counts.is_empty() {
             return;
@@ -457,6 +469,12 @@ impl Node for MeshNode {
         let light_grid_buffer = context.buffer(&standard_resources::light_grid_buffer());
         let light_index_list_buffer = context.buffer(&standard_resources::light_index_list_buffer());
         let cluster_config_buffer = context.buffer(&standard_resources::cluster_config_buffer());
+        let volumetric_tex = context.texture(&standard_resources::volumetric_lighting_texture());
+
+        let volumetric_view = volumetric_tex.get_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D3),
+            ..Default::default()
+        });
 
         let light_bind_group = context.create_bind_group(
             "light_bind_group_layout",
@@ -471,6 +489,7 @@ impl Node for MeshNode {
                 light_grid_buffer.id,
                 light_index_list_buffer.id,
                 cluster_config_buffer.id,
+                volumetric_view.1,
             ],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -523,6 +542,10 @@ impl Node for MeshNode {
                         wgpu::BindGroupEntry {
                             binding: 11,
                             resource: cluster_config_buffer.buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 12,
+                            resource: wgpu::BindingResource::TextureView(&volumetric_view.0),
                         },
                     ],
                     label: Some("light bind group (dynamic)"),

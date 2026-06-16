@@ -72,6 +72,7 @@ impl Node for SsaoNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .internal(
@@ -83,6 +84,7 @@ impl Node for SsaoNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .internal(
@@ -94,6 +96,7 @@ impl Node for SsaoNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .output(
@@ -105,6 +108,7 @@ impl Node for SsaoNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
     }
@@ -360,6 +364,7 @@ impl Node for SsaoNode {
                 format: Some(wgpu::TextureFormat::Rgba32Float),
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 layers: 1,
+                dimension: wgpu::TextureDimension::D2,
             },
         );
 

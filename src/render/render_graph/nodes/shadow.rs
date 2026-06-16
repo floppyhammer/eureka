@@ -47,6 +47,7 @@ impl Node for ShadowNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: NUM_CASCADES as u32,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .output(
@@ -58,6 +59,7 @@ impl Node for ShadowNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: (MAX_SHADOWED_POINT_LIGHTS * 6) as u32,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .output(
@@ -264,8 +266,10 @@ impl Node for ShadowNode {
                     proj: light_proj.to_cols_array_2d(),
                     view_proj: view_proj.to_cols_array_2d(),
                     inv_proj: Mat4::IDENTITY.to_cols_array_2d(),
+                    inv_view: Mat4::IDENTITY.to_cols_array_2d(),
                     ssao_enabled: 0,
-                    _pad: [0; 3],
+                    volumetric_enabled: 0,
+                    _pad: [0; 2],
                 });
 
                 cascade_uniform.view_proj[i] = view_proj.to_cols_array_2d();
@@ -344,8 +348,10 @@ impl Node for ShadowNode {
                         proj: point_light_proj.to_cols_array_2d(),
                         view_proj: view_proj.to_cols_array_2d(),
                         inv_proj: Mat4::IDENTITY.to_cols_array_2d(),
+                        inv_view: Mat4::IDENTITY.to_cols_array_2d(),
                         ssao_enabled: 0,
-                        _pad: [0; 3],
+                        volumetric_enabled: 0,
+                        _pad: [0; 2],
                     };
                     // render_resources.point_shadow_view_projs.push(view_proj);
                 }

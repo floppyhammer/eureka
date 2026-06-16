@@ -68,6 +68,13 @@ pub(crate) struct LightUniform {
     pub(crate) ambient_color: [f32; 3],
     pub(crate) ambient_strength: f32,
     pub(crate) directional_light: DirectionalLightUniform,
+    // 体积雾参数
+    pub(crate) fog_color: [f32; 3],
+    pub(crate) fog_density: f32,
+    pub(crate) fog_height_falloff: f32,
+    pub(crate) fog_base_height: f32,
+    pub(crate) fog_scattering: f32,
+    pub(crate) fog_absorption: f32,
 }
 
 #[repr(C)]

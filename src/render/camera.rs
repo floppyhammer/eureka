@@ -38,15 +38,15 @@ impl ExtractedCameras {
 // This is so we can store this in a buffer.
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
-    // We're using Vector4 because of the uniforms 16 byte spacing requirement.
     pub(crate) view_position: [f32; 4],
-    /// Multiplication of the view and projection matrices.
     pub(crate) view: [[f32; 4]; 4],
     pub(crate) proj: [[f32; 4]; 4],
     pub(crate) view_proj: [[f32; 4]; 4],
     pub(crate) inv_proj: [[f32; 4]; 4],
+    pub(crate) inv_view: [[f32; 4]; 4], // 新增
     pub(crate) ssao_enabled: u32,
-    pub(crate) _pad: [u32; 3],
+    pub(crate) volumetric_enabled: u32,
+    pub(crate) _pad: [u32; 2],
 }
 
 impl Default for CameraUniform {
@@ -57,8 +57,10 @@ impl Default for CameraUniform {
             proj: Mat4::IDENTITY.to_cols_array_2d(),
             view_proj: Mat4::IDENTITY.to_cols_array_2d(),
             inv_proj: Mat4::IDENTITY.to_cols_array_2d(),
+            inv_view: Mat4::IDENTITY.to_cols_array_2d(), // 新增
             ssao_enabled: 0,
-            _pad: [0; 3],
+            volumetric_enabled: 0,
+            _pad: [0; 2],
         }
     }
 }

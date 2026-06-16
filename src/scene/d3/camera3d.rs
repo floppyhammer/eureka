@@ -14,6 +14,7 @@ pub struct Camera3dComponent {
     pub far: f32,
     pub ssao_enabled: bool,
     pub fxaa_enabled: bool,
+    pub volumetric_enabled: bool,
     pub viewport_size: UVec2,
 }
 
@@ -25,6 +26,7 @@ impl Camera3dComponent {
             far: DEFAULT_FAR,
             ssao_enabled: true,
             fxaa_enabled: true,
+            volumetric_enabled: true,
             viewport_size: UVec2::new(1280, 720),
         }
     }
@@ -50,7 +52,9 @@ impl Camera3dComponent {
         uniform.proj = proj_mat.to_cols_array_2d();
         uniform.view_proj = (proj_mat * view_mat).to_cols_array_2d();
         uniform.inv_proj = proj_mat.inverse().to_cols_array_2d();
+        uniform.inv_view = view_mat.inverse().to_cols_array_2d();
         uniform.ssao_enabled = if self.ssao_enabled { 1 } else { 0 };
+        uniform.volumetric_enabled = if self.volumetric_enabled { 1 } else { 0 };
 
         uniform
     }

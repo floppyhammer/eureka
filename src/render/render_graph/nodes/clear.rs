@@ -27,6 +27,7 @@ impl Node for ClearNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
             .output(
@@ -38,6 +39,7 @@ impl Node for ClearNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    dimension: wgpu::TextureDimension::D2,
                 }),
             )
     }

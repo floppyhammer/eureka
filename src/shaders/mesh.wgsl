@@ -4,7 +4,9 @@ struct Camera {
     proj: mat4x4<f32>,
     view_proj: mat4x4<f32>,
     inv_proj: mat4x4<f32>,
+    inv_view: mat4x4<f32>,
     ssao_enabled: u32,
+    volumetric_enabled: u32,
 }
 
 @group(0) @binding(0)
@@ -31,6 +33,12 @@ struct Lights {
     ambient_color: vec3<f32>,
     ambient_strength: f32,
     directional_light: DirectionalLight,
+    fog_color: vec3<f32>,
+    fog_density: f32,
+    fog_height_falloff: f32,
+    fog_base_height: f32,
+    fog_scattering: f32,
+    fog_absorption: f32,
 }
 
 struct Cluster {
@@ -79,6 +87,9 @@ var<storage, read> light_grid: array<Cluster>;
 var<storage, read> light_index_list: array<u32>;
 @group(1) @binding(11)
 var<uniform> cluster_config: ClusterConfig;
+
+@group(1) @binding(12)
+var t_volumetric: texture_3d<f32>;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -229,6 +240,12 @@ fn fresnel_schlick(cos_theta: f32, F0: vec3<f32>) -> vec3<f32> {
 // Fresnel Schlick with roughness (Lagarde's modification for indirect lighting)
 fn fresnel_schlick_roughness(cos_theta: f32, F0: vec3<f32>, roughness: f32) -> vec3<f32> {
     return F0 + (max(vec3<f32>(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
+}
+
+fn hash_2d(p: vec2<f32>) -> f32 {
+    let p3 = fract(vec3<f32>(p.xyx) * 0.1031);
+    let p3_2 = p3 + dot(p3, p3.yzx + 33.33);
+    return fract((p3_2.x + p3_2.y) * p3_2.z);
 }
 
 @fragment
@@ -478,5 +495,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let result = indirect_diffuse + indirect_specular + point_lights_result + directional_light_result + emissive;
 
-    return vec4<f32>(result, object_color.a);
+    // --- Volumetric Lighting Application ---
+    let volumetric_uvw = vec3<f32>(
+        in.clip_position.x / cluster_config.screen_size.x,
+        in.clip_position.y / cluster_config.screen_size.y,
+        log2(max(cluster_depth, cluster_config.z_near) / cluster_config.z_near) / log2(cluster_config.z_far / cluster_config.z_near)
+    );
+
+    var final_color = result;
+    if (camera.volumetric_enabled == 1u) {
+        // 使用抖动采样来平滑低分辨率网格的马赛克感
+        let noise = hash_2d(in.clip_position.xy);
+        let dither_offset = (noise - 0.5) * (1.0 / vec2<f32>(240.0, 135.0));
+        let volumetric_data = textureSampleLevel(t_volumetric, s_skybox, volumetric_uvw + vec3<f32>(dither_offset, 0.0), 0.0);
+
+        final_color = result * volumetric_data.a + volumetric_data.rgb;
+    }
+
+    return vec4<f32>(final_color, object_color.a);
 }

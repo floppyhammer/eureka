@@ -2,6 +2,7 @@ use crate::render::Texture;
 use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
+use wgpu::TextureDimension;
 
 /// 资源类型标签
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -77,16 +78,18 @@ pub struct TextureKey {
     pub format: Option<wgpu::TextureFormat>,
     pub usage: wgpu::TextureUsages,
     pub layers: u32,
+    pub dimension: wgpu::TextureDimension, // 新增
 }
 
-impl Default for TextureKey {
-    fn default() -> Self {
+impl TextureKey {
+    pub fn d2(width: u32, height: u32, format: wgpu::TextureFormat, usage: wgpu::TextureUsages) -> Self {
         Self {
-            width: 0,
-            height: 0,
-            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
-            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            width,
+            height,
+            format: Some(format),
+            usage,
             layers: 1,
+            dimension: wgpu::TextureDimension::D2,
         }
     }
 }
@@ -221,6 +224,7 @@ impl ResourceSpec {
             format,
             usage,
             layers,
+            dimension: TextureDimension::D2,
         })
     }
 
@@ -236,6 +240,10 @@ impl ResourceSpec {
                 a.width = a.width.max(b.width);
                 a.height = a.height.max(b.height);
                 a.layers = a.layers.max(b.layers);
+                // 维度通常是固定的，但以较大的为准
+                if b.dimension == wgpu::TextureDimension::D3 {
+                    a.dimension = wgpu::TextureDimension::D3;
+                }
             }
             (ResourceSpec::Buffer(a), ResourceSpec::Buffer(b)) => {
                 a.usage |= b.usage;
@@ -436,5 +444,9 @@ pub mod standard_resources {
 
     pub fn cluster_config_buffer() -> BufferId {
         ResourceId::new("cluster_config_buffer")
+    }
+
+    pub fn volumetric_lighting_texture() -> TextureId {
+        ResourceId::new("volumetric_lighting_texture")
     }
 }

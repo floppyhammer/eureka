@@ -35,6 +35,8 @@ impl Camera2dComponent {
         uniform.view = view_mat.to_cols_array_2d();
         uniform.proj = proj_mat.to_cols_array_2d();
         uniform.view_proj = (proj_mat * view_mat).to_cols_array_2d();
+        uniform.inv_proj = proj_mat.inverse().to_cols_array_2d();
+        uniform.inv_view = view_mat.inverse().to_cols_array_2d();
 
         uniform
     }
