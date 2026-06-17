@@ -25,7 +25,7 @@ pub struct PreparedFrame {
     pub(crate) transparent_meshes: Vec<ExtractedMesh>,
     pub(crate) bvh: Bvh,
     // ---------------------------
-    // Mesh instances -------------------
+    // Opaque Mesh instances (GPU Culling Path) -------------------
     pub(crate) all_instances: Vec<InstanceRaw>,
     pub(crate) mesh_id_to_index: HashMap<MeshId, u32>,
     pub(crate) draw_counts: Vec<u32>,
@@ -35,6 +35,15 @@ pub struct PreparedFrame {
     pub(crate) instance_buffer_size: usize,
     pub(crate) indirect_buffer_size: usize,
     // ---------------------------
+    // Transparent Mesh instances (CPU Sorted Path) --------------
+    pub(crate) sorted_transparent_instances: Vec<InstanceRaw>,
+    pub(crate) transparent_draw_batches: Vec<TransparentBatch>,
+    // ---------------------------
+}
+
+pub struct TransparentBatch {
+    pub mesh_id: MeshId,
+    pub instance_range: std::ops::Range<u32>,
 }
 
 pub enum RenderCommand {
@@ -378,13 +387,7 @@ impl RenderBackend {
             Bvh::default()
         };
 
-        // Prepare 3D meshes & lights (combine opaque and transparent for instance preparation)
-        let all_meshes: Vec<_> = opaque_meshes
-            .iter()
-            .chain(transparent_meshes.iter())
-            .cloned()
-            .collect();
-
+        // 1. Prepare Opaque Instances (GPU Culling Path)
         let (
             all_instances,
             mesh_id_to_index,
@@ -394,8 +397,8 @@ impl RenderBackend {
             indirect_commands,
             instance_buffer_size,
             indirect_buffer_size,
-        ) = if !all_meshes.is_empty() {
-            self.prepare_instances(&all_meshes, &mesh_cache, &material_index_map)
+        ) = if !opaque_meshes.is_empty() {
+            self.prepare_instances(&opaque_meshes, &mesh_cache, &material_index_map)
         } else {
             (
                 vec![],
@@ -408,11 +411,88 @@ impl RenderBackend {
                 0,
             )
         };
-        // Drop mesh_cache here
+
+        // 2. Prepare Transparent Instances (CPU Sorted Path + Simple Frustum Culling)
+        let mut sorted_transparent_instances = Vec::new();
+        let mut transparent_draw_batches: Vec<TransparentBatch> = Vec::new();
+
+        if !transparent_meshes.is_empty() {
+            // A. 获取主相机视角和视锥体
+            let (view_pos, frustum) = extracted
+                .cameras
+                .uniforms
+                .iter()
+                .enumerate()
+                .find(|(i, _)| extracted.cameras.types[*i] == crate::render::camera::CameraType::D3)
+                .map(|(_, u)| {
+                    let pos = glam::Vec3::from_slice(&u.view_position[0..3]);
+                    let vp = glam::Mat4::from_cols_array_2d(&u.view_proj);
+                    (pos, crate::math::frustum::Frustum::from_view_proj(vp))
+                })
+                .unwrap_or((
+                    glam::Vec3::ZERO,
+                    crate::math::frustum::Frustum::from_view_proj(glam::Mat4::IDENTITY),
+                ));
+
+            // B. 直接线性过滤可见物体 (不需要 BVH)
+            let mut visible_transparent: Vec<_> = transparent_meshes
+                .iter()
+                .filter(|mesh| {
+                    if let Some(m) = mesh_cache.get(mesh.mesh_id) {
+                        frustum.intersects_aabb(&m.aabb.transform(&mesh.transform))
+                    } else {
+                        false
+                    }
+                })
+                .cloned()
+                .collect();
+
+            // C. 按从远到近排序
+            visible_transparent.sort_by(|a, b| {
+                let dist_a = a.transform.position.distance_squared(view_pos);
+                let dist_b = b.transform.position.distance_squared(view_pos);
+                dist_b
+                    .partial_cmp(&dist_a)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            // D. 生成实例数据
+            for mesh in visible_transparent {
+                let material_idx = mesh
+                    .material_id
+                    .and_then(|id| material_index_map.get(&id))
+                    .cloned()
+                    .unwrap_or(0);
+                let instance = crate::render::mesh::Instance {
+                    position: mesh.transform.position,
+                    scale: mesh.transform.scale,
+                    rotation: mesh.transform.rotation,
+                    material_idx,
+                }
+                .to_raw();
+
+                let current_idx = sorted_transparent_instances.len() as u32;
+                sorted_transparent_instances.push(instance);
+
+                if let Some(last) = transparent_draw_batches.last_mut() {
+                    if last.mesh_id == mesh.mesh_id {
+                        last.instance_range.end += 1;
+                        continue;
+                    }
+                }
+
+                transparent_draw_batches.push(TransparentBatch {
+                    mesh_id: mesh.mesh_id,
+                    instance_range: current_idx..current_idx + 1,
+                });
+            }
+        }
+
         drop(mesh_cache);
 
         // 6.5 Re-include MASKED transparent meshes for SSAO (normal pre-pass)
         let mut ssao_meshes = opaque_meshes.clone();
+        // ... (SSAO 逻辑保持不变)
         {
             let material_cache = self.imported_material_cache.read().unwrap();
             for mesh in &transparent_meshes {
@@ -452,6 +532,8 @@ impl RenderBackend {
             indirect_commands,
             instance_buffer_size,
             indirect_buffer_size,
+            sorted_transparent_instances,
+            transparent_draw_batches,
         }
     }
 

@@ -385,6 +385,10 @@ pub mod standard_resources {
         ResourceId::new("cull_indirect_buffer")
     }
 
+    pub fn transparent_instance_buffer() -> BufferId {
+        ResourceId::new("transparent_instance_buffer")
+    }
+
     pub fn cull_params_uniform() -> BufferId {
         ResourceId::new("cull_params_uniform")
     }
