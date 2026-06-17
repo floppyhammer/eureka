@@ -186,13 +186,13 @@ impl Node for LightCullingNode {
         light_uniform.ambient_color = [1.0, 1.0, 1.0];
         light_uniform.ambient_strength = 0.01;
 
-        // 体积雾默认参数 (增强版用于测试)
-        light_uniform.fog_color = [0.5, 0.6, 0.7];
-        light_uniform.fog_density = 1.0;
-        light_uniform.fog_height_falloff = 0.2;
+        // 设置默认的体积雾/体积光参数
+        light_uniform.fog_color = [0.5, 0.6, 0.7]; // 浅蓝色调的雾
+        light_uniform.fog_density = 1.0;           // 基础密度
+        light_uniform.fog_height_falloff = 0.2;    // 随高度缓慢变稀
         light_uniform.fog_base_height = -1.0;
-        light_uniform.fog_scattering = 0.8;
-        light_uniform.fog_absorption = 0.01;
+        light_uniform.fog_scattering = 0.8;       // 散射系数
+        light_uniform.fog_absorption = 0.01;      // 吸收系数
 
         if let Some(dl) = lights_extracted.directional_light {
             light_uniform.directional_light = dl;

@@ -33,7 +33,6 @@ pub fn common_mesh_resources(resources: NodeResources, prepared: &PreparedFrame)
         }))
 }
 
-/// 统一获取或创建 Light Bind Group Layout
 pub fn get_or_create_light_layout(context: &mut FrameContext) -> wgpu::BindGroupLayout {
     let device = &context.render_context.device;
     if let Some(layout) = context.backend.get_bind_group_layout("light_bind_group_layout") {
@@ -63,84 +62,65 @@ pub fn get_or_create_light_layout(context: &mut FrameContext) -> wgpu::BindGroup
     layout
 }
 
-/// 统一获取 Mesh 渲染所需的 BindGroups
 pub fn get_mesh_bind_groups(context: &mut FrameContext) -> (wgpu::BindGroup, wgpu::BindGroup, wgpu::BindGroup) {
-    // 确保布局已存在
     let light_bind_group_layout = get_or_create_light_layout(context);
 
-    // 1. Camera Bind Group
+    // 1. Camera
     let camera_buffer = context.buffer(&standard_resources::camera_buffer());
-    let camera_bind_group_layout = context.backend.get_bind_group_layout("camera_bind_group_layout").unwrap().clone();
-    let camera_bind_group = context.create_bind_group("camera_bind_group_layout", vec![camera_buffer.id], |ctx| {
-        ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &camera_buffer.buffer, offset: 0, size: Some(wgpu::BufferSize::new(size_of::<CameraUniform>() as u64).unwrap()) }) }],
-            label: Some("Common Camera BG"),
-        })
+    let camera_layout = context.backend.get_bind_group_layout("camera_bind_group_layout").unwrap().clone();
+    let camera_bg = context.create_bind_group("camera_bind_group_layout", vec![camera_buffer.id], |ctx| {
+        ctx.device.create_bind_group(&wgpu::BindGroupDescriptor { layout: &camera_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &camera_buffer.buffer, offset: 0, size: Some(wgpu::BufferSize::new(size_of::<CameraUniform>() as u64).unwrap()) }) }], label: None })
     });
 
-    // 2. Light Bind Group
-    let shadow_sampler = context.get_sampler(SamplerKey { compare: Some(wgpu::CompareFunction::LessEqual), ..Default::default() });
-    let skybox_sampler = context.get_sampler(SamplerKey::default());
-
-    let main_depth = context.texture(&standard_resources::main_depth());
+    // 2. Light
     let ssao_blur = context.texture(&standard_resources::ssao_blur());
     let dir_shadow = context.texture(&standard_resources::directional_shadow_map());
     let point_shadow = context.texture(&standard_resources::point_shadow_map());
     let volumetric_tex = context.texture(&standard_resources::volumetric_lighting_texture());
+    let light_uniform = context.buffer(&standard_resources::light_uniform_buffer());
+    let cascade_buffer = context.buffer(&standard_resources::shadow_cascade_buffer());
+    let pt_storage = context.buffer(&standard_resources::point_light_storage_buffer());
+    let grid = context.buffer(&standard_resources::light_grid_buffer());
+    let indices = context.buffer(&standard_resources::light_index_list_buffer());
+    let config = context.buffer(&standard_resources::cluster_config_buffer());
 
     let cascade_view = dir_shadow.get_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D2Array), aspect: wgpu::TextureAspect::DepthOnly, array_layer_count: Some(3), ..Default::default() });
-    let point_shadow_view = point_shadow.get_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::CubeArray), aspect: wgpu::TextureAspect::DepthOnly, array_layer_count: Some(MAX_SHADOWED_POINT_LIGHTS as u32 * 6), ..Default::default() });
-    let volumetric_view = volumetric_tex.get_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D3), ..Default::default() });
-
+    let pt_shadow_view = point_shadow.get_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::CubeArray), aspect: wgpu::TextureAspect::DepthOnly, array_layer_count: Some(MAX_SHADOWED_POINT_LIGHTS as u32 * 6), ..Default::default() });
+    let vol_view = volumetric_tex.get_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D3), ..Default::default() });
     let (sky_view, sky_view_id) = if let Some(id) = context.backend.sky_imported_resources.texture {
         let cache = context.backend.imported_texture_cache.read().unwrap();
-        let t = cache.get(id).unwrap();
-        (t.view.clone(), t.view_id)
-    } else {
-        (context.backend.dummy_cube_view.clone(), 0)
-    };
+        let t = cache.get(id).unwrap(); (t.view.clone(), t.view_id)
+    } else { (context.backend.dummy_cube_view.clone(), 0) };
 
-    let light_uniform_buffer = context.buffer(&standard_resources::light_uniform_buffer());
-    let shadow_cascade_buffer = context.buffer(&standard_resources::shadow_cascade_buffer());
-    let point_light_storage_buffer = context.buffer(&standard_resources::point_light_storage_buffer());
-    let light_grid_buffer = context.buffer(&standard_resources::light_grid_buffer());
-    let light_index_list_buffer = context.buffer(&standard_resources::light_index_list_buffer());
-    let cluster_config_buffer = context.buffer(&standard_resources::cluster_config_buffer());
+    let shadow_sampler = context.get_sampler(SamplerKey { compare: Some(wgpu::CompareFunction::LessEqual), ..Default::default() });
+    let skybox_sampler = context.get_sampler(SamplerKey::default());
 
-    let light_bind_group = context.create_bind_group(
-        "light_bind_group_layout",
-        vec![
-            light_uniform_buffer.id, ssao_blur.view_id, cascade_view.1,
-            shadow_cascade_buffer.id, point_shadow_view.1, sky_view_id,
-            point_light_storage_buffer.id, light_grid_buffer.id,
-            light_index_list_buffer.id, cluster_config_buffer.id,
-            volumetric_view.1,
-        ],
+    let light_bg = context.create_bind_group("light_bind_group_layout",
+        vec![light_uniform.id, cascade_view.1, pt_shadow_view.1, ssao_blur.view_id, sky_view_id, vol_view.1, cascade_buffer.id, pt_storage.id, grid.id, indices.id, config.id],
         |ctx| {
-            ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &light_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: light_uniform_buffer.buffer.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&cascade_view.0) },
-                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&shadow_sampler) },
-                    wgpu::BindGroupEntry { binding: 3, resource: shadow_cascade_buffer.buffer.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&point_shadow_view.0) },
-                    wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&ssao_blur.view) },
-                    wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&sky_view) },
-                    wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::Sampler(&skybox_sampler) },
-                        wgpu::BindGroupEntry { binding: 8, resource: point_light_storage_buffer.buffer.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 9, resource: light_grid_buffer.buffer.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 10, resource: light_index_list_buffer.buffer.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 11, resource: cluster_config_buffer.buffer.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 12, resource: wgpu::BindingResource::TextureView(&volumetric_view.0) },
-                ],
-                label: Some("Common Light BG"),
-            })
+        ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &light_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: light_uniform.buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&cascade_view.0) },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&shadow_sampler) },
+                wgpu::BindGroupEntry { binding: 3, resource: cascade_buffer.buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&pt_shadow_view.0) },
+                wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&ssao_blur.view) },
+                wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&sky_view) },
+                wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::Sampler(&skybox_sampler) },
+                wgpu::BindGroupEntry { binding: 8, resource: pt_storage.buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 9, resource: grid.buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 10, resource: indices.buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 11, resource: config.buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 12, resource: wgpu::BindingResource::TextureView(&vol_view.0) },
+            ],
+            label: None,
+        })
     });
 
-    let materials_storage_buffer = context.buffer(&standard_resources::material_storage_buffer());
-    let bindless_bind_group = context.get_bind_group("bindless_bind_group_layout", vec![materials_storage_buffer.id]).clone();
+    let mat_buf = context.buffer(&standard_resources::material_storage_buffer());
+    let bindless_bg = context.get_bind_group("bindless_bind_group_layout", vec![mat_buf.id]).clone();
 
-    (camera_bind_group, light_bind_group, bindless_bind_group)
+    (camera_bg, light_bg, bindless_bg)
 }

@@ -495,6 +495,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let result = indirect_diffuse + indirect_specular + point_lights_result + directional_light_result + emissive;
 
-    // --- Volumetric Lighting Application (已移动到后处理) ---
-    return vec4<f32>(result, object_color.a);
+    // --- Volumetric Lighting Application ---
+    var final_rgb = result;
+
+    // 关键逻辑：只有透明物体（AlphaMode::Blend = 2）才在 Shader 中采样体积光
+    // 不透明物体由后续的 VolumetricApply 节点统一处理
+    if (material.alpha_mode == 2u) {
+        let volumetric_uvw = vec3<f32>(
+            in.clip_position.x / cluster_config.screen_size.x,
+            in.clip_position.y / cluster_config.screen_size.y,
+            log2(max(cluster_depth, cluster_config.z_near) / cluster_config.z_near) / log2(cluster_config.z_far / cluster_config.z_near)
+        );
+        let volumetric_data = textureSampleLevel(t_volumetric, s_skybox, volumetric_uvw, 0.0);
+
+        // 物理混合修复：
+        // 由于背景已经由 VolumetricApply 渲染了雾效，我们需要让透明物体输出
+        // (物体颜色 * 透射率 + 散射光) * Alpha。
+        // 这样在 SrcFactor = One, DstFactor = OneMinusSrcAlpha 的混合下：
+        // 总散射光 = (散射光 * Alpha) + (背景中已有的散射光 * (1 - Alpha)) = 散射光 (保持一致)
+        final_rgb = (result * volumetric_data.a + volumetric_data.rgb) * object_color.a;
+    }
+
+    return vec4<f32>(final_rgb, object_color.a);
 }
