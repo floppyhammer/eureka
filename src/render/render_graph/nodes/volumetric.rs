@@ -156,3 +156,143 @@ impl Node for VolumetricNode {
         cpass.dispatch_workgroups((VOLUMETRIC_RESOLUTION[0] + 7) / 8, (VOLUMETRIC_RESOLUTION[1] + 7) / 8, 1);
     }
 }
+
+pub struct VolumetricApplyNode {
+    pipeline: Option<wgpu::RenderPipeline>,
+}
+
+impl Default for VolumetricApplyNode {
+    fn default() -> Self {
+        Self { pipeline: None }
+    }
+}
+
+impl Node for VolumetricApplyNode {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn node_resources(&self, _prepared: &PreparedFrame) -> crate::render::render_graph::resource::NodeResources {
+        use crate::render::camera::CameraUniform;
+        use crate::render::light::ClusterConfig;
+
+        let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
+            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+
+        crate::render::render_graph::resource::NodeResources::new()
+            .input(standard_resources::camera_buffer(), ResourceSpec::buffer(camera_buffer_size as u64, wgpu::BufferUsages::UNIFORM))
+            .input(standard_resources::cluster_config_buffer(), ResourceSpec::buffer(size_of::<ClusterConfig>() as u64, wgpu::BufferUsages::UNIFORM))
+            .input(standard_resources::main_color(), ResourceSpec::Texture(TextureKey {
+                format: Some(wgpu::TextureFormat::Rgba16Float),
+                usage: wgpu::TextureUsages::COPY_SRC,
+                ..TextureKey::default()
+            }))
+            .input(standard_resources::main_depth(), ResourceSpec::Texture(TextureKey::default()))
+            .input(standard_resources::volumetric_lighting_texture(), ResourceSpec::Texture(TextureKey::default()))
+            .output(standard_resources::main_color(), ResourceSpec::Texture(TextureKey {
+                format: Some(wgpu::TextureFormat::Rgba16Float),
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                ..TextureKey::default()
+            }))
+    }
+
+    fn run(&mut self, context: &mut FrameContext) {
+        let device = &context.render_context.device;
+
+        if self.pipeline.is_none() {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Volumetric Apply Layout"),
+                bind_group_layouts: &[&device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: true, min_binding_size: None }, count: None },
+                        wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
+                        wgpu::BindGroupLayoutEntry { binding: 2, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { multisampled: false, view_dimension: wgpu::TextureViewDimension::D2, sample_type: wgpu::TextureSampleType::Float { filterable: true } }, count: None },
+                        wgpu::BindGroupLayoutEntry { binding: 3, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { multisampled: false, view_dimension: wgpu::TextureViewDimension::D2, sample_type: wgpu::TextureSampleType::Depth }, count: None },
+                        wgpu::BindGroupLayoutEntry { binding: 4, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { multisampled: false, view_dimension: wgpu::TextureViewDimension::D3, sample_type: wgpu::TextureSampleType::Float { filterable: true } }, count: None },
+                        wgpu::BindGroupLayoutEntry { binding: 5, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
+                    ],
+                    label: None,
+                })],
+                push_constant_ranges: &[],
+            });
+
+            let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Volumetric Apply Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/volumetric_apply.wgsl").into()),
+            });
+
+            self.pipeline = Some(device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Volumetric Apply Pipeline"),
+                layout: Some(&layout),
+                vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), buffers: &[], compilation_options: Default::default() },
+                fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some("fs_main"), targets: &[Some(wgpu::ColorTargetState { format: wgpu::TextureFormat::Rgba16Float, blend: None, write_mask: wgpu::ColorWrites::ALL })], compilation_options: Default::default() }),
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            }));
+        }
+
+        let camera_buffer = context.buffer(&standard_resources::camera_buffer());
+        let config_buffer = context.buffer(&standard_resources::cluster_config_buffer());
+        let main_color = context.texture(&standard_resources::main_color());
+        let main_depth = context.texture(&standard_resources::main_depth());
+        let volumetric_tex = context.texture(&standard_resources::volumetric_lighting_texture());
+
+        // 创建一个新的临时纹理作为输入，因为我们要写入 main_color
+        let main_color_input = context.get_texture("volumetric_apply_input", TextureKey {
+            width: context.render_context.surface_config.width,
+            height: context.render_context.surface_config.height,
+            format: Some(wgpu::TextureFormat::Rgba16Float),
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            ..TextureKey::default()
+        });
+
+        context.encoder.copy_texture_to_texture(
+            main_color.texture.as_image_copy(),
+            main_color_input.texture.as_image_copy(),
+            wgpu::Extent3d {
+                width: context.render_context.surface_config.width,
+                height: context.render_context.surface_config.height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let sampler = context.get_sampler(SamplerKey {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.pipeline.as_ref().unwrap().get_bind_group_layout(0),
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &camera_buffer.buffer, offset: 0, size: Some(wgpu::BufferSize::new(size_of::<CameraUniform>() as u64).unwrap()) }) },
+                wgpu::BindGroupEntry { binding: 1, resource: config_buffer.buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&main_color_input.view) },
+                wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&main_depth.view) },
+                wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&volumetric_tex.view) },
+                wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::Sampler(&sampler) },
+            ],
+            label: None,
+        });
+
+        let mut rpass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Volumetric Apply Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &main_color.view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        rpass.set_pipeline(self.pipeline.as_ref().unwrap());
+        rpass.set_bind_group(0, &bind_group, &[0]);
+        rpass.draw(0..3, 0..1);
+    }
+}

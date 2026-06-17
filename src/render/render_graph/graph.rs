@@ -1,7 +1,12 @@
 use crate::render::render_backend::{PreparedFrame, RenderBackend};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
-use crate::render::render_graph::{standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, LightCullingNode, MeshNode, Node, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceId, ResourceKey, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricNode};
+use crate::render::render_graph::{
+    standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, LightCullingNode, MeshNode,
+    Node, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceId, ResourceKey,
+    ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, ToneMappingNode,
+    TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode,
+};
 use crate::render::RenderContext;
 use std::collections::{HashMap, VecDeque};
 
@@ -48,6 +53,7 @@ impl RenderGraph {
         self.add_node("shadow", ShadowNode::default());
         self.add_node("light_culling", LightCullingNode::default());
         self.add_node("volumetric", VolumetricNode::default());
+        self.add_node("volumetric_apply", VolumetricApplyNode::default());
         self.add_node("ssao", SsaoNode::default());
         self.add_node("skybox", SkyboxNode::default());
         self.add_node("mesh", MeshNode::default());
@@ -71,11 +77,12 @@ impl RenderGraph {
         self.add_node_edge("culling", "ssao");
         self.add_node_edge("shadow", "mesh");
         self.add_node_edge("light_culling", "mesh");
-        self.add_node_edge("volumetric", "mesh");
+        self.add_node_edge("volumetric", "volumetric_apply");
         self.add_node_edge("ssao", "mesh");
         self.add_node_edge("clear", "skybox");
         self.add_node_edge("skybox", "mesh");
-        self.add_node_edge("mesh", "transparent_mesh");
+        self.add_node_edge("mesh", "volumetric_apply");
+        self.add_node_edge("volumetric_apply", "transparent_mesh");
         self.add_node_edge("transparent_mesh", "bloom");
         self.add_node_edge("bloom", "tonemapping");
         self.add_node_edge("tonemapping", "fxaa");

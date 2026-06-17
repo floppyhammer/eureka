@@ -81,6 +81,19 @@ pub struct TextureKey {
     pub dimension: wgpu::TextureDimension, // 新增
 }
 
+impl Default for TextureKey {
+    fn default() -> Self {
+        Self {
+            width: 0,
+            height: 0,
+            format: None,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            layers: 1,
+            dimension: wgpu::TextureDimension::D2,
+        }
+    }
+}
+
 impl TextureKey {
     pub fn d2(width: u32, height: u32, format: wgpu::TextureFormat, usage: wgpu::TextureUsages) -> Self {
         Self {

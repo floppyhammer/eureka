@@ -495,22 +495,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let result = indirect_diffuse + indirect_specular + point_lights_result + directional_light_result + emissive;
 
-    // --- Volumetric Lighting Application ---
-    let volumetric_uvw = vec3<f32>(
-        in.clip_position.x / cluster_config.screen_size.x,
-        in.clip_position.y / cluster_config.screen_size.y,
-        log2(max(cluster_depth, cluster_config.z_near) / cluster_config.z_near) / log2(cluster_config.z_far / cluster_config.z_near)
-    );
-
-    var final_color = result;
-    if (camera.volumetric_enabled == 1u) {
-        // 使用抖动采样来平滑低分辨率网格的马赛克感
-        let noise = hash_2d(in.clip_position.xy);
-        let dither_offset = (noise - 0.5) * (1.0 / vec2<f32>(240.0, 135.0));
-        let volumetric_data = textureSampleLevel(t_volumetric, s_skybox, volumetric_uvw + vec3<f32>(dither_offset, 0.0), 0.0);
-
-        final_color = result * volumetric_data.a + volumetric_data.rgb;
-    }
-
-    return vec4<f32>(final_color, object_color.a);
+    // --- Volumetric Lighting Application (已移动到后处理) ---
+    return vec4<f32>(result, object_color.a);
 }
