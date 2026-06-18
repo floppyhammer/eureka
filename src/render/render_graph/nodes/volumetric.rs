@@ -1,6 +1,6 @@
 use crate::render::camera::CameraUniform;
 use crate::render::light::{
-    ClusterConfig, LightUniform, MAX_SHADOWED_POINT_LIGHTS,
+    MAX_SHADOWED_POINT_LIGHTS,
 };
 use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{

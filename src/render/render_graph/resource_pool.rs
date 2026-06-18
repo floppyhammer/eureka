@@ -5,38 +5,63 @@ use crate::render::{Texture, NEXT_RESOURCE_ID, NEXT_VIEW_ID};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
-/// 资源池回收阈值：如果资源超过 600 帧（约 10 秒 @ 60fps）未被使用，则从池中释放
-const MAX_UNUSED_FRAMES: u64 = 600;
+/// 资源池回收阈值：如果资源超过 30 秒未被使用，则从池中释放
+const MAX_UNUSED_SECONDS: u64 = 30;
 
-/// 瞬时资源池，用于在帧内复用纹理和缓冲区，并支持多帧并行下的延迟回收
+/// 瞬时资源池，用于在帧内复用纹理和缓冲区，并支持多帧并行下的延迟回收。
+///
+/// 架构设计分为两个阶段：
+/// 1. **Pending（待回收队列）**: 处理 GPU 同步。资源在此队列中等待 FIF (Frames In Flight) 周期完成，
+///    确保 GPU 已完全处理完引用该资源的任务，实现物理层面的“数据隔离”。
+/// 2. **Ready（就绪池）**: 处理逻辑复用。资源完成 FIF 冷却后进入此池，可被立即复用以减少分配开销。
+///    在此阶段，资源受“时间淘汰机制”管理，超过阈值未被领用则会被裁剪以释放显存。
 #[derive(Default)]
 pub struct ResourcePool {
-    /// 跨帧纹理池（支持 FIF 数据隔离）。存储 (纹理, 最后归还帧)
-    textures: HashMap<TextureKey, Vec<(Texture, u64)>>, // “就绪”池
-    pending_textures: Vec<(Texture, TextureKey, u64)>, // “待回收”队列
+    /// “就绪”纹理池。
+    /// 存储已完成 FIF 冷却、可安全复用的纹理。
+    /// 元组包含: (纹理对象, 进入池子的时间戳)。
+    /// 淘汰策略：基于时间 (MAX_UNUSED_SECONDS) 进行裁剪。
+    textures: HashMap<TextureKey, Vec<(Texture, Instant)>>,
 
-    /// 跨帧缓冲区池（支持 FIF 数据隔离）。存储 (缓冲区, 最后归还帧)
-    buffers: HashMap<BufferKey, Vec<(PooledBuffer, u64)>>,
+    /// “待回收”纹理队列（FIF 同步层）。
+    /// 存储刚被节点释放，但 GPU 可能仍在读取/写入的纹理。
+    /// 元组包含: (纹理对象, 资源键, 释放时的帧号)。
+    /// 处理逻辑：只有 current_frame >= release_frame + frames_in_flight 时才转移到就绪池。
+    pending_textures: Vec<(Texture, TextureKey, u64)>,
+
+    /// “就绪”缓冲区池。
+    /// 存储已完成 FIF 冷却、可安全复用的缓冲区。
+    /// 包含对齐处理，旨在提高不同规格请求间的复用命中率。
+    buffers: HashMap<BufferKey, Vec<(PooledBuffer, Instant)>>,
+
+    /// “待回收”缓冲区队列（FIF 同步层）。
+    /// 确保在多帧并行环境下，旧帧的缓冲区数据不会被新帧提前覆盖。
     pending_buffers: Vec<(PooledBuffer, BufferKey, u64)>,
 
-    /// 统计信息：当前池中管理的所有缓冲区的总内存（字节）
+    /// 统计信息：当前池中管理（含待回收）的所有缓冲区的总内存（字节）
     total_buffer_memory: u64,
-    /// 统计信息：当前池中管理的所有纹理的总内存（字节）
+    /// 统计信息：当前池中管理（含待回收）的所有纹理的总内存（字节）
     total_texture_memory: u64,
 
-    /// 采样器永久缓存，采样器通常数量有限且不可变，直接缓存即可
+    /// 采样器永久缓存。
+    /// 由于采样器状态有限且不可变，通常不进行裁剪，直接以其规格作为键进行全局复用。
     sampler_cache: HashMap<SamplerKey, wgpu::Sampler>,
 
-    /// 帧内 BindGroup 缓存，每帧清空
+    /// 帧内 BindGroup 缓存。
+    /// 仅在当前帧有效，每帧开始时清空。通过资源 ID 组合快速查找，避免重复创建 BindGroup。
     bind_group_cache: HashMap<BindGroupKey, wgpu::BindGroup>,
 
-    /// 持久化资源，存储资源及其原始规格以进行一致性检查
+    /// 持久化资源（Persistent）。
+    /// 不参与瞬时复用逻辑，通常由用户手动管理其生命周期，常用于 SwapChain 或长期存在的 G-Buffer。
     persistent_resources: HashMap<String, (VirtualResource, ResourceKey)>,
 }
 
 impl ResourcePool {
     pub fn update(&mut self, current_frame: u64, frames_in_flight: u64) {
+        let now = Instant::now();
+
         // 1. 回收待处理纹理到“就绪”池
         let mut i = 0;
         while i < self.pending_textures.len() {
@@ -45,7 +70,7 @@ impl ResourcePool {
                 self.textures
                     .entry(key)
                     .or_default()
-                    .push((texture, current_frame));
+                    .push((texture, now));
             } else {
                 i += 1;
             }
@@ -59,47 +84,67 @@ impl ResourcePool {
                 self.buffers
                     .entry(key)
                     .or_default()
-                    .push((buffer, current_frame));
+                    .push((buffer, now));
             } else {
                 i += 1;
             }
         }
 
-        // 3. 资源裁剪 (Trimming)：清理长时间不使用的资源
-        self.trim_unused_resources(current_frame);
+        // 3. 资源裁剪 (Trimming)：清理长时间不使用的资源，每 128 帧执行一次
+        if current_frame % 128 == 0 {
+            self.trim_unused_resources();
+        }
     }
 
-    fn trim_unused_resources(&mut self, current_frame: u64) {
+    fn trim_unused_resources(&mut self) {
+        let now = Instant::now();
+        let mut trimmed_textures = 0;
+        let mut freed_texture_mem = 0;
+        let mut trimmed_buffers = 0;
+        let mut freed_buffer_mem = 0;
+
         // 裁剪纹理
         for (key, list) in self.textures.iter_mut() {
             let old_len = list.len();
-            list.retain(|(_, last_used)| current_frame < *last_used + MAX_UNUSED_FRAMES);
+            list.retain(|(_, last_used)| now.duration_since(*last_used).as_secs() < MAX_UNUSED_SECONDS);
             let removed_count = old_len - list.len();
             if removed_count > 0 {
                 let bytes = Self::estimate_texture_size(key) * removed_count as u64;
-                self.total_texture_memory = self.total_texture_memory.saturating_sub(bytes);
-                log::info!(
-                    "Trimmed {} unused textures. Current texture memory: {:.2} MB",
-                    removed_count,
-                    self.total_texture_memory as f64 / 1024.0 / 1024.0
-                );
+                freed_texture_mem += bytes;
+                trimmed_textures += removed_count;
             }
+        }
+
+        if trimmed_textures > 0 {
+            self.total_texture_memory = self.total_texture_memory.saturating_sub(freed_texture_mem);
+            log::info!(
+                "Trimmed {} unused textures, freed {:.3} MB. Current texture memory: {:.2} MB",
+                trimmed_textures,
+                freed_texture_mem as f64 / 1024.0 / 1024.0,
+                self.total_texture_memory as f64 / 1024.0 / 1024.0
+            );
         }
 
         // 裁剪缓冲区
         for (key, list) in self.buffers.iter_mut() {
             let old_len = list.len();
-            list.retain(|(_, last_used)| current_frame < *last_used + MAX_UNUSED_FRAMES);
+            list.retain(|(_, last_used)| now.duration_since(*last_used).as_secs() < MAX_UNUSED_SECONDS);
             let removed_count = old_len - list.len();
             if removed_count > 0 {
                 let bytes = key.size * removed_count as u64;
-                self.total_buffer_memory = self.total_buffer_memory.saturating_sub(bytes);
-                log::info!(
-                    "Trimmed {} unused buffers. Current buffer memory: {:.2} MB",
-                    removed_count,
-                    self.total_buffer_memory as f64 / 1024.0 / 1024.0
-                );
+                freed_buffer_mem += bytes;
+                trimmed_buffers += removed_count;
             }
+        }
+
+        if trimmed_buffers > 0 {
+            self.total_buffer_memory = self.total_buffer_memory.saturating_sub(freed_buffer_mem);
+            log::info!(
+                "Trimmed {} unused buffers, freed {:.3} MB. Current buffer memory: {:.2} MB",
+                trimmed_buffers,
+                freed_buffer_mem as f64 / 1024.0 / 1024.0,
+                self.total_buffer_memory as f64 / 1024.0 / 1024.0
+            );
         }
     }
 
