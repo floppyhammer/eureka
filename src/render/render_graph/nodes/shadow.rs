@@ -47,6 +47,7 @@ impl Node for ShadowNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: NUM_CASCADES as u32,
+                    mip_levels: 1,
                     dimension: wgpu::TextureDimension::D2,
                 }),
             )
@@ -59,6 +60,7 @@ impl Node for ShadowNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: (MAX_SHADOWED_POINT_LIGHTS * 6) as u32,
+                    mip_levels: 1,
                     dimension: wgpu::TextureDimension::D2,
                 }),
             )
@@ -327,7 +329,8 @@ impl Node for ShadowNode {
 
         // Upload data
         {
-            let mut point_camera_uniforms = vec![CameraUniform::default(); MAX_SHADOWED_POINT_LIGHTS * 6];
+            let mut point_camera_uniforms =
+                vec![CameraUniform::default(); MAX_SHADOWED_POINT_LIGHTS * 6];
             // render_resources.point_shadow_view_projs.clear();
 
             for (i, light) in context.extracted.lights.point_lights.iter().enumerate() {
@@ -357,7 +360,8 @@ impl Node for ShadowNode {
                 }
             }
 
-            let point_shadow_camera_buffer_size = offset_unit * (MAX_SHADOWED_POINT_LIGHTS * 6) as u32;
+            let point_shadow_camera_buffer_size =
+                offset_unit * (MAX_SHADOWED_POINT_LIGHTS * 6) as u32;
 
             let mut point_shadow_camera_data = vec![0u8; point_shadow_camera_buffer_size as usize];
             for i in 0..(MAX_SHADOWED_POINT_LIGHTS * 6) {

@@ -3,9 +3,9 @@ use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
 use crate::render::render_graph::{
     standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, LightCullingNode, MeshNode,
-    Node, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceId, ResourceKey,
-    ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, ToneMappingNode,
-    TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode,
+    Node, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceDecl, ResourceId,
+    ResourceKey, ResourceLifetime, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode,
+    ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode,
 };
 use crate::render::RenderContext;
 use std::collections::{HashMap, VecDeque};
@@ -159,7 +159,7 @@ impl RenderGraph {
         let execution_order = self.cached_execution_order.as_ref().unwrap().clone();
 
         // 2. 预分析资源声明，进行合并和预分配
-        let mut merged_specs: HashMap<ResourceId<()>, ResourceSpec> = HashMap::new();
+        let mut merged_decls: HashMap<ResourceId<()>, ResourceDecl> = HashMap::new();
         for node_name in &execution_order {
             if let Some(node_state) = self.nodes.get(node_name) {
                 let resources = node_state.node.node_resources(prepared);
@@ -169,10 +169,16 @@ impl RenderGraph {
                     .chain(resources.outputs.into_iter())
                     .chain(resources.internals.into_iter())
                 {
-                    merged_specs
-                        .entry(decl.id)
-                        .and_modify(|s| s.merge(&decl.spec))
-                        .or_insert(decl.spec);
+                    merged_decls
+                        .entry(decl.id.clone())
+                        .and_modify(|existing| {
+                            existing.spec.merge(&decl.spec);
+                            // 如果有一个节点要求持久，则整体持久
+                            if decl.lifetime == ResourceLifetime::Persistent {
+                                existing.lifetime = ResourceLifetime::Persistent;
+                            }
+                        })
+                        .or_insert(decl);
                 }
             }
         }
@@ -180,48 +186,69 @@ impl RenderGraph {
         let mut active_resources: HashMap<ResourceId<()>, (ResourceKey, VirtualResource)> =
             HashMap::new();
 
-        for (id, spec) in merged_specs {
+        for (id, decl) in &merged_decls {
             // 跳过内置的 final_output（一般为 Surface），它不由池管理
-            if id == standard_resources::final_output().erase() {
+            if *id == standard_resources::final_output().erase() {
                 continue;
             }
 
-            match spec {
-                ResourceSpec::Texture(mut key) => {
-                    // 处理 0 尺寸继承（简单实现：使用当前 surface 尺寸）
+            let lifetime = decl.lifetime;
+            match &decl.spec {
+                ResourceSpec::Texture(key) => {
+                    let mut key = *key;
                     if key.width == 0 {
                         key.width = render_context.surface_config.width;
                     }
                     if key.height == 0 {
                         key.height = render_context.surface_config.height;
                     }
-                    // 未指定格式，使用当前 surface 格式
                     if key.format.is_none() {
                         key.format = Some(render_context.surface_config.format);
                     }
 
-                    let tex = self.pool.acquire_texture(&render_context.device, key);
+                    let tex = match lifetime {
+                        ResourceLifetime::Transient => {
+                            self.pool.acquire_texture(&render_context.device, key)
+                        }
+                        ResourceLifetime::Persistent => self.pool.acquire_persistent_texture(
+                            &render_context.device,
+                            id.name(),
+                            key,
+                        ),
+                    };
                     active_resources.insert(
-                        id,
+                        id.clone(),
                         (ResourceKey::Texture(key), VirtualResource::Texture(tex)),
                     );
                 }
                 ResourceSpec::Buffer(key) => {
-                    // Cannot allocate buffer with zero size.
+                    let key = *key;
                     if key.size == 0 {
                         continue;
                     }
 
-                    let (buf, actual_key) = self.pool.acquire_buffer(&render_context.device, key);
+                    let (buf, actual_key) = match lifetime {
+                        ResourceLifetime::Transient => {
+                            self.pool.acquire_buffer(&render_context.device, key)
+                        }
+                        ResourceLifetime::Persistent => {
+                            let b = self.pool.acquire_persistent_buffer(
+                                &render_context.device,
+                                id.name(),
+                                key,
+                            );
+                            (b, key)
+                        }
+                    };
                     active_resources.insert(
-                        id,
+                        id.clone(),
                         (
                             ResourceKey::Buffer(actual_key),
                             VirtualResource::Buffer(buf),
                         ),
                     );
                 }
-                _ => {} // 其他资源类型暂不预分配
+                _ => {}
             }
         }
 
@@ -264,7 +291,16 @@ impl RenderGraph {
         }
 
         // 帧结束，回收所有资源
-        for (_, (key, resource)) in active_resources {
+        for (id, (key, resource)) in active_resources {
+            // 获取该资源的原始声明以判断生命周期
+            // 如果是持久资源，我们跳过 release_deferred，让它留在 persistent_resources 中
+            let is_persistent = merged_decls
+                .get(&id)
+                .map_or(false, |d| d.lifetime == ResourceLifetime::Persistent);
+            if is_persistent {
+                continue;
+            }
+
             match (key, resource) {
                 (ResourceKey::Texture(k), VirtualResource::Texture(t)) => {
                     self.pool.release_texture_deferred(k, t, self.frame_count);

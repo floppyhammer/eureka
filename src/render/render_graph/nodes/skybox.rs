@@ -34,6 +34,7 @@ impl Node for SkyboxNode {
             format: Some(wgpu::TextureFormat::Rgba16Float),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
+            mip_levels: 1,
             dimension: wgpu::TextureDimension::D2,
         });
         let depth_spec = ResourceSpec::Texture(TextureKey {
@@ -42,6 +43,7 @@ impl Node for SkyboxNode {
             format: Some(Texture::DEPTH_FORMAT),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
+            mip_levels: 1,
             dimension: wgpu::TextureDimension::D2,
         });
 

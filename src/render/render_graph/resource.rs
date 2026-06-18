@@ -78,7 +78,8 @@ pub struct TextureKey {
     pub format: Option<wgpu::TextureFormat>,
     pub usage: wgpu::TextureUsages,
     pub layers: u32,
-    pub dimension: wgpu::TextureDimension, // 新增
+    pub mip_levels: u32,
+    pub dimension: wgpu::TextureDimension,
 }
 
 impl Default for TextureKey {
@@ -89,19 +90,26 @@ impl Default for TextureKey {
             format: None,
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             layers: 1,
+            mip_levels: 1,
             dimension: wgpu::TextureDimension::D2,
         }
     }
 }
 
 impl TextureKey {
-    pub fn d2(width: u32, height: u32, format: wgpu::TextureFormat, usage: wgpu::TextureUsages) -> Self {
+    pub fn d2(
+        width: u32,
+        height: u32,
+        format: wgpu::TextureFormat,
+        usage: wgpu::TextureUsages,
+    ) -> Self {
         Self {
             width,
             height,
             format: Some(format),
             usage,
             layers: 1,
+            mip_levels: 1,
             dimension: wgpu::TextureDimension::D2,
         }
     }
@@ -237,6 +245,7 @@ impl ResourceSpec {
             format,
             usage,
             layers,
+            mip_levels: 1,
             dimension: TextureDimension::D2,
         })
     }
@@ -253,6 +262,7 @@ impl ResourceSpec {
                 a.width = a.width.max(b.width);
                 a.height = a.height.max(b.height);
                 a.layers = a.layers.max(b.layers);
+                a.mip_levels = a.mip_levels.max(b.mip_levels);
                 // 维度通常是固定的，但以较大的为准
                 if b.dimension == wgpu::TextureDimension::D3 {
                     a.dimension = wgpu::TextureDimension::D3;
@@ -273,6 +283,14 @@ pub struct ResourceDecl {
     pub id: ResourceId<()>,
     pub spec: ResourceSpec,
     pub optional: bool,
+    pub lifetime: ResourceLifetime,
+}
+
+/// 资源生命周期类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResourceLifetime {
+    Transient,  // 帧内回收
+    Persistent, // 持久存储
 }
 
 /// 节点资源声明集合
@@ -296,6 +314,17 @@ impl NodeResources {
             id: id.erase(),
             spec,
             optional: false,
+            lifetime: ResourceLifetime::Transient,
+        });
+        self
+    }
+
+    pub fn persistent_input<T>(mut self, id: ResourceId<T>, spec: ResourceSpec) -> Self {
+        self.inputs.push(ResourceDecl {
+            id: id.erase(),
+            spec,
+            optional: false,
+            lifetime: ResourceLifetime::Persistent,
         });
         self
     }
@@ -305,6 +334,7 @@ impl NodeResources {
             id: id.erase(),
             spec,
             optional: true,
+            lifetime: ResourceLifetime::Transient,
         });
         self
     }
@@ -314,6 +344,17 @@ impl NodeResources {
             id: id.erase(),
             spec,
             optional: false,
+            lifetime: ResourceLifetime::Transient,
+        });
+        self
+    }
+
+    pub fn persistent_output<T>(mut self, id: ResourceId<T>, spec: ResourceSpec) -> Self {
+        self.outputs.push(ResourceDecl {
+            id: id.erase(),
+            spec,
+            optional: false,
+            lifetime: ResourceLifetime::Persistent,
         });
         self
     }
@@ -323,6 +364,17 @@ impl NodeResources {
             id: id.erase(),
             spec,
             optional: false,
+            lifetime: ResourceLifetime::Transient,
+        });
+        self
+    }
+
+    pub fn persistent_internal<T>(mut self, id: ResourceId<T>, spec: ResourceSpec) -> Self {
+        self.internals.push(ResourceDecl {
+            id: id.erase(),
+            spec,
+            optional: false,
+            lifetime: ResourceLifetime::Persistent,
         });
         self
     }
@@ -465,5 +517,17 @@ pub mod standard_resources {
 
     pub fn volumetric_lighting_texture() -> TextureId {
         ResourceId::new("volumetric_lighting_texture")
+    }
+
+    pub fn irradiance_map() -> TextureId {
+        ResourceId::new("irradiance_map")
+    }
+
+    pub fn prefiltered_map() -> TextureId {
+        ResourceId::new("prefiltered_map")
+    }
+
+    pub fn brdf_lut() -> TextureId {
+        ResourceId::new("brdf_lut")
     }
 }

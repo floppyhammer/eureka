@@ -1,4 +1,3 @@
-use crate::render::create_render_pipeline;
 use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{standard_resources, SamplerKey};
 use crate::render::render_graph::{FrameContext, Node};
@@ -35,6 +34,7 @@ impl Node for BloomNode {
             format: Some(wgpu::TextureFormat::Rgba16Float),
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
             layers: 1,
+            mip_levels: 1,
             dimension: wgpu::TextureDimension::D2,
         });
 
@@ -88,7 +88,9 @@ impl Node for BloomNode {
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Bloom Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/bloom.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(
+                    include_str!("../../../shaders/bloom.wgsl").into(),
+                ),
             };
 
             use crate::render::create_render_pipeline_with_entry;
@@ -161,8 +163,10 @@ impl Node for BloomNode {
                 width: current_width,
                 height: current_height,
                 format: Some(wgpu::TextureFormat::Rgba16Float),
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
                 layers: 1,
+                mip_levels: 1,
                 dimension: wgpu::TextureDimension::D2,
             };
 
@@ -196,21 +200,23 @@ impl Node for BloomNode {
             );
 
             {
-                let mut rpass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Bloom Downsample Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &tex.view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
+                let mut rpass = context
+                    .encoder
+                    .begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("Bloom Downsample Pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &tex.view,
+                            depth_slice: None,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                    });
                 rpass.set_pipeline(self.downsample_pipeline.as_ref().unwrap());
                 rpass.set_bind_group(0, &bg, &[]);
                 rpass.draw(0..3, 0..1);
@@ -230,8 +236,10 @@ impl Node for BloomNode {
                 width: target_tex.texture.width(),
                 height: target_tex.texture.height(),
                 format: Some(target_tex.texture.format()),
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
                 layers: 1,
+                mip_levels: 1,
                 dimension: wgpu::TextureDimension::D2,
             };
             let upsample_rt = context.get_texture(format!("bloom_up_{}", i), key);
@@ -262,21 +270,23 @@ impl Node for BloomNode {
             );
 
             {
-                let mut rpass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Bloom Upsample Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &upsample_rt.view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
+                let mut rpass = context
+                    .encoder
+                    .begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("Bloom Upsample Pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &upsample_rt.view,
+                            depth_slice: None,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                    });
                 rpass.set_pipeline(self.upsample_pipeline.as_ref().unwrap());
                 rpass.set_bind_group(0, &bg, &[]);
                 rpass.draw(0..3, 0..1);
@@ -287,10 +297,8 @@ impl Node for BloomNode {
 
         // 3. Final copy to bloom_output
         // The final prev_view is the result of the top-most upsample (1/2 size)
-        let bg = context.create_bind_group(
-            "bloom_bind_group_layout",
-            vec![prev_id, prev_id],
-            |ctx| {
+        let bg =
+            context.create_bind_group("bloom_bind_group_layout", vec![prev_id, prev_id], |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Bloom Final BG"),
                     layout: &bind_group_layout,
@@ -309,24 +317,25 @@ impl Node for BloomNode {
                         },
                     ],
                 })
-            },
-        );
+            });
 
-        let mut rpass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Bloom Final Copy Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &bloom_output.view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
+        let mut rpass = context
+            .encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Bloom Final Copy Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &bloom_output.view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
         rpass.set_pipeline(self.downsample_pipeline.as_ref().unwrap());
         rpass.set_bind_group(0, &bg, &[]);
         rpass.draw(0..3, 0..1);

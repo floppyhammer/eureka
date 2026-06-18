@@ -27,6 +27,7 @@ impl Node for ClearNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    mip_levels: 1,
                     dimension: wgpu::TextureDimension::D2,
                 }),
             )
@@ -39,6 +40,7 @@ impl Node for ClearNode {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     layers: 1,
+                    mip_levels: 1,
                     dimension: wgpu::TextureDimension::D2,
                 }),
             )

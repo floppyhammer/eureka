@@ -216,18 +216,18 @@ fn main() {
     });
 
     // 添加自定义更新逻辑：太阳（方向光）旋转
-    // app.add_update(|app, dt| {
-    //     let world = &mut app.world;
-    //     for (_id, (transform, light, logic)) in world
-    //         .ecs
-    //         .query_mut::<(&mut CTransform3d, &mut DirectionalLightComponent, &mut SunLogic)>()
-    //     {
-    //         logic.timer += dt * logic.speed;
-    //
-    //         // 让太阳绕 X 轴旋转（模拟东升西落）
-    //         transform.0.rotation = Quat::from_rotation_x(logic.timer);
-    //     }
-    // });
+    app.add_update(|app, dt| {
+        let world = &mut app.world;
+        for (_id, (transform, light, logic)) in world
+            .ecs
+            .query_mut::<(&mut CTransform3d, &mut DirectionalLightComponent, &mut SunLogic)>()
+        {
+            logic.timer += dt * logic.speed;
+
+            // 让太阳绕 X 轴旋转（模拟东升西落）
+            transform.0.rotation = Quat::from_rotation_x(logic.timer);
+        }
+    });
 
     // 添加自定义输入处理：设置控制
     app.add_update(|app, _dt| {

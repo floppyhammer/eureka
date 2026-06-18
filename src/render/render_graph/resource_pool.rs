@@ -1,4 +1,6 @@
-use super::resource::{BindGroupKey, BufferKey, PooledBuffer, SamplerKey, TextureKey};
+use super::resource::{
+    BindGroupKey, BufferKey, PooledBuffer, SamplerKey, TextureKey, VirtualResource,
+};
 use crate::render::{Texture, NEXT_TEXTURE_ID, NEXT_VIEW_ID};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
@@ -25,17 +27,14 @@ pub struct ResourcePool {
 
     /// 帧内 BindGroup 缓存，每帧清空
     bind_group_cache: HashMap<BindGroupKey, wgpu::BindGroup>,
+
+    /// 持久化资源
+    persistent_resources: HashMap<String, VirtualResource>,
 }
 
 impl ResourcePool {
     pub fn update(&mut self, current_frame: u64, frames_in_flight: u64) {
         // 1. 回收纹理
-        /*
-        1. 检查 pending_textures：遍历这个队列。
-        2. 判断安全期：如果某个纹理的 frame_count 已经距离现在超过了 MAX_FRAMES_IN_FLIGHT（通常是 2 或 3 帧），说明 GPU 肯定已经用完它了。
-        3. 转移：将这个纹理从 pending_textures 移动到 textures 池中。
-        4. 真正可用：从此，这个纹理才能再次被 acquire_texture 捡走。
-        */
         let mut i = 0;
         while i < self.pending_textures.len() {
             if current_frame >= self.pending_textures[i].2 + frames_in_flight {
@@ -65,20 +64,48 @@ impl ResourcePool {
     // --- 纹理管理 ---
 
     pub fn acquire_texture(&mut self, device: &wgpu::Device, key: TextureKey) -> Texture {
-        if let Some(textures) = self.textures.get_mut(&key) {
-            if let Some(texture) = textures.pop() {
-                return texture;
+        self.acquire_texture_internal(device, key, None)
+    }
+
+    pub fn acquire_persistent_texture(
+        &mut self,
+        device: &wgpu::Device,
+        name: &str,
+        key: TextureKey,
+    ) -> Texture {
+        if let Some(VirtualResource::Texture(t)) = self.persistent_resources.get(name) {
+            return t.clone();
+        }
+        let t = self.acquire_texture_internal(device, key, Some(name));
+        self.persistent_resources
+            .insert(name.to_string(), VirtualResource::Texture(t.clone()));
+        t
+    }
+
+    fn acquire_texture_internal(
+        &mut self,
+        device: &wgpu::Device,
+        key: TextureKey,
+        persistent_name: Option<&str>,
+    ) -> Texture {
+        if persistent_name.is_none() {
+            if let Some(textures) = self.textures.get_mut(&key) {
+                if let Some(texture) = textures.pop() {
+                    return texture;
+                }
             }
         }
 
+        let label = persistent_name.unwrap_or("transient_texture");
+
         let wgpu_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("transient_texture"),
+            label: Some(label),
             size: wgpu::Extent3d {
                 width: key.width,
                 height: key.height,
                 depth_or_array_layers: key.layers,
             },
-            mip_level_count: 1,
+            mip_level_count: key.mip_levels,
             sample_count: 1,
             dimension: key.dimension,
             format: key.format.unwrap(),
@@ -121,7 +148,8 @@ impl ResourcePool {
         self.total_texture_memory += estimated_size;
 
         log::info!(
-            "Allocated new texture (size: {}x{}, format: {:?}, estimated: {:.2} MB). Total texture memory: {:.2} MB",
+            "Allocated new texture [{}] (size: {}x{}, format: {:?}, estimated: {:.2} MB). Total texture memory: {:.2} MB",
+            label,
             key.width,
             key.height,
             key.format,
@@ -140,8 +168,6 @@ impl ResourcePool {
         }
     }
 
-    /// 调用后，资源并不会立即进入 textures 池。相反，它会被塞进 pending_textures，
-    /// 并打上一个“时间戳”（当前的 frame_count）
     pub fn release_texture_deferred(&mut self, key: TextureKey, texture: Texture, frame_id: u64) {
         self.pending_textures.push((texture, key, frame_id));
     }
@@ -152,6 +178,30 @@ impl ResourcePool {
         &mut self,
         device: &wgpu::Device,
         key: BufferKey,
+    ) -> (PooledBuffer, BufferKey) {
+        self.acquire_buffer_internal(device, key, None)
+    }
+
+    pub fn acquire_persistent_buffer(
+        &mut self,
+        device: &wgpu::Device,
+        name: &str,
+        key: BufferKey,
+    ) -> PooledBuffer {
+        if let Some(VirtualResource::Buffer(b)) = self.persistent_resources.get(name) {
+            return b.clone();
+        }
+        let (b, _) = self.acquire_buffer_internal(device, key, Some(name));
+        self.persistent_resources
+            .insert(name.to_string(), VirtualResource::Buffer(b.clone()));
+        b
+    }
+
+    fn acquire_buffer_internal(
+        &mut self,
+        device: &wgpu::Device,
+        key: BufferKey,
+        persistent_name: Option<&str>,
     ) -> (PooledBuffer, BufferKey) {
         let mut search_key = key;
         // 对尺寸进行向上对齐以提高资源复用率
@@ -166,25 +216,29 @@ impl ResourcePool {
             (search_key.size + 1024 * 1024 - 1) & !(1024 * 1024 - 1)
         };
 
-        // 尝试寻找一个大小足够且用法兼容的现有缓冲区
-        let mut found_key = None;
-        for (pool_key, buffers) in &mut self.buffers {
-            if !buffers.is_empty()
-                && pool_key.size >= search_key.size
-                && pool_key.usage.contains(search_key.usage)
-            {
-                found_key = Some(*pool_key);
-                break;
+        if persistent_name.is_none() {
+            // 尝试寻找一个大小足够且用法兼容的现有缓冲区
+            let mut found_key = None;
+            for (pool_key, buffers) in &mut self.buffers {
+                if !buffers.is_empty()
+                    && pool_key.size >= search_key.size
+                    && pool_key.usage.contains(search_key.usage)
+                {
+                    found_key = Some(*pool_key);
+                    break;
+                }
+            }
+
+            if let Some(k) = found_key {
+                let buffer = self.buffers.get_mut(&k).unwrap().pop().unwrap();
+                return (buffer, k);
             }
         }
 
-        if let Some(k) = found_key {
-            let buffer = self.buffers.get_mut(&k).unwrap().pop().unwrap();
-            return (buffer, k);
-        }
+        let label = persistent_name.unwrap_or("transient_buffer");
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("transient_buffer"),
+            label: Some(label),
             size: search_key.size,
             usage: search_key.usage | wgpu::BufferUsages::COPY_DST, // 强制包含 COPY_DST 方便写入
             mapped_at_creation: false,
@@ -192,7 +246,8 @@ impl ResourcePool {
 
         self.total_buffer_memory += search_key.size;
         log::info!(
-            "Allocated new buffer (size: {} bytes). Total buffer memory: {:.2} MB",
+            "Allocated new buffer [{}] (size: {} bytes). Total buffer memory: {:.2} MB",
+            label,
             search_key.size,
             self.total_buffer_memory as f64 / 1024.0 / 1024.0
         );
@@ -230,15 +285,6 @@ impl ResourcePool {
                 })
             })
             .clone()
-    }
-
-    pub fn release_sampler_deferred(
-        &mut self,
-        _key: SamplerKey,
-        _sampler: wgpu::Sampler,
-        _frame_id: u64,
-    ) {
-        // 采样器现在由 sampler_cache 永久管理，不再需要延迟释放逻辑
     }
 
     // --- BindGroup 管理 ---
