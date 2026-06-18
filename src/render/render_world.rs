@@ -19,6 +19,7 @@ pub struct Extracted {
     pub(crate) sky: Option<ExtractedSky>,
     pub fxaa_enabled: bool,
     pub ssao_enabled: bool,
+    pub taa_enabled: bool,
 }
 
 /// Render frontend.

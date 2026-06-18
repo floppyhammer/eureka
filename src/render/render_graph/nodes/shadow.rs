@@ -105,9 +105,7 @@ impl Node for ShadowNode {
             .get_bind_group_layout("shadow_camera_bind_group_layout")
             .is_none()
         {
-            let shadow_camera_bind_group_layout = context
-                .render_context
-                .device
+            let shadow_camera_bind_group_layout = device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     entries: &[wgpu::BindGroupLayoutEntry {
                         binding: 0,
@@ -163,14 +161,14 @@ impl Node for ShadowNode {
             self.pipeline = Some(pipeline);
         }
 
-        let first_d3_cam = context
+        let first_3d_cam = context
             .extracted
             .cameras
             .types
             .iter()
             .position(|t| *t == CameraType::D3);
 
-        if first_d3_cam == None {
+        if first_3d_cam == None {
             return;
         }
 
@@ -185,7 +183,7 @@ impl Node for ShadowNode {
 
         // Prepare directional shadow uniforms
         if let (Some(directional_light), Some(camera_idx)) =
-            (&context.extracted.lights.directional_light, first_d3_cam)
+            (&context.extracted.lights.directional_light, first_3d_cam)
         {
             let camera_uniform = context.extracted.cameras.uniforms[camera_idx];
             let light_dir = Vec3::from_array(directional_light.direction).normalize();
@@ -195,9 +193,8 @@ impl Node for ShadowNode {
             let far = 100.0;
             let cascade_splits = [near, 10.0, 35.0, far];
 
-            let view_mat = Mat4::from_cols_array_2d(&camera_uniform.view);
-            let proj_mat = Mat4::from_cols_array_2d(&camera_uniform.proj);
-            let inv_cam = (proj_mat * view_mat).inverse();
+            // 必须使用未抖动的主相机 view 和 proj
+            let inv_view_proj_mat = Mat4::from_cols_array_2d(&camera_uniform.inv_unjittered_view_proj);
 
             let mut shadow_camera_uniforms = Vec::new();
             let mut cascade_uniform = CascadeUniform::default();
@@ -221,7 +218,7 @@ impl Node for ShadowNode {
 
                 let mut world_corners = [Vec3::ZERO; 8];
                 for j in 0..8 {
-                    let pt = inv_cam.project_point3(corners[j]);
+                    let pt = inv_view_proj_mat.project_point3(corners[j]);
                     world_corners[j] = pt;
                 }
 
@@ -267,11 +264,18 @@ impl Node for ShadowNode {
                     view: light_view.to_cols_array_2d(),
                     proj: light_proj.to_cols_array_2d(),
                     view_proj: view_proj.to_cols_array_2d(),
-                    inv_proj: Mat4::IDENTITY.to_cols_array_2d(),
-                    inv_view: Mat4::IDENTITY.to_cols_array_2d(),
+                    unjittered_proj: Mat4::IDENTITY.to_cols_array_2d(), // Unused
+                    unjittered_view_proj: Mat4::IDENTITY.to_cols_array_2d(), // Unused
+                    inv_proj: Mat4::IDENTITY.to_cols_array_2d(), // Unused
+                    inv_view: Mat4::IDENTITY.to_cols_array_2d(), // Unused
+                    inv_view_proj: Mat4::IDENTITY.to_cols_array_2d(), // Unused
+                    inv_unjittered_view_proj: Mat4::IDENTITY.to_cols_array_2d(), // Unused
+                    prev_view_proj: Mat4::IDENTITY.to_cols_array_2d(), // Unused
+                    jitter: [0.0; 4],
                     ssao_enabled: 0,
                     volumetric_enabled: 0,
-                    _pad: [0; 2],
+                    taa_enabled: 0,
+                    _pad: [0; 1],
                 });
 
                 cascade_uniform.view_proj[i] = view_proj.to_cols_array_2d();
@@ -350,11 +354,18 @@ impl Node for ShadowNode {
                         view: light_view.to_cols_array_2d(),
                         proj: point_light_proj.to_cols_array_2d(),
                         view_proj: view_proj.to_cols_array_2d(),
+                        unjittered_proj: Mat4::IDENTITY.to_cols_array_2d(),
+                        unjittered_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
                         inv_proj: Mat4::IDENTITY.to_cols_array_2d(),
                         inv_view: Mat4::IDENTITY.to_cols_array_2d(),
+                        inv_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+                        inv_unjittered_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+                        prev_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+                        jitter: [0.0; 4],
                         ssao_enabled: 0,
                         volumetric_enabled: 0,
-                        _pad: [0; 2],
+                        taa_enabled: 0,
+                        _pad: [0; 1],
                     };
                     // render_resources.point_shadow_view_projs.push(view_proj);
                 }

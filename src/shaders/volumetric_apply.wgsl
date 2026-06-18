@@ -3,10 +3,18 @@ struct Camera {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     view_proj: mat4x4<f32>,
+    unjittered_proj: mat4x4<f32>,
+    unjittered_view_proj: mat4x4<f32>,
     inv_proj: mat4x4<f32>,
     inv_view: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
+    inv_unjittered_view_proj: mat4x4<f32>,
+    prev_view_proj: mat4x4<f32>,
+    jitter: vec4<f32>,
     ssao_enabled: u32,
     volumetric_enabled: u32,
+    taa_enabled: u32,
+    _pad: u32,
 }
 
 struct ClusterConfig {
@@ -57,22 +65,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let depth = textureLoad(t_main_depth, vec2<i32>(in.clip_position.xy), 0);
 
-    // 将深度转换回 View 空间深度
-    // 如果是天空盒，depth 应该为 0.0 (Reverse-Z) 或 1.0
-    // 我们需要将其处理为 view-space z
+    // 关键修正：深度缓冲是带抖动的，所以还原到 View 空间时要用带抖动的逆矩阵
     let clip_pos = vec4<f32>(in.tex_coords.x * 2.0 - 1.0, (1.0 - in.tex_coords.y) * 2.0 - 1.0, depth, 1.0);
     let view_pos = camera.inv_proj * clip_pos;
     let view_z = -view_pos.z / view_pos.w;
 
     // 计算采样 3D 纹理的 W 坐标
-    // 对应 volumetric.wgsl 中的对数分布逻辑
     let slice = log2(max(view_z, config.z_near) / config.z_near) / log2(config.z_far / config.z_near);
 
-    // 抖动上采样以消除马赛克
+    // 抖动上采样
     let noise = hash_2d(in.clip_position.xy);
     let dither_offset = (noise - 0.5) * (1.0 / vec2<f32>(240.0, 135.0));
 
-    let volumetric_uvw = vec3<f32>(in.tex_coords, saturate(slice));
+    // 体积光本身是 Unjittered 的，所以采样坐标也要补偿
+    let unjittered_uv = in.tex_coords - camera.jitter.xy * 0.5;
+    let volumetric_uvw = vec3<f32>(unjittered_uv, saturate(slice));
     let fog = textureSampleLevel(t_volumetric, s_linear, volumetric_uvw + vec3<f32>(dither_offset, 0.0), 0.0);
 
     let final_color = scene_color.rgb * fog.a + fog.rgb;

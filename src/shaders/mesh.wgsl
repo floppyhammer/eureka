@@ -3,10 +3,18 @@ struct Camera {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     view_proj: mat4x4<f32>,
+    unjittered_proj: mat4x4<f32>,
+    unjittered_view_proj: mat4x4<f32>,
     inv_proj: mat4x4<f32>,
     inv_view: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
+    inv_unjittered_view_proj: mat4x4<f32>,
+    prev_view_proj: mat4x4<f32>,
+    jitter: vec4<f32>,
     ssao_enabled: u32,
     volumetric_enabled: u32,
+    taa_enabled: u32,
+    _pad: u32,
 }
 
 @group(0) @binding(0)
@@ -501,9 +509,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // 关键逻辑：只有透明物体（AlphaMode::Blend = 2）才在 Shader 中采样体积光
     // 不透明物体由后续的 VolumetricApply 节点统一处理
     if (material.alpha_mode == 2u) {
+        // 透明物体采样体积光时，必须使用不带抖动的 UV 和坐标
+        let screen_uv = in.clip_position.xy / cluster_config.screen_size;
+        let stable_uv = screen_uv - camera.jitter.xy * 0.5;
+
         let volumetric_uvw = vec3<f32>(
-            in.clip_position.x / cluster_config.screen_size.x,
-            in.clip_position.y / cluster_config.screen_size.y,
+            stable_uv,
             log2(max(cluster_depth, cluster_config.z_near) / cluster_config.z_near) / log2(cluster_config.z_far / cluster_config.z_near)
         );
         let volumetric_data = textureSampleLevel(t_volumetric, s_skybox, volumetric_uvw, 0.0);

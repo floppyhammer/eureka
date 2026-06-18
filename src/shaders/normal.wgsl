@@ -3,10 +3,18 @@ struct Camera {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     view_proj: mat4x4<f32>,
+    unjittered_proj: mat4x4<f32>,
+    unjittered_view_proj: mat4x4<f32>,
     inv_proj: mat4x4<f32>,
     inv_view: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
+    inv_unjittered_view_proj: mat4x4<f32>,
+    prev_view_proj: mat4x4<f32>,
+    jitter: vec4<f32>,
     ssao_enabled: u32,
     volumetric_enabled: u32,
+    taa_enabled: u32,
+    _pad: u32,
 }
 
 @group(0) @binding(0)
@@ -44,12 +52,9 @@ struct InstanceInput {
     @location(6) model_matrix_1: vec4<f32>,
     @location(7) model_matrix_2: vec4<f32>,
     @location(8) model_matrix_3: vec4<f32>,
-
-    // 必须用 vec4 对应 InstanceRaw 的内存布局 [f32; 4]
     @location(9) normal_matrix_0: vec4<f32>,
     @location(10) normal_matrix_1: vec4<f32>,
     @location(11) normal_matrix_2: vec4<f32>,
-
     @location(12) material_idx: u32,
 }
 
@@ -82,6 +87,7 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     let view_normal = (camera.view * vec4<f32>(world_normal, 0.0)).xyz;
 
     var out: VertexOutput;
+    // Normal pass 也需要抖动，否则和深度缓冲对不上
     out.clip_position = camera.view_proj * model_matrix * vec4<f32>(vertex.position, 1.0);
     out.view_normal = view_normal;
     out.world_normal = world_normal;
@@ -98,7 +104,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let material = materials[in.material_idx];
 
     // Alpha Clipping (Mask mode)
-    if (material.alpha_mode == 1u) { // ALPHA_MODE_MASK
+    if (material.alpha_mode == 1u) {
         if (material.color_texture_idx >= 0) {
             let sampled_alpha = textureSample(t_textures[u32(material.color_texture_idx)], s_sampler, in.tex_coords).a;
             if (sampled_alpha * material.base_color.a < material.alpha_cutoff) {

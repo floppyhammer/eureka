@@ -27,7 +27,7 @@ impl Node for ToneMappingNode {
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(
-                standard_resources::main_color(),
+                standard_resources::taa_output(),
                 ResourceSpec::texture(
                     0,
                     0,
@@ -126,7 +126,7 @@ impl Node for ToneMappingNode {
                 .add_bind_group_layout("tonemapping_bind_group_layout", bind_group_layout);
         }
 
-        let input_texture = context.texture(&standard_resources::main_color());
+        let input_texture = context.texture(&standard_resources::taa_output());
         let bloom_texture = context.texture(&standard_resources::bloom_texture());
         let output_texture = context.texture(&standard_resources::hdr_resolved());
 

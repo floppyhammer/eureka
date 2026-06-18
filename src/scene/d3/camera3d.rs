@@ -14,8 +14,11 @@ pub struct Camera3dComponent {
     pub far: f32,
     pub ssao_enabled: bool,
     pub fxaa_enabled: bool,
+    pub taa_enabled: bool,
     pub volumetric_enabled: bool,
     pub viewport_size: UVec2,
+    pub frame_count: u64,
+    pub prev_view_proj: Mat4, // 新增：保存上一帧的矩阵
 }
 
 impl Camera3dComponent {
@@ -25,9 +28,12 @@ impl Camera3dComponent {
             near: DEFAULT_NEAR,
             far: DEFAULT_FAR,
             ssao_enabled: true,
-            fxaa_enabled: true,
+            fxaa_enabled: false,
+            taa_enabled: true,
             volumetric_enabled: true,
             viewport_size: UVec2::new(1280, 720),
+            frame_count: 0,
+            prev_view_proj: Mat4::IDENTITY,
         }
     }
 
@@ -43,20 +49,77 @@ impl Camera3dComponent {
 
         let view_mat = self.calc_view_matrix(global_transform);
         let aspect_ratio = self.viewport_size.x as f32 / self.viewport_size.y as f32;
-        let proj_mat = Mat4::perspective_rh(self.fov, aspect_ratio, self.near, self.far);
+        let unjittered_proj = Mat4::perspective_rh(self.fov, aspect_ratio, self.near, self.far);
+        let mut proj_mat = unjittered_proj;
+
+        // TAA Jittering
+        if self.taa_enabled {
+            let jitter = self.get_halton_jitter(self.frame_count);
+            let prev_jitter = self.get_halton_jitter(self.frame_count.wrapping_sub(1));
+
+            let jitter_x = (jitter.0 * 2.0 - 1.0) / self.viewport_size.x as f32;
+            let jitter_y = (jitter.1 * 2.0 - 1.0) / self.viewport_size.y as f32;
+
+            let prev_jitter_x = (prev_jitter.0 * 2.0 - 1.0) / self.viewport_size.x as f32;
+            let prev_jitter_y = (prev_jitter.1 * 2.0 - 1.0) / self.viewport_size.y as f32;
+
+            proj_mat.col_mut(2).x += jitter_x;
+            proj_mat.col_mut(2).y += jitter_y;
+
+            uniform.jitter = [jitter_x, jitter_y, prev_jitter_x, prev_jitter_y];
+        }
 
         let (_, _, translation) = global_transform.to_scale_rotation_translation();
 
         uniform.view_position = translation.extend(1.0).to_array();
         uniform.view = view_mat.to_cols_array_2d();
         uniform.proj = proj_mat.to_cols_array_2d();
-        uniform.view_proj = (proj_mat * view_mat).to_cols_array_2d();
+        uniform.unjittered_proj = unjittered_proj.to_cols_array_2d();
+
+        let view_proj = proj_mat * view_mat;
+        let unjittered_view_proj = unjittered_proj * view_mat;
+
+        uniform.view_proj = view_proj.to_cols_array_2d();
+        uniform.unjittered_view_proj = unjittered_view_proj.to_cols_array_2d();
+
         uniform.inv_proj = proj_mat.inverse().to_cols_array_2d();
         uniform.inv_view = view_mat.inverse().to_cols_array_2d();
+        uniform.inv_view_proj = view_proj.inverse().to_cols_array_2d();
+        uniform.inv_unjittered_view_proj = unjittered_view_proj.inverse().to_cols_array_2d(); // 新增
+
+        // 关键：这里使用的是存储的上一帧矩阵
+        uniform.prev_view_proj = self.prev_view_proj.to_cols_array_2d();
+
         uniform.ssao_enabled = if self.ssao_enabled { 1 } else { 0 };
         uniform.volumetric_enabled = if self.volumetric_enabled { 1 } else { 0 };
+        uniform.taa_enabled = if self.taa_enabled { 1 } else { 0 };
 
         uniform
+    }
+
+    /// 在 extract 之后调用，手动更新历史矩阵 (始终保存 Unjittered 矩阵)
+    pub fn update_after_extract(&mut self, global_transform: &Mat4) {
+        let view_mat = self.calc_view_matrix(global_transform);
+        let aspect_ratio = self.viewport_size.x as f32 / self.viewport_size.y as f32;
+        let proj_mat = Mat4::perspective_rh(self.fov, aspect_ratio, self.near, self.far);
+        self.prev_view_proj = proj_mat * view_mat;
+    }
+
+    fn get_halton_jitter(&self, index: u64) -> (f32, f32) {
+        fn halton(mut i: u64, base: u64) -> f32 {
+            let mut f = 1.0;
+            let mut r = 0.0;
+            while i > 0 {
+                f /= base as f32;
+                r += f * (i % base) as f32;
+                i /= base;
+            }
+            r
+        }
+
+        // 使用 8 帧为一个周期的 Halton 序列 (2, 3)
+        let idx = (index % 8) + 1;
+        (halton(idx, 2), halton(idx, 3))
     }
 }
 

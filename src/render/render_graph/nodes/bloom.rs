@@ -39,7 +39,7 @@ impl Node for BloomNode {
         });
 
         crate::render::render_graph::resource::NodeResources::new()
-            .input(standard_resources::main_color(), color_spec.clone())
+            .input(standard_resources::taa_output(), color_spec.clone())
             .output(standard_resources::bloom_texture(), color_spec)
     }
 
@@ -127,7 +127,7 @@ impl Node for BloomNode {
                 .add_bind_group_layout("bloom_bind_group_layout", bind_group_layout);
         }
 
-        let main_color = context.texture(&standard_resources::main_color());
+        let main_color = context.texture(&standard_resources::taa_output());
         let bloom_output = context.texture(&standard_resources::bloom_texture());
 
         let sampler = context.get_sampler(SamplerKey {

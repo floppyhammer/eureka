@@ -16,10 +16,14 @@ pub struct FrameContext<'a> {
     pub extracted: &'a Extracted,
     pub encoder: &'a mut wgpu::CommandEncoder,
     pub final_output_view: &'a wgpu::TextureView,
+    pub frame_count: u64, // 新增
     pub(crate) active_resources: &'a mut HashMap<ResourceId<()>, (ResourceKey, VirtualResource)>,
 }
 
 impl<'a> FrameContext<'a> {
+    pub fn frame_count(&self) -> u64 {
+        self.frame_count
+    }
     /// 获取一个具名瞬时纹理。返回克隆的句柄以允许连续调用。
     pub fn get_texture(
         &mut self,

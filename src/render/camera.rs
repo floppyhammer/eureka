@@ -42,11 +42,18 @@ pub struct CameraUniform {
     pub(crate) view: [[f32; 4]; 4],
     pub(crate) proj: [[f32; 4]; 4],
     pub(crate) view_proj: [[f32; 4]; 4],
+    pub(crate) unjittered_proj: [[f32; 4]; 4],     // 新增
+    pub(crate) unjittered_view_proj: [[f32; 4]; 4],// 新增
     pub(crate) inv_proj: [[f32; 4]; 4],
-    pub(crate) inv_view: [[f32; 4]; 4], // 新增
+    pub(crate) inv_view: [[f32; 4]; 4],
+    pub(crate) inv_view_proj: [[f32; 4]; 4],
+    pub(crate) inv_unjittered_view_proj: [[f32; 4]; 4], // 新增
+    pub(crate) prev_view_proj: [[f32; 4]; 4],
+    pub(crate) jitter: [f32; 4],
     pub(crate) ssao_enabled: u32,
     pub(crate) volumetric_enabled: u32,
-    pub(crate) _pad: [u32; 2],
+    pub(crate) taa_enabled: u32,
+    pub(crate) _pad: [u32; 1],
 }
 
 impl Default for CameraUniform {
@@ -56,11 +63,18 @@ impl Default for CameraUniform {
             view: Mat4::IDENTITY.to_cols_array_2d(),
             proj: Mat4::IDENTITY.to_cols_array_2d(),
             view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+            unjittered_proj: Mat4::IDENTITY.to_cols_array_2d(),      // 新增
+            unjittered_view_proj: Mat4::IDENTITY.to_cols_array_2d(), // 新增
             inv_proj: Mat4::IDENTITY.to_cols_array_2d(),
-            inv_view: Mat4::IDENTITY.to_cols_array_2d(), // 新增
+            inv_view: Mat4::IDENTITY.to_cols_array_2d(),
+            inv_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+            inv_unjittered_view_proj: Mat4::IDENTITY.to_cols_array_2d(), // 新增
+            prev_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+            jitter: [0.0; 4],
             ssao_enabled: 0,
             volumetric_enabled: 0,
-            _pad: [0; 2],
+            taa_enabled: 0,
+            _pad: [0; 1],
         }
     }
 }

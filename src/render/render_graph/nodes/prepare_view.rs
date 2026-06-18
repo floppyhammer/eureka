@@ -22,13 +22,13 @@ impl Node for PrepareViewNode {
         use crate::render::camera::CameraUniform;
         use crate::render::render_graph::resource::ResourceSpec;
 
-        let buffer_size = CameraUniform::get_uniform_offset_unit() * MAX_CAMERAS;
+        let camera_buffer_size = CameraUniform::get_uniform_offset_unit() * MAX_CAMERAS;
 
-        // 输出为一个包含所有相机uniform的大缓冲区
+        // 输出为一个包含所有相机 uniform 的大缓冲区
         crate::render::render_graph::resource::NodeResources::new().output(
             standard_resources::camera_buffer(),
             ResourceSpec::buffer(
-                buffer_size as u64,
+                camera_buffer_size as u64,
                 wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             ),
         )
@@ -61,8 +61,7 @@ impl Node for PrepareViewNode {
                 .add_bind_group_layout("camera_bind_group_layout", camera_bind_group_layout);
         }
 
-        let extracted_cameras = context.extracted.cameras.clone();
-        let uniforms = extracted_cameras.uniforms.clone();
+        let uniforms = context.extracted.cameras.uniforms.clone();
 
         // No cameras.
         if uniforms.is_empty() {

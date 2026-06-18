@@ -482,6 +482,10 @@ pub mod standard_resources {
         ResourceId::new("ssao_blur")
     }
 
+    pub fn taa_output() -> TextureId {
+        ResourceId::new("taa_output")
+    }
+
     pub fn bloom_texture() -> TextureId {
         ResourceId::new("bloom_texture")
     }

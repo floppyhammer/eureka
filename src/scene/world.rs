@@ -61,8 +61,12 @@ impl World {
         }
 
         // 同步 3D 摄像机视口
-        for (_id, camera) in self.ecs.query_mut::<&mut Camera3dComponent>() {
+        for (_id, (camera, global)) in self.ecs.query_mut::<(&mut Camera3dComponent, &GlobalTransform)>() {
             camera.viewport_size = UVec2::new(width as u32, height as u32);
+            camera.frame_count = camera.frame_count.wrapping_add(1);
+
+            // 注意：这里不再立即更新 camera.prev_view_proj
+            // 我们在渲染提取逻辑中先使用它，然后再在每帧结束时更新它
         }
     }
 
@@ -348,7 +352,7 @@ impl World {
     }
 
     /// 渲染提取系统：从 ECS 中提取渲染命令
-    pub fn extract_render_objects(&self) -> Extracted {
+    pub fn extract_render_objects(&mut self) -> Extracted {
         let mut extracted = Extracted::default();
 
         // 提取渲染设置 (从摄像机组件获取)
@@ -359,6 +363,7 @@ impl World {
         {
             extracted.fxaa_enabled = camera.fxaa_enabled;
             extracted.ssao_enabled = camera.ssao_enabled;
+            extracted.taa_enabled = camera.taa_enabled;
             // 只取第一个摄像机的设置
             break;
         }
@@ -517,21 +522,36 @@ impl World {
         extracted
     }
 
-    fn extract_cameras(&self, extracted: &mut Extracted) {
+    fn extract_cameras(&mut self, extracted: &mut Extracted) {
         use crate::render::camera::CameraType;
 
         // 提取 3D 摄像机
         for (_id, (camera, global, _)) in self
             .ecs
-            .query::<(
-                &crate::scene::d3::Camera3dComponent,
+            .query_mut::<(
+                &mut crate::scene::d3::camera3d::Camera3dComponent,
                 &GlobalTransform,
                 &ActiveCamera,
             )>()
-            .iter()
         {
             let uniform = camera.build_uniform(&global.0);
             extracted.cameras.add(CameraType::D3, uniform);
+
+            // 提取完成后，更新组件内的历史矩阵，供下一帧 build_uniform 使用
+            camera.update_after_extract(&global.0);
+        }
+
+        // 提取 2D 摄像机
+        for (_id, (camera, global, _)) in self
+            .ecs
+            .query_mut::<(
+                &mut crate::scene::d2::Camera2dComponent,
+                &GlobalTransform,
+                &ActiveCamera,
+            )>()
+        {
+            let uniform = camera.build_uniform(&global.0);
+            extracted.cameras.add(CameraType::D2, uniform);
         }
 
         // 提取 2D 摄像机

@@ -3,10 +3,18 @@ struct Camera {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     view_proj: mat4x4<f32>,
+    unjittered_proj: mat4x4<f32>,
+    unjittered_view_proj: mat4x4<f32>,
     inv_proj: mat4x4<f32>,
     inv_view: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
+    inv_unjittered_view_proj: mat4x4<f32>,
+    prev_view_proj: mat4x4<f32>,
+    jitter: vec4<f32>,
     ssao_enabled: u32,
     volumetric_enabled: u32,
+    taa_enabled: u32,
+    _pad: u32,
 }
 
 struct PointLight {
@@ -69,15 +77,13 @@ fn get_world_pos(uv: vec2<f32>, view_z: f32) -> vec3<f32> {
     let clip_x = uv.x * 2.0 - 1.0;
     let clip_y = (1.0 - uv.y) * 2.0 - 1.0;
 
-    // 使用 view_z 计算对应的 clip_z
-    // proj_matrix * [0, 0, view_z, 1] = [0, 0, p22*view_z + p32, -view_z]
-    // clip_z = (p22*view_z + p32) / -view_z
-    let clip_z = (camera.proj[2][2] * view_z + camera.proj[3][2]) / -view_z;
-
+    // 体积光计算在稳定的低分辨率网格上进行，必须使用不带抖动的矩阵
+    let clip_z = (camera.unjittered_proj[2][2] * view_z + camera.unjittered_proj[3][2]) / -view_z;
     let clip_pos = vec4<f32>(clip_x, clip_y, clip_z, 1.0);
-    let view_pos = camera.inv_proj * clip_pos;
-    let world_pos = camera.inv_view * view_pos;
-    return world_pos.xyz / world_pos.w;
+
+    // 直接使用稳定的逆矩阵
+    let world_pos_h = camera.inv_unjittered_view_proj * clip_pos;
+    return world_pos_h.xyz / world_pos_h.w;
 }
 
 fn interleaved_gradient_noise(uv: vec2<f32>) -> f32 {
@@ -134,6 +140,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
         if (density <= 0.0) {
              accumulated_transmittance *= 1.0;
+             textureStore(t_volumetric, vec3<u32>(global_id.xy, z), vec4<f32>(accumulated_scattering, accumulated_transmittance));
              continue;
         }
 
@@ -187,11 +194,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         }
 
         // 3. 环境光贡献 (环境散射)
-        // 使用自定义的 fog_color 代替简单的环境光，或者两者结合
         let ambient_scattering = lights.fog_color * lights.ambient_strength * 0.1;
         local_scattering += ambient_scattering;
 
-        // 4. 体积参数 (来自 Uniform)
+        // 4. 体积参数
         let scattering_coeff = lights.fog_scattering;
         let absorption_coeff = lights.fog_absorption;
 
@@ -202,7 +208,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let step_transmittance = exp(-current_extinction * step_size);
 
         if (current_extinction > 0.0001) {
-            // 使用解析积分公式以获得更平滑的结果
             let scattering_integral = (current_scattering / current_extinction) * (1.0 - step_transmittance);
             accumulated_scattering += scattering_integral * accumulated_transmittance;
         } else {
@@ -214,4 +219,3 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         textureStore(t_volumetric, vec3<u32>(global_id.xy, z), vec4<f32>(accumulated_scattering, accumulated_transmittance));
     }
 }
-
