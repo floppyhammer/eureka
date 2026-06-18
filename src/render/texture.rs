@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use uuid;
 use wgpu::Extent3d;
 
-pub static NEXT_TEXTURE_ID: AtomicU64 = AtomicU64::new(1);
+pub static NEXT_RESOURCE_ID: AtomicU64 = AtomicU64::new(1);
 pub static NEXT_VIEW_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -401,7 +401,7 @@ impl Texture {
             texture,
             view,
             format,
-            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            id: NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed),
             view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
             view_cache: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -464,7 +464,7 @@ impl Texture {
             texture,
             view,
             format: Self::DEPTH_FORMAT,
-            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            id: NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed),
             view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
             view_cache: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -594,7 +594,7 @@ impl Texture {
             texture,
             view,
             format: raw.format,
-            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            id: NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed),
             view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
             view_cache: Arc::new(Mutex::new(HashMap::new())),
         })
@@ -682,7 +682,7 @@ impl Texture {
             texture,
             view,
             format: raw.format,
-            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            id: NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed),
             view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
             view_cache: Arc::new(Mutex::new(HashMap::new())),
         })
@@ -783,7 +783,7 @@ impl Texture {
             texture,
             view,
             format,
-            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            id: NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed),
             view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
             view_cache: Arc::new(Mutex::new(HashMap::new())),
         };

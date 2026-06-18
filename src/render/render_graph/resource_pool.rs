@@ -1,20 +1,23 @@
 use super::resource::{
     BindGroupKey, BufferKey, PooledBuffer, ResourceKey, SamplerKey, TextureKey, VirtualResource,
 };
-use crate::render::{Texture, NEXT_TEXTURE_ID, NEXT_VIEW_ID};
+use crate::render::{Texture, NEXT_RESOURCE_ID, NEXT_VIEW_ID};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
+/// 资源池回收阈值：如果资源超过 600 帧（约 10 秒 @ 60fps）未被使用，则从池中释放
+const MAX_UNUSED_FRAMES: u64 = 600;
+
 /// 瞬时资源池，用于在帧内复用纹理和缓冲区，并支持多帧并行下的延迟回收
 #[derive(Default)]
 pub struct ResourcePool {
-    /// 跨帧纹理池（支持 FIF 数据隔离）
-    textures: HashMap<TextureKey, Vec<Texture>>, // “就绪”池
+    /// 跨帧纹理池（支持 FIF 数据隔离）。存储 (纹理, 最后归还帧)
+    textures: HashMap<TextureKey, Vec<(Texture, u64)>>, // “就绪”池
     pending_textures: Vec<(Texture, TextureKey, u64)>, // “待回收”队列
 
-    /// 跨帧缓冲区池（支持 FIF 数据隔离）
-    buffers: HashMap<BufferKey, Vec<PooledBuffer>>,
+    /// 跨帧缓冲区池（支持 FIF 数据隔离）。存储 (缓冲区, 最后归还帧)
+    buffers: HashMap<BufferKey, Vec<(PooledBuffer, u64)>>,
     pending_buffers: Vec<(PooledBuffer, BufferKey, u64)>,
 
     /// 统计信息：当前池中管理的所有缓冲区的总内存（字节）
@@ -34,25 +37,68 @@ pub struct ResourcePool {
 
 impl ResourcePool {
     pub fn update(&mut self, current_frame: u64, frames_in_flight: u64) {
-        // 1. 回收纹理
+        // 1. 回收待处理纹理到“就绪”池
         let mut i = 0;
         while i < self.pending_textures.len() {
             if current_frame >= self.pending_textures[i].2 + frames_in_flight {
                 let (texture, key, _) = self.pending_textures.remove(i);
-                self.textures.entry(key).or_default().push(texture);
+                self.textures
+                    .entry(key)
+                    .or_default()
+                    .push((texture, current_frame));
             } else {
                 i += 1;
             }
         }
 
-        // 2. 回收缓冲区
+        // 2. 回收待处理缓冲区到“就绪”池
         let mut i = 0;
         while i < self.pending_buffers.len() {
             if current_frame >= self.pending_buffers[i].2 + frames_in_flight {
                 let (buffer, key, _) = self.pending_buffers.remove(i);
-                self.buffers.entry(key).or_default().push(buffer);
+                self.buffers
+                    .entry(key)
+                    .or_default()
+                    .push((buffer, current_frame));
             } else {
                 i += 1;
+            }
+        }
+
+        // 3. 资源裁剪 (Trimming)：清理长时间不使用的资源
+        self.trim_unused_resources(current_frame);
+    }
+
+    fn trim_unused_resources(&mut self, current_frame: u64) {
+        // 裁剪纹理
+        for (key, list) in self.textures.iter_mut() {
+            let old_len = list.len();
+            list.retain(|(_, last_used)| current_frame < *last_used + MAX_UNUSED_FRAMES);
+            let removed_count = old_len - list.len();
+            if removed_count > 0 {
+                let bytes = Self::estimate_texture_size(key) * removed_count as u64;
+                self.total_texture_memory = self.total_texture_memory.saturating_sub(bytes);
+                log::info!(
+                    "Trimmed {} unused textures. Current texture memory: {:.2} MB",
+                    removed_count,
+                    self.total_texture_memory as f64 / 1024.0 / 1024.0
+                );
+            }
+        }
+
+        // 裁剪缓冲区
+        for (key, list) in self.buffers.iter_mut() {
+            let old_len = list.len();
+            list.retain(|(_, last_used)| current_frame < *last_used + MAX_UNUSED_FRAMES);
+            let removed_count = old_len - list.len();
+            if removed_count > 0 {
+                let bytes = key.size * removed_count as u64;
+                self.total_buffer_memory = self.total_buffer_memory.saturating_sub(bytes);
+                log::info!(
+                    "Trimmed {} unused buffers. Current buffer memory: {:.2} MB",
+                    removed_count,
+                    self.total_buffer_memory as f64 / 1024.0 / 1024.0
+                );
             }
         }
     }
@@ -103,7 +149,7 @@ impl ResourcePool {
     ) -> Texture {
         if persistent_name.is_none() {
             if let Some(textures) = self.textures.get_mut(&key) {
-                if let Some(texture) = textures.pop() {
+                if let Some((texture, _)) = textures.pop() {
                     return texture;
                 }
             }
@@ -141,23 +187,7 @@ impl ResourcePool {
             ..Default::default()
         });
 
-        let format = key.format.unwrap();
-        let bpp = match format {
-            wgpu::TextureFormat::R8Unorm => 1,
-            wgpu::TextureFormat::Rg8Unorm => 2,
-            wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => 4,
-            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => 4,
-            wgpu::TextureFormat::Rgba16Float => 8,
-            wgpu::TextureFormat::R32Float => 4,
-            wgpu::TextureFormat::Rg32Float => 8,
-            wgpu::TextureFormat::Rgba32Float => 16,
-            wgpu::TextureFormat::Depth32Float => 4,
-            wgpu::TextureFormat::Depth24Plus => 4, // 估算
-            wgpu::TextureFormat::Depth24PlusStencil8 => 4, // 估算
-            _ => 4,                                // 默认
-        };
-
-        let estimated_size = (key.width * key.height * key.layers) as u64 * bpp;
+        let estimated_size = Self::estimate_texture_size(&key);
         self.total_texture_memory += estimated_size;
 
         log::info!(
@@ -175,10 +205,29 @@ impl ResourcePool {
             texture: wgpu_texture,
             view,
             format: key.format.unwrap(),
-            id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+            id: NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed),
             view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
             view_cache: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    fn estimate_texture_size(key: &TextureKey) -> u64 {
+        let format = key.format.unwrap_or(wgpu::TextureFormat::Rgba8Unorm);
+        let bpp = match format {
+            wgpu::TextureFormat::R8Unorm => 1,
+            wgpu::TextureFormat::Rg8Unorm => 2,
+            wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => 4,
+            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => 4,
+            wgpu::TextureFormat::Rgba16Float => 8,
+            wgpu::TextureFormat::R32Float => 4,
+            wgpu::TextureFormat::Rg32Float => 8,
+            wgpu::TextureFormat::Rgba32Float => 16,
+            wgpu::TextureFormat::Depth32Float => 4,
+            wgpu::TextureFormat::Depth24Plus => 4,
+            wgpu::TextureFormat::Depth24PlusStencil8 => 4,
+            _ => 4,
+        };
+        (key.width * key.height * key.layers) as u64 * bpp
     }
 
     pub fn release_texture_deferred(&mut self, key: TextureKey, texture: Texture, frame_id: u64) {
@@ -256,7 +305,7 @@ impl ResourcePool {
             }
 
             if let Some(k) = found_key {
-                let buffer = self.buffers.get_mut(&k).unwrap().pop().unwrap();
+                let (buffer, _) = self.buffers.get_mut(&k).unwrap().pop().unwrap();
                 return (buffer, k);
             }
         }
@@ -281,7 +330,7 @@ impl ResourcePool {
         (
             PooledBuffer {
                 buffer,
-                id: NEXT_TEXTURE_ID.fetch_add(1, Ordering::Relaxed),
+                id: NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed),
             },
             search_key,
         )
