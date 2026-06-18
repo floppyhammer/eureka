@@ -89,8 +89,8 @@ fn fs_main(in: VertexOutput) -> @location(0) f32 {
 
         // Project sample position to find sample UV
         var offset = vec4<f32>(sample_pos_view, 1.0);
-        // 使用不带抖动的投影矩阵进行采样，保证稳定性
-        offset = camera.unjittered_proj * offset;
+        // 使用带抖动的投影矩阵进行采样，以匹配当前的深度缓冲
+        offset = camera.proj * offset;
         offset.x = offset.x / offset.w;
         offset.y = offset.y / offset.w;
         // Project to UV: NDC (-1, 1) -> UV (0, 1)
