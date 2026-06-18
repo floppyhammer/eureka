@@ -279,6 +279,28 @@ impl ResourcePool {
         self.pending_textures.push((texture, key, frame_id));
     }
 
+    /// 获取一个具有“记忆”功能的持久化纹理，常用于 TAA 等时间性算法。
+    /// version_offset: 0 表示这一帧要写入的（Current），1 表示上一帧写入的（Previous）。
+    pub fn acquire_history_texture(
+        &mut self,
+        device: &wgpu::Device,
+        name: &str,
+        key: TextureKey,
+        version_offset: u32,
+        current_frame: u64,
+        frames_in_flight: u64,
+    ) -> Texture {
+        // 副本数量：必须至少为 2（读写分离），且不能少于 frames_in_flight（多帧安全）
+        let max_versions = frames_in_flight.max(2);
+
+        // 使用 version_offset 进行索引偏移。
+        // 为了处理无符号减法，我们加上 max_versions 再取模。
+        let physical_index = (current_frame + max_versions - version_offset as u64) % max_versions;
+        let internal_name = format!("{}_v{}", name, physical_index);
+
+        self.acquire_persistent_texture(device, &internal_name, key)
+    }
+
     // --- 缓冲区管理 ---
 
     pub fn acquire_buffer(
@@ -383,6 +405,24 @@ impl ResourcePool {
 
     pub fn release_buffer_deferred(&mut self, key: BufferKey, buffer: PooledBuffer, frame_id: u64) {
         self.pending_buffers.push((buffer, key, frame_id));
+    }
+
+    /// 获取一个具有“记忆”功能的持久化缓冲区。
+    /// version_offset: 0 表示这一帧（Current），1 表示上一帧（Previous）。
+    pub fn acquire_history_buffer(
+        &mut self,
+        device: &wgpu::Device,
+        name: &str,
+        key: BufferKey,
+        version_offset: u32,
+        current_frame: u64,
+        frames_in_flight: u64,
+    ) -> PooledBuffer {
+        let max_versions = frames_in_flight.max(2);
+        let physical_index = (current_frame + max_versions - version_offset as u64) % max_versions;
+        let internal_name = format!("{}_v{}", name, physical_index);
+
+        self.acquire_persistent_buffer(device, &internal_name, key)
     }
 
     // --- 采样器管理 ---
