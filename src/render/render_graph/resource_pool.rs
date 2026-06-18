@@ -1,5 +1,5 @@
 use super::resource::{
-    BindGroupKey, BufferKey, PooledBuffer, SamplerKey, TextureKey, VirtualResource,
+    BindGroupKey, BufferKey, PooledBuffer, ResourceKey, SamplerKey, TextureKey, VirtualResource,
 };
 use crate::render::{Texture, NEXT_TEXTURE_ID, NEXT_VIEW_ID};
 use std::collections::HashMap;
@@ -28,8 +28,8 @@ pub struct ResourcePool {
     /// 帧内 BindGroup 缓存，每帧清空
     bind_group_cache: HashMap<BindGroupKey, wgpu::BindGroup>,
 
-    /// 持久化资源
-    persistent_resources: HashMap<String, VirtualResource>,
+    /// 持久化资源，存储资源及其原始规格以进行一致性检查
+    persistent_resources: HashMap<String, (VirtualResource, ResourceKey)>,
 }
 
 impl ResourcePool {
@@ -73,12 +73,25 @@ impl ResourcePool {
         name: &str,
         key: TextureKey,
     ) -> Texture {
-        if let Some(VirtualResource::Texture(t)) = self.persistent_resources.get(name) {
+        if let Some((VirtualResource::Texture(t), old_key)) = self.persistent_resources.get(name) {
+            if let ResourceKey::Texture(old_texture_key) = old_key {
+                if old_texture_key != &key {
+                    panic!(
+                        "Resource Conflict: Persistent texture '{}' requested with different keys!\nOld: {:?}\nNew: {:?}",
+                        name, old_texture_key, key
+                    );
+                }
+            }
             return t.clone();
         }
         let t = self.acquire_texture_internal(device, key, Some(name));
-        self.persistent_resources
-            .insert(name.to_string(), VirtualResource::Texture(t.clone()));
+        self.persistent_resources.insert(
+            name.to_string(),
+            (
+                VirtualResource::Texture(t.clone()),
+                ResourceKey::Texture(key),
+            ),
+        );
         t
     }
 
@@ -188,12 +201,25 @@ impl ResourcePool {
         name: &str,
         key: BufferKey,
     ) -> PooledBuffer {
-        if let Some(VirtualResource::Buffer(b)) = self.persistent_resources.get(name) {
+        if let Some((VirtualResource::Buffer(b), old_key)) = self.persistent_resources.get(name) {
+            if let ResourceKey::Buffer(old_buffer_key) = old_key {
+                if old_buffer_key != &key {
+                    panic!(
+                        "Resource Conflict: Persistent buffer '{}' requested with different keys!\nOld: {:?}\nNew: {:?}",
+                        name, old_buffer_key, key
+                    );
+                }
+            }
             return b.clone();
         }
-        let (b, _) = self.acquire_buffer_internal(device, key, Some(name));
-        self.persistent_resources
-            .insert(name.to_string(), VirtualResource::Buffer(b.clone()));
+        let (b, actual_key) = self.acquire_buffer_internal(device, key, Some(name));
+        self.persistent_resources.insert(
+            name.to_string(),
+            (
+                VirtualResource::Buffer(b.clone()),
+                ResourceKey::Buffer(actual_key),
+            ),
+        );
         b
     }
 
