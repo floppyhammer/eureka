@@ -13,7 +13,7 @@ pub enum AssetMessage {
     Font(PathBuf, Vec<u8>),
 }
 
-pub struct AssetServer {
+pub struct AssetManager {
     pub asset_dir: PathBuf,
     pub asset_cache: AssetCache,
 
@@ -29,7 +29,7 @@ pub struct AssetServer {
     loading_paths: HashMap<PathBuf, bool>,
 }
 
-impl AssetServer {
+impl AssetManager {
     pub fn new() -> Self {
         let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
         let cache = AssetCache::new("assets").unwrap();

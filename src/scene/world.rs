@@ -26,7 +26,7 @@ impl World {
         render_world: &mut crate::render::render_world::RenderWorld,
     ) {
         // 0. 先更新资产服务器，从后台线程接收已加载的资产
-        singletons.asset_server.update();
+        singletons.asset_manager.update();
 
         // 1. 资产加载系统
         self.update_assets(singletons, render_world);
@@ -103,7 +103,7 @@ impl World {
         {
             // 确保字体被请求
             if let Some(font_id) = &label.font_id {
-                singletons.asset_server.request_font(font_id);
+                singletons.asset_manager.request_font(font_id);
             }
 
             let (_, rotation, translation) = global.0.to_scale_rotation_translation();
@@ -219,10 +219,10 @@ impl World {
         // 1. 模型加载
         let mut model_to_finalize = Vec::new();
         for (id, pending) in self.ecs.query_mut::<&AssetPending>() {
-            // 只请求一次加载（AssetServer 通常会处理重复请求，但这里主动控制更安全）
-            singletons.asset_server.request_load(&pending.0);
+            // 只请求一次加载（AssetManager 通常会处理重复请求，但这里主动控制更安全）
+            singletons.asset_manager.request_load(&pending.0);
 
-            if let Some(raw) = singletons.asset_server.loaded_raw_models.remove(&pending.0) {
+            if let Some(raw) = singletons.asset_manager.loaded_raw_models.remove(&pending.0) {
                 model_to_finalize.push((id, raw));
             }
         }
@@ -245,8 +245,8 @@ impl World {
         // 2. 天空盒加载
         let mut sky_to_finalize = Vec::new();
         for (id, pending) in self.ecs.query_mut::<&SkyAssetPending>() {
-            singletons.asset_server.request_cubemap(&pending.0);
-            if let Some(raw) = singletons.asset_server.loaded_raw_cubemaps.get(&pending.0) {
+            singletons.asset_manager.request_cubemap(&pending.0);
+            if let Some(raw) = singletons.asset_manager.loaded_raw_cubemaps.get(&pending.0) {
                 sky_to_finalize.push((id, raw.clone()));
             }
         }
@@ -265,8 +265,8 @@ impl World {
         // 3. Sprite 加载
         let mut sprite_to_finalize = Vec::new();
         for (id, pending) in self.ecs.query_mut::<&SpriteAssetPending>() {
-            singletons.asset_server.request_texture(&pending.0);
-            if let Some(raw) = singletons.asset_server.loaded_raw_textures.get(&pending.0) {
+            singletons.asset_manager.request_texture(&pending.0);
+            if let Some(raw) = singletons.asset_manager.loaded_raw_textures.get(&pending.0) {
                 sprite_to_finalize.push((id, raw.clone()));
             }
         }

@@ -10,7 +10,7 @@ use winit::{
 };
 
 // Import local crates.
-use crate::asset::AssetServer;
+use crate::asset::AssetManager;
 use crate::core::singleton::Singletons;
 use crate::render::render_world::{RenderCommand, RenderWorld};
 use crate::render::RenderContext;
@@ -231,7 +231,7 @@ impl App {
             singletons.text_server.update(
                 &singletons.render_context,
                 &mut render_world.imported_texture_cache.write().unwrap(),
-                &singletons.asset_server,
+                &singletons.asset_manager,
             );
 
             singletons.time.tick();
@@ -296,16 +296,16 @@ impl ApplicationHandler for App {
             time.gpu_time.clone(),
         ));
 
-        let mut asset_server = AssetServer::new();
+        let mut asset_manager = AssetManager::new();
         let render_world = RenderWorld::new(render_context.clone(), surface);
-        let text_server = TextServer::new(&mut asset_server);
+        let text_server = TextServer::new(&mut asset_manager);
 
         self.singletons = Some(Singletons {
             time,
             render_context,
             input_server: InputServer::new(),
             text_server,
-            asset_server,
+            asset_manager,
         });
 
         self.render_world = Some(render_world);

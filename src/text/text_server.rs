@@ -1,4 +1,4 @@
-use crate::asset::AssetServer;
+use crate::asset::AssetManager;
 use crate::math::rect_to_vec4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasInstance};
@@ -13,14 +13,14 @@ pub struct TextServer {
 }
 
 impl TextServer {
-    pub(crate) fn new(asset_server: &mut AssetServer) -> Self {
+    pub(crate) fn new(asset_manager: &mut AssetManager) -> Self {
         #[cfg(target_family = "windows")]
         let default_font_name = "arial";
 
         #[cfg(not(target_family = "windows"))]
         let default_font_name = "Droid Sans Fallback";
 
-        asset_server.request_font(format!("system://{}", default_font_name));
+        asset_manager.request_font(format!("system://{}", default_font_name));
 
         Self {
             fonts: HashMap::new(),
@@ -28,17 +28,17 @@ impl TextServer {
     }
 
     /// Load a new font from disk asynchronously.
-    pub fn load_font(&mut self, font_path: &String, asset_server: &mut AssetServer) {
-        asset_server.request_font(font_path);
+    pub fn load_font(&mut self, font_path: &String, asset_manager: &mut AssetManager) {
+        asset_manager.request_font(font_path);
     }
 
     pub(crate) fn update(
         &mut self,
         render_server: &RenderContext,
         imported_texture_cache: &mut TextureCache,
-        asset_server: &AssetServer,
+        asset_manager: &AssetManager,
     ) {
-        for (path, buffer) in &asset_server.loaded_raw_fonts {
+        for (path, buffer) in &asset_manager.loaded_raw_fonts {
             let path_str = path.to_string_lossy().to_string();
 
             // Map system font back to "default" key.
