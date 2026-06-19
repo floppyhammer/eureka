@@ -99,6 +99,11 @@ var<uniform> cluster_config: ClusterConfig;
 @group(1) @binding(12)
 var t_volumetric: texture_3d<f32>;
 
+@group(1) @binding(13)
+var t_irradiance: texture_cube<f32>;
+@group(1) @binding(14)
+var t_brdf_lut: texture_2d<f32>;
+
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) tex_coords: vec2<f32>,
@@ -452,48 +457,36 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         directional_light_result = (kD * object_color.xyz / PI + specular) * radiance * n_dot_l * shadow_factor;
     }
 
-    // --- Simple IBL (Environmental Reflection) ---
+    // --- IBL (Image Based Lighting) ---
     let reflect_dir = reflect(-view_dir, world_normal);
     let n_dot_v = max(dot(world_normal, view_dir), 0.0001);
 
-    // Sample from the skybox.
-    // We use roughness * 9.0 to simulate blurring (requires mipmaps)
-    let env_reflection = textureSampleLevel(t_skybox, s_skybox, reflect_dir, roughness * 9.0).rgb;
+    // 1. Specular part (Prefiltered Environment Map)
+    // Using 9.0 as MAX_REFLECTION_LOD as it matches the previous skybox blur logic
+    let prefiltered_color = textureSampleLevel(t_skybox, s_skybox, reflect_dir, roughness * 9.0).rgb;
+    let env_brdf = textureSample(t_brdf_lut, s_skybox, vec2<f32>(n_dot_v, roughness)).rg;
 
     // Use the roughness-aware Fresnel for indirect specular
     let F_env = fresnel_schlick_roughness(n_dot_v, F0, roughness);
+    let indirect_specular_base = prefiltered_color * (F_env * env_brdf.x + env_brdf.y);
 
-    // --- Improved Specular Occlusion for HDR ---
-    let n_dot_v_occl = max(dot(world_normal, view_dir), 0.0001);
-
+    // --- Improved Specular Occlusion ---
     // Physically based specular occlusion (Frostbite/UE4 style)
-    // This formula ensures that reflections are occluded more strongly in crevices (low AO)
-    // while remaining visible at grazing angles.
-    var spec_occlusion = saturate(pow(ambient_ao + n_dot_v_occl, ambient_ao) - 1.0 + ambient_ao);
-
-    // Apply a roughness-dependent boost: smoother surfaces have sharper, harder-to-occlude reflections,
-    // while rough surfaces behave more like diffuse and are occluded more easily.
-    // Increased the exponent significantly to fight HDR environment light.
+    var spec_occlusion = saturate(pow(ambient_ao + n_dot_v, ambient_ao) - 1.0 + ambient_ao);
     spec_occlusion = pow(spec_occlusion, 1.0 + roughness * 4.0);
-
-    // Optional: Boost the occlusion contrast for dark areas
     spec_occlusion = smoothstep(0.0, 0.8, spec_occlusion);
 
     let combined_ao = material_ao * ambient_ao;
+    let indirect_specular = indirect_specular_base * spec_occlusion * combined_ao;
 
-    // Specular part of indirect lighting
-    let indirect_specular = env_reflection * F_env * spec_occlusion * combined_ao;
-
-    // --- DEBUG: Uncomment the line below to SEE the specular occlusion factor ---
-    // return vec4<f32>(vec3<f32>(spec_occlusion), 1.0);
-
-    // Diffuse part of indirect lighting (Ambient)
+    // 2. Diffuse part (Irradiance Map)
     let kS_env = F_env;
     var kD_env = vec3<f32>(1.0) - kS_env;
     kD_env *= 1.0 - metallic;
 
-    let indirect_diffuse = kD_env * lights.ambient_color * lights.ambient_strength * object_color.xyz * combined_ao;
-    // --- End Simple IBL ---
+    let irradiance = textureSample(t_irradiance, s_skybox, world_normal).rgb;
+    let indirect_diffuse = kD_env * irradiance * object_color.xyz * combined_ao;
+    // --- End IBL ---
 
     // --- Emissive ---
     var emissive = material.emissive * material.emissive_strength;

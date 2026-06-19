@@ -1,7 +1,7 @@
 use crate::render::render_backend::{PreparedFrame, RenderBackend};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
-use crate::render::render_graph::{standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, LightCullingNode, MeshNode, Node, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, TaaNode, ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode};
+use crate::render::render_graph::{standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, IBLNode, LightCullingNode, MeshNode, Node, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, TaaNode, ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode};
 use crate::render::RenderContext;
 use std::collections::{HashMap, VecDeque};
 
@@ -43,6 +43,7 @@ impl RenderGraph {
         self.add_node("prepare_view", PrepareViewNode::default());
         self.add_node("prepare_materials", PrepareMaterialsNode::default());
         self.add_node("prepare_instances", PrepareInstancesNode::default());
+        self.add_node("ibl", IBLNode::default());
         self.add_node("clear", ClearNode);
         self.add_node("culling", CullingNode::default());
         self.add_node("shadow", ShadowNode::default());
@@ -67,6 +68,8 @@ impl RenderGraph {
         self.add_node_edge("prepare_view", "skybox");
         self.add_node_edge("prepare_view", "light_culling");
         self.add_node_edge("prepare_view", "volumetric");
+        self.add_node_edge("ibl", "mesh");
+        self.add_node_edge("ibl", "transparent_mesh");
         self.add_node_edge("shadow", "volumetric");
         self.add_node_edge("light_culling", "volumetric");
         self.add_node_edge("culling", "mesh");

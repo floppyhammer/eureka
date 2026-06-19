@@ -104,6 +104,27 @@ pub fn common_mesh_resources(resources: NodeResources, prepared: &PreparedFrame)
                 mip_levels: 1,
             }),
         )
+        .optional_input(
+            standard_resources::irradiance_map(),
+            ResourceSpec::Texture(TextureKey {
+                width: 64,
+                height: 64,
+                layers: 6,
+                format: Some(wgpu::TextureFormat::Rgba16Float),
+                usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                dimension: wgpu::TextureDimension::D2,
+                mip_levels: 1,
+            }),
+        )
+        .optional_input(
+            standard_resources::brdf_lut(),
+            ResourceSpec::Texture(TextureKey::d2(
+                512,
+                512,
+                wgpu::TextureFormat::Rgba16Float,
+                wgpu::TextureUsages::TEXTURE_BINDING,
+            )),
+        )
 }
 
 pub fn get_or_create_light_layout(context: &mut FrameContext) -> wgpu::BindGroupLayout {
@@ -240,6 +261,26 @@ pub fn get_or_create_light_layout(context: &mut FrameContext) -> wgpu::BindGroup
                 },
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 13,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::Cube,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 14,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
         ],
     });
 
@@ -291,6 +332,14 @@ pub fn get_mesh_bind_groups(
     let indices = context.buffer(&standard_resources::light_index_list_buffer());
     let config = context.buffer(&standard_resources::cluster_config_buffer());
 
+    let irradiance = context.texture(&standard_resources::irradiance_map());
+    let brdf_lut = context.texture(&standard_resources::brdf_lut());
+
+    let irradiance_view = irradiance.get_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(wgpu::TextureViewDimension::Cube),
+        ..Default::default()
+    });
+
     let cascade_view = dir_shadow.get_view(&wgpu::TextureViewDescriptor {
         dimension: Some(wgpu::TextureViewDimension::D2Array),
         aspect: wgpu::TextureAspect::DepthOnly,
@@ -335,6 +384,8 @@ pub fn get_mesh_bind_groups(
             grid.id,
             indices.id,
             config.id,
+            irradiance_view.1,
+            brdf_lut.view_id,
         ],
         |ctx| {
             ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -391,6 +442,14 @@ pub fn get_mesh_bind_groups(
                     wgpu::BindGroupEntry {
                         binding: 12,
                         resource: wgpu::BindingResource::TextureView(&vol_view.0),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 13,
+                        resource: wgpu::BindingResource::TextureView(&irradiance_view.0),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 14,
+                        resource: wgpu::BindingResource::TextureView(&brdf_lut.view),
                     },
                 ],
                 label: None,
