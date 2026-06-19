@@ -221,6 +221,20 @@ impl DynamicFont {
         }
     }
 
+    pub(crate) fn reset_atlas(&mut self) {
+        log::info!("Font atlas full. Resetting...");
+        self.atlas_image =
+            DynamicImage::ImageLuma8(image::GrayImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE));
+        self.glyph_cache.clear();
+        self.next_glyph_position = UVec2::new(0, 0);
+        self.max_height_of_current_row = 0;
+        // Mark the entire atlas as updated so it gets re-uploaded to GPU
+        self.updated_atlas_region = Some(RectI::new(
+            Vector2I::new(0, 0),
+            Vector2I::new(FONT_ATLAS_SIZE as i32, FONT_ATLAS_SIZE as i32),
+        ));
+    }
+
     /// Uses rustybuzz for shaping.
     pub(crate) fn get_glyphs(&mut self, text: &str) -> (Vec<Glyph>, Vec<Range<usize>>) {
         // // Debug
@@ -374,6 +388,15 @@ impl DynamicFont {
                             self.next_glyph_position.x = 0;
                             self.next_glyph_position.y += self.max_height_of_current_row;
                             self.max_height_of_current_row = 0;
+                        }
+
+                        // Check if we ran out of space in the atlas.
+                        if self.next_glyph_position.y + metrics.height as u32 > FONT_ATLAS_SIZE {
+                            self.reset_atlas();
+                            // We need to re-rasterize or skip this glyph and continue.
+                            // For simplicity, we just return empty results for this frame
+                            // and the glyphs will be cached properly in the next pass.
+                            return (vec![], vec![]);
                         }
 
                         for col in 0..metrics.width {

@@ -15,7 +15,7 @@ use crate::core::singleton::Singletons;
 use crate::render::render_world::{RenderCommand, RenderWorld};
 use crate::render::RenderContext;
 use crate::scene::World;
-use crate::text::TextServer;
+use crate::text::FontServer;
 use crate::window::InputServer;
 
 const INITIAL_WINDOW_WIDTH: u32 = 1280;
@@ -228,7 +228,7 @@ impl App {
             (&mut self.singletons, &mut self.render_world)
         {
             // Reconcile fonts.
-            singletons.text_server.update(
+            singletons.font_server.update(
                 &singletons.render_context,
                 &mut render_world.imported_texture_cache.write().unwrap(),
                 &mut singletons.asset_server,
@@ -258,8 +258,8 @@ impl App {
         let extracted = self.world.extract_render_objects();
 
         // Update server GPU resources (text).
-        // Note: text_server.prepare currently writes to texture cache, so we need a write lock.
-        singletons.text_server.prepare(
+        // Note: font_server.prepare currently writes to texture cache, so we need a write lock.
+        singletons.font_server.prepare(
             &singletons.render_context,
             &mut render_world.imported_texture_cache.write().unwrap(),
         );
@@ -298,13 +298,13 @@ impl ApplicationHandler for App {
 
         let mut asset_server = AssetServer::new();
         let render_world = RenderWorld::new(render_context.clone(), surface);
-        let text_server = TextServer::new(&mut asset_server);
+        let font_server = FontServer::new(&mut asset_server);
 
         self.singletons = Some(Singletons {
             time,
             render_context,
             input_server: InputServer::new(),
-            text_server,
+            font_server,
             asset_server,
         });
 

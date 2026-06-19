@@ -125,7 +125,7 @@ impl World {
                 || label.atlas.as_ref().map_or(true, |a| a.texture.is_none())
                 || transform_changed
             {
-                let atlas = singletons.text_server.get_atlas(
+                let atlas = singletons.font_server.get_atlas(
                     label.text.as_str(),
                     label.font_id.clone(),
                     current_global_transform,

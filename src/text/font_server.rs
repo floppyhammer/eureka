@@ -8,11 +8,11 @@ use glam::{Vec2, Vec4};
 use std::collections::HashMap;
 use unicode_linebreak::BreakClass;
 
-pub struct TextServer {
+pub struct FontServer {
     fonts: HashMap<String, DynamicFont>,
 }
 
-impl TextServer {
+impl FontServer {
     pub(crate) fn new(asset_server: &mut AssetServer) -> Self {
         #[cfg(target_family = "windows")]
         let default_font_name = "arial";
