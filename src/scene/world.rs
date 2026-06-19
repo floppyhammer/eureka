@@ -216,13 +216,12 @@ impl World {
         use crate::scene::d3::model::{AssetPending, Model};
         use crate::scene::d3::sky::{SkyAssetPending, SkyComponent};
 
-        // 1. 模型加载
+        // 1. 模型加载 (模型通常包含多个子资源，暂不实现路径级缓存，但使用 take 避免内存泄漏)
         let mut model_to_finalize = Vec::new();
         for (id, pending) in self.ecs.query_mut::<&AssetPending>() {
-            // 只请求一次加载（AssetManager 通常会处理重复请求，但这里主动控制更安全）
             singletons.asset_manager.request_load(&pending.0);
 
-            if let Some(raw) = singletons.asset_manager.loaded_raw_models.remove(&pending.0) {
+            if let Some(raw) = singletons.asset_manager.take_model(&pending.0) {
                 model_to_finalize.push((id, raw));
             }
         }
@@ -237,7 +236,6 @@ impl World {
                 &mut render_world.imported_mesh_cache.write().unwrap(),
                 &mut render_world.imported_mesh_allocator.write().unwrap(),
             );
-            // 务必移除 AssetPending，否则下一帧还会进这个循环
             let _ = self.ecs.remove_one::<AssetPending>(id);
             let _ = self.ecs.insert_one(id, model);
         }
@@ -245,54 +243,77 @@ impl World {
         // 2. 天空盒加载
         let mut sky_to_finalize = Vec::new();
         for (id, pending) in self.ecs.query_mut::<&SkyAssetPending>() {
+            // 先检查 GPU 缓存
+            if let Some(texture_id) = render_world
+                .imported_texture_cache
+                .read()
+                .unwrap()
+                .get_by_path(&pending.0)
+            {
+                sky_to_finalize.push((id, Some(texture_id), None));
+                continue;
+            }
+
             singletons.asset_manager.request_cubemap(&pending.0);
-            if let Some(raw) = singletons.asset_manager.loaded_raw_cubemaps.get(&pending.0) {
-                sky_to_finalize.push((id, raw.clone()));
+            if let Some(raw) = singletons.asset_manager.take_cubemap(&pending.0) {
+                sky_to_finalize.push((id, None, Some((pending.0.clone(), raw))));
             }
         }
 
-        for (id, raw) in sky_to_finalize {
+        for (id, texture_id, raw_data) in sky_to_finalize {
             let mut sky = SkyComponent::empty();
-            sky.finalize(
-                raw,
-                &singletons.render_context,
-                &mut render_world.imported_texture_cache.write().unwrap(),
-            );
-            self.ecs.remove_one::<SkyAssetPending>(id).unwrap();
-            self.ecs.insert_one(id, sky).unwrap();
+            if let Some(tid) = texture_id {
+                sky.finalize_with_id(tid);
+            } else if let Some((path, raw)) = raw_data {
+                sky.finalize(
+                    raw,
+                    &singletons.render_context,
+                    &mut render_world.imported_texture_cache.write().unwrap(),
+                    Some(path),
+                );
+            }
+            let _ = self.ecs.remove_one::<SkyAssetPending>(id);
+            let _ = self.ecs.insert_one(id, sky);
         }
 
         // 3. Sprite 加载
         let mut sprite_to_finalize = Vec::new();
         for (id, pending) in self.ecs.query_mut::<&SpriteAssetPending>() {
+            // 先检查 GPU 缓存
+            if let Some(texture_id) = render_world
+                .imported_texture_cache
+                .read()
+                .unwrap()
+                .get_by_path(&pending.0)
+            {
+                sprite_to_finalize.push((id, Some(texture_id), None));
+                continue;
+            }
+
             singletons.asset_manager.request_texture(&pending.0);
-            if let Some(raw) = singletons.asset_manager.loaded_raw_textures.get(&pending.0) {
-                sprite_to_finalize.push((id, raw.clone()));
+            if let Some(raw) = singletons.asset_manager.take_texture(&pending.0) {
+                sprite_to_finalize.push((id, None, Some((pending.0.clone(), raw))));
             }
         }
 
-        for (id, raw) in sprite_to_finalize {
-            // 获取现有的组件，保留其配置（如颜色、对齐等）
-            let size = if let Ok(mut sprite) = self.ecs.remove_one::<SpriteComponent>(id) {
-                // 我们直接在原地 finalize，这样用户在 spawn 时设置的属性会被保留
-                let size = sprite.finalize(
-                    raw,
-                    &singletons.render_context,
-                    &mut render_world.imported_texture_cache.write().unwrap(),
-                );
-                // 将修改后的组件插回去
+        for (id, texture_id, raw_data) in sprite_to_finalize {
+            if let Ok(mut sprite) = self.ecs.remove_one::<SpriteComponent>(id) {
+                let size = if let Some(tid) = texture_id {
+                    sprite.finalize_with_id(tid, &render_world.imported_texture_cache.read().unwrap())
+                } else if let Some((path, raw)) = raw_data {
+                    sprite.finalize(
+                        raw,
+                        &singletons.render_context,
+                        &mut render_world.imported_texture_cache.write().unwrap(),
+                        Some(path),
+                    )
+                } else {
+                    unreachable!()
+                };
+
                 let _ = self.ecs.insert_one(id, sprite);
-                Some(size)
-            } else {
-                None
-            };
-
-            // 移除 Pending 标记
-            let _ = self.ecs.remove_one::<SpriteAssetPending>(id);
-
-            // 补充 Size 组件，供渲染系统提取
-            if let Some(s) = size {
-                let _ = self.ecs.insert_one(id, Size(s));
+                let _ = self.ecs.remove_one::<SpriteAssetPending>(id);
+                let _ = self.ecs.insert_one(id, Size(size));
             }
         }
     }

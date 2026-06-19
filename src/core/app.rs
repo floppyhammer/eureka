@@ -231,7 +231,7 @@ impl App {
             singletons.text_server.update(
                 &singletons.render_context,
                 &mut render_world.imported_texture_cache.write().unwrap(),
-                &singletons.asset_manager,
+                &mut singletons.asset_manager,
             );
 
             singletons.time.tick();

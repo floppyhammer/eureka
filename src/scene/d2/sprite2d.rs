@@ -32,6 +32,7 @@ impl SpriteComponent {
         raw: RawTextureData,
         render_server: &RenderContext,
         imported_texture_cache: &mut TextureCache,
+        path: Option<PathBuf>,
     ) -> Vec2 {
         let texture_id = Texture::from_raw(
             &render_server.device,
@@ -39,9 +40,20 @@ impl SpriteComponent {
             imported_texture_cache,
             raw,
         );
+
+        if let Some(p) = path {
+            imported_texture_cache.set_path(texture_id, p);
+        }
+
         let texture = imported_texture_cache.get(texture_id).unwrap();
         self.texture = Some(texture_id);
 
+        Vec2::new(texture.size.0 as f32, texture.size.1 as f32)
+    }
+
+    pub fn finalize_with_id(&mut self, texture_id: TextureId, imported_texture_cache: &TextureCache) -> Vec2 {
+        let texture = imported_texture_cache.get(texture_id).unwrap();
+        self.texture = Some(texture_id);
         Vec2::new(texture.size.0 as f32, texture.size.1 as f32)
     }
 }

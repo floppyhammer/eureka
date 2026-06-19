@@ -36,12 +36,11 @@ impl TextServer {
         &mut self,
         render_server: &RenderContext,
         imported_texture_cache: &mut TextureCache,
-        asset_manager: &AssetManager,
+        asset_manager: &mut AssetManager,
     ) {
-        for (path, buffer) in &asset_manager.loaded_raw_fonts {
+        let paths: Vec<_> = asset_manager.get_fonts().keys().cloned().collect();
+        for path in paths {
             let path_str = path.to_string_lossy().to_string();
-
-            // Map system font back to "default" key.
             let key = if path_str.starts_with("system://") {
                 "default".to_string()
             } else {
@@ -49,12 +48,14 @@ impl TextServer {
             };
 
             if !self.fonts.contains_key(&key) {
-                let font = DynamicFont::load_from_memory(
-                    buffer.clone(),
-                    render_server,
-                    imported_texture_cache,
-                );
-                self.fonts.insert(key, font);
+                if let Some(buffer) = asset_manager.take_font(&path) {
+                    let font = DynamicFont::load_from_memory(
+                        buffer,
+                        render_server,
+                        imported_texture_cache,
+                    );
+                    self.fonts.insert(key, font);
+                }
             }
         }
     }

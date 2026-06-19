@@ -3,7 +3,7 @@ use anyhow::*;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use uuid;
@@ -75,12 +75,14 @@ pub struct TextureId(uuid::Uuid);
 /// Imported texture cache, not managed by ResourcePool.
 pub struct TextureCache {
     pub(crate) storage: HashMap<TextureId, Texture>,
+    pub(crate) path_to_id: HashMap<PathBuf, TextureId>,
 }
 
 impl TextureCache {
     pub(crate) fn new() -> Self {
         Self {
             storage: HashMap::new(),
+            path_to_id: HashMap::new(),
         }
     }
 
@@ -90,16 +92,33 @@ impl TextureCache {
         id
     }
 
+    pub(crate) fn add_with_path(&mut self, texture: Texture, path: PathBuf) -> TextureId {
+        let id = self.add(texture);
+        self.path_to_id.insert(path, id);
+        id
+    }
+
     pub(crate) fn get(&self, texture_id: TextureId) -> Option<&Texture> {
         self.storage.get(&texture_id)
+    }
+
+    pub(crate) fn get_by_path<P: AsRef<Path>>(&self, path: P) -> Option<TextureId> {
+        self.path_to_id.get(path.as_ref()).copied()
     }
 
     pub(crate) fn get_mut(&mut self, texture_id: TextureId) -> Option<&mut Texture> {
         self.storage.get_mut(&texture_id)
     }
 
+    pub(crate) fn set_path(&mut self, id: TextureId, path: PathBuf) {
+        self.path_to_id.insert(path, id);
+    }
+
     pub(crate) fn remove(&mut self, texture_id: TextureId) {
         self.storage.remove(&texture_id);
+        // Note: In a full implementation, we'd also want to remove from path_to_id.
+        // For now, we'll keep it simple.
+        self.path_to_id.retain(|_, v| *v != texture_id);
     }
 }
 

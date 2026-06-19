@@ -11,6 +11,7 @@ pub enum AssetMessage {
     Texture(PathBuf, RawTextureData),
     CubeTexture(PathBuf, RawCubeTextureData),
     Font(PathBuf, Vec<u8>),
+    Error(PathBuf, String),
 }
 
 pub struct AssetManager {
@@ -21,12 +22,13 @@ pub struct AssetManager {
     tx: Sender<AssetMessage>,
     rx: Receiver<AssetMessage>,
 
-    pub loaded_raw_models: HashMap<PathBuf, RawModelData>,
-    pub loaded_raw_textures: HashMap<PathBuf, RawTextureData>,
-    pub loaded_raw_cubemaps: HashMap<PathBuf, RawCubeTextureData>,
-    pub loaded_raw_fonts: HashMap<PathBuf, Vec<u8>>,
+    loaded_raw_models: HashMap<PathBuf, RawModelData>,
+    loaded_raw_textures: HashMap<PathBuf, RawTextureData>,
+    loaded_raw_cubemaps: HashMap<PathBuf, RawCubeTextureData>,
+    loaded_raw_fonts: HashMap<PathBuf, Vec<u8>>,
 
     loading_paths: HashMap<PathBuf, bool>,
+    failed_paths: HashMap<PathBuf, String>,
 }
 
 impl AssetManager {
@@ -45,13 +47,44 @@ impl AssetManager {
             loaded_raw_cubemaps: HashMap::new(),
             loaded_raw_fonts: HashMap::new(),
             loading_paths: HashMap::new(),
+            failed_paths: HashMap::new(),
         }
+    }
+
+    pub fn is_loading<P: AsRef<Path>>(&self, path: P) -> bool {
+        self.loading_paths.contains_key(path.as_ref())
+    }
+
+    pub fn has_failed<P: AsRef<Path>>(&self, path: P) -> Option<&String> {
+        self.failed_paths.get(path.as_ref())
+    }
+
+    pub fn take_model<P: AsRef<Path>>(&mut self, path: P) -> Option<RawModelData> {
+        self.loaded_raw_models.remove(path.as_ref())
+    }
+
+    pub fn take_texture<P: AsRef<Path>>(&mut self, path: P) -> Option<RawTextureData> {
+        self.loaded_raw_textures.remove(path.as_ref())
+    }
+
+    pub fn take_cubemap<P: AsRef<Path>>(&mut self, path: P) -> Option<RawCubeTextureData> {
+        self.loaded_raw_cubemaps.remove(path.as_ref())
+    }
+
+    pub fn take_font<P: AsRef<Path>>(&mut self, path: P) -> Option<Vec<u8>> {
+        self.loaded_raw_fonts.remove(path.as_ref())
+    }
+
+    // This is for cases where we just want to peek (like in TextServer)
+    pub fn get_fonts(&self) -> &HashMap<PathBuf, Vec<u8>> {
+        &self.loaded_raw_fonts
     }
 
     pub fn request_load<P: AsRef<Path>>(&mut self, path: P) {
         let path_buf = path.as_ref().to_path_buf();
         if self.loading_paths.contains_key(&path_buf)
             || self.loaded_raw_models.contains_key(&path_buf)
+            || self.failed_paths.contains_key(&path_buf)
         {
             return;
         }
@@ -64,7 +97,9 @@ impl AssetManager {
                 let _ = tx.send(AssetMessage::Model(path_buf, raw));
             }
             Err(e) => {
-                log::error!("Failed to parse model: {}", e);
+                let err_msg = format!("Failed to parse model: {}", e);
+                log::error!("{}", err_msg);
+                let _ = tx.send(AssetMessage::Error(path_buf, err_msg));
             }
         });
     }
@@ -73,6 +108,7 @@ impl AssetManager {
         let path_buf = path.as_ref().to_path_buf();
         if self.loading_paths.contains_key(&path_buf)
             || self.loaded_raw_textures.contains_key(&path_buf)
+            || self.failed_paths.contains_key(&path_buf)
         {
             return;
         }
@@ -85,7 +121,9 @@ impl AssetManager {
                 let _ = tx.send(AssetMessage::Texture(path_buf, raw));
             }
             Err(e) => {
-                log::error!("Failed to decode texture: {}", e);
+                let err_msg = format!("Failed to decode texture: {}", e);
+                log::error!("{}", err_msg);
+                let _ = tx.send(AssetMessage::Error(path_buf, err_msg));
             }
         });
     }
@@ -94,6 +132,7 @@ impl AssetManager {
         let path_buf = path.as_ref().to_path_buf();
         if self.loading_paths.contains_key(&path_buf)
             || self.loaded_raw_cubemaps.contains_key(&path_buf)
+            || self.failed_paths.contains_key(&path_buf)
         {
             return;
         }
@@ -106,7 +145,9 @@ impl AssetManager {
                 let _ = tx.send(AssetMessage::CubeTexture(path_buf, raw));
             }
             Err(e) => {
-                log::error!("Failed to decode cubemap: {}", e);
+                let err_msg = format!("Failed to decode cubemap: {}", e);
+                log::error!("{}", err_msg);
+                let _ = tx.send(AssetMessage::Error(path_buf, err_msg));
             }
         });
     }
@@ -115,6 +156,7 @@ impl AssetManager {
         let path_buf = path.as_ref().to_path_buf();
         if self.loading_paths.contains_key(&path_buf)
             || self.loaded_raw_fonts.contains_key(&path_buf)
+            || self.failed_paths.contains_key(&path_buf)
         {
             return;
         }
@@ -129,7 +171,9 @@ impl AssetManager {
                 if let Some(buffer) = find_system_font(&font_name) {
                     let _ = tx.send(AssetMessage::Font(path_buf, buffer));
                 } else {
-                    log::error!("Failed to find system font: {}", font_name);
+                    let err_msg = format!("Failed to find system font: {}", font_name);
+                    log::error!("{}", err_msg);
+                    let _ = tx.send(AssetMessage::Error(path_buf, err_msg));
                 }
             });
         } else {
@@ -138,7 +182,9 @@ impl AssetManager {
                     let _ = tx.send(AssetMessage::Font(path_buf, buffer));
                 }
                 Err(e) => {
-                    log::error!("Failed to read font file: {}", e);
+                    let err_msg = format!("Failed to read font file: {}", e);
+                    log::error!("{}", err_msg);
+                    let _ = tx.send(AssetMessage::Error(path_buf, err_msg));
                 }
             });
         }
@@ -163,6 +209,10 @@ impl AssetManager {
                 AssetMessage::Font(path, buffer) => {
                     self.loading_paths.remove(&path);
                     self.loaded_raw_fonts.insert(path, buffer);
+                }
+                AssetMessage::Error(path, err) => {
+                    self.loading_paths.remove(&path);
+                    self.failed_paths.insert(path, err);
                 }
             }
         }
