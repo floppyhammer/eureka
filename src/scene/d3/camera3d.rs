@@ -93,6 +93,7 @@ impl Camera3dComponent {
         uniform.ssao_enabled = if self.ssao_enabled { 1 } else { 0 };
         uniform.volumetric_enabled = if self.volumetric_enabled { 1 } else { 0 };
         uniform.taa_enabled = if self.taa_enabled { 1 } else { 0 };
+        uniform.frame_count = self.frame_count as u32;
 
         uniform
     }

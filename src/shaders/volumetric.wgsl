@@ -14,7 +14,7 @@ struct Camera {
     ssao_enabled: u32,
     volumetric_enabled: u32,
     taa_enabled: u32,
-    _pad: u32,
+    frame_count: u32,
 }
 
 struct PointLight {
@@ -86,9 +86,11 @@ fn get_world_pos(uv: vec2<f32>, view_z: f32) -> vec3<f32> {
     return world_pos_h.xyz / world_pos_h.w;
 }
 
-fn interleaved_gradient_noise(uv: vec2<f32>) -> f32 {
+fn interleaved_gradient_noise(uv: vec2<f32>, frame: u32) -> f32 {
     let magic = vec3<f32>(0.06711056, 0.00583715, 52.9829189);
-    return fract(magic.z * fract(dot(uv, magic.xy)));
+    // 加入金分割序列的帧偏移，使噪声在时间上分布均匀
+    let frame_offset = fract(f32(frame % 16u) * 0.61803398875);
+    return fract(magic.z * fract(dot(uv, magic.xy) + frame_offset));
 }
 
 // Henyey-Greenstein Phase Function
@@ -102,12 +104,6 @@ fn get_fog_density(world_pos: vec3<f32>) -> f32 {
     return lights.fog_density * exp(-lights.fog_height_falloff * max(world_pos.y - lights.fog_base_height, 0.0));
 }
 
-fn hash(p: vec2<f32>) -> f32 {
-    let p3 = fract(vec3<f32>(p.xyx) * 0.1031);
-    let p3_2 = p3 + dot(p3, p3.yzx + 33.33);
-    return fract((p3_2.x + p3_2.y) * p3_2.z);
-}
-
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let res = textureDimensions(t_volumetric);
@@ -115,8 +111,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let screen_uv = (vec2<f32>(global_id.xy) + 0.5) / vec2<f32>(res.xy);
 
-    // 使用 hash 替代简单的梯度噪声来打破规律性，并加入摄像机位置作为种子
-    let jitter = hash(screen_uv * config.screen_size + camera.view_pos.xy);
+    // 智能抖动逻辑：
+    // 如果开启了 TAA，使用随时间跳变的帧号来打破规律性，让 TAA 能够平滑它。
+    // 如果关闭了 TAA，使用固定的帧号（0），让噪点保持静止，避免画面闪烁。
+    var effective_frame = 0u;
+    if (camera.taa_enabled == 1u) {
+        effective_frame = camera.frame_count;
+    }
+    let jitter = interleaved_gradient_noise(vec2<f32>(global_id.xy), effective_frame);
 
     var accumulated_scattering = vec3<f32>(0.0);
     var accumulated_transmittance = 1.0;

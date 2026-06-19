@@ -14,7 +14,7 @@ struct Camera {
     ssao_enabled: u32,
     volumetric_enabled: u32,
     taa_enabled: u32,
-    _pad: u32,
+    frame_count: u32,
 }
 
 struct ClusterConfig {
@@ -49,10 +49,10 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
     return out;
 }
 
-fn hash_2d(p: vec2<f32>) -> f32 {
-    let p3 = fract(vec3<f32>(p.xyx) * 0.1031);
-    let p3_2 = p3 + dot(p3, p3.yzx + 33.33);
-    return fract((p3_2.x + p3_2.y) * p3_2.z);
+fn interleaved_gradient_noise(uv: vec2<f32>, frame: u32) -> f32 {
+    let magic = vec3<f32>(0.06711056, 0.00583715, 52.9829189);
+    let frame_offset = fract(f32(frame % 16u) * 0.61803398875);
+    return fract(magic.z * fract(dot(uv, magic.xy) + frame_offset));
 }
 
 @fragment
@@ -73,8 +73,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // 计算采样 3D 纹理的 W 坐标
     let slice = log2(max(view_z, config.z_near) / config.z_near) / log2(config.z_far / config.z_near);
 
-    // 抖动上采样
-    let noise = hash_2d(in.clip_position.xy);
+    // 时间性抖动上采样
+    // 只有在 TAA 开启时才让抖动动起来，否则保持静止以防止闪烁
+    var effective_frame = 0u;
+    if (camera.taa_enabled == 1u) {
+        effective_frame = camera.frame_count;
+    }
+    let noise = interleaved_gradient_noise(in.clip_position.xy, effective_frame);
     let dither_offset = (noise - 0.5) * (1.0 / vec2<f32>(240.0, 135.0));
 
     // 体积光本身是 Unjittered 的，所以采样坐标也要补偿

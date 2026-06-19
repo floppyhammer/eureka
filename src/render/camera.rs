@@ -53,7 +53,7 @@ pub struct CameraUniform {
     pub(crate) ssao_enabled: u32,
     pub(crate) volumetric_enabled: u32,
     pub(crate) taa_enabled: u32,
-    pub(crate) _pad: [u32; 1],
+    pub(crate) frame_count: u32,
 }
 
 impl Default for CameraUniform {
@@ -74,7 +74,7 @@ impl Default for CameraUniform {
             ssao_enabled: 0,
             volumetric_enabled: 0,
             taa_enabled: 0,
-            _pad: [0; 1],
+            frame_count: 0,
         }
     }
 }

@@ -167,7 +167,7 @@ fn main() {
             Name("Ground".to_string()),
             Transform3d::default(),
             GlobalTransform::default(),
-            AssetPending(asset_dir.join("models/Sponza/Sponza.gltf")), // "models/Sponza/Sponza.gltf"
+            AssetPending(asset_dir.join("models/ground.glb")), // "models/Sponza/Sponza.gltf"
         ));
     });
 
