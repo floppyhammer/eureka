@@ -1,7 +1,6 @@
 use crate::asset::font_loader::find_system_font;
 use crate::render::{RawCubeTextureData, RawTextureData, Texture};
 use crate::scene::d3::{Model, RawModelData};
-use assets_manager::AssetCache;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -17,7 +16,6 @@ pub enum AssetMessage {
 
 pub struct AssetManager {
     pub asset_dir: PathBuf,
-    pub asset_cache: AssetCache,
     pool: ThreadPool,
 
     // Background loading
@@ -35,11 +33,9 @@ pub struct AssetManager {
 
 impl AssetManager {
     pub fn new() -> Self {
-        let asset_dir = std::path::Path::new(env!("OUT_DIR")).join("assets");
-        let cache = AssetCache::new("assets").unwrap();
+        let asset_dir = Path::new(env!("OUT_DIR")).join("assets");
         let (tx, rx) = channel();
 
-        // 默认根据 CPU 核心数创建线程池
         let pool = ThreadPoolBuilder::new()
             .thread_name(|i| format!("AssetLoader-{}", i))
             .build()
@@ -47,7 +43,6 @@ impl AssetManager {
 
         Self {
             asset_dir,
-            asset_cache: cache,
             pool,
             tx,
             rx,
@@ -84,7 +79,6 @@ impl AssetManager {
         self.loaded_raw_fonts.remove(path.as_ref())
     }
 
-    // This is for cases where we just want to peek (like in TextServer)
     pub fn get_fonts(&self) -> &HashMap<PathBuf, Vec<u8>> {
         &self.loaded_raw_fonts
     }
@@ -124,7 +118,6 @@ impl AssetManager {
 
         self.loading_paths.insert(path_buf.clone(), true);
         let tx = self.tx.clone();
-
         self.pool.spawn(move || match Texture::decode_from_disk(&path_buf) {
             Ok(raw) => {
                 let _ = tx.send(AssetMessage::Texture(path_buf, raw));
@@ -200,7 +193,6 @@ impl AssetManager {
     }
 
     pub fn update(&mut self) {
-        self.asset_cache.hot_reload();
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 AssetMessage::Model(path, raw) => {
