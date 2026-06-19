@@ -1,5 +1,5 @@
 use crate::math::transform::{Transform2d, Transform3d};
-use glam::{Mat4, Vec2};
+use glam::Mat4;
 use hecs::Entity;
 
 /// 3D 局部变换组件
@@ -17,19 +17,3 @@ impl Default for GlobalTransform {
     }
 }
 
-/// 父节点引用组件
-pub struct Parent(pub Entity);
-
-/// 节点名称
-pub struct Name(pub String);
-
-/// 节点大小 (2D)
-pub struct Size(pub Vec2);
-
-/// 标识当前激活的摄像机 (Tag 组件)
-pub struct ActiveCamera;
-
-/// 3D 模型组件
-pub struct MeshComponent {
-    pub model_path: String,
-}
