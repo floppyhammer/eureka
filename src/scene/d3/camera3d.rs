@@ -1,5 +1,5 @@
 use crate::render::camera::CameraUniform;
-use crate::window::{InputEvent, InputServer};
+use crate::window::{InputContent, InputEvent, InputServer};
 use glam::{Mat4, UVec2, Vec3};
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
@@ -158,14 +158,14 @@ impl Camera3dController {
 
     /// 处理输入事件，更新控制器状态
     pub fn handle_input(&mut self, event: &InputEvent, input_server: &mut InputServer) {
-        match event {
-            InputEvent::MouseButton(e) => {
+        match &event.content {
+            InputContent::MouseButton(e) => {
                 if e.button == MouseButton::Right {
                     self.cursor_captured = e.pressed;
                     input_server.set_cursor_capture(e.pressed);
                 }
             }
-            InputEvent::MouseMotion(e) => {
+            InputContent::MouseMotion(e) => {
                 if self.cursor_captured {
                     self.yaw -= e.delta.0 * self.sensitivity;
                     self.pitch -= e.delta.1 * self.sensitivity;
@@ -174,7 +174,7 @@ impl Camera3dController {
                         .clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
                 }
             }
-            InputEvent::Key(e) => {
+            InputContent::Key(e) => {
                 let amount = if e.pressed { 1.0 } else { 0.0 };
                 match e.key_code {
                     KeyCode::KeyW => self.amount_forward = amount,

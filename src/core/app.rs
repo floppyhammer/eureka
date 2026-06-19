@@ -365,7 +365,7 @@ impl ApplicationHandler for App {
 
                     {
                         let singletons = self.singletons.as_mut().unwrap();
-                        singletons.input_server.input_events.clear();
+                        singletons.input_server.clear_events();
                     }
 
                     let render_result = self.render();

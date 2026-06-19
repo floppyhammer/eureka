@@ -1,12 +1,11 @@
 use eureka::core::App;
-use eureka::math::color::ColorU;
 use eureka::math::transform::{Transform2d, Transform3d};
 use eureka::scene::{
-    ActiveCamera, AssetPending, Camera3dComponent, Camera3dController,
-    DirectionalLightComponent, GlobalTransform, LabelComponent, Name, PointLightComponent,
-    SkyAssetPending, CTransform3d, CTransform2d, Model,
+    ActiveCamera, AssetPending, CTransform2d, CTransform3d,
+    Camera3dComponent, Camera3dController, DirectionalLightComponent, GlobalTransform,
+    LabelComponent, Model, Name, SkyAssetPending,
 };
-use eureka::window::InputEvent;
+use eureka::window::InputContent;
 use glam::{Quat, Vec2, Vec3};
 use winit::keyboard::KeyCode;
 
@@ -234,8 +233,8 @@ fn main() {
         let world = &mut app.world;
         let input_server = &app.singletons.as_ref().unwrap().input_server;
 
-        for event in input_server.get_input_events() {
-            if let InputEvent::Key(e) = &event {
+        for event in input_server.events() {
+            if let InputContent::Key(e) = &event.content {
                 if e.pressed {
                     match e.key_code {
                         KeyCode::Digit1 => {
