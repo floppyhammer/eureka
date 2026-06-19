@@ -48,6 +48,7 @@ bitflags = { version = "2.4.1", features = [] }
 # Shader preprocessing.
 naga_oil = "0.19.0"
 naga = "26.0.0"
+rayon = "1.8"
 
 [dependencies.uuid]
 version = "1.6.1"

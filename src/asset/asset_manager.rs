@@ -2,6 +2,7 @@ use crate::asset::font_loader::find_system_font;
 use crate::render::{RawCubeTextureData, RawTextureData, Texture};
 use crate::scene::d3::{Model, RawModelData};
 use assets_manager::AssetCache;
+use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -17,6 +18,7 @@ pub enum AssetMessage {
 pub struct AssetManager {
     pub asset_dir: PathBuf,
     pub asset_cache: AssetCache,
+    pool: ThreadPool,
 
     // Background loading
     tx: Sender<AssetMessage>,
@@ -37,9 +39,16 @@ impl AssetManager {
         let cache = AssetCache::new("assets").unwrap();
         let (tx, rx) = channel();
 
+        // 默认根据 CPU 核心数创建线程池
+        let pool = ThreadPoolBuilder::new()
+            .thread_name(|i| format!("AssetLoader-{}", i))
+            .build()
+            .expect("Failed to create asset thread pool");
+
         Self {
             asset_dir,
             asset_cache: cache,
+            pool,
             tx,
             rx,
             loaded_raw_models: HashMap::new(),
@@ -92,7 +101,7 @@ impl AssetManager {
         self.loading_paths.insert(path_buf.clone(), true);
         let tx = self.tx.clone();
 
-        std::thread::spawn(move || match Model::parse(&path_buf) {
+        self.pool.spawn(move || match Model::parse(&path_buf) {
             Ok(raw) => {
                 let _ = tx.send(AssetMessage::Model(path_buf, raw));
             }
@@ -116,7 +125,7 @@ impl AssetManager {
         self.loading_paths.insert(path_buf.clone(), true);
         let tx = self.tx.clone();
 
-        std::thread::spawn(move || match Texture::decode_from_disk(&path_buf) {
+        self.pool.spawn(move || match Texture::decode_from_disk(&path_buf) {
             Ok(raw) => {
                 let _ = tx.send(AssetMessage::Texture(path_buf, raw));
             }
@@ -140,7 +149,7 @@ impl AssetManager {
         self.loading_paths.insert(path_buf.clone(), true);
         let tx = self.tx.clone();
 
-        std::thread::spawn(move || match Texture::decode_cube_from_disk(&path_buf) {
+        self.pool.spawn(move || match Texture::decode_cube_from_disk(&path_buf) {
             Ok(raw) => {
                 let _ = tx.send(AssetMessage::CubeTexture(path_buf, raw));
             }
@@ -167,7 +176,7 @@ impl AssetManager {
         let path_str = path_buf.to_string_lossy().to_string();
         if path_str.starts_with("system://") {
             let font_name = path_str.strip_prefix("system://").unwrap().to_string();
-            std::thread::spawn(move || {
+            self.pool.spawn(move || {
                 if let Some(buffer) = find_system_font(&font_name) {
                     let _ = tx.send(AssetMessage::Font(path_buf, buffer));
                 } else {
@@ -177,7 +186,7 @@ impl AssetManager {
                 }
             });
         } else {
-            std::thread::spawn(move || match std::fs::read(&path_buf) {
+            self.pool.spawn(move || match std::fs::read(&path_buf) {
                 Ok(buffer) => {
                     let _ = tx.send(AssetMessage::Font(path_buf, buffer));
                 }
