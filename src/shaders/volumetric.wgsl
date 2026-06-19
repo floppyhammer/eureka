@@ -165,7 +165,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
             var shadow = 1.0;
             if (shadow_pos.x >= -1.0 && shadow_pos.x <= 1.0 && shadow_pos.y >= -1.0 && shadow_pos.y <= 1.0 && shadow_pos.z >= 0.0 && shadow_pos.z <= 1.0) {
-                shadow = textureSampleCompareLevel(t_dir_shadow, s_shadow, shadow_uv, i32(cascade_index), shadow_pos.z - 0.01);
+                // 显著减小阴影偏移 (Bias)。体积光对 Shadow Acne 不敏感，但对 Peter Panning (阴影断裂) 极其敏感。
+                // 这里的偏移值应尽可能小。
+                shadow = textureSampleCompareLevel(t_dir_shadow, s_shadow, shadow_uv, i32(cascade_index), shadow_pos.z - 0.0005);
             }
             local_scattering += lights.directional_light.color * lights.directional_light.strength * phase * shadow;
         }
@@ -190,7 +192,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
                 let shadow_z = (light.shadow_far / (light.shadow_far - light.shadow_near)) -
                                ((light.shadow_far * light.shadow_near) / (light.shadow_far - light.shadow_near)) / dist_along_axis;
 
-                let shadow = textureSampleCompareLevel(t_point_shadow, s_shadow, light_to_vox, i32(i), shadow_z - 0.02);
+                // 减小点光源偏移
+                let shadow = textureSampleCompareLevel(t_point_shadow, s_shadow, light_to_vox, i32(i), shadow_z - 0.001);
                 local_scattering += light.color * light.strength * attenuation * phase * shadow;
             }
         }
