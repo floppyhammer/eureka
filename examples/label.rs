@@ -13,7 +13,7 @@ fn main() {
         let world = &mut app.world;
 
         let font_path = singletons
-            .asset_manager
+            .asset_server
             .asset_dir
             .join("fonts/Arial Unicode MS Font.ttf")
             .into_os_string()

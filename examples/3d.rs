@@ -65,7 +65,7 @@ fn main() {
         ));
 
         // 4. 添加环境
-        let skybox_path = singletons.asset_manager.asset_dir.join("images/skybox.jpg");
+        let skybox_path = singletons.asset_server.asset_dir.join("images/skybox.jpg");
         world
             .ecs
             .spawn((Name("Skybox".into()), SkyAssetPending(skybox_path)));
@@ -104,7 +104,7 @@ fn main() {
         ));
 
         // 6. 模型
-        let asset_dir = singletons.asset_manager.asset_dir.clone();
+        let asset_dir = singletons.asset_server.asset_dir.clone();
 
         // 螃蟹 (漂浮)
         world.ecs.spawn((

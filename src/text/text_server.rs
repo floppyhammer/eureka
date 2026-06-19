@@ -1,4 +1,4 @@
-use crate::asset::AssetManager;
+use crate::asset::AssetServer;
 use crate::math::rect_to_vec4;
 use crate::math::transform::Transform2d;
 use crate::render::atlas::{Atlas, AtlasInstance};
@@ -13,14 +13,14 @@ pub struct TextServer {
 }
 
 impl TextServer {
-    pub(crate) fn new(asset_manager: &mut AssetManager) -> Self {
+    pub(crate) fn new(asset_server: &mut AssetServer) -> Self {
         #[cfg(target_family = "windows")]
         let default_font_name = "arial";
 
         #[cfg(not(target_family = "windows"))]
         let default_font_name = "Droid Sans Fallback";
 
-        asset_manager.request_font(format!("system://{}", default_font_name));
+        asset_server.request_font(format!("system://{}", default_font_name));
 
         Self {
             fonts: HashMap::new(),
@@ -28,17 +28,17 @@ impl TextServer {
     }
 
     /// Load a new font from disk asynchronously.
-    pub fn load_font(&mut self, font_path: &String, asset_manager: &mut AssetManager) {
-        asset_manager.request_font(font_path);
+    pub fn load_font(&mut self, font_path: &String, asset_server: &mut AssetServer) {
+        asset_server.request_font(font_path);
     }
 
     pub(crate) fn update(
         &mut self,
         render_server: &RenderContext,
         imported_texture_cache: &mut TextureCache,
-        asset_manager: &mut AssetManager,
+        asset_server: &mut AssetServer,
     ) {
-        let paths: Vec<_> = asset_manager.get_fonts().keys().cloned().collect();
+        let paths: Vec<_> = asset_server.get_fonts().keys().cloned().collect();
         for path in paths {
             let path_str = path.to_string_lossy().to_string();
             let key = if path_str.starts_with("system://") {
@@ -48,7 +48,7 @@ impl TextServer {
             };
 
             if !self.fonts.contains_key(&key) {
-                if let Some(buffer) = asset_manager.take_font(&path) {
+                if let Some(buffer) = asset_server.take_font(&path) {
                     let font = DynamicFont::load_from_memory(
                         buffer,
                         render_server,

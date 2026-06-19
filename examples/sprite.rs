@@ -18,7 +18,7 @@ fn main() {
             .singletons
             .as_ref()
             .unwrap()
-            .asset_manager
+            .asset_server
             .asset_dir
             .clone();
 

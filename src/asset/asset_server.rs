@@ -14,7 +14,7 @@ pub enum AssetMessage {
     Error(PathBuf, String),
 }
 
-pub struct AssetManager {
+pub struct AssetServer {
     pub asset_dir: PathBuf,
     pool: ThreadPool,
 
@@ -31,7 +31,7 @@ pub struct AssetManager {
     failed_paths: HashMap<PathBuf, String>,
 }
 
-impl AssetManager {
+impl AssetServer {
     pub fn new() -> Self {
         let asset_dir = Path::new(env!("OUT_DIR")).join("assets");
         let (tx, rx) = channel();
