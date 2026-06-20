@@ -11,7 +11,7 @@ image = { version = "0.24", default-features = false, features = [
     "png",
 ] }
 winit = "0.30.12"
-glam = "0.29"
+glam = "0.33.1"
 env_logger = "0.11.0"
 log = "0.4"
 wgpu = { version = "26.0.1", features = ["naga-ir"] }
@@ -22,8 +22,6 @@ anyhow = "1.0"
 tobj = "4.0.0"
 # For glTF loading.
 gltf = "1.4.1"
-# For JSON parsing.
-# Tree structure.
 hecs = "0.10"
 # Text rasterization.
 fontdue = "0.9.3"
