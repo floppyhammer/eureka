@@ -14,7 +14,11 @@ struct Camera {
     ssao_enabled: u32,
     volumetric_enabled: u32,
     taa_enabled: u32,
-    _pad: u32,
+    ssr_enabled: u32,
+    frame_count: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 }
 
 @group(0) @binding(0)
@@ -22,6 +26,8 @@ var<uniform> camera: Camera;
 
 struct Material {
     base_color: vec4<f32>,
+    emissive: vec3<f32>,
+    emissive_strength: f32,
     metallic: f32,
     roughness: f32,
     alpha_cutoff: f32,
@@ -29,7 +35,11 @@ struct Material {
     normal_texture_idx: i32,
     metallic_roughness_texture_idx: i32,
     occlusion_texture_idx: i32,
+    emissive_texture_idx: i32,
     alpha_mode: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 }
 
 @group(1) @binding(0)
@@ -113,6 +123,33 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    // Store view-space normals in [0, 1] range.
-    return vec4<f32>(normalize(in.view_normal) * 0.5 + 0.5, 1.0);
+    // Reconstruct TBN matrix for normal mapping
+    let world_normal_basis = normalize(in.world_normal);
+    let world_tangent = normalize(in.world_tangent);
+    let world_bitangent = normalize(in.world_bitangent);
+    let tbn_to_world = mat3x3<f32>(
+        world_tangent,
+        world_bitangent,
+        world_normal_basis
+    );
+
+    var world_normal = world_normal_basis;
+    if (material.normal_texture_idx >= 0) {
+        let normal_map = textureSample(t_textures[u32(material.normal_texture_idx)], s_sampler, in.tex_coords).xyz * 2.0 - 1.0;
+        world_normal = normalize(tbn_to_world * normal_map);
+    }
+
+    // Transform to view space
+    let view_normal = normalize((camera.view * vec4<f32>(world_normal, 0.0)).xyz);
+
+    // Get roughness
+    var roughness: f32 = material.roughness;
+    if (material.metallic_roughness_texture_idx >= 0) {
+        let mr_sample = textureSample(t_textures[u32(material.metallic_roughness_texture_idx)], s_sampler, in.tex_coords);
+        roughness = mr_sample.g;
+    }
+    roughness = max(roughness, 0.045);
+
+    // Output: RGB = view-space normal (encoded to [0,1]), A = roughness
+    return vec4<f32>(view_normal * 0.5 + 0.5, roughness);
 }

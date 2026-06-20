@@ -319,44 +319,43 @@ impl Node for SsaoNode {
 
         let mut ssao_camera_index = 0;
 
-        {
-            // 查找是否有任何 3D 相机开启了 SSAO
-            let mut camera_wants_ssao = false;
+        // 查找是否有任何 3D 相机开启了 SSAO
+        let mut camera_wants_ssao = false;
 
-            for i in 0..context.extracted.cameras.types.len() {
-                if context.extracted.cameras.types[i] == CameraType::D3 {
-                    if context.extracted.cameras.uniforms[i].ssao_enabled == 1 {
-                        camera_wants_ssao = true;
-                        ssao_camera_index = i;
-                        break;
-                    }
+        for i in 0..context.extracted.cameras.types.len() {
+            if context.extracted.cameras.types[i] == CameraType::D3 {
+                if context.extracted.cameras.uniforms[i].ssao_enabled == 1 {
+                    camera_wants_ssao = true;
+                    ssao_camera_index = i;
+                    break;
                 }
             }
+        }
 
-            // 如果全局禁用，或者没有任何相机需要，或者场景为空，则必须清空输出以防复用脏数据
-            if !context.extracted.ssao_enabled
-                || !camera_wants_ssao
-                || context.extracted.meshes.is_empty()
-            {
-                context
-                    .encoder
-                    .begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("SSAO Disabled Clear Pass"),
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &blur_tex.view,
-                            depth_slice: None,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                                store: wgpu::StoreOp::Store,
-                            },
-                        })],
-                        depth_stencil_attachment: None,
-                        timestamp_writes: None,
-                        occlusion_query_set: None,
-                    });
-                return;
-            }
+        // 如果全局禁用，或者没有任何相机需要，或者场景为空，则只执行normal pass（为SSR提供数据），跳过SSAO计算
+        let skip_ssao = !context.extracted.ssao_enabled
+            || !camera_wants_ssao
+            || context.extracted.meshes.is_empty();
+
+        if skip_ssao {
+            // 清空blur输出以防复用脏数据
+            context
+                .encoder
+                .begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("SSAO Disabled Clear Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &blur_tex.view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
         }
 
         // Noise texture (4x4)
@@ -619,53 +618,55 @@ impl Node for SsaoNode {
             }
         }
 
-        {
-            let mut render_pass = context
-                .encoder
-                .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("SSAO Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &ssao_tex.view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
+        if !skip_ssao {
+            {
+                let mut render_pass = context
+                    .encoder
+                    .begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("SSAO Pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &ssao_tex.view,
+                            depth_slice: None,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                    });
 
-            render_pass.set_pipeline(self.ssao_pipeline.as_ref().unwrap());
-            render_pass.set_bind_group(0, &camera_bind_group, &[0]);
-            render_pass.set_bind_group(1, &ssao_bind_group, &[]);
-            render_pass.draw(0..3, 0..1);
-        }
+                render_pass.set_pipeline(self.ssao_pipeline.as_ref().unwrap());
+                render_pass.set_bind_group(0, &camera_bind_group, &[0]);
+                render_pass.set_bind_group(1, &ssao_bind_group, &[]);
+                render_pass.draw(0..3, 0..1);
+            }
 
-        {
-            let mut render_pass = context
-                .encoder
-                .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("SSAO Blur Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &blur_tex.view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
+            {
+                let mut render_pass = context
+                    .encoder
+                    .begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("SSAO Blur Pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &blur_tex.view,
+                            depth_slice: None,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                    });
 
-            render_pass.set_pipeline(self.blur_pipeline.as_ref().unwrap());
-            render_pass.set_bind_group(0, &blur_bind_group, &[]);
-            render_pass.draw(0..3, 0..1);
+                render_pass.set_pipeline(self.blur_pipeline.as_ref().unwrap());
+                render_pass.set_bind_group(0, &blur_bind_group, &[]);
+                render_pass.draw(0..3, 0..1);
+            }
         }
     }
 }

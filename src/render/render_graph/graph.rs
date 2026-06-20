@@ -1,7 +1,7 @@
 use crate::render::render_backend::{PreparedFrame, RenderBackend};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
-use crate::render::render_graph::{standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, IBLNode, LightCullingNode, MeshNode, Node, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, TaaNode, ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode};
+use crate::render::render_graph::{standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, IBLNode, LightCullingNode, MeshNode, Node, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, SsrNode, SsrApplyNode, TaaNode, ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode};
 use crate::render::RenderContext;
 use std::collections::{HashMap, VecDeque};
 
@@ -54,7 +54,9 @@ impl RenderGraph {
         self.add_node("skybox", SkyboxNode::default());
         self.add_node("mesh", MeshNode::default());
         self.add_node("transparent_mesh", TransparentMeshNode::default());
-        self.add_node("taa", TaaNode::default()); // 新增
+        self.add_node("taa", TaaNode::default());
+        self.add_node("ssr", SsrNode::default());
+        self.add_node("ssr_apply", SsrApplyNode::default());
         self.add_node("bloom", BloomNode::default());
         self.add_node("tonemapping", ToneMappingNode::default());
         self.add_node("fxaa", FxaaNode::default());
@@ -82,8 +84,11 @@ impl RenderGraph {
         self.add_node_edge("skybox", "mesh");
         self.add_node_edge("mesh", "volumetric_apply");
         self.add_node_edge("volumetric_apply", "transparent_mesh");
-        self.add_node_edge("transparent_mesh", "taa"); // 这里的依赖链发生了变化
-        self.add_node_edge("taa", "bloom");
+        self.add_node_edge("transparent_mesh", "taa");
+        self.add_node_edge("taa", "ssr");
+        self.add_node_edge("ssao", "ssr");
+        self.add_node_edge("ssr", "ssr_apply");
+        self.add_node_edge("ssr_apply", "bloom");
         self.add_node_edge("bloom", "tonemapping");
         self.add_node_edge("tonemapping", "fxaa");
         self.add_node_edge("prepare_view", "sprite");

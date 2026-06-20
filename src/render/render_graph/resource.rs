@@ -534,4 +534,17 @@ pub mod standard_resources {
     pub fn brdf_lut() -> TextureId {
         ResourceId::new("brdf_lut")
     }
+
+    // SSR 相关
+    pub fn ssr_output() -> TextureId {
+        ResourceId::new("ssr_output")
+    }
+
+    pub fn ssr_combined() -> TextureId {
+        ResourceId::new("ssr_combined")
+    }
+
+    pub fn ssr_history() -> TextureId {
+        ResourceId::new("ssr_history")
+    }
 }

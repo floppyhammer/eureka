@@ -56,7 +56,7 @@ fn main() {
         // 3. 添加标签实体
         world.ecs.spawn((
             Name("Settings".into()),
-            LabelComponent::new("SSAO (1): ON | AA (2): TAA | Volumetric (3): ON"),
+            LabelComponent::new("SSAO (1): ON | AA (2): TAA | Volumetric (3): ON | SSR (4): ON"),
             CTransform2d(Transform2d {
                 position: Vec2::new(20.0, 20.0),
                 ..Transform2d::default()
@@ -110,7 +110,7 @@ fn main() {
         world.ecs.spawn((
             Name("Ferris".into()),
             CTransform3d(Transform3d {
-                position: Vec3::new(0.0, 0.1, 0.0),
+                position: Vec3::new(4.0, 0.1, 0.0),
                 ..Transform3d::default()
             }),
             GlobalTransform::default(),
@@ -136,12 +136,12 @@ fn main() {
 
         // --- 新增：透明物体验证 ---
         // 这一组透明方块按 Z 轴排列，用于验证 Back-to-Front 排序是否正确
-        for i in 0..5 {
+        for i in 0..1 {
             world.ecs.spawn((
                 Name(format!("GhostCube_{}", i)),
                 CTransform3d(Transform3d {
                     position: Vec3::new(5.0, 1.2, i as f32 * 1.5 - 3.0),
-                    scale: Vec3::splat(0.4),
+                    scale: Vec3::new(0.2, 10.0, 10.0),
                     ..Transform3d::default()
                 }),
                 GlobalTransform::default(),
@@ -154,7 +154,7 @@ fn main() {
         world.ecs.spawn((
             Name("Spheres".into()),
             CTransform3d(Transform3d {
-                position: Vec3::new(-2.0, 2.0, -2.0),
+                position: Vec3::new(0.0, 1.0, -0.5),
                 scale: Vec3::splat(0.1),
                 rotation: Quat::from_rotation_z(90.0f32.to_radians()),
             }),
@@ -168,6 +168,17 @@ fn main() {
             Transform3d::default(),
             GlobalTransform::default(),
             AssetPending(asset_dir.join("models/ground.glb")), // "models/Sponza/Sponza.gltf"
+        ));
+        
+        // 镜面立方体 (Mirror Cube)
+        world.ecs.spawn((
+            Name("MirrorCube".into()),
+            CTransform3d(Transform3d {
+                position: Vec3::new(-2.0, 1.5, 0.0),
+                ..Transform3d::default()
+            }),
+            GlobalTransform::default(),
+            AssetPending(asset_dir.join("models/mirror_cube/gltf/mirror_cube.gltf")),
         ));
     });
 
@@ -191,11 +202,15 @@ fn main() {
 
         for (_id, (model, _)) in world.ecs.query_mut::<(&mut Model, &GhostlyLogic)>() {
             for i in 0..model.meshes.len() {
-                model.mesh_transparency[i] = true;
+                model.mesh_transparency[i] = false;
                 if let Some(Some(mat_id)) = model.materials.get(i) {
                     if let Some(mat) = material_cache.storage.get_mut(mat_id) {
                         mat.base_color[3] = 0.3; // 调低 Alpha 值，增加透明度
-                        mat.alpha_mode = eureka::render::material::AlphaMode::Blend;
+                        // mat.alpha_mode = eureka::render::material::AlphaMode::Blend;
+                        mat.metallic = 1.0;
+                        mat.roughness = 0.0;
+                        mat.normal_texture = None;
+                        mat.color_texture = None;
                     }
                 }
             }
@@ -264,6 +279,12 @@ fn main() {
                                 camera.volumetric_enabled = !camera.volumetric_enabled;
                             }
                         }
+                        KeyCode::Digit4 => {
+                            // 切换 SSR
+                            for (_id, camera) in world.ecs.query_mut::<&mut Camera3dComponent>() {
+                                camera.ssr_enabled = !camera.ssr_enabled;
+                            }
+                        }
                         _ => {}
                     }
 
@@ -271,6 +292,7 @@ fn main() {
                     let mut ssao_enabled = true;
                     let mut aa_mode = "OFF";
                     let mut volumetric_enabled = true;
+                    let mut ssr_enabled = true;
                     for (_id, camera) in world.ecs.query::<&Camera3dComponent>().iter() {
                         ssao_enabled = camera.ssao_enabled;
                         if camera.taa_enabled {
@@ -279,15 +301,17 @@ fn main() {
                             aa_mode = "FXAA";
                         }
                         volumetric_enabled = camera.volumetric_enabled;
+                        ssr_enabled = camera.ssr_enabled;
                         break;
                     }
 
                     for (_id, label) in world.ecs.query_mut::<&mut LabelComponent>() {
                         label.text = format!(
-                            "SSAO (1): {} | AA (2): {} | Volumetric (3): {}",
+                            "SSAO (1): {} | AA (2): {} | Volumetric (3): {} | SSR (4): {}",
                             if ssao_enabled { "ON" } else { "OFF" },
                             aa_mode,
-                            if volumetric_enabled { "ON" } else { "OFF" }
+                            if volumetric_enabled { "ON" } else { "OFF" },
+                            if ssr_enabled { "ON" } else { "OFF" }
                         );
                         label.text_is_dirty = true;
                     }

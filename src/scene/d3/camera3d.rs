@@ -16,6 +16,7 @@ pub struct Camera3dComponent {
     pub fxaa_enabled: bool,
     pub taa_enabled: bool,
     pub volumetric_enabled: bool,
+    pub ssr_enabled: bool,
     pub viewport_size: UVec2,
     pub frame_count: u64,
     pub prev_view_proj: Mat4, // 新增：保存上一帧的矩阵
@@ -31,6 +32,7 @@ impl Camera3dComponent {
             fxaa_enabled: false,
             taa_enabled: true,
             volumetric_enabled: true,
+            ssr_enabled: true,
             viewport_size: UVec2::new(1280, 720),
             frame_count: 0,
             prev_view_proj: Mat4::IDENTITY,
@@ -93,6 +95,7 @@ impl Camera3dComponent {
         uniform.ssao_enabled = if self.ssao_enabled { 1 } else { 0 };
         uniform.volumetric_enabled = if self.volumetric_enabled { 1 } else { 0 };
         uniform.taa_enabled = if self.taa_enabled { 1 } else { 0 };
+        uniform.ssr_enabled = if self.ssr_enabled { 1 } else { 0 };
         uniform.frame_count = self.frame_count as u32;
 
         uniform
