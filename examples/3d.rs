@@ -202,15 +202,11 @@ fn main() {
 
         for (_id, (model, _)) in world.ecs.query_mut::<(&mut Model, &GhostlyLogic)>() {
             for i in 0..model.meshes.len() {
-                model.mesh_transparency[i] = false;
                 if let Some(Some(mat_id)) = model.materials.get(i) {
                     if let Some(mat) = material_cache.storage.get_mut(mat_id) {
                         mat.base_color[3] = 0.3; // 调低 Alpha 值，增加透明度
                         mat.alpha_mode = eureka::render::material::AlphaMode::Blend;
-                        // mat.metallic = 1.0;
-                        // mat.roughness = 0.0;
-                        // mat.normal_texture = None;
-                        // mat.color_texture = None;
+                        mat.transparent = true;
                     }
                 }
             }

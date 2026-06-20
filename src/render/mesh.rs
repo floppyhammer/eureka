@@ -72,8 +72,6 @@ pub struct ExtractedMesh {
     pub(crate) transform: Transform3d,
     pub(crate) mesh_id: MeshId,
     pub(crate) material_id: Option<MaterialId>,
-    // todo: should remove, as it's already included in material
-    pub(crate) transparent: bool,
 }
 
 #[repr(C)]

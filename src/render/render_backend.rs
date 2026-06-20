@@ -352,13 +352,9 @@ impl RenderBackend {
             let material_cache = self.imported_material_cache.read().unwrap();
             for mesh in &extracted.meshes {
                 let is_transparent = if let Some(material_id) = mesh.material_id {
-                    if let Some(material) = material_cache.get(&material_id) {
-                        material.transparent || mesh.transparent
-                    } else {
-                        mesh.transparent
-                    }
+                    material_cache.get(&material_id).map_or(false, |m| m.transparent)
                 } else {
-                    mesh.transparent
+                    false
                 };
 
                 if is_transparent {

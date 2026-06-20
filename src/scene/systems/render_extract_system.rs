@@ -160,7 +160,6 @@ pub fn extract_render_objects(ecs: &mut World) -> Extracted {
                 transform: combined,
                 mesh_id: model.meshes[i],
                 material_id: model.materials[i],
-                transparent: model.mesh_transparency[i],
             });
         }
     }

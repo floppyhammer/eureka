@@ -62,7 +62,6 @@ pub struct Model {
     pub meshes: Vec<MeshId>,
     pub materials: Vec<Option<MaterialId>>,
     pub mesh_transforms: Vec<Transform3d>,
-    pub mesh_transparency: Vec<bool>,
     pub aabb: Aabb,
 }
 
@@ -76,7 +75,6 @@ impl Model {
             meshes: Vec::new(),
             materials: Vec::new(),
             mesh_transforms: Vec::new(),
-            mesh_transparency: Vec::new(),
             aabb: Aabb::default(),
         }
     }
@@ -605,10 +603,8 @@ impl Model {
         global_mesh_allocator: &mut MeshAllocator,
     ) {
         let mut material_ids = Vec::new();
-        let mut material_transparencies = Vec::new();
 
         for m in raw.materials {
-            material_transparencies.push(m.transparent);
             let color_texture = m.color_texture.map(|raw_tex| {
                 Texture::from_raw(
                     &render_server.device,
@@ -689,11 +685,6 @@ impl Model {
             self.materials
                 .push(m.material_index.map(|idx| material_ids[idx]));
             self.mesh_transforms.push(m.local_transform);
-            self.mesh_transparency.push(
-                m.material_index
-                    .map(|idx| material_transparencies[idx])
-                    .unwrap_or(false),
-            );
         }
 
         self.aabb = raw.aabb;
