@@ -134,22 +134,6 @@ fn main() {
             RotatingLogic,
         ));
 
-        // --- 新增：透明物体验证 ---
-        // 这一组透明方块按 Z 轴排列，用于验证 Back-to-Front 排序是否正确
-        for i in 0..3 {
-            world.ecs.spawn((
-                Name(format!("GhostCube_{}", i)),
-                CTransform3d(Transform3d {
-                    position: Vec3::new(5.0, 1.2, i as f32 * 1.5 - 3.0),
-                    scale: Vec3::splat(0.4),
-                    ..Transform3d::default()
-                }),
-                GlobalTransform::default(),
-                AssetPending(asset_dir.join("models/cube/cube.obj")),
-                GhostlyLogic,
-            ));
-        }
-
         // 金属球 (MetalRoughSpheres)
         world.ecs.spawn((
             Name("Spheres".into()),
@@ -167,7 +151,7 @@ fn main() {
             Name("Ground".to_string()),
             Transform3d::default(),
             GlobalTransform::default(),
-            AssetPending(asset_dir.join("models/Sponza/Sponza.gltf")), // "models/Sponza/Sponza.gltf"
+            AssetPending(asset_dir.join("models/ground.glb")), // "models/Sponza/Sponza.gltf"
         ));
         
         // 镜面立方体 (Mirror Cube)
@@ -191,25 +175,6 @@ fn main() {
             .with::<&RotatingLogic>()
         {
             transform.0.rotation *= Quat::from_rotation_y(dt);
-        }
-    });
-
-    // 添加自定义更新逻辑：透明度处理
-    app.add_update(|app, _dt| {
-        let world = &mut app.world;
-        let render_world = app.render_world.as_ref().unwrap();
-        let mut material_cache = render_world.imported_material_cache.write().unwrap();
-
-        for (_id, (model, _)) in world.ecs.query_mut::<(&mut Model, &GhostlyLogic)>() {
-            for i in 0..model.meshes.len() {
-                if let Some(Some(mat_id)) = model.materials.get(i) {
-                    if let Some(mat) = material_cache.storage.get_mut(mat_id) {
-                        mat.base_color[3] = 0.3; // 调低 Alpha 值，增加透明度
-                        mat.alpha_mode = eureka::render::material::AlphaMode::Blend;
-                        mat.transparent = true;
-                    }
-                }
-            }
         }
     });
 

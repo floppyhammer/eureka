@@ -707,6 +707,18 @@ impl Model {
         model
     }
 
+    pub fn from_primitive(
+        primitive: crate::scene::d3::primitive::MeshPrimitive,
+        rs: &RenderContext,
+        tc: &mut TextureCache,
+        mc: &mut MaterialCache,
+        msc: &mut MeshCache,
+        ma: &mut MeshAllocator,
+    ) -> Self {
+        let raw = primitive.generate_raw_data();
+        Self::from_raw(raw, rs, tc, mc, msc, ma)
+    }
+
     pub fn load<P: AsRef<Path>>(
         tc: &mut TextureCache,
         mc: &mut MaterialCache,

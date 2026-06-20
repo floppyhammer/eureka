@@ -69,3 +69,7 @@ path = "examples/3d.rs"
 [[example]]
 name = "label"
 path = "examples/label.rs"
+
+[[example]]
+name = "transparency"
+path = "examples/transparency.rs"

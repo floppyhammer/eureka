@@ -2,6 +2,7 @@ pub(crate) mod camera3d;
 pub(crate) mod directional_light;
 pub(crate) mod model;
 pub(crate) mod point_light;
+pub(crate) mod primitive;
 pub(crate) mod sky;
 
 pub use crate::math::bvh::*;
@@ -9,4 +10,5 @@ pub use camera3d::*;
 pub use directional_light::*;
 pub use model::*;
 pub use point_light::*;
+pub use primitive::*;
 pub use sky::*;
