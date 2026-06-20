@@ -6,7 +6,7 @@ edition = "2021"
 resolver = "2"
 
 [dependencies]
-image = { version = "0.24", default-features = false, features = [
+image = { version = "0.25.10", default-features = false, features = [
     "jpeg",
     "png",
 ] }
@@ -35,7 +35,7 @@ unicode-bidi = "0.3.8"
 # Text line break.
 unicode-linebreak = "0.1.5"
 # Finding system fonts.
-font-kit = "0.12.0"
+font-kit = "0.14.3"
 bitflags = { version = "2.4.1", features = [] }
 rayon = "1.8"
 
