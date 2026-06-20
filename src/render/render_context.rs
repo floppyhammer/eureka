@@ -145,8 +145,8 @@ pub fn create_render_pipeline_with_entry(
         },
         depth_stencil: depth_format.map(|format| wgpu::DepthStencilState {
             format,
-            depth_write_enabled: !transparency,
-            depth_compare: wgpu::CompareFunction::LessEqual,
+            depth_write_enabled: Some(!transparency),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
@@ -155,7 +155,7 @@ pub fn create_render_pipeline_with_entry(
             mask: !0,
             alpha_to_coverage_enabled: false,
         },
-        multiview: None,
         cache: None,
+        multiview_mask: None,
     })
 }

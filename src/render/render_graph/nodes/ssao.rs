@@ -140,8 +140,8 @@ impl Node for SsaoNode {
             let normal_pipeline = {
                 let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("SSAO Normal Pipeline Layout"),
-                    bind_group_layouts: &[&camera_bind_group_layout, &bindless_bind_group_layout],
-                    push_constant_ranges: &[],
+                    bind_group_layouts: &[Some(&camera_bind_group_layout), Some(&bindless_bind_group_layout)],
+                    immediate_size: 0,
                 });
                 let source = include_str!("../../../shaders/normal.wgsl")
                     .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
@@ -227,8 +227,8 @@ impl Node for SsaoNode {
             let ssao_pipeline = {
                 let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("SSAO Pipeline Layout"),
-                    bind_group_layouts: &[&camera_bind_group_layout, &ssao_bind_group_layout],
-                    push_constant_ranges: &[],
+                    bind_group_layouts: &[Some(&camera_bind_group_layout), Some(&ssao_bind_group_layout)],
+                    immediate_size: 0,
                 });
                 let source = include_str!("../../../shaders/ssao.wgsl")
                     .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
@@ -276,8 +276,8 @@ impl Node for SsaoNode {
             let blur_pipeline = {
                 let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("SSAO Blur Pipeline Layout"),
-                    bind_group_layouts: &[&blur_bind_group_layout],
-                    push_constant_ranges: &[],
+                    bind_group_layouts: &[Some(&blur_bind_group_layout)],
+                    immediate_size: 0,
                 });
                 let shader = wgpu::ShaderModuleDescriptor {
                     label: Some("SSAO Blur Shader"),
@@ -357,6 +357,7 @@ impl Node for SsaoNode {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
         }
 
@@ -596,6 +597,7 @@ impl Node for SsaoNode {
                     }),
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
 
             let offset = ssao_camera_index as u32 * CameraUniform::get_uniform_offset_unit();
@@ -638,6 +640,7 @@ impl Node for SsaoNode {
                         depth_stencil_attachment: None,
                         timestamp_writes: None,
                         occlusion_query_set: None,
+                        multiview_mask: None,
                     });
 
                 render_pass.set_pipeline(self.ssao_pipeline.as_ref().unwrap());
@@ -663,6 +666,7 @@ impl Node for SsaoNode {
                         depth_stencil_attachment: None,
                         timestamp_writes: None,
                         occlusion_query_set: None,
+                        multiview_mask: None,
                     });
 
                 render_pass.set_pipeline(self.blur_pipeline.as_ref().unwrap());

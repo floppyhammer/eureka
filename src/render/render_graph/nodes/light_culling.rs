@@ -86,81 +86,84 @@ impl Node for LightCullingNode {
         let device = &context.render_context.device;
         let queue = &context.render_context.queue;
 
+        let light_culling_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: true,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
+                label: None,
+            });
+
         if self.pipeline.is_none() {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Light Culling Pipeline Layout"),
-                bind_group_layouts: &[&device.create_bind_group_layout(
-                    &wgpu::BindGroupLayoutDescriptor {
-                        entries: &[
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 0,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Uniform,
-                                    has_dynamic_offset: true,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 1,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 2,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 3,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 4,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 5,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Uniform,
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                        ],
-                        label: None,
-                    },
-                )],
-                push_constant_ranges: &[],
+                bind_group_layouts: &[Some(&light_culling_bind_group_layout)],
+                immediate_size: 0,
             });
 
-            let source = include_str!("../../../shaders/cluster_cull.wgsl")
-                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+            let source = include_str!("../../../shaders/cluster_cull.wgsl").replace(
+                "#import eureka::camera::Camera",
+                crate::render::camera::CAMERA_STRUCT_WGSL,
+            );
 
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Light Culling Shader"),
@@ -189,16 +192,20 @@ impl Node for LightCullingNode {
 
         // 设置默认的体积雾/体积光参数
         light_uniform.fog_color = [0.5, 0.6, 0.7]; // 浅蓝色调的雾
-        light_uniform.fog_density = 1.0;           // 基础密度
-        light_uniform.fog_height_falloff = 0.2;    // 随高度缓慢变稀
+        light_uniform.fog_density = 1.0; // 基础密度
+        light_uniform.fog_height_falloff = 0.2; // 随高度缓慢变稀
         light_uniform.fog_base_height = -1.0;
-        light_uniform.fog_scattering = 0.8;       // 散射系数
-        light_uniform.fog_absorption = 0.01;      // 吸收系数
+        light_uniform.fog_scattering = 0.8; // 散射系数
+        light_uniform.fog_absorption = 0.01; // 吸收系数
 
         if let Some(dl) = lights_extracted.directional_light {
             light_uniform.directional_light = dl;
         }
-        queue.write_buffer(&light_uniform_buffer.buffer, 0, bytemuck::cast_slice(&[light_uniform]));
+        queue.write_buffer(
+            &light_uniform_buffer.buffer,
+            0,
+            bytemuck::cast_slice(&[light_uniform]),
+        );
 
         let point_lights = &lights_extracted.point_lights;
         let light_storage_buffer =
@@ -229,7 +236,9 @@ impl Node for LightCullingNode {
         context.encoder.clear_buffer(&count_buffer.buffer, 0, None);
 
         let light_grid_buffer = context.buffer(&standard_resources::light_grid_buffer());
-        context.encoder.clear_buffer(&light_grid_buffer.buffer, 0, None);
+        context
+            .encoder
+            .clear_buffer(&light_grid_buffer.buffer, 0, None);
 
         // 2. Bind Group
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());

@@ -101,12 +101,17 @@ impl Node for SkyboxNode {
 
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Skybox Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout, &sky_texture_bind_group_layout],
-                push_constant_ranges: &[],
+                bind_group_layouts: &[
+                    Some(&camera_bind_group_layout),
+                    Some(&sky_texture_bind_group_layout),
+                ],
+                immediate_size: 0,
             });
 
-            let source = include_str!("../../../shaders/skybox.wgsl")
-                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+            let source = include_str!("../../../shaders/skybox.wgsl").replace(
+                "#import eureka::camera::Camera",
+                crate::render::camera::CAMERA_STRUCT_WGSL,
+            );
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Skybox Shader"),
@@ -140,7 +145,7 @@ impl Node for SkyboxNode {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
 
@@ -232,6 +237,7 @@ impl Node for SkyboxNode {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
         render_pass.set_pipeline(self.pipeline.as_ref().unwrap());

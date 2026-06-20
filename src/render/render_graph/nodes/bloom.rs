@@ -82,8 +82,8 @@ impl Node for BloomNode {
 
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Bloom Pipeline Layout"),
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
+                bind_group_layouts: &[Some(&bind_group_layout)],
+                immediate_size: 0,
             });
 
             let shader = wgpu::ShaderModuleDescriptor {
@@ -216,6 +216,7 @@ impl Node for BloomNode {
                         depth_stencil_attachment: None,
                         timestamp_writes: None,
                         occlusion_query_set: None,
+                        multiview_mask: None,
                     });
                 rpass.set_pipeline(self.downsample_pipeline.as_ref().unwrap());
                 rpass.set_bind_group(0, &bg, &[]);
@@ -286,6 +287,7 @@ impl Node for BloomNode {
                         depth_stencil_attachment: None,
                         timestamp_writes: None,
                         occlusion_query_set: None,
+                        multiview_mask: None,
                     });
                 rpass.set_pipeline(self.upsample_pipeline.as_ref().unwrap());
                 rpass.set_bind_group(0, &bg, &[]);
@@ -335,6 +337,7 @@ impl Node for BloomNode {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
         rpass.set_pipeline(self.downsample_pipeline.as_ref().unwrap());
         rpass.set_bind_group(0, &bg, &[]);

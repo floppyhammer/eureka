@@ -78,6 +78,7 @@ impl Node for ClearNode {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
     }
 }

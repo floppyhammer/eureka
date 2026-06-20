@@ -121,8 +121,8 @@ impl Node for SpriteNode {
 
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("sprite bindless pipeline layout"),
-                bind_group_layouts: &[&camera_bind_group_layout, &bindless_bind_group_layout],
-                push_constant_ranges: &[],
+                bind_group_layouts: &[Some(&camera_bind_group_layout), Some(&bindless_bind_group_layout)],
+                immediate_size: 0,
             });
 
             let source = include_str!("../../../shaders/sprite.wgsl")
@@ -189,6 +189,7 @@ impl Node for SpriteNode {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
         render_pass.set_pipeline(self.pipeline.as_ref().unwrap());

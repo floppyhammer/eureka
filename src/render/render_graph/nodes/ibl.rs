@@ -100,8 +100,8 @@ impl Node for IBLNode {
                 label: Some("Irradiance Pipeline"),
                 layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("Irradiance Pipeline Layout"),
-                    bind_group_layouts: &[&irradiance_layout],
-                    push_constant_ranges: &[],
+                    bind_group_layouts: &[Some(&irradiance_layout)],
+                    immediate_size: 0,
                 })),
                 module: &irradiance_shader,
                 entry_point: Some("main"),
@@ -138,8 +138,8 @@ impl Node for IBLNode {
                 label: Some("BRDF LUT Pipeline"),
                 layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("BRDF LUT Pipeline Layout"),
-                    bind_group_layouts: &[&brdf_layout],
-                    push_constant_ranges: &[],
+                    bind_group_layouts: &[Some(&brdf_layout)],
+                    immediate_size: 0,
                 })),
                 module: &brdf_shader,
                 entry_point: Some("main"),

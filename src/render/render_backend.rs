@@ -214,9 +214,20 @@ impl RenderBackend {
         self.process_timestamps(render_context);
 
         let surface_texture = match self.surface.get_current_texture() {
-            Ok(texture) => texture,
-            Err(e) => {
-                eprintln!("Failed to acquire next surface texture: {:?}", e);
+            wgpu::CurrentSurfaceTexture::Success(texture) => texture,
+            wgpu::CurrentSurfaceTexture::Suboptimal(texture) => {
+                self.surface.configure(&render_context.device, &render_context.surface_config);
+                texture
+            }
+            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
+                self.surface.configure(&render_context.device, &render_context.surface_config);
+                return;
+            }
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
+                return;
+            }
+            wgpu::CurrentSurfaceTexture::Validation => {
+                log::error!("WGPU Surface Validation Error");
                 return;
             }
         };

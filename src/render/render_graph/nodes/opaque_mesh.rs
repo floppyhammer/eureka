@@ -76,8 +76,8 @@ impl Node for MeshNode {
 
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Opaque Mesh Layout"),
-                bind_group_layouts: &[&camera_layout, &light_layout, bindless_layout],
-                push_constant_ranges: &[],
+                bind_group_layouts: &[Some(&camera_layout), Some(&light_layout), Some(bindless_layout)],
+                immediate_size: 0,
             });
 
             let source = include_str!("../../../shaders/mesh.wgsl")
@@ -111,6 +111,7 @@ impl Node for MeshNode {
                 stencil_ops: None,
             }),
             timestamp_writes: None, occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         let allocator = context.backend.imported_mesh_allocator.read().unwrap();

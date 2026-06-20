@@ -106,8 +106,7 @@ impl App {
 
         let mut features = wgpu::Features::TEXTURE_BINDING_ARRAY
             | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
-            | wgpu::Features::INDIRECT_FIRST_INSTANCE
-            | wgpu::Features::MULTI_DRAW_INDIRECT;
+            | wgpu::Features::INDIRECT_FIRST_INSTANCE;
 
         if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
             features |= wgpu::Features::TIMESTAMP_QUERY;
@@ -131,6 +130,7 @@ impl App {
                     ..Default::default()
                 },
                 memory_hints: Default::default(),
+                experimental_features: Default::default(),
                 trace: Default::default(),
             })
             .await
@@ -248,17 +248,16 @@ impl App {
         }
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self) {
         let (Some(singletons), Some(render_world)) = (&mut self.singletons, &mut self.render_world)
         else {
-            return Ok(());
+            return;
         };
 
         // Extract render entities from the draw commands.
         let extracted = self.world.extract_render_objects();
 
         // Update server GPU resources (text).
-        // Note: font_server.prepare currently writes to texture cache, so we need a write lock.
         singletons.font_server.prepare(
             &singletons.render_context,
             &mut render_world.imported_texture_cache.write().unwrap(),
@@ -266,8 +265,6 @@ impl App {
 
         // Send to render thread.
         let _ = render_world.sender.send(RenderCommand::Render(extracted));
-
-        Ok(())
     }
 }
 
@@ -368,7 +365,7 @@ impl ApplicationHandler for App {
                         singletons.input_server.clear_events();
                     }
 
-                    let render_result = self.render();
+                    self.render();
 
                     // Store logic time (including extraction).
                     if let Some(singletons) = &mut self.singletons {
@@ -378,19 +375,7 @@ impl ApplicationHandler for App {
                         );
                     }
 
-                    match render_result {
-                        Ok(_) => {
-                            window.request_redraw();
-                        }
-                        // Reconfigure the surface if lost or outdated.
-                        Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                            self.resize(self.window_size.to_physical(self.scale_factor))
-                        }
-                        // The system is out of memory, we should probably quit.
-                        Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
-                        // All other errors (Timeout) should be resolved by the next frame.
-                        Err(e) => eprintln!("App resource error: {:?}", e),
-                    }
+                    window.request_redraw();
                 }
             }
             _ => {
