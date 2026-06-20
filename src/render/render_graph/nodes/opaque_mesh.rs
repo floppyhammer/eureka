@@ -80,10 +80,13 @@ impl Node for MeshNode {
                 push_constant_ranges: &[],
             });
 
+            let source = include_str!("../../../shaders/mesh.wgsl")
+                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+
             self.pipeline = Some(create_render_pipeline(
                 device, &pipeline_layout, Some(wgpu::TextureFormat::Rgba16Float), Some(Texture::DEPTH_FORMAT),
                 &[Vertex3d::desc(), InstanceRaw::desc()],
-                wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/mesh.wgsl").into()) },
+                wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(source.into()) },
                 "Opaque Mesh", false, Some(wgpu::Face::Back),
             ));
         }

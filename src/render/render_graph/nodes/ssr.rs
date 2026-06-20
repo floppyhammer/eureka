@@ -147,9 +147,12 @@ impl Node for SsrNode {
                 push_constant_ranges: &[],
             });
 
+            let source = include_str!("../../../shaders/ssr.wgsl")
+                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("SSR Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/ssr.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
             };
 
             use crate::render::create_render_pipeline;

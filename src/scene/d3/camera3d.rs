@@ -97,6 +97,7 @@ impl Camera3dComponent {
         uniform.taa_enabled = if self.taa_enabled { 1 } else { 0 };
         uniform.ssr_enabled = if self.ssr_enabled { 1 } else { 0 };
         uniform.frame_count = self.frame_count as u32;
+        uniform._pad = [0; 3];
 
         uniform
     }

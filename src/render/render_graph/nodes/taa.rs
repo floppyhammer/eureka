@@ -117,9 +117,12 @@ impl Node for TaaNode {
                 push_constant_ranges: &[],
             });
 
+            let source = include_str!("../../../shaders/taa.wgsl")
+                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("TAA Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/taa.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
             };
 
             use crate::render::create_render_pipeline;

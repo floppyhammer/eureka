@@ -33,6 +33,8 @@ impl ExtractedCameras {
     }
 }
 
+pub(crate) const CAMERA_STRUCT_WGSL: &str = include_str!("../shaders/camera.wgsl");
+
 // We need this for Rust to store our data correctly for the shaders.
 #[repr(C)]
 // This is so we can store this in a buffer.

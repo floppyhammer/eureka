@@ -1,25 +1,7 @@
-// Vertex shader //
-
-struct LightCamera {
-    view_pos: vec4<f32>,
-    view: mat4x4<f32>,
-    proj: mat4x4<f32>,
-    view_proj: mat4x4<f32>,
-    unjittered_proj: mat4x4<f32>,
-    unjittered_view_proj: mat4x4<f32>,
-    inv_proj: mat4x4<f32>,
-    inv_view: mat4x4<f32>,
-    inv_view_proj: mat4x4<f32>,
-    prev_view_proj: mat4x4<f32>,
-    jitter: vec4<f32>,
-    ssao_enabled: u32,
-    volumetric_enabled: u32,
-    taa_enabled: u32,
-    _pad: u32,
-}
+#import eureka::camera::Camera
 
 @group(0) @binding(0)
-var<uniform> light_camera: LightCamera;
+var<uniform> light_camera: Camera;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,

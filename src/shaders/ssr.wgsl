@@ -1,25 +1,4 @@
-struct Camera {
-    view_pos: vec4<f32>,
-    view: mat4x4<f32>,
-    proj: mat4x4<f32>,
-    view_proj: mat4x4<f32>,
-    unjittered_proj: mat4x4<f32>,
-    unjittered_view_proj: mat4x4<f32>,
-    inv_proj: mat4x4<f32>,
-    inv_view: mat4x4<f32>,
-    inv_view_proj: mat4x4<f32>,
-    inv_unjittered_view_proj: mat4x4<f32>,
-    prev_view_proj: mat4x4<f32>,
-    jitter: vec4<f32>,
-    ssao_enabled: u32,
-    volumetric_enabled: u32,
-    taa_enabled: u32,
-    ssr_enabled: u32,
-    frame_count: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
-}
+#import eureka::camera::Camera
 
 @group(0) @binding(0) var<uniform> camera: Camera;
 
@@ -69,16 +48,22 @@ fn edge_fade(uv: vec2<f32>) -> f32 {
     return fade_x * fade_y;
 }
 
+fn interleaved_gradient_noise(uv: vec2<f32>, frame: u32) -> f32 {
+    let magic = vec3<f32>(0.06711056, 0.00583715, 52.9829189);
+    let frame_offset = fract(f32(frame % 16u) * 0.61803398875);
+    return fract(magic.z * fract(dot(uv, magic.xy) + frame_offset));
+}
+
 fn ray_march(
     origin: vec3<f32>,
     direction: vec3<f32>,
     max_steps: u32,
     step_size: f32,
     thickness: f32,
+    jitter: f32,
 ) -> vec2<f32> {
-    // 增加初始偏移量以彻底避免自碰撞
-    // 如果偏移量太小，在近处时 ray_z 和 scene_view_z 的微小差异会误触表面
-    var current_pos = origin + direction * max(step_size, 0.1);
+    // 使用抖动来打破采样步长的规律性，减少摩尔纹和切片感
+    var current_pos = origin + direction * step_size * (jitter + 0.1);
     var prev_pos = origin;
 
     for (var i = 0u; i < max_steps; i++) {
@@ -185,24 +170,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let reflect_dir = reflect(-view_dir, view_normal);
     
-    // Ray Marching 参数优化
+    // Ray Marching 参数
     let view_distance = length(view_pos);
+    let max_steps = 80u;
 
-    // 增加步数以覆盖更广的范围
-    let max_steps = 100u;
+    // 基础步长限制，防止在近处太碎，在远处太粗
+    let step_size = max(0.04, view_distance * 0.01 + roughness * 0.05);
 
-    // 调整步长逻辑：
-    // 1. 基础步长不能太小，否则近处时射线跑不出几米就用完步数了
-    // 2. 随距离增加步长以覆盖远景
-    let step_size = max(0.05, view_distance * 0.005 + roughness * 0.1);
-
-    // 厚度逻辑优化：
-    // 1. 基础厚度增加，防止步长跳过较薄的物体
-    // 2. 仍然保持 grazing angle 处的削减以减少扭曲
+    // 厚度随距离增加，但在掠射角处削减以防止背面穿透
     let n_dot_r = max(dot(view_normal, reflect_dir), 0.001);
-    let thickness = max(0.2, view_distance * 0.02) * n_dot_r;
+    let thickness = max(0.1, view_distance * 0.03) * n_dot_r;
     
-    let hit_uv = ray_march(view_pos, reflect_dir, max_steps, step_size, thickness);
+    // 抖动处理
+    let jitter = interleaved_gradient_noise(in.position.xy, camera.frame_count);
+
+    let hit_uv = ray_march(view_pos, reflect_dir, max_steps, step_size, thickness, jitter);
 
     if (hit_uv.x < 0.0) {
         return vec4<f32>(0.0);
@@ -214,20 +196,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     var reflection_color = vec3<f32>(0.0);
-    if (roughness < 0.2) {
+    if (roughness < 0.1) {
         reflection_color = textureSampleLevel(t_color, s_linear, hit_uv, 0.0).rgb;
     } else {
-        let blur_radius = roughness * 3.0;
+        let blur_radius = roughness * 4.0;
         let inv_tex_size = 1.0 / tex_size;
         var sample_count = 0.0;
         
-        for (var y = -2; y <= 2; y++) {
-            for (var x = -2; x <= 2; x++) {
+        for (var y = -1; y <= 1; y++) {
+            for (var x = -1; x <= 1; x++) {
                 let offset = vec2<f32>(f32(x), f32(y)) * blur_radius * inv_tex_size;
                 let sample_uv = hit_uv + offset;
                 if (sample_uv.x >= 0.0 && sample_uv.x <= 1.0 && sample_uv.y >= 0.0 && sample_uv.y <= 1.0) {
-                    let weight = 1.0 - abs(f32(x)) / 2.0 * (1.0 - abs(f32(y)) / 2.0);
-                    reflection_color += textureSampleLevel(t_color, s_linear, sample_uv, 0.0).rgb * weight;
+                    let c = textureSampleLevel(t_color, s_linear, sample_uv, 0.0).rgb;
+                    // --- Firefly clamping ---
+                    // 限制单个采样的亮度，防止 HDR 亮块在粗糙表面产生剧烈闪烁
+                    let luminance = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+                    let max_lum = 2.0;
+                    let weight = 1.0 / (1.0 + luminance / max_lum);
+
+                    reflection_color += c * weight;
                     sample_count += weight;
                 }
             }
@@ -239,10 +227,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     
     let n_dot_v = max(dot(-view_dir, view_normal), 0.0);
-    let F0 = 0.04 + (1.0 - roughness) * 0.96;
+
+    // 绝缘体 F0 = 0.04
+    let F0 = 0.04;
     let fresnel = fresnel_schlick(n_dot_v, F0);
     
-    let intensity = (1.0 - roughness) * fresnel * fade;
+    // 增强粗糙度衰减：织物等粗糙表面反射应该极弱
+    let roughness_fade = pow(saturate(1.0 - roughness), 4.0);
+
+    let intensity = roughness_fade * fresnel * fade;
+
+    // 最后的安全限制：如果反射颜色过亮，也进行一定的抑制
+    reflection_color = min(reflection_color, vec3<f32>(1.5));
 
     return vec4<f32>(reflection_color, intensity);
 }

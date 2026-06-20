@@ -139,11 +139,12 @@ impl Node for ShadowNode {
                 push_constant_ranges: &[],
             });
 
+            let source = include_str!("../../../shaders/shadow.wgsl")
+                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("shadow shader"),
-                source: wgpu::ShaderSource::Wgsl(
-                    include_str!("../../../shaders/shadow.wgsl").into(),
-                ),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
             };
 
             let pipeline = create_render_pipeline(

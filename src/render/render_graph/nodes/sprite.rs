@@ -125,11 +125,12 @@ impl Node for SpriteNode {
                 push_constant_ranges: &[],
             });
 
+            let source = include_str!("../../../shaders/sprite.wgsl")
+                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("sprite shader"),
-                source: wgpu::ShaderSource::Wgsl(
-                    include_str!("../../../shaders/sprite.wgsl").into(),
-                ),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
             };
 
             self.pipeline = Some(create_render_pipeline(

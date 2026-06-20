@@ -217,18 +217,17 @@ impl Node for VolumetricNode {
                 push_constant_ranges: &[],
             });
 
-            let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Volumetric Shader"),
-                source: wgpu::ShaderSource::Wgsl(
-                    include_str!("../../../shaders/volumetric.wgsl").into(),
-                ),
-            });
+            let source = include_str!("../../../shaders/volumetric.wgsl")
+                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
 
             self.pipeline = Some(device.create_compute_pipeline(
                 &wgpu::ComputePipelineDescriptor {
                     label: Some("Volumetric Pipeline"),
                     layout: Some(&layout),
-                    module: &shader,
+                    module: &device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                        label: Some("Volumetric Module"),
+                        source: wgpu::ShaderSource::Wgsl(source.into()),
+                    }),
                     entry_point: Some("main"),
                     compilation_options: Default::default(),
                     cache: None,
@@ -474,11 +473,12 @@ impl Node for VolumetricApplyNode {
                 push_constant_ranges: &[],
             });
 
+            let source = include_str!("../../../shaders/volumetric_apply.wgsl")
+                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Volumetric Apply Shader"),
-                source: wgpu::ShaderSource::Wgsl(
-                    include_str!("../../../shaders/volumetric_apply.wgsl").into(),
-                ),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
             });
 
             self.pipeline = Some(

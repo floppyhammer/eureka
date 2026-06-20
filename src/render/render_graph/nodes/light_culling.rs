@@ -159,11 +159,12 @@ impl Node for LightCullingNode {
                 push_constant_ranges: &[],
             });
 
+            let source = include_str!("../../../shaders/cluster_cull.wgsl")
+                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Light Culling Shader"),
-                source: wgpu::ShaderSource::Wgsl(
-                    include_str!("../../../shaders/cluster_cull.wgsl").into(),
-                ),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
             });
 
             self.pipeline = Some(device.create_compute_pipeline(

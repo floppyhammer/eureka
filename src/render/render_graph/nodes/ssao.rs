@@ -143,11 +143,12 @@ impl Node for SsaoNode {
                     bind_group_layouts: &[&camera_bind_group_layout, &bindless_bind_group_layout],
                     push_constant_ranges: &[],
                 });
+                let source = include_str!("../../../shaders/normal.wgsl")
+                    .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+
                 let shader = wgpu::ShaderModuleDescriptor {
                     label: Some("SSAO Normal Shader"),
-                    source: wgpu::ShaderSource::Wgsl(
-                        include_str!("../../../shaders/normal.wgsl").into(),
-                    ),
+                    source: wgpu::ShaderSource::Wgsl(source.into()),
                 };
 
                 create_render_pipeline(
@@ -229,11 +230,12 @@ impl Node for SsaoNode {
                     bind_group_layouts: &[&camera_bind_group_layout, &ssao_bind_group_layout],
                     push_constant_ranges: &[],
                 });
+                let source = include_str!("../../../shaders/ssao.wgsl")
+                    .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+
                 let shader = wgpu::ShaderModuleDescriptor {
                     label: Some("SSAO Shader"),
-                    source: wgpu::ShaderSource::Wgsl(
-                        include_str!("../../../shaders/ssao.wgsl").into(),
-                    ),
+                    source: wgpu::ShaderSource::Wgsl(source.into()),
                 };
                 create_render_pipeline(
                     device,

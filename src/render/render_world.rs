@@ -3,7 +3,6 @@ use crate::render::light::ExtractedLights;
 use crate::render::material::MaterialCache;
 use crate::render::mesh_allocator::MeshAllocator;
 pub(crate) use crate::render::render_backend::{RenderBackend, RenderCommand};
-use crate::render::shader_maker::ShaderMaker;
 use crate::render::sky::ExtractedSky;
 use crate::render::sprite::ExtractedSprite2d;
 use crate::render::{ExtractedMesh, MeshCache, RenderContext, TextureCache};
@@ -30,7 +29,6 @@ pub struct RenderWorld {
     pub imported_mesh_cache: Arc<RwLock<MeshCache>>,
     pub imported_material_cache: Arc<RwLock<MaterialCache>>,
     pub imported_mesh_allocator: Arc<RwLock<MeshAllocator>>,
-    pub shader_maker: ShaderMaker,
 }
 
 impl RenderWorld {
@@ -77,7 +75,6 @@ impl RenderWorld {
             imported_mesh_cache,
             imported_material_cache,
             imported_mesh_allocator,
-            shader_maker: ShaderMaker::new(),
         }
     }
 }
