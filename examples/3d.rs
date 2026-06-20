@@ -1,13 +1,10 @@
 use eureka::core::App;
 use eureka::math::transform::{Transform2d, Transform3d};
-use eureka::scene::{
-    ActiveCamera, AssetPending, CTransform2d, CTransform3d,
-    Camera3dComponent, Camera3dController, DirectionalLightComponent, GlobalTransform,
-    LabelComponent, Model, Name, SkyAssetPending,
-};
+use eureka::scene::{ActiveCamera, AssetPending, CTransform2d, CTransform3d, Camera3dComponent, Camera3dController, DirectionalLightComponent, GlobalTransform, LabelComponent, Model, Name, PointLightComponent, SkyAssetPending};
 use eureka::window::InputContent;
 use glam::{Quat, Vec2, Vec3};
 use winit::keyboard::KeyCode;
+use eureka::math::color::ColorU;
 
 // 示例专用的逻辑组件
 struct RotatingLogic;
@@ -19,7 +16,6 @@ struct SunLogic {
     timer: f32,
     speed: f32,
 }
-struct GhostlyLogic;
 
 fn main() {
     let mut app = App::new();
@@ -71,20 +67,20 @@ fn main() {
             .spawn((Name("Skybox".into()), SkyAssetPending(skybox_path)));
 
         // 5. 灯光
-        // world.ecs.spawn((
-        //     "PointLight",
-        //     CTransform3d(Transform3d {
-        //         position: Vec3::new(0.0, 5.0, 0.0),
-        //         ..Transform3d::default()
-        //     }),
-        //     GlobalTransform::default(),
-        //     PointLightComponent {
-        //         strength: 10.0,
-        //         radius: 10.0,
-        //         color: ColorU::new(255, 255, 255, 255),
-        //         ..PointLightComponent::default()
-        //     },
-        // ));
+        world.ecs.spawn((
+            "PointLight",
+            CTransform3d(Transform3d {
+                position: Vec3::new(0.0, 5.0, 0.0),
+                ..Transform3d::default()
+            }),
+            GlobalTransform::default(),
+            PointLightComponent {
+                strength: 10.0,
+                radius: 10.0,
+                color: ColorU::new(255, 255, 255, 255),
+                ..PointLightComponent::default()
+            },
+        ));
 
         world.ecs.spawn((
             Name("DirLight".into()),
@@ -191,18 +187,18 @@ fn main() {
     });
 
     // 添加自定义更新逻辑：太阳（方向光）旋转
-    // app.add_update(|app, dt| {
-    //     let world = &mut app.world;
-    //     for (_id, (transform, light, logic)) in world
-    //         .ecs
-    //         .query_mut::<(&mut CTransform3d, &mut DirectionalLightComponent, &mut SunLogic)>()
-    //     {
-    //         logic.timer += dt * logic.speed;
-    //
-    //         // 让太阳绕 X 轴旋转（模拟东升西落）
-    //         transform.0.rotation = Quat::from_rotation_x(logic.timer);
-    //     }
-    // });
+    app.add_update(|app, dt| {
+        let world = &mut app.world;
+        for (_id, (transform, light, logic)) in world
+            .ecs
+            .query_mut::<(&mut CTransform3d, &mut DirectionalLightComponent, &mut SunLogic)>()
+        {
+            logic.timer += dt * logic.speed;
+
+            // 让太阳绕 X 轴旋转（模拟东升西落）
+            transform.0.rotation = Quat::from_rotation_x(logic.timer);
+        }
+    });
 
     // 添加自定义输入处理：设置控制
     app.add_update(|app, _dt| {
