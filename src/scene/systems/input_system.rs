@@ -10,9 +10,7 @@ pub fn handle_input(ecs: &mut World, input_server: &mut InputServer) {
         if event.consumed {
             continue;
         }
-        for (_id, controller) in ecs
-            .query_mut::<&mut crate::scene::d3::camera3d::Camera3dController>()
-        {
+        for controller in ecs.query_mut::<&mut crate::scene::d3::camera3d::Camera3dController>() {
             controller.handle_input(event, input_server);
         }
     }

@@ -9,7 +9,7 @@ pub fn update_animations(ecs: &mut World, dt: f32) {
     let mut all_changes = Vec::new();
 
     // 收集所有动画播放器的变更
-    for (_id, player) in ecs.query_mut::<&mut AnimationPlayer>() {
+    for player in ecs.query_mut::<&mut AnimationPlayer>() {
         player.update(dt);
         all_changes.extend(player.take_changes());
     }

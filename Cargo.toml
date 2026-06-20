@@ -22,7 +22,7 @@ anyhow = "1.0"
 tobj = "4.0.0"
 # For glTF loading.
 gltf = "1.4.1"
-hecs = "0.10"
+hecs = "0.11.0"
 # Text rasterization.
 fontdue = "0.9.3"
 # Text shaping.
@@ -36,10 +36,6 @@ unicode-bidi = "0.3.8"
 unicode-linebreak = "0.1.5"
 # Finding system fonts.
 font-kit = "0.12.0"
-# For splitting grapheme clusters.
-unicode-segmentation = "1.10.0"
-# SVG parsing.
-usvg = "0.38.0"
 bitflags = { version = "2.4.1", features = [] }
 rayon = "1.8"
 
@@ -54,7 +50,6 @@ features = [
 [build-dependencies]
 anyhow = "1.0"
 fs_extra = "1.2"
-glob = "0.3"
 
 [[example]]
 name = "sprite"

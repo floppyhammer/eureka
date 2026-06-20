@@ -113,7 +113,7 @@ fn main() {
         let time = app.singletons.as_ref().unwrap().time.get_delta() as f32;
 
         // 1. 让标记 RotatingLogic 的精灵旋转
-        for (_id, transform) in world
+        for transform in world
             .ecs
             .query_mut::<&mut CTransform2d>()
             .with::<&RotatingLogic>()
@@ -122,7 +122,7 @@ fn main() {
         }
 
         // 2. 让摆动父节点上下移动
-        for (_id, transform) in world
+        for transform in world
             .ecs
             .query_mut::<&mut CTransform2d>()
             .with::<&Name>()
@@ -135,7 +135,7 @@ fn main() {
         // 更精确地处理摆动
         let swing_parent_id = world
             .ecs
-            .query::<&Name>()
+            .query::<(hecs::Entity, &Name)>()
             .iter()
             .find(|(_, name)| name.0 == "Swing_Parent")
             .map(|(id, _)| id);

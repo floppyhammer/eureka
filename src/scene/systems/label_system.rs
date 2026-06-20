@@ -6,9 +6,7 @@ pub fn update_labels(ecs: &mut World, singletons: &mut Singletons) {
     use crate::math::transform::Transform2d;
     use crate::scene::d2::label::LabelComponent;
 
-    for (_id, (label, global)) in ecs
-        .query_mut::<(&mut LabelComponent, &GlobalTransform)>()
-    {
+    for (label, global) in ecs.query_mut::<(&mut LabelComponent, &GlobalTransform)>() {
         // 确保字体被请求
         if let Some(font_id) = &label.font_id {
             singletons.asset_server.request_font(font_id);

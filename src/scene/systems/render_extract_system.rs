@@ -1,6 +1,6 @@
 use crate::render::render_world::Extracted;
 use crate::scene::components::*;
-use crate::scene::{ActiveCamera, Camera2dComponent, Camera3dComponent, PointLightComponent};
+use crate::scene::{ActiveCamera, Camera3dComponent, PointLightComponent};
 use glam::Vec3;
 use hecs::World;
 
@@ -8,10 +8,7 @@ pub fn extract_render_objects(ecs: &mut World) -> Extracted {
     let mut extracted = Extracted::default();
 
     // 提取渲染设置 (从摄像机组件获取)
-    for (_id, camera) in ecs
-        .query::<&crate::scene::d3::camera3d::Camera3dComponent>()
-        .iter()
-    {
+    for camera in ecs.query::<&Camera3dComponent>().iter() {
         extracted.fxaa_enabled = camera.fxaa_enabled;
         extracted.ssao_enabled = camera.ssao_enabled;
         extracted.taa_enabled = camera.taa_enabled;
@@ -23,14 +20,14 @@ pub fn extract_render_objects(ecs: &mut World) -> Extracted {
     extract_cameras(ecs, &mut extracted);
 
     // 提取天空盒
-    for (_id, sky) in ecs.query::<&crate::scene::d3::SkyComponent>().iter() {
+    for sky in ecs.query::<&crate::scene::d3::SkyComponent>().iter() {
         if let Some(texture) = sky.texture {
             extracted.sky = Some(crate::render::sky::ExtractedSky { texture });
         }
     }
 
     // 2. 提取点光源
-    for (_id, (light, global)) in ecs
+    for (light, global) in ecs
         .query::<(&PointLightComponent, &GlobalTransform)>()
         .iter()
     {
@@ -50,7 +47,7 @@ pub fn extract_render_objects(ecs: &mut World) -> Extracted {
     }
 
     // 提取方向光
-    for (_id, (light, global)) in ecs
+    for (light, global) in ecs
         .query::<(
             &crate::scene::d3::DirectionalLightComponent,
             &GlobalTransform,
@@ -60,17 +57,16 @@ pub fn extract_render_objects(ecs: &mut World) -> Extracted {
         let (_, rotation, _) = global.0.to_scale_rotation_translation();
         let direction = rotation * Vec3::NEG_Z;
 
-        extracted.lights.directional_light =
-            Some(crate::render::light::DirectionalLightUniform {
-                direction: direction.to_array(),
-                strength: light.strength,
-                color: light.color.to_vec3().into(),
-                shadow_distance: light.shadow_distance,
-            });
+        extracted.lights.directional_light = Some(crate::render::light::DirectionalLightUniform {
+            direction: direction.to_array(),
+            strength: light.strength,
+            color: light.color.to_vec3().into(),
+            shadow_distance: light.shadow_distance,
+        });
     }
 
     // 提取 2D Sprite
-    for (_id, (sprite, global, size)) in ecs
+    for (sprite, global, size) in ecs
         .query::<(
             &crate::scene::d2::sprite2d::SpriteComponent,
             &GlobalTransform,
@@ -104,7 +100,7 @@ pub fn extract_render_objects(ecs: &mut World) -> Extracted {
     }
 
     // 提取 Label
-    for (_id, label) in ecs
+    for label in ecs
         .query::<&crate::scene::d2::label::LabelComponent>()
         .iter()
     {
@@ -138,7 +134,7 @@ pub fn extract_render_objects(ecs: &mut World) -> Extracted {
     }
 
     // 3. 提取 3D 模型
-    for (_id, (model, global)) in ecs
+    for (model, global) in ecs
         .query::<(&crate::scene::d3::Model, &GlobalTransform)>()
         .iter()
     {
@@ -171,12 +167,8 @@ fn extract_cameras(ecs: &mut World, extracted: &mut Extracted) {
     use crate::render::camera::CameraType;
 
     // 提取 3D 摄像机
-    for (_id, (camera, global, _)) in ecs
-        .query_mut::<(
-            &mut crate::scene::d3::camera3d::Camera3dComponent,
-            &GlobalTransform,
-            &ActiveCamera,
-        )>()
+    for (camera, global, _) in
+        ecs.query_mut::<(&mut Camera3dComponent, &GlobalTransform, &ActiveCamera)>()
     {
         let uniform = camera.build_uniform(&global.0);
         extracted.cameras.add(CameraType::D3, uniform);
@@ -186,13 +178,11 @@ fn extract_cameras(ecs: &mut World, extracted: &mut Extracted) {
     }
 
     // 提取 2D 摄像机
-    for (_id, (camera, global, _)) in ecs
-        .query_mut::<(
-            &mut crate::scene::d2::Camera2dComponent,
-            &GlobalTransform,
-            &ActiveCamera,
-        )>()
-    {
+    for (camera, global, _) in ecs.query_mut::<(
+        &mut crate::scene::d2::Camera2dComponent,
+        &GlobalTransform,
+        &ActiveCamera,
+    )>() {
         let uniform = camera.build_uniform(&global.0);
         extracted.cameras.add(CameraType::D2, uniform);
     }

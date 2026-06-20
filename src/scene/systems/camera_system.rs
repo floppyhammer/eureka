@@ -13,12 +13,14 @@ pub fn update_cameras(ecs: &mut World, singletons: &Singletons) {
     }
 
     // 同步 2D 摄像机投影
-    for (_id, camera) in ecs.query_mut::<&mut Camera2dComponent>() {
+    for (_id, camera) in ecs.query_mut::<(hecs::Entity, &mut Camera2dComponent)>() {
         camera.viewport_size = UVec2::new(width as u32, height as u32);
     }
 
     // 同步 3D 摄像机视口
-    for (_id, (camera, _global)) in ecs.query_mut::<(&mut Camera3dComponent, &GlobalTransform)>() {
+    for (_id, camera, _global) in
+        ecs.query_mut::<(hecs::Entity, &mut Camera3dComponent, &GlobalTransform)>()
+    {
         camera.viewport_size = UVec2::new(width as u32, height as u32);
         camera.frame_count = camera.frame_count.wrapping_add(1);
     }

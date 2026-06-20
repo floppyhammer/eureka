@@ -1,10 +1,14 @@
 use eureka::core::App;
+use eureka::math::color::ColorU;
 use eureka::math::transform::{Transform2d, Transform3d};
-use eureka::scene::{ActiveCamera, AssetPending, CTransform2d, CTransform3d, Camera3dComponent, Camera3dController, DirectionalLightComponent, GlobalTransform, LabelComponent, Model, Name, PointLightComponent, SkyAssetPending};
+use eureka::scene::{
+    ActiveCamera, AssetPending, CTransform2d, CTransform3d, Camera3dComponent, Camera3dController,
+    DirectionalLightComponent, GlobalTransform, LabelComponent, Name, PointLightComponent,
+    SkyAssetPending,
+};
 use eureka::window::InputContent;
 use glam::{Quat, Vec2, Vec3};
 use winit::keyboard::KeyCode;
-use eureka::math::color::ColorU;
 
 // 示例专用的逻辑组件
 struct RotatingLogic;
@@ -149,7 +153,7 @@ fn main() {
             GlobalTransform::default(),
             AssetPending(asset_dir.join("models/ground.glb")), // "models/Sponza/Sponza.gltf"
         ));
-        
+
         // 镜面立方体 (Mirror Cube)
         world.ecs.spawn((
             Name("MirrorCube".into()),
@@ -165,7 +169,7 @@ fn main() {
     // 添加自定义更新逻辑：3D 旋转
     app.add_update(|app, dt| {
         let world = &mut app.world;
-        for (_id, transform) in world
+        for transform in world
             .ecs
             .query_mut::<&mut CTransform3d>()
             .with::<&RotatingLogic>()
@@ -177,7 +181,7 @@ fn main() {
     // 添加自定义更新逻辑：漂浮
     app.add_update(|app, dt| {
         let world = &mut app.world;
-        for (_id, (transform, logic)) in world
+        for (transform, logic) in world
             .ecs
             .query_mut::<(&mut CTransform3d, &mut FloatingLogic)>()
         {
@@ -189,10 +193,11 @@ fn main() {
     // 添加自定义更新逻辑：太阳（方向光）旋转
     app.add_update(|app, dt| {
         let world = &mut app.world;
-        for (_id, (transform, light, logic)) in world
-            .ecs
-            .query_mut::<(&mut CTransform3d, &mut DirectionalLightComponent, &mut SunLogic)>()
-        {
+        for (transform, light, logic) in world.ecs.query_mut::<(
+            &mut CTransform3d,
+            &mut DirectionalLightComponent,
+            &mut SunLogic,
+        )>() {
             logic.timer += dt * logic.speed;
 
             // 让太阳绕 X 轴旋转（模拟东升西落）
@@ -211,13 +216,13 @@ fn main() {
                     match e.key_code {
                         KeyCode::Digit1 => {
                             // 切换 SSAO
-                            for (_id, camera) in world.ecs.query_mut::<&mut Camera3dComponent>() {
+                            for camera in world.ecs.query_mut::<&mut Camera3dComponent>() {
                                 camera.ssao_enabled = !camera.ssao_enabled;
                             }
                         }
                         KeyCode::Digit2 => {
                             // 切换抗锯齿模式: OFF -> FXAA -> TAA -> OFF
-                            for (_id, camera) in world.ecs.query_mut::<&mut Camera3dComponent>() {
+                            for camera in world.ecs.query_mut::<&mut Camera3dComponent>() {
                                 if camera.taa_enabled {
                                     camera.taa_enabled = false;
                                     camera.fxaa_enabled = false;
@@ -232,13 +237,13 @@ fn main() {
                         }
                         KeyCode::Digit3 => {
                             // 切换 Volumetric
-                            for (_id, camera) in world.ecs.query_mut::<&mut Camera3dComponent>() {
+                            for camera in world.ecs.query_mut::<&mut Camera3dComponent>() {
                                 camera.volumetric_enabled = !camera.volumetric_enabled;
                             }
                         }
                         KeyCode::Digit4 => {
                             // 切换 SSR
-                            for (_id, camera) in world.ecs.query_mut::<&mut Camera3dComponent>() {
+                            for camera in world.ecs.query_mut::<&mut Camera3dComponent>() {
                                 camera.ssr_enabled = !camera.ssr_enabled;
                             }
                         }
@@ -250,7 +255,7 @@ fn main() {
                     let mut aa_mode = "OFF";
                     let mut volumetric_enabled = true;
                     let mut ssr_enabled = true;
-                    for (_id, camera) in world.ecs.query::<&Camera3dComponent>().iter() {
+                    for camera in world.ecs.query::<&Camera3dComponent>().iter() {
                         ssao_enabled = camera.ssao_enabled;
                         if camera.taa_enabled {
                             aa_mode = "TAA";
@@ -262,7 +267,7 @@ fn main() {
                         break;
                     }
 
-                    for (_id, label) in world.ecs.query_mut::<&mut LabelComponent>() {
+                    for label in world.ecs.query_mut::<&mut LabelComponent>() {
                         label.text = format!(
                             "SSAO (1): {} | AA (2): {} | Volumetric (3): {} | SSR (4): {}",
                             if ssao_enabled { "ON" } else { "OFF" },

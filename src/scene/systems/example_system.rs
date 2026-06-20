@@ -3,7 +3,7 @@ use hecs::World;
 
 pub fn update_example_logic(ecs: &mut World, dt: f32) {
     // 摄像机移动系统
-    for (_id, (transform, controller)) in ecs.query_mut::<(
+    for (transform, controller) in ecs.query_mut::<(
         &mut CTransform3d,
         &mut crate::scene::d3::camera3d::Camera3dController,
     )>() {
