@@ -216,7 +216,8 @@ impl RenderBackend {
         let surface_texture = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture) => texture,
             wgpu::CurrentSurfaceTexture::Suboptimal(texture) => {
-                self.surface.configure(&render_context.device, &render_context.surface_config);
+                // 不要在这里调用 configure，因为 texture 还没有被释放。
+                // 次优状态下依然可以渲染，配置留给专门的 Resize 指令即可。
                 texture
             }
             wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {

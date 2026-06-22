@@ -166,15 +166,17 @@ impl ResourcePool {
     ) -> Texture {
         if let Some((VirtualResource::Texture(t), old_key)) = self.persistent_resources.get(name) {
             if let ResourceKey::Texture(old_texture_key) = old_key {
-                if old_texture_key != &key {
-                    panic!(
-                        "Resource Conflict: Persistent texture '{}' requested with different keys!\nOld: {:?}\nNew: {:?}",
-                        name, old_texture_key, key
-                    );
+                if old_texture_key == &key {
+                    return t.clone();
+                } else {
+                    log::info!("Persistent texture '{}' resized. Recreating...", name);
                 }
             }
-            return t.clone();
         }
+
+        // 如果不存在或者 Key 不匹配，则移除旧的并创建新的
+        self.persistent_resources.remove(name);
+
         let t = self.acquire_texture_internal(device, key, Some(name));
         self.persistent_resources.insert(
             name.to_string(),
@@ -319,15 +321,16 @@ impl ResourcePool {
     ) -> PooledBuffer {
         if let Some((VirtualResource::Buffer(b), old_key)) = self.persistent_resources.get(name) {
             if let ResourceKey::Buffer(old_buffer_key) = old_key {
-                if old_buffer_key != &key {
-                    panic!(
-                        "Resource Conflict: Persistent buffer '{}' requested with different keys!\nOld: {:?}\nNew: {:?}",
-                        name, old_buffer_key, key
-                    );
+                if old_buffer_key == &key {
+                    return b.clone();
+                } else {
+                    log::info!("Persistent buffer '{}' changed. Recreating...", name);
                 }
             }
-            return b.clone();
         }
+
+        self.persistent_resources.remove(name);
+
         let (b, actual_key) = self.acquire_buffer_internal(device, key, Some(name));
         self.persistent_resources.insert(
             name.to_string(),

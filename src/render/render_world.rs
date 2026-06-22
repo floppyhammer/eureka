@@ -53,16 +53,16 @@ impl RenderWorld {
         );
 
         std::thread::spawn(move || {
+            let mut render_context = render_context;
             while let Ok(cmd) = rx.recv() {
                 match cmd {
                     RenderCommand::Render(extracted) => {
                         backend.run(&render_context, extracted);
                     }
                     RenderCommand::Resize(w, h) => {
-                        let mut config = render_context.surface_config.clone();
-                        config.width = w;
-                        config.height = h;
-                        backend.surface.configure(&render_context.device, &config);
+                        render_context.surface_config.width = w;
+                        render_context.surface_config.height = h;
+                        backend.surface.configure(&render_context.device, &render_context.surface_config);
                         backend.render_graph.pool.clear_bind_group_cache();
                     }
                 }
