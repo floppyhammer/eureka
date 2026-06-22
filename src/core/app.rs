@@ -358,7 +358,6 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 if self.singletons.is_some() {
                     self.render();
-                    window.request_redraw();
                 }
             }
             _ => {
@@ -428,10 +427,12 @@ impl ApplicationHandler for App {
                 // 在这里调用 tick，这样 Time 里的 FPS 统计的就是真正的“逻辑更新频率”
                 s.time.tick();
             }
-        }
 
-        if let Some(window) = &self.window {
-            window.request_redraw();
+            // 只有当逻辑确实更新了，才请求重绘画面
+            // 这能防止 TAA 在物体静止时进行重复渲染导致的拖影
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
         }
     }
 }
