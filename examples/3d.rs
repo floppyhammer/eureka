@@ -56,7 +56,7 @@ fn main() {
         // 3. 添加标签实体
         world.ecs.spawn((
             Name("Settings".into()),
-            LabelComponent::new("SSAO (1): ON | AA (2): TAA | Volumetric (3): ON | SSR (4): ON"),
+            LabelComponent::new("SSAO (1): ON | AA (2): TAA | Volumetric (3): OFF | SSR (4): OFF"),
             CTransform2d(Transform2d {
                 position: Vec2::new(20.0, 20.0),
                 ..Transform2d::default()
