@@ -1,5 +1,5 @@
 use crate::asset::font_loader::find_system_font;
-use crate::render::{RawCubeTextureData, RawTextureData, Texture};
+use crate::render::{RawTextureData, Texture};
 use crate::scene::d3::{Model, RawModelData};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::collections::HashMap;
@@ -9,7 +9,6 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 pub enum AssetMessage {
     Model(PathBuf, RawModelData),
     Texture(PathBuf, RawTextureData),
-    CubeTexture(PathBuf, RawCubeTextureData),
     Font(PathBuf, Vec<u8>),
     Error(PathBuf, String),
 }
@@ -24,7 +23,6 @@ pub struct AssetServer {
 
     loaded_raw_models: HashMap<PathBuf, RawModelData>,
     loaded_raw_textures: HashMap<PathBuf, RawTextureData>,
-    loaded_raw_cubemaps: HashMap<PathBuf, RawCubeTextureData>,
     loaded_raw_fonts: HashMap<PathBuf, Vec<u8>>,
 
     loading_paths: HashMap<PathBuf, bool>,
@@ -48,7 +46,6 @@ impl AssetServer {
             rx,
             loaded_raw_models: HashMap::new(),
             loaded_raw_textures: HashMap::new(),
-            loaded_raw_cubemaps: HashMap::new(),
             loaded_raw_fonts: HashMap::new(),
             loading_paths: HashMap::new(),
             failed_paths: HashMap::new(),
@@ -69,10 +66,6 @@ impl AssetServer {
 
     pub fn take_texture<P: AsRef<Path>>(&mut self, path: P) -> Option<RawTextureData> {
         self.loaded_raw_textures.remove(path.as_ref())
-    }
-
-    pub fn take_cubemap<P: AsRef<Path>>(&mut self, path: P) -> Option<RawCubeTextureData> {
-        self.loaded_raw_cubemaps.remove(path.as_ref())
     }
 
     pub fn take_font<P: AsRef<Path>>(&mut self, path: P) -> Option<Vec<u8>> {
@@ -130,30 +123,6 @@ impl AssetServer {
         });
     }
 
-    pub fn request_cubemap<P: AsRef<Path>>(&mut self, path: P) {
-        let path_buf = path.as_ref().to_path_buf();
-        if self.loading_paths.contains_key(&path_buf)
-            || self.loaded_raw_cubemaps.contains_key(&path_buf)
-            || self.failed_paths.contains_key(&path_buf)
-        {
-            return;
-        }
-
-        self.loading_paths.insert(path_buf.clone(), true);
-        let tx = self.tx.clone();
-
-        self.pool.spawn(move || match Texture::decode_cube_from_disk(&path_buf) {
-            Ok(raw) => {
-                let _ = tx.send(AssetMessage::CubeTexture(path_buf, raw));
-            }
-            Err(e) => {
-                let err_msg = format!("Failed to decode cubemap: {}", e);
-                log::error!("{}", err_msg);
-                let _ = tx.send(AssetMessage::Error(path_buf, err_msg));
-            }
-        });
-    }
-
     pub fn request_font<P: AsRef<Path>>(&mut self, path: P) {
         let path_buf = path.as_ref().to_path_buf();
         if self.loading_paths.contains_key(&path_buf)
@@ -202,10 +171,6 @@ impl AssetServer {
                 AssetMessage::Texture(path, raw) => {
                     self.loading_paths.remove(&path);
                     self.loaded_raw_textures.insert(path, raw);
-                }
-                AssetMessage::CubeTexture(path, raw) => {
-                    self.loading_paths.remove(&path);
-                    self.loaded_raw_cubemaps.insert(path, raw);
                 }
                 AssetMessage::Font(path, buffer) => {
                     self.loading_paths.remove(&path);

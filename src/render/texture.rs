@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use uuid;
 use wgpu::Extent3d;
+use wgpu::util::DeviceExt;
 
 pub static NEXT_RESOURCE_ID: AtomicU64 = AtomicU64::new(1);
 pub static NEXT_VIEW_ID: AtomicU64 = AtomicU64::new(1);
@@ -39,15 +40,6 @@ impl From<&wgpu::TextureViewDescriptor<'_>> for ViewKey {
 
 #[derive(Clone)]
 pub struct RawTextureData {
-    pub name: String,
-    pub pixels: Vec<u8>,
-    pub width: u32,
-    pub height: u32,
-    pub format: wgpu::TextureFormat,
-}
-
-#[derive(Clone)]
-pub struct RawCubeTextureData {
     pub name: String,
     pub pixels: Vec<u8>,
     pub width: u32,
@@ -620,194 +612,178 @@ impl Texture {
         })
     }
 
-    pub fn decode_cube_from_disk<P: AsRef<Path>>(path: P) -> Result<RawCubeTextureData> {
-        let path_ref = path.as_ref();
-        let name = path_ref
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned();
-        let img = image::open(path_ref).context("Invalid image path")?;
-        let dimensions = img.dimensions();
-        let rgba = img.to_rgba8();
-
-        Ok(RawCubeTextureData {
-            name,
-            pixels: rgba.into_raw(),
-            width: dimensions.0,
-            height: dimensions.1,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        })
-    }
-
-    pub fn from_raw_cube(
+    /// 从单张 Panorama (全景图) 创建 Cubemap。
+    pub fn from_panorama(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         cache: &mut TextureCache,
-        raw: RawCubeTextureData,
-    ) -> TextureId {
-        let size = wgpu::Extent3d {
-            width: raw.width,
-            height: raw.height / 6,
-            depth_or_array_layers: 6,
-        };
-
-        let mip_level_count = Self::count_mips(size.width, size.height);
-
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(&raw.name),
-            size,
-            mip_level_count,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: raw.format,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_DST
-                | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
-
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                aspect: wgpu::TextureAspect::All,
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            &raw.pixels,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * size.width),
-                rows_per_image: Some(size.height),
-            },
-            size,
-        );
-
-        Self::generate_mipmaps(device, queue, &texture, raw.format, mip_level_count, 6);
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("cubemap texture view"),
-            format: Some(raw.format),
-            dimension: Some(wgpu::TextureViewDimension::Cube),
-            usage: None,
-            aspect: wgpu::TextureAspect::default(),
-            base_mip_level: 0,
-            mip_level_count: Some(mip_level_count),
-            base_array_layer: 0,
-            array_layer_count: Some(6),
-        });
-
-        cache.add(Texture {
-            size: (size.width, size.height),
-            texture,
-            view,
-            format: raw.format,
-            id: NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed),
-            view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
-            view_cache: Arc::new(Mutex::new(HashMap::new())),
-        })
-    }
-
-    pub fn load_cube<P: AsRef<Path>>(
-        render_server: &RenderContext,
-        cache: &mut TextureCache,
-        path: P,
-    ) -> Result<TextureId> {
-        // Needed to appease the borrow checker.
-        let path_copy = path.as_ref().to_path_buf();
-        let label = path_copy.to_str();
-
-        let img = image::open(path).context("Invalid image path")?;
-
-        Self::from_cube_image(
-            &render_server.device,
-            &render_server.queue,
-            cache,
-            &img,
-            label,
-        )
-    }
-
-    /// Create texture from image.
-    pub fn from_cube_image(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        cache: &mut TextureCache,
-        img: &image::DynamicImage,
+        panorama_texture_id: TextureId,
         label: Option<&str>,
     ) -> Result<TextureId> {
-        // Make a rgba8 copy.
-        let rgba = img.to_rgba8();
+        let panorama = cache.get(panorama_texture_id).context("Panorama texture not found")?;
 
-        let format = wgpu::TextureFormat::Rgba8UnormSrgb;
-
-        // Image size.
-        let dimensions = img.dimensions();
-
-        assert_eq!(dimensions.1 % 6, 0, "Skybox texture has invalid size!");
-
+        // 1. 创建目标 Cubemap 纹理
+        // 通常 Cubemap 的单面大小设为全景图高度的一半（或更小，保持 1:1）
+        let face_size = panorama.size.1;
         let size = wgpu::Extent3d {
-            width: dimensions.0,
-            height: dimensions.1 / 6,
+            width: face_size,
+            height: face_size,
             depth_or_array_layers: 6,
         };
 
         let mip_level_count = Self::count_mips(size.width, size.height);
+        let format = wgpu::TextureFormat::Rgba8UnormSrgb;
 
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
+        let cubemap_texture = device.create_texture(&wgpu::TextureDescriptor {
             label,
             size,
             mip_level_count,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_DST
-                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
 
-        // Write image data to texture.
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                aspect: wgpu::TextureAspect::All,
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            &rgba,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * size.width),
-                rows_per_image: Some(size.height),
-            },
-            size,
-        );
-
-        Self::generate_mipmaps(device, queue, &texture, format, mip_level_count, 6);
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("cubemap texture view"),
-            format: Some(format),
-            dimension: Some(wgpu::TextureViewDimension::Cube),
-            usage: None,
-            aspect: wgpu::TextureAspect::default(),
-            base_mip_level: 0,
-            mip_level_count: Some(mip_level_count),
-            base_array_layer: 0,
-            array_layer_count: Some(6),
+        // 2. 准备转换 Pipeline
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Panorama to Cubemap Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/panorama_to_cubemap.wgsl").into()),
         });
 
-        let texture = Self {
-            size: (size.width, size.height),
-            texture,
-            view,
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("P2C Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("P2C Sampler"),
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("P2C Pipeline Layout"),
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
+        });
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("P2C Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), buffers: &[], compilation_options: Default::default() },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            cache: None,
+            multiview_mask: None,
+        });
+
+        // 3. 逐个面渲染转换
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("P2C Encoder") });
+
+        for face in 0..6u32 {
+            let face_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Face Index Buffer"),
+                contents: bytemuck::cast_slice(&[face]),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("P2C Bind Group"),
+                layout: &bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&panorama.view) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler) },
+                    wgpu::BindGroupEntry { binding: 2, resource: face_buffer.as_entire_binding() },
+                ],
+            });
+
+            let face_view = cubemap_texture.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("Cubemap Face View"),
+                base_mip_level: 0,
+                mip_level_count: Some(1),
+                base_array_layer: face,
+                array_layer_count: Some(1),
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                ..Default::default()
+            });
+
+            {
+                let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("P2C Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &face_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                rpass.set_pipeline(&pipeline);
+                rpass.set_bind_group(0, &bind_group, &[]);
+                rpass.draw(0..3, 0..1);
+            }
+        }
+
+        queue.submit(Some(encoder.finish()));
+
+        // 4. 生成 Mipmaps
+        Self::generate_mipmaps(device, queue, &cubemap_texture, format, mip_level_count, 6);
+
+        let cubemap_view = cubemap_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Cubemap Final View"),
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            mip_level_count: Some(mip_level_count),
+            array_layer_count: Some(6),
+            ..Default::default()
+        });
+
+        Ok(cache.add(Texture {
+            size: (face_size, face_size),
+            texture: cubemap_texture,
+            view: cubemap_view,
             format,
             id: NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed),
             view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
             view_cache: Arc::new(Mutex::new(HashMap::new())),
-        };
-
-        Ok(cache.add(texture))
+        }))
     }
 }

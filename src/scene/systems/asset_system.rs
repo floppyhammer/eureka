@@ -45,8 +45,8 @@ pub fn update_assets(ecs: &mut World, singletons: &mut Singletons, render_world:
             continue;
         }
 
-        singletons.asset_server.request_cubemap(&pending.0);
-        if let Some(raw) = singletons.asset_server.take_cubemap(&pending.0) {
+        singletons.asset_server.request_texture(&pending.0);
+        if let Some(raw) = singletons.asset_server.take_texture(&pending.0) {
             sky_to_finalize.push((id, None, Some((pending.0.clone(), raw))));
         }
     }

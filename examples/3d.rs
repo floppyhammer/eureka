@@ -65,7 +65,7 @@ fn main() {
         ));
 
         // 4. 添加环境
-        let skybox_path = singletons.asset_server.asset_dir.join("images/skybox.jpg");
+        let skybox_path = singletons.asset_server.asset_dir.join("images/Panorama_Sky_21-512x512.png");
         world
             .ecs
             .spawn((Name("Skybox".into()), SkyAssetPending(skybox_path)));

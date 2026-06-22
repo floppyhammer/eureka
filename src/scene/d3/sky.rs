@@ -1,4 +1,4 @@
-use crate::render::{RawCubeTextureData, RenderContext, Texture, TextureCache, TextureId};
+use crate::render::{RawTextureData, RenderContext, Texture, TextureCache, TextureId};
 use glam::Quat;
 use std::path::PathBuf;
 
@@ -26,21 +26,32 @@ impl SkyComponent {
 
     pub fn finalize(
         &mut self,
-        raw: RawCubeTextureData,
+        raw: RawTextureData,
         render_server: &RenderContext,
         imported_texture_cache: &mut TextureCache,
         path: Option<PathBuf>,
     ) {
-        let texture_id = Texture::from_raw_cube(
+        // 1. 创建 Panorama 2D 纹理
+        let panorama_id = Texture::from_raw(
             &render_server.device,
             &render_server.queue,
             imported_texture_cache,
             raw,
         );
+
+        // 2. 将 Panorama 转换为 Cubemap
+        let cubemap_id = Texture::from_panorama(
+            &render_server.device,
+            &render_server.queue,
+            imported_texture_cache,
+            panorama_id,
+            Some("Skybox Cubemap"),
+        ).expect("Failed to convert panorama to cubemap");
+
         if let Some(p) = path {
-            imported_texture_cache.set_path(texture_id, p);
+            imported_texture_cache.set_path(cubemap_id, p);
         }
-        self.texture = Some(texture_id);
+        self.texture = Some(cubemap_id);
     }
 
     pub fn finalize_with_id(&mut self, texture_id: TextureId) {
