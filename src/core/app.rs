@@ -384,14 +384,7 @@ impl ApplicationHandler for App {
             return;
         }
 
-        let logic_start = std::time::Instant::now();
-
-        // 1. 更新时间与 FPS 统计
-        if let Some(s) = &mut self.singletons {
-            s.time.tick();
-        }
-
-        // 2. 累加 delta time 进行固定步长更新
+        // 1. 累加 delta time 进行固定步长更新
         let now = std::time::Instant::now();
         let elapsed = now.duration_since(self.last_tick_time).as_secs_f64();
         self.last_tick_time = now;
@@ -404,8 +397,9 @@ impl ApplicationHandler for App {
         let mut updated = false;
 
         while self.accumulator >= fixed_dt {
-            // 3. 处理输入 (在逻辑更新前)
-            // 使用作用域确保在调用 self.update 之前释放对 singletons 和 window 的借用
+            let logic_tick_start = std::time::Instant::now();
+
+            // 2. 处理输入 (在逻辑更新前)
             {
                 let window = self.window.as_ref().unwrap();
                 let singletons = self.singletons.as_mut().unwrap();
@@ -413,8 +407,16 @@ impl ApplicationHandler for App {
                 self.world.input(&mut singletons.input_server);
             }
 
-            // 4. 执行固定步长逻辑更新 (此时没有其他对 self 字段的活跃借用)
+            // 3. 执行固定步长逻辑更新
             self.update(fixed_dt as f32);
+
+            // 4. 记录逻辑耗时 (仅包含真正的逻辑 Tick)
+            if let Some(s) = &mut self.singletons {
+                s.time.logic_time.store(
+                    logic_tick_start.elapsed().as_nanos() as u64,
+                    std::sync::atomic::Ordering::Relaxed,
+                );
+            }
 
             self.accumulator -= fixed_dt;
             updated = true;
@@ -423,15 +425,9 @@ impl ApplicationHandler for App {
         if updated {
             if let Some(s) = &mut self.singletons {
                 s.input_server.clear_events();
+                // 在这里调用 tick，这样 Time 里的 FPS 统计的就是真正的“逻辑更新频率”
+                s.time.tick();
             }
-        }
-
-        // 记录逻辑耗时
-        if let Some(s) = &mut self.singletons {
-            s.time.logic_time.store(
-                logic_start.elapsed().as_nanos() as u64,
-                std::sync::atomic::Ordering::Relaxed,
-            );
         }
 
         if let Some(window) = &self.window {
