@@ -152,6 +152,34 @@ impl ResourcePool {
         self.bind_group_cache.clear();
     }
 
+    /// 清空所有瞬时资源池。通常在窗口缩放或场景切换时调用。
+    pub fn clear_transient_pools(&mut self) {
+        self.textures.clear();
+        self.pending_textures.clear();
+        self.buffers.clear();
+        self.pending_buffers.clear();
+        self.total_texture_memory = 0;
+        self.total_buffer_memory = 0;
+
+        // 重新计算持久化资源的内存占用，确保统计准确
+        for (_, (res, key)) in &self.persistent_resources {
+            match (res, key) {
+                (VirtualResource::Texture(_), ResourceKey::Texture(k)) => {
+                    self.total_texture_memory += Self::estimate_texture_size(k);
+                }
+                (VirtualResource::Buffer(_), ResourceKey::Buffer(k)) => {
+                    self.total_buffer_memory += k.size;
+                }
+                _ => {}
+            }
+        }
+
+        log::info!("Transient pools cleared due to resize. Active memory: Textures {:.2} MB, Buffers {:.2} MB",
+            self.total_texture_memory as f64 / 1024.0 / 1024.0,
+            self.total_buffer_memory as f64 / 1024.0 / 1024.0
+        );
+    }
+
     // --- 纹理管理 ---
 
     pub fn acquire_texture(&mut self, device: &wgpu::Device, key: TextureKey) -> Texture {
@@ -170,6 +198,8 @@ impl ResourcePool {
                     return t.clone();
                 } else {
                     log::info!("Persistent texture '{}' resized. Recreating...", name);
+                    // 关键修复：扣除旧尺寸的统计值
+                    self.total_texture_memory = self.total_texture_memory.saturating_sub(Self::estimate_texture_size(old_texture_key));
                 }
             }
         }
@@ -325,6 +355,8 @@ impl ResourcePool {
                     return b.clone();
                 } else {
                     log::info!("Persistent buffer '{}' changed. Recreating...", name);
+                    // 关键修复：扣除旧统计值
+                    self.total_buffer_memory = self.total_buffer_memory.saturating_sub(old_buffer_key.size);
                 }
             }
         }

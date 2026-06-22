@@ -63,7 +63,10 @@ impl RenderWorld {
                         render_context.surface_config.width = w;
                         render_context.surface_config.height = h;
                         backend.surface.configure(&render_context.device, &render_context.surface_config);
+
+                        // 关键修复：缩放后不仅清理 BindGroup，也要清空旧分辨率的瞬时资源池，防止显存泄露
                         backend.render_graph.pool.clear_bind_group_cache();
+                        backend.render_graph.pool.clear_transient_pools();
                     }
                 }
             }
