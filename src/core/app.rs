@@ -35,6 +35,9 @@ pub struct App {
     setup_callback: Option<Box<dyn FnOnce(&mut App)>>,
     /// Callback for user-defined update logic, called every frame after the world update.
     update_callbacks: Vec<Box<dyn FnMut(&mut App, f32)>>,
+    /// 逻辑更新累加器，用于固定步长更新
+    accumulator: f64,
+    last_tick_time: std::time::Instant,
 }
 
 impl App {
@@ -63,6 +66,8 @@ impl App {
             event_loop: Some(event_loop),
             setup_callback: None,
             update_callbacks: Vec::new(),
+            accumulator: 0.0,
+            last_tick_time: std::time::Instant::now(),
         }
     }
 
@@ -223,7 +228,7 @@ impl App {
         false
     }
 
-    fn update(&mut self) {
+    fn update(&mut self, dt: f32) {
         if let (Some(singletons), Some(render_world)) =
             (&mut self.singletons, &mut self.render_world)
         {
@@ -234,12 +239,12 @@ impl App {
                 &mut singletons.asset_server,
             );
 
-            singletons.time.tick();
-            self.world
-                .update(singletons.time.get_delta() as f32, singletons, render_world);
+            // Note: we don't call singletons.time.tick() here anymore,
+            // as it's called once per main loop iteration in about_to_wait.
+
+            self.world.update(dt, singletons, render_world);
 
             // Run user-defined update callbacks.
-            let dt = singletons.time.get_delta() as f32;
             let callbacks = std::mem::take(&mut self.update_callbacks);
             for mut callback in callbacks {
                 callback(self, dt);
@@ -263,8 +268,11 @@ impl App {
             &mut render_world.imported_texture_cache.write().unwrap(),
         );
 
-        // Send to render thread.
-        let _ = render_world.sender.send(RenderCommand::Render(extracted));
+        // Send to render thread using try_send to avoid blocking the logic thread.
+        // If the render thread is too far behind, we just skip this frame's extraction.
+        let _ = render_world
+            .sender
+            .try_send(RenderCommand::Render(extracted));
     }
 }
 
@@ -349,32 +357,7 @@ impl ApplicationHandler for App {
             // Redraw request.
             WindowEvent::RedrawRequested => {
                 if self.singletons.is_some() {
-                    let logic_start = std::time::Instant::now();
-
-                    {
-                        let singletons = self.singletons.as_mut().unwrap();
-                        singletons.input_server.update(&window);
-                        self.world.input(&mut singletons.input_server);
-                    }
-
-                    // 在清空事件之前执行更新，让用户回调能访问输入事件
-                    self.update();
-
-                    {
-                        let singletons = self.singletons.as_mut().unwrap();
-                        singletons.input_server.clear_events();
-                    }
-
                     self.render();
-
-                    // Store logic time (including extraction).
-                    if let Some(singletons) = &mut self.singletons {
-                        singletons.time.logic_time.store(
-                            logic_start.elapsed().as_nanos() as u64,
-                            std::sync::atomic::Ordering::Relaxed,
-                        );
-                    }
-
                     window.request_redraw();
                 }
             }
@@ -397,6 +380,60 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if self.singletons.is_none() || self.window.is_none() {
+            return;
+        }
+
+        let logic_start = std::time::Instant::now();
+
+        // 1. 更新时间与 FPS 统计
+        if let Some(s) = &mut self.singletons {
+            s.time.tick();
+        }
+
+        // 2. 累加 delta time 进行固定步长更新
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(self.last_tick_time).as_secs_f64();
+        self.last_tick_time = now;
+
+        // 防止“死亡螺旋”
+        let elapsed = elapsed.min(0.1);
+        self.accumulator += elapsed;
+
+        let fixed_dt = 1.0 / 120.0;
+        let mut updated = false;
+
+        while self.accumulator >= fixed_dt {
+            // 3. 处理输入 (在逻辑更新前)
+            // 使用作用域确保在调用 self.update 之前释放对 singletons 和 window 的借用
+            {
+                let window = self.window.as_ref().unwrap();
+                let singletons = self.singletons.as_mut().unwrap();
+                singletons.input_server.update(window);
+                self.world.input(&mut singletons.input_server);
+            }
+
+            // 4. 执行固定步长逻辑更新 (此时没有其他对 self 字段的活跃借用)
+            self.update(fixed_dt as f32);
+
+            self.accumulator -= fixed_dt;
+            updated = true;
+        }
+
+        if updated {
+            if let Some(s) = &mut self.singletons {
+                s.input_server.clear_events();
+            }
+        }
+
+        // 记录逻辑耗时
+        if let Some(s) = &mut self.singletons {
+            s.time.logic_time.store(
+                logic_start.elapsed().as_nanos() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
+        }
+
         if let Some(window) = &self.window {
             window.request_redraw();
         }
