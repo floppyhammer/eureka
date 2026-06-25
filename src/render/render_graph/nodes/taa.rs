@@ -30,7 +30,7 @@ impl Node for TaaNode {
             format: Some(wgpu::TextureFormat::Rgba16Float),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_SRC, // 新增
+                | wgpu::TextureUsages::COPY_SRC,
             layers: 1,
             mip_levels: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -38,17 +38,17 @@ impl Node for TaaNode {
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(standard_resources::main_color(), hdr_spec.clone())
-            .input(standard_resources::main_depth(), ResourceSpec::Texture(TextureKey {
+            .input(standard_resources::prepass_velocity(), ResourceSpec::Texture(TextureKey {
                 width: 0,
                 height: 0,
-                format: Some(wgpu::TextureFormat::Depth32Float),
+                format: Some(wgpu::TextureFormat::Rg16Float),
                 usage: wgpu::TextureUsages::TEXTURE_BINDING,
                 layers: 1,
                 mip_levels: 1,
                 dimension: wgpu::TextureDimension::D2,
             }))
             .input(standard_resources::camera_buffer(), ResourceSpec::Buffer(crate::render::render_graph::BufferKey {
-                size: (size_of::<crate::render::camera::CameraUniform>() * 16) as u64, // MAX_CAMERAS
+                size: (size_of::<crate::render::camera::CameraUniform>() * 16) as u64,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }))
             .output(standard_resources::taa_output(), hdr_spec)
@@ -96,7 +96,7 @@ impl Node for TaaNode {
                             binding: 3,
                             visibility: wgpu::ShaderStages::FRAGMENT,
                             ty: wgpu::BindingType::Texture {
-                                sample_type: wgpu::TextureSampleType::Depth,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
                                 view_dimension: wgpu::TextureViewDimension::D2,
                                 multisampled: false,
                             },
@@ -145,7 +145,7 @@ impl Node for TaaNode {
 
         let input_texture = context.texture(&standard_resources::main_color());
         let output_texture = context.texture(&standard_resources::taa_output());
-        let depth_texture = context.texture(&standard_resources::main_depth());
+        let velocity_texture = context.texture(&standard_resources::prepass_velocity());
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
         // 获取历史纹理
@@ -155,7 +155,7 @@ impl Node for TaaNode {
             format: Some(wgpu::TextureFormat::Rgba16Float),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_DST, // 新增
+                | wgpu::TextureUsages::COPY_DST,
             layers: 1,
             mip_levels: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -197,7 +197,7 @@ impl Node for TaaNode {
                 camera_buffer.id,
                 input_texture.id,
                 history_texture.id,
-                depth_texture.id,
+                velocity_texture.id,
             ],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -227,7 +227,7 @@ impl Node for TaaNode {
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
-                            resource: wgpu::BindingResource::TextureView(&depth_texture.view),
+                            resource: wgpu::BindingResource::TextureView(&velocity_texture.view),
                         },
                         wgpu::BindGroupEntry {
                             binding: 4,

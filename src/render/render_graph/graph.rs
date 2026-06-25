@@ -1,7 +1,7 @@
 use crate::render::render_backend::{PreparedFrame, RenderBackend};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
-use crate::render::render_graph::{standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, IBLNode, LightCullingNode, MeshNode, Node, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, SsrNode, SsrApplyNode, TaaNode, ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode};
+use crate::render::render_graph::{standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, IBLNode, LightCullingNode, MeshNode, Node, PrePassNode, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, SsrNode, SsrApplyNode, TaaNode, ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode};
 use crate::render::RenderContext;
 use std::collections::{HashMap, VecDeque};
 
@@ -43,6 +43,7 @@ impl RenderGraph {
         self.add_node("prepare_view", PrepareViewNode::default());
         self.add_node("prepare_materials", PrepareMaterialsNode::default());
         self.add_node("prepare_instances", PrepareInstancesNode::default());
+        self.add_node("prepass", PrePassNode::default());
         self.add_node("ibl", IBLNode::default());
         self.add_node("clear", ClearNode);
         self.add_node("culling", CullingNode::default());
@@ -62,11 +63,23 @@ impl RenderGraph {
         self.add_node("fxaa", FxaaNode::default());
         self.add_node("sprite", SpriteNode::default());
 
-        self.add_node_edge("prepare_materials", "mesh");
-        self.add_node_edge("prepare_materials", "ssao");
+        // 基础准备
         self.add_node_edge("prepare_instances", "culling");
         self.add_node_edge("prepare_view", "culling");
-        self.add_node_edge("prepare_view", "ssao");
+
+        // PrePass 依赖
+        self.add_node_edge("prepare_view", "prepass");
+        self.add_node_edge("prepare_instances", "prepass");
+        self.add_node_edge("prepare_materials", "prepass");
+        self.add_node_edge("culling", "prepass");
+
+        // 后续节点对 PrePass 的依赖
+        self.add_node_edge("prepass", "ssao");
+        self.add_node_edge("prepass", "mesh");
+        self.add_node_edge("prepass", "taa");
+        self.add_node_edge("prepass", "ssr");
+
+        // 其它原有依赖
         self.add_node_edge("prepare_view", "skybox");
         self.add_node_edge("prepare_view", "light_culling");
         self.add_node_edge("prepare_view", "volumetric");
@@ -74,8 +87,6 @@ impl RenderGraph {
         self.add_node_edge("ibl", "transparent_mesh");
         self.add_node_edge("shadow", "volumetric");
         self.add_node_edge("light_culling", "volumetric");
-        self.add_node_edge("culling", "mesh");
-        self.add_node_edge("culling", "ssao");
         self.add_node_edge("shadow", "mesh");
         self.add_node_edge("light_culling", "mesh");
         self.add_node_edge("volumetric", "volumetric_apply");

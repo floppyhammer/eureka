@@ -3,7 +3,7 @@
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var current_color: texture_2d<f32>;
 @group(0) @binding(2) var history_color: texture_2d<f32>;
-@group(0) @binding(3) var depth_tex: texture_depth_2d;
+@group(0) @binding(3) var velocity_tex: texture_2d<f32>;
 @group(0) @binding(4) var linear_sampler: sampler;
 
 struct VertexOutput {
@@ -48,19 +48,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         return vec4<f32>(color_rgb, 1.0);
     }
 
-    // --- Reprojection ---
-    // 采样抖动后的深度
-    let depth = textureSample(depth_tex, linear_sampler, in.uv);
-
-    // 利用抖动的 inv_view_proj 将抖动的像素还原到世界空间 (这是稳定的)
-    let ndc = vec3<f32>(in.uv.x * 2.0 - 1.0, (1.0 - in.uv.y) * 2.0 - 1.0, depth);
-    let world_pos_h = camera.inv_view_proj * vec4<f32>(ndc, 1.0);
-    let world_pos = world_pos_h.xyz / world_pos_h.w;
-
-    // 重投影到上一帧的 unjittered UV
-    let prev_ndc_h = camera.prev_view_proj * vec4<f32>(world_pos, 1.0);
-    let prev_ndc = prev_ndc_h.xyz / prev_ndc_h.w;
-    let prev_uv = vec2<f32>(prev_ndc.x * 0.5 + 0.5, 0.5 - prev_ndc.y * 0.5);
+    // --- Reprojection using Velocity Texture ---
+    let velocity = textureSample(velocity_tex, linear_sampler, in.uv).xy;
+    let prev_uv = in.uv - velocity;
 
     // --- Neighborhood Clamping in YCbCr Space ---
     var m1 = vec3<f32>(0.0);

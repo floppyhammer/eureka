@@ -37,13 +37,13 @@ impl Node for TransparentMeshNode {
                 standard_resources::transparent_instance_buffer(),
                 ResourceSpec::buffer(transparent_instance_buffer_size.max(64), wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST),
             )
+            .input(
+                standard_resources::main_depth(),
+                ResourceSpec::Texture(TextureKey::d2(0, 0, Texture::DEPTH_FORMAT, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)),
+            )
             .output(
                 standard_resources::main_color(),
                 ResourceSpec::Texture(TextureKey::d2(0, 0, wgpu::TextureFormat::Rgba16Float, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)),
-            )
-            .output(
-                standard_resources::main_depth(),
-                ResourceSpec::Texture(TextureKey::d2(0, 0, Texture::DEPTH_FORMAT, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)),
             );
 
         common_mesh_resources(resources, prepared)

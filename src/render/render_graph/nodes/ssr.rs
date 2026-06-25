@@ -57,9 +57,9 @@ impl Node for SsrNode {
         });
 
         NodeResources::new()
-            // 输入：TAA 输出的颜色、SSAO 的 normal/roughness、主深度
+            // 输入：TAA 输出的颜色、PrePass 的 normal/roughness、主深度
             .input(standard_resources::taa_output(), hdr_spec.clone())
-            .input(standard_resources::ssao_normal(), normal_spec)
+            .input(standard_resources::prepass_normal(), normal_spec)
             .input(standard_resources::main_depth(), depth_spec)
             .input(
                 standard_resources::camera_buffer(),
@@ -174,7 +174,7 @@ impl Node for SsrNode {
         }
 
         let color_texture = context.texture(&standard_resources::taa_output());
-        let normal_texture = context.texture(&standard_resources::ssao_normal());
+        let normal_texture = context.texture(&standard_resources::prepass_normal());
         let depth_texture = context.texture(&standard_resources::main_depth());
         let output_texture = context.texture(&standard_resources::ssr_output());
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());

@@ -394,6 +394,14 @@ pub mod standard_resources {
         ResourceId::new("main_depth")
     }
 
+    pub fn prepass_normal() -> TextureId {
+        ResourceId::new("prepass_normal")
+    }
+
+    pub fn prepass_velocity() -> TextureId {
+        ResourceId::new("prepass_velocity")
+    }
+
     // SDR
     pub fn hdr_resolved() -> TextureId {
         ResourceId::new("hdr_resolved")
@@ -463,15 +471,6 @@ pub mod standard_resources {
 
     pub fn fxaa_settings() -> BufferId {
         ResourceId::new("fxaa_settings")
-    }
-
-    // SSAO 相关
-    pub fn ssao_depth() -> TextureId {
-        ResourceId::new("ssao_depth")
-    }
-
-    pub fn ssao_normal() -> TextureId {
-        ResourceId::new("ssao_normal")
     }
 
     pub fn ssao_output() -> TextureId {
