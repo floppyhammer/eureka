@@ -56,7 +56,7 @@ fn main() {
         // 3. 添加标签实体
         world.ecs.spawn((
             Name("Settings".into()),
-            LabelComponent::new("SSAO (1): ON | AA (2): TAA | Volumetric (3): OFF | SSR (4): OFF"),
+            LabelComponent::new("SSAO (1): ON | AA (2): TAA | Volumetric (3): OFF | SSR (4): OFF | SSGI (5): OFF"),
             CTransform2d(Transform2d {
                 position: Vec2::new(20.0, 20.0),
                 ..Transform2d::default()
@@ -247,6 +247,12 @@ fn main() {
                                 camera.ssr_enabled = !camera.ssr_enabled;
                             }
                         }
+                        KeyCode::Digit5 => {
+                            // 切换 SSGI
+                            for camera in world.ecs.query_mut::<&mut Camera3dComponent>() {
+                                camera.ssgi_enabled = !camera.ssgi_enabled;
+                            }
+                        }
                         _ => {}
                     }
 
@@ -255,6 +261,7 @@ fn main() {
                     let mut aa_mode = "OFF";
                     let mut volumetric_enabled = true;
                     let mut ssr_enabled = true;
+                    let mut ssgi_enabled = true;
                     for camera in world.ecs.query::<&Camera3dComponent>().iter() {
                         ssao_enabled = camera.ssao_enabled;
                         if camera.taa_enabled {
@@ -264,16 +271,18 @@ fn main() {
                         }
                         volumetric_enabled = camera.volumetric_enabled;
                         ssr_enabled = camera.ssr_enabled;
+                        ssgi_enabled = camera.ssgi_enabled;
                         break;
                     }
 
                     for label in world.ecs.query_mut::<&mut LabelComponent>() {
                         label.text = format!(
-                            "SSAO (1): {} | AA (2): {} | Volumetric (3): {} | SSR (4): {}",
+                            "SSAO (1): {} | AA (2): {} | Volumetric (3): {} | SSR (4): {} | SSGI (5): {}",
                             if ssao_enabled { "ON" } else { "OFF" },
                             aa_mode,
                             if volumetric_enabled { "ON" } else { "OFF" },
-                            if ssr_enabled { "ON" } else { "OFF" }
+                            if ssr_enabled { "ON" } else { "OFF" },
+                            if ssgi_enabled { "ON" } else { "OFF" }
                         );
                         label.text_is_dirty = true;
                     }

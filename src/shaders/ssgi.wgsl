@@ -85,8 +85,8 @@ fn ray_march(origin: vec3<f32>, direction: vec3<f32>, noise: f32) -> vec2<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // 只有 SSR 开启时才运行 SSGI（共用开关）
-    if (camera.ssr_enabled == 0u) { return vec4<f32>(0.0); }
+    // 检查 SSGI 开关
+    if (camera.ssgi_enabled == 0u) { return vec4<f32>(0.0); }
 
     let depth = textureSampleLevel(t_depth, s_nearest, in.uv, 0);
     if (depth >= 1.0) { return vec4<f32>(0.0); }

@@ -15,8 +15,8 @@ struct Camera {
     volumetric_enabled: u32,
     taa_enabled: u32,
     ssr_enabled: u32,
+    ssgi_enabled: u32,
     frame_count: u32,
     _pad0: u32,
     _pad1: u32,
-    _pad2: u32,
 }

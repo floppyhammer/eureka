@@ -179,6 +179,28 @@ impl Node for SsrNode {
         let output_texture = context.texture(&standard_resources::ssr_output());
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
+        // 如果 SSR 未开启，直接清空并跳过后续绘制
+        let ssr_enabled = context.extracted.cameras.uniforms.iter().any(|u| u.ssr_enabled != 0);
+        if !ssr_enabled {
+            context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("SSR Pass (Disabled)"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &output_texture.view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            return;
+        }
+
         let nearest_sampler = context.get_sampler(SamplerKey {
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,

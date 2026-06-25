@@ -40,8 +40,8 @@ impl Node for IndirectApplyNode {
 
         NodeResources::new()
             .input(standard_resources::taa_output(), hdr_spec.clone())
-            .input(standard_resources::ssr_output(), hdr_spec.clone())
-            .input(standard_resources::ssgi_output(), hdr_spec.clone())
+            .optional_input(standard_resources::ssr_output(), hdr_spec.clone())
+            .optional_input(standard_resources::ssgi_output(), hdr_spec.clone())
             .output(standard_resources::ssr_combined(), hdr_spec)
     }
 
@@ -122,9 +122,19 @@ impl Node for IndirectApplyNode {
         }
 
         let color_texture = context.texture(&standard_resources::taa_output());
-        let ssr_texture = context.texture(&standard_resources::ssr_output());
-        let ssgi_texture = context.texture(&standard_resources::ssgi_output());
         let output_texture = context.texture(&standard_resources::ssr_combined());
+
+        let ssr_texture_view = if context.has_resource(&standard_resources::ssr_output()) {
+            context.texture(&standard_resources::ssr_output()).view
+        } else {
+            context.backend.dummy_2d_view.clone()
+        };
+
+        let ssgi_texture_view = if context.has_resource(&standard_resources::ssgi_output()) {
+            context.texture(&standard_resources::ssgi_output()).view
+        } else {
+            context.backend.dummy_2d_view.clone()
+        };
 
         let sampler = context.get_sampler(SamplerKey {
             mag_filter: wgpu::FilterMode::Linear,
@@ -138,9 +148,21 @@ impl Node for IndirectApplyNode {
             .unwrap()
             .clone();
 
+        let mut resource_ids = vec![color_texture.id];
+        if context.has_resource(&standard_resources::ssr_output()) {
+            resource_ids.push(context.texture(&standard_resources::ssr_output()).id);
+        } else {
+            resource_ids.push(0); // Dummy ID
+        }
+        if context.has_resource(&standard_resources::ssgi_output()) {
+            resource_ids.push(context.texture(&standard_resources::ssgi_output()).id);
+        } else {
+            resource_ids.push(1); // Dummy ID
+        }
+
         let bind_group = context.create_bind_group(
             "indirect_apply_bind_group",
-            vec![color_texture.id, ssr_texture.id, ssgi_texture.id],
+            resource_ids,
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Indirect Apply Bind Group"),
@@ -152,11 +174,11 @@ impl Node for IndirectApplyNode {
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
-                            resource: wgpu::BindingResource::TextureView(&ssr_texture.view),
+                            resource: wgpu::BindingResource::TextureView(&ssr_texture_view),
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,
-                            resource: wgpu::BindingResource::TextureView(&ssgi_texture.view),
+                            resource: wgpu::BindingResource::TextureView(&ssgi_texture_view),
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,

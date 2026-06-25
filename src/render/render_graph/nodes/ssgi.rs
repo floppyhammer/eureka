@@ -116,6 +116,28 @@ impl Node for SsgiNode {
         let sampler = context.get_sampler(SamplerKey { mag_filter: wgpu::FilterMode::Nearest, min_filter: wgpu::FilterMode::Nearest, ..Default::default() });
         let default_sampler = context.get_sampler(SamplerKey::default());
 
+        // 如果 SSGI 未开启，直接清空并跳过后续绘制
+        let ssgi_enabled = context.extracted.cameras.uniforms.iter().any(|u| u.ssgi_enabled != 0);
+        if !ssgi_enabled {
+            context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("SSGI Pass (Disabled)"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &output.view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            return;
+        }
+
         let bind_group = context.render_context.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &context.backend.get_bind_group_layout("ssgi_bind_group_layout").unwrap(),
             entries: &[

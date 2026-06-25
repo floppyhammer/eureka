@@ -277,8 +277,9 @@ impl Node for ShadowNode {
                     volumetric_enabled: 0,
                     taa_enabled: 0,
                     ssr_enabled: 0,
+                    ssgi_enabled: 0,
                     frame_count: 0,
-                    _pad: [0; 3],
+                    _pad: [0; 2],
                 });
 
                 cascade_uniform.view_proj[i] = view_proj.to_cols_array_2d();
@@ -369,8 +370,9 @@ impl Node for ShadowNode {
                         volumetric_enabled: 0,
                         taa_enabled: 0,
                         ssr_enabled: 0,
+                        ssgi_enabled: 0,
                         frame_count: 0,
-                        _pad: [0; 3],
+                        _pad: [0; 2],
                     };
                     // render_resources.point_shadow_view_projs.push(view_proj);
                 }
