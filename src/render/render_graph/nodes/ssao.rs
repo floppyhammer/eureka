@@ -9,6 +9,14 @@ use glam::vec3;
 use std::any::Any;
 use wgpu::BufferAddress;
 
+/// SsaoNode 实现了屏幕空间环境光遮蔽 (Screen Space Ambient Occlusion)。
+///
+/// 该节点不负责渲染法线和深度，而是直接复用 `PrePassNode` 的产出。
+///
+/// 该节点包含两个主要的计算步骤：
+/// 1. **SSAO Main Pass**: 采样 `PrePass` 的法线和深度，在每个像素周围进行随机半球采样，
+///    计算遮蔽因子。
+/// 2. **Blur Pass**: 使用一个简单的双边滤波（或均值滤波）对结果进行降噪，生成平滑的遮挡图。
 pub struct SsaoNode {
     ssao_pipeline: Option<wgpu::RenderPipeline>,   // Calc SSAO.
     blur_pipeline: Option<wgpu::RenderPipeline>,   // Blur SSAO.

@@ -8,6 +8,19 @@ use crate::render::{create_render_pipeline_with_entry, InstanceRaw, Texture};
 use std::any::Any;
 use wgpu::BufferAddress;
 
+/// PrePass 节点是现代前向渲染管线的核心基础设施，它的主要职责包括：
+///
+/// 1. **Early-Z Culling (提前深度剔除)**:
+///    先于 Main Pass 渲染深度，后续光照节点将深度测试设为 LessEqual 且关闭写入。
+///    这使得昂贵的 PBR 计算（采样阴影、查集群光源、IBL）仅在最终可见像素上运行。
+///
+/// 2. **Geometry Data (几何属性收集)**:
+///    通过 MRT (多渲染目标) 预提取 View-space 法线和 Roughness 到 `prepass_normal`。
+///    这为 SSAO、SSR 等后续屏幕空间后处理提供基础数据，无需重复绘制几何体。
+///
+/// 3. **Motion Vectors (运动矢量计算)**:
+///    对比“当前帧不带抖动的投影矩阵”与“上一帧投影矩阵”，计算 UV 空间的位移差异并存入 `prepass_velocity`。
+///    这是 TAA 能够实现精准重投影、消除动态重影（Ghosting）的关键数据支撑。
 pub struct PrePassNode {
     pipeline: Option<wgpu::RenderPipeline>,
 }

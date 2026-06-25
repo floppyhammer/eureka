@@ -6,6 +6,18 @@ use crate::render::render_graph::{
 };
 use std::any::Any;
 
+/// VolumetricNode 负责实现基于 Froxel (Frustum Voxel) 的体积光/大气散射效果。
+///
+/// 该节点利用 Compute Shader 在 3D 纹理空间内模拟光线与大气介质的交互，流程如下：
+/// 1. **光照注入 (Light Injection)**: 针对 3D 视锥体网格中的每个 Voxel，计算来自所有点光源和方向光的
+///    散射光贡献。此时会进行阴影采样（包括 CSM 和点光源阴影）。
+/// 2. **物理模拟**: 结合指数级高度雾 (Height Fog) 和均匀雾的参数，计算每个位置的散射 (Scattering)
+///    和吸收 (Absorption) 系数。
+/// 3. **光线步进积分 (Integration)**: 沿着观察射线对散射光和透射率进行累加积分。
+/// 4. **结果输出**: 生成一张 3D 纹理，其中 RGB 存储累加的散射光，A 存储该位置到相机的透射率。
+///
+/// 这种基于 Froxel 的方案相比传统的全分辨率 Ray Marching 具有极高的性能优势，
+/// 且能完美支持大量动态光源和复杂的阴影遮挡。
 pub struct VolumetricNode {
     pipeline: Option<wgpu::ComputePipeline>,
 }
@@ -333,6 +345,14 @@ impl Node for VolumetricNode {
     }
 }
 
+/// VolumetricApplyNode 负责将 `VolumetricNode` 生成的 3D 体积光结果应用到最终的 2D 颜色缓冲中。
+///
+/// 该节点通过一个全屏 Pass (Full-screen Pass) 运行，其核心逻辑为：
+/// 1. **深度采样**: 读取当前像素的 `main_depth`，确定该像素在视锥体空间中的具体 3D 位置。
+/// 2. **3D 纹理查询**: 使用该 3D 位置作为 UVW 坐标，对体积光 3D 纹理进行三线性采样。
+/// 3. **光影混合**: 根据采样得到的散射光 (RGB) 和透射率 (A)，对原本的 `main_color` 进行物理正确的混合。
+///
+/// 这一步完成了空气中“丁达尔效应”与场景中实体的最终融合。
 pub struct VolumetricApplyNode {
     pipeline: Option<wgpu::RenderPipeline>,
 }

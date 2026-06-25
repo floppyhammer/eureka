@@ -7,6 +7,17 @@ use crate::render::InstanceRaw;
 use std::any::Any;
 use wgpu::BufferAddress;
 
+/// CullingNode 负责在 GPU 端实现高效的实例剔除 (Instance Culling)。
+///
+/// 它的主要职责是利用 Compute Shader 进行视锥体剔除 (Frustum Culling)，流程如下：
+/// 1. **并行判定**: 每个 GPU 线程处理一个实例，将其 AABB 转换到裁剪空间，判断是否在视锥体内。
+/// 2. **原子计数**: 使用原子操作统计每个 Mesh 的可见实例数量。
+/// 3. **构建间接绘制指令**: 动态更新 `IndirectBuffer` 中的实例数量，使后续渲染节点能通过
+///    `multi_draw_indexed_indirect` 一次性画出所有可见物体。
+/// 4. **生成可见实例缓冲**: 将可见实例的数据紧凑地重新排列到 `cull_visible_instance_buffer` 中。
+///
+/// 通过该节点，CPU 仅需提交一次庞大的实例数据，后续每帧的剔除工作完全在 GPU 端异步完成，
+/// 极大地减轻了 CPU 在 Draw Call 管理上的负担。
 pub struct CullingNode {
     pipeline: Option<wgpu::ComputePipeline>,
 }

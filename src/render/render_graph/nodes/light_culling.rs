@@ -8,6 +8,15 @@ use std::any::Any;
 
 const MAX_POINT_LIGHTS: usize = 1024;
 
+/// LightCullingNode 是集群前向渲染 (Clustered Forward Rendering) 的核心组件。
+///
+/// 该节点利用 Compute Shader 实现光源的空间剔除，主要流程如下：
+/// 1. **视锥体分块 (Clustering)**: 将摄像机视锥体在 3D 空间中划分为多层网格 (Clusters)。
+/// 2. **光源剔除 (Culling)**: 遍历场景中所有的点光源，计算每个光源影响哪些 Cluster。
+/// 3. **构建索引列表**: 生成 `light_grid` (存储每个网格的灯光偏移和数量) 和 `light_index_list` (存储具体的灯光索引)。
+///
+/// 通过该节点，后续的 `OpaqueMeshNode` 在着色时仅需根据像素位置定位到对应的 Cluster，
+/// 即可直接获取对当前像素有贡献的灯光子集，从而支持场景中存在成百上千个动态光源。
 pub struct LightCullingNode {
     pipeline: Option<wgpu::ComputePipeline>,
 }

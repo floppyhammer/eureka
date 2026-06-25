@@ -3,6 +3,16 @@ use crate::render::render_graph::{standard_resources, SamplerKey, TextureKey};
 use crate::render::render_graph::{FrameContext, Node};
 use std::any::Any;
 
+/// TaaNode 实现时间域抗锯齿 (Temporal Anti-Aliasing)，通过复用历史帧信息来消除锯齿并提升图像质量。
+///
+/// 核心算法流程：
+/// 1. **重投影 (Reprojection)**: 利用 `PrePassNode` 产出的 `prepass_velocity` (Motion Vectors)，
+///    找到当前像素在上一帧 (History Texture) 中的位置。
+/// 2. **邻域约束 (Neighborhood Clamping)**: 在 YCbCr 空间计算当前像素周围 3x3 范围的均值和标准差，
+///    将历史采样值限制 (Clamp) 在当前邻域统计规律内，这是防止运动物体产生“拖影” (Ghosting) 的核心。
+/// 3. **指数移动平均 (EMA)**: 将约束后的历史颜色与当前帧颜色进行加权混合（通常比例为 90% 历史 + 10% 当前）。
+/// 4. **亚像素抖动补偿**: 配合 `PrepareViewNode` 中的亚像素 Jitter 矩阵，在时域上累积细节，
+///    实现超越原分辨率的抗锯齿效果。
 pub struct TaaNode {
     pipeline: Option<wgpu::RenderPipeline>,
 }
