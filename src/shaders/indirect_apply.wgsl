@@ -1,6 +1,7 @@
 @group(0) @binding(0) var t_color: texture_2d<f32>;
 @group(0) @binding(1) var t_ssr: texture_2d<f32>;
-@group(0) @binding(2) var s_linear: sampler;
+@group(0) @binding(2) var t_ssgi: texture_2d<f32>;
+@group(0) @binding(3) var s_linear: sampler;
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
@@ -21,14 +22,17 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = textureSample(t_color, s_linear, in.uv);
     let ssr = textureSample(t_ssr, s_linear, in.uv);
-    
+    let ssgi = textureSample(t_ssgi, s_linear, in.uv);
+
+    // SSR 的 alpha 存储了反射强度，使用加法叠加
+    // SSGI 漫反射间接光，直接加法叠加
+    let result = color.rgb + ssr.rgb * ssr.a + ssgi.rgb;
+
     // --- DEBUG: 显示SSR强度 ---
     // 取消下面的注释可以看到SSR在哪些像素上产生了反射
     //return vec4<f32>(vec3<f32>(ssr.a), 1.0);
-    
-    // SSR 的 alpha 存储了反射强度
-    // 使用 additive blending 将反射叠加到颜色上
-    let result = color.rgb + ssr.rgb * ssr.a;
-    
+    // 只输出 SSGI 的结果，此时你应该能看到彩色的漫反射光
+    //return vec4<f32>(ssgi.rgb, 1.0);
+
     return vec4<f32>(result, color.a);
 }

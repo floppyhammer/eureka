@@ -2,17 +2,21 @@ use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureKey};
 use std::any::Any;
 
-pub struct SsrApplyNode {
+/// IndirectApplyNode 负责将所有的间接光贡献（镜面反射 SSR 和 漫反射 SSGI）合成到主颜色缓冲中。
+///
+/// 这是一个全屏合成 Pass，通过在一个 Shader 中同时采样多个间接光纹理，
+/// 可以显著减少显存带宽消耗，并保持光照计算逻辑的统一。
+pub struct IndirectApplyNode {
     pipeline: Option<wgpu::RenderPipeline>,
 }
 
-impl Default for SsrApplyNode {
+impl Default for IndirectApplyNode {
     fn default() -> Self {
         Self { pipeline: None }
     }
 }
 
-impl Node for SsrApplyNode {
+impl Node for IndirectApplyNode {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -37,6 +41,7 @@ impl Node for SsrApplyNode {
         NodeResources::new()
             .input(standard_resources::taa_output(), hdr_spec.clone())
             .input(standard_resources::ssr_output(), hdr_spec.clone())
+            .input(standard_resources::ssgi_output(), hdr_spec.clone())
             .output(standard_resources::ssr_combined(), hdr_spec)
     }
 
@@ -46,7 +51,7 @@ impl Node for SsrApplyNode {
 
             let bind_group_layout =
                 device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("SSR Apply Bind Group Layout"),
+                    label: Some("Indirect Apply Bind Group Layout"),
                     entries: &[
                         wgpu::BindGroupLayoutEntry {
                             binding: 0,
@@ -71,6 +76,16 @@ impl Node for SsrApplyNode {
                         wgpu::BindGroupLayoutEntry {
                             binding: 2,
                             visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
                             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                             count: None,
                         },
@@ -78,14 +93,14 @@ impl Node for SsrApplyNode {
                 });
 
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("SSR Apply Pipeline Layout"),
+                label: Some("Indirect Apply Pipeline Layout"),
                 bind_group_layouts: &[Some(&bind_group_layout)],
                 immediate_size: 0,
             });
 
             let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("SSR Apply Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/ssr_apply.wgsl").into()),
+                label: Some("Indirect Apply Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("../../../shaders/indirect_apply.wgsl").into()),
             };
 
             use crate::render::create_render_pipeline;
@@ -96,18 +111,19 @@ impl Node for SsrApplyNode {
                 None,
                 &[],
                 shader,
-                "SSR Apply Pipeline",
+                "Indirect Apply Pipeline",
                 false,
                 None,
             ));
 
             context
                 .backend
-                .add_bind_group_layout("ssr_apply_bind_group_layout", bind_group_layout);
+                .add_bind_group_layout("indirect_apply_bind_group_layout", bind_group_layout);
         }
 
         let color_texture = context.texture(&standard_resources::taa_output());
         let ssr_texture = context.texture(&standard_resources::ssr_output());
+        let ssgi_texture = context.texture(&standard_resources::ssgi_output());
         let output_texture = context.texture(&standard_resources::ssr_combined());
 
         let sampler = context.get_sampler(SamplerKey {
@@ -118,16 +134,16 @@ impl Node for SsrApplyNode {
 
         let bind_group_layout = context
             .backend
-            .get_bind_group_layout("ssr_apply_bind_group_layout")
+            .get_bind_group_layout("indirect_apply_bind_group_layout")
             .unwrap()
             .clone();
 
         let bind_group = context.create_bind_group(
-            "ssr_apply_bind_group",
-            vec![color_texture.id, ssr_texture.id],
+            "indirect_apply_bind_group",
+            vec![color_texture.id, ssr_texture.id, ssgi_texture.id],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("SSR Apply Bind Group"),
+                    label: Some("Indirect Apply Bind Group"),
                     layout: &bind_group_layout,
                     entries: &[
                         wgpu::BindGroupEntry {
@@ -140,6 +156,10 @@ impl Node for SsrApplyNode {
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,
+                            resource: wgpu::BindingResource::TextureView(&ssgi_texture.view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
                             resource: wgpu::BindingResource::Sampler(&sampler),
                         },
                     ],
@@ -153,7 +173,7 @@ impl Node for SsrApplyNode {
             let mut render_pass = context
                 .encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("SSR Apply Pass"),
+                    label: Some("Indirect Apply Pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &output_texture.view,
                         depth_slice: None,

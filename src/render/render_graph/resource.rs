@@ -539,6 +539,10 @@ pub mod standard_resources {
         ResourceId::new("ssr_output")
     }
 
+    pub fn ssgi_output() -> TextureId {
+        ResourceId::new("ssgi_output")
+    }
+
     pub fn ssr_combined() -> TextureId {
         ResourceId::new("ssr_combined")
     }
