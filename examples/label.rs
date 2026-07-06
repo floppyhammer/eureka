@@ -58,7 +58,7 @@ fn main() {
 
         // 模拟一个 MSDF 字体请求 (在文件名中包含 msdf 以触发 MSDF 模式)
         // 注意：这只是为了演示并行架构，实际效果取决于是否有真正的 MSDF 生成逻辑
-        let mut label2 = LabelComponent::new("MSDF Text (Parallel): Hello World! 你好世界！");
+        let mut label2 = LabelComponent::new("MSDF Text: Hello World! 你好世界！");
         label2.font_id = Some(font_path.replace(".ttf", "_msdf.ttf"));
         label2.mode = eureka::scene::d2::label::TextMode::Msdf;
 

@@ -171,7 +171,7 @@ impl DynamicFont {
         Self {
             raw_font_data,
             fontdue_font,
-            size: if mode == FontMode::Msdf { 64 } else { 32 }, // MSDF typically needs larger source
+            size: if mode == FontMode::Msdf { 128 } else { 32 }, // MSDF 需要更高的源分辨率
             mode,
             atlas_image,
             atlas_texture,
@@ -438,11 +438,11 @@ impl DynamicFont {
                     let region;
                     let glyph;
                     if index != 0 {
-                        let padding = 2; // 增加 2 像素边距防止 Bleeding
+                        let padding = 4; // 回退 Padding
 
                         let (final_bitmap, final_width, final_height, final_metrics) =
                             if self.mode == FontMode::Msdf {
-                                let spread = 4.0;
+                                let spread = 4.0; // 回退 Spread
                                 let (sdf_data, w, h) =
                                     generate_sdf(&bitmap, metrics.width, metrics.height, padding, spread);
 
@@ -460,14 +460,15 @@ impl DynamicFont {
                                 (rgba_data, w, h, m)
                             } else {
                                 // 为 Raster 模式手动增加 Padding
-                                let w = metrics.width + padding * 2;
-                                let h = metrics.height + padding * 2;
+                                let padding_raster = 2;
+                                let w = metrics.width + padding_raster * 2;
+                                let h = metrics.height + padding_raster * 2;
                                 let mut padded_bitmap = vec![0u8; w * h];
 
                                 for row in 0..metrics.height {
                                     for col in 0..metrics.width {
                                         let src_idx = row * metrics.width + col;
-                                        let dst_idx = (row + padding) * w + (col + padding);
+                                        let dst_idx = (row + padding_raster) * w + (col + padding_raster);
                                         padded_bitmap[dst_idx] = bitmap[src_idx];
                                     }
                                 }
@@ -475,8 +476,8 @@ impl DynamicFont {
                                 let mut m = metrics.clone();
                                 m.width = w;
                                 m.height = h;
-                                m.xmin -= padding as i32;
-                                m.ymin -= padding as i32;
+                                m.xmin -= padding_raster as i32;
+                                m.ymin -= padding_raster as i32;
 
                                 (padded_bitmap, w, h, m)
                             };
@@ -613,32 +614,48 @@ fn generate_sdf(
     let new_height = height + padding * 2;
     let mut sdf = vec![0u8; new_width * new_height];
 
-    let get_val = |x: isize, y: isize| -> bool {
+    // 将 0-255 的覆盖度映射为浮点数 [0, 1]
+    let get_coverage = |x: isize, y: isize| -> f32 {
         if x < 0 || x >= width as isize || y < 0 || y >= height as isize {
-            false
+            0.0
         } else {
-            bitmap[y as usize * width + x as usize] > 127
+            bitmap[y as usize * width + x as usize] as f32 / 255.0
         }
     };
+
+    let search_radius = spread.ceil() as isize;
 
     for y in 0..new_height {
         for x in 0..new_width {
             let old_x = x as isize - padding as isize;
             let old_y = y as isize - padding as isize;
 
-            let is_inside = get_val(old_x, old_y);
-            let mut min_dist_sq = spread * spread;
+            let current_coverage = get_coverage(old_x, old_y);
+            let is_inside = current_coverage > 0.5;
 
-            let search_radius = spread.ceil() as isize;
+            let mut min_dist_sq = spread * spread;
+            let mut found = false;
+
+            // 搜索最近的异侧像素
             for dy in -search_radius..=search_radius {
                 for dx in -search_radius..=search_radius {
                     let nx = old_x + dx;
                     let ny = old_y + dy;
 
-                    if get_val(nx, ny) != is_inside {
-                        let dist_sq = (dx as f32).powi(2) + (dy as f32).powi(2);
+                    let neighbor_coverage = get_coverage(nx, ny);
+                    let neighbor_inside = neighbor_coverage > 0.5;
+
+                    if neighbor_inside != is_inside {
+                        // 基础距离
+                        let mut dist_sq = (dx as f32).powi(2) + (dy as f32).powi(2);
+
+                        // 亚像素修正：根据覆盖度调整距离，使边缘更平滑
+                        let offset = (neighbor_coverage - 0.5).abs();
+                        dist_sq = (dist_sq.sqrt() - offset).powi(2).max(0.0);
+
                         if dist_sq < min_dist_sq {
                             min_dist_sq = dist_sq;
+                            found = true;
                         }
                     }
                 }
