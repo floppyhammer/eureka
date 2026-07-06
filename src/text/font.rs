@@ -438,10 +438,10 @@ impl DynamicFont {
                     let region;
                     let glyph;
                     if index != 0 {
+                        let padding = 2; // 增加 2 像素边距防止 Bleeding
+
                         let (final_bitmap, final_width, final_height, final_metrics) =
                             if self.mode == FontMode::Msdf {
-                                // 为 SDF 增加 Padding，以便距离场能向外扩散
-                                let padding = 4;
                                 let spread = 4.0;
                                 let (sdf_data, w, h) =
                                     generate_sdf(&bitmap, metrics.width, metrics.height, padding, spread);
@@ -459,7 +459,26 @@ impl DynamicFont {
 
                                 (rgba_data, w, h, m)
                             } else {
-                                (bitmap, metrics.width, metrics.height, metrics)
+                                // 为 Raster 模式手动增加 Padding
+                                let w = metrics.width + padding * 2;
+                                let h = metrics.height + padding * 2;
+                                let mut padded_bitmap = vec![0u8; w * h];
+
+                                for row in 0..metrics.height {
+                                    for col in 0..metrics.width {
+                                        let src_idx = row * metrics.width + col;
+                                        let dst_idx = (row + padding) * w + (col + padding);
+                                        padded_bitmap[dst_idx] = bitmap[src_idx];
+                                    }
+                                }
+
+                                let mut m = metrics.clone();
+                                m.width = w;
+                                m.height = h;
+                                m.xmin -= padding as i32;
+                                m.ymin -= padding as i32;
+
+                                (padded_bitmap, w, h, m)
                             };
 
                         // Advance atlas row if necessary.
