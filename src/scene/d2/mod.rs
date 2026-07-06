@@ -1,5 +1,5 @@
 pub mod camera2d;
-pub(crate) mod label;
+pub mod label;
 pub(crate) mod sprite2d;
 
 pub use camera2d::*;

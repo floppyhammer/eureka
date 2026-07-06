@@ -100,24 +100,49 @@ pub fn extract_render_objects(ecs: &mut World) -> Extracted {
     }
 
     // 提取 Label
-    for label in ecs
-        .query::<&crate::scene::d2::label::LabelComponent>()
+    for (label, global_transform_component) in ecs
+        .query::<(&crate::scene::d2::label::LabelComponent, &GlobalTransform)>()
         .iter()
     {
         if let Some(atlas) = &label.atlas {
             if let Some(texture_id) = atlas.texture {
                 use crate::math::transform::Transform2d;
                 use crate::render::sprite::ExtractedSprite2d;
+                use crate::scene::d2::label::TextMode;
                 use glam::Vec2;
 
+                let mode = match label.mode {
+                    TextMode::Raster => 1,
+                    TextMode::Msdf => 2,
+                };
+
+                let (scale, rotation, translation) =
+                    global_transform_component.0.to_scale_rotation_translation();
+                let rotation_z = rotation.to_euler(glam::EulerRot::XYZ).2;
+                let label_transform = Transform2d {
+                    position: translation.truncate(),
+                    rotation: rotation_z,
+                    scale: scale.truncate(),
+                };
+
                 for instance in &atlas.instances {
-                    let tl_pos =
-                        Vec2::new(instance.position.x, instance.position.y - instance.size.y);
+                    // instance.position 是相对于 label 左上角的偏移
+                    // 我们需要将这个偏移应用 label 的全局变换
+                    // 注意：这里简化处理，假设 instance.size 已经考虑了字体基础大小
+                    let local_pos = Vec2::new(instance.position.x, instance.position.y - instance.size.y);
+
+                    // 将本地坐标转换到全局坐标
+                    // 1. 缩放本地位置 2. 旋转本地位置 (暂略) 3. 加上 label 的全局位置
+                    let scaled_local_pos = local_pos * label_transform.scale;
+
+                    // TODO: 完整的 Transform2d::transform_point 逻辑，目前先处理缩放和位移
+                    let final_pos = label_transform.position + scaled_local_pos;
+
                     extracted.sprites.push(ExtractedSprite2d {
                         transform: Transform2d {
-                            position: tl_pos,
-                            rotation: 0.0,
-                            scale: Vec2::ONE,
+                            position: final_pos,
+                            rotation: label_transform.rotation,
+                            scale: label_transform.scale,
                         },
                         color: instance.color.into(),
                         rect: instance.region,
@@ -126,7 +151,7 @@ pub fn extract_render_objects(ecs: &mut World) -> Extracted {
                         centered: false,
                         flip_x: false,
                         flip_y: false,
-                        mode: 1,
+                        mode,
                     });
                 }
             }

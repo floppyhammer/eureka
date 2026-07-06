@@ -73,6 +73,12 @@ pub(crate) struct Font {
     raw_data: Vec<u8>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FontMode {
+    Raster,
+    Msdf,
+}
+
 pub(crate) struct DynamicFont {
     /// Raw font data.
     raw_font_data: Vec<u8>,
@@ -81,6 +87,8 @@ pub(crate) struct DynamicFont {
 
     /// Font size in pixel.
     pub size: u32,
+
+    pub mode: FontMode,
 
     /// Contains all cached glyphs' bitmaps.
     atlas_image: DynamicImage,
@@ -109,6 +117,7 @@ impl DynamicFont {
         path: &str,
         render_server: &RenderContext,
         imported_texture_cache: &mut TextureCache,
+        mode: FontMode,
     ) -> Self {
         // Read the font data.
         let mut f = File::open(path).expect("No font file found!");
@@ -116,13 +125,14 @@ impl DynamicFont {
         let mut buffer = vec![0; metadata.len() as usize];
         f.read(&mut buffer).expect("Font buffer overflow!");
 
-        Self::load_from_memory(buffer, render_server, imported_texture_cache)
+        Self::load_from_memory(buffer, render_server, imported_texture_cache, mode)
     }
 
     pub(crate) fn load_from_memory(
         buffer: Vec<u8>,
         render_server: &RenderContext,
         imported_texture_cache: &mut TextureCache,
+        mode: FontMode,
     ) -> Self {
         let now = Instant::now();
 
@@ -132,29 +142,37 @@ impl DynamicFont {
         let fontdue_font =
             fontdue::Font::from_bytes(buffer, fontdue::FontSettings::default()).unwrap();
 
-        let atlas_image =
-            DynamicImage::ImageLuma8(image::GrayImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE));
+        let atlas_image = match mode {
+            FontMode::Raster => {
+                DynamicImage::ImageLuma8(image::GrayImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE))
+            }
+            FontMode::Msdf => {
+                DynamicImage::ImageRgba8(image::RgbaImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE))
+            }
+        };
 
         let atlas_texture = Texture::from_image(
             &render_server.device,
             &render_server.queue,
             imported_texture_cache,
             &atlas_image,
-            "default font atlas".into(),
+            Some("font atlas"),
         )
         .unwrap();
 
         // let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
 
         log::info!(
-            "Loading font file took {} milliseconds",
-            now.elapsed().as_millis()
+            "Loading font file took {} milliseconds (Mode: {:?})",
+            now.elapsed().as_millis(),
+            mode
         );
 
         Self {
             raw_font_data,
             fontdue_font,
-            size: 32,
+            size: if mode == FontMode::Msdf { 64 } else { 32 }, // MSDF typically needs larger source
+            mode,
             atlas_image,
             atlas_texture,
             updated_atlas_region: None,
@@ -214,6 +232,19 @@ impl DynamicFont {
                         size,
                     );
                 }
+                DynamicImage::ImageRgba8(rgba) => {
+                    queue.write_texture(
+                        img_copy_texture,
+                        &rgba,
+                        wgpu::TexelCopyBufferLayout {
+                            offset: (region.min_y() * FONT_ATLAS_SIZE as i32 * 4
+                                + region.min_x() * 4) as wgpu::BufferAddress,
+                            bytes_per_row: Some(FONT_ATLAS_SIZE * 4),
+                            rows_per_image: Some(FONT_ATLAS_SIZE),
+                        },
+                        size,
+                    );
+                }
                 _ => {}
             }
 
@@ -223,8 +254,14 @@ impl DynamicFont {
 
     pub(crate) fn reset_atlas(&mut self) {
         log::info!("Font atlas full. Resetting...");
-        self.atlas_image =
-            DynamicImage::ImageLuma8(image::GrayImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE));
+        self.atlas_image = match self.mode {
+            FontMode::Raster => {
+                DynamicImage::ImageLuma8(image::GrayImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE))
+            }
+            FontMode::Msdf => {
+                DynamicImage::ImageRgba8(image::RgbaImage::new(FONT_ATLAS_SIZE, FONT_ATLAS_SIZE))
+            }
+        };
         self.glyph_cache.clear();
         self.next_glyph_position = UVec2::new(0, 0);
         self.max_height_of_current_row = 0;
@@ -380,61 +417,6 @@ impl DynamicFont {
                     //                        image::ColorType::L8).unwrap();
                     // }
 
-                    // Add to the atlas.
-                    let region;
-                    if index != 0 {
-                        // Advance atlas row if necessary.
-                        if self.next_glyph_position.x + metrics.width as u32 > FONT_ATLAS_SIZE {
-                            self.next_glyph_position.x = 0;
-                            self.next_glyph_position.y += self.max_height_of_current_row;
-                            self.max_height_of_current_row = 0;
-                        }
-
-                        // Check if we ran out of space in the atlas.
-                        if self.next_glyph_position.y + metrics.height as u32 > FONT_ATLAS_SIZE {
-                            self.reset_atlas();
-                            // We need to re-rasterize or skip this glyph and continue.
-                            // For simplicity, we just return empty results for this frame
-                            // and the glyphs will be cached properly in the next pass.
-                            return (vec![], vec![]);
-                        }
-
-                        for col in 0..metrics.width {
-                            for row in 0..metrics.height {
-                                let x = self.next_glyph_position.x + col as u32;
-                                let y = self.next_glyph_position.y + row as u32;
-
-                                match &mut self.atlas_image {
-                                    DynamicImage::ImageLuma8(img) => {
-                                        img.put_pixel(
-                                            x,
-                                            y,
-                                            Luma([bitmap[row * metrics.width + col]]),
-                                        );
-                                    }
-                                    _ => {
-                                        panic!()
-                                    }
-                                }
-                            }
-                        }
-
-                        region = Some(RectI::new(
-                            Vector2I::new(
-                                self.next_glyph_position.x as i32,
-                                self.next_glyph_position.y as i32,
-                            ),
-                            Vector2I::new(metrics.width as i32, metrics.height as i32),
-                        ));
-
-                        self.next_glyph_position.x += metrics.width as u32;
-
-                        self.max_height_of_current_row =
-                            max(self.max_height_of_current_row, metrics.height as u32);
-                    } else {
-                        region = None;
-                    }
-
                     let _run_bytes = run_text.bytes().collect::<Vec<u8>>();
                     let glyph_text = run_text[cluster_range.clone()].to_string();
 
@@ -452,31 +434,122 @@ impl DynamicFont {
                             break_property(glyph_text.chars().last().unwrap() as u32);
                     }
 
-                    let glyph = Glyph {
-                        index,
-                        text: glyph_text,
-                        unicode_characters,
-                        offset: IVec2::new(metrics.xmin, -metrics.ymin),
-                        bitmap_size: IVec2::new(metrics.width as i32, metrics.height as i32),
-                        bounds: Vec4::new(
-                            metrics.bounds.xmin,
-                            metrics.bounds.ymin,
-                            metrics.bounds.xmin + metrics.bounds.width,
-                            metrics.bounds.ymin + metrics.bounds.height,
-                        ),
-                        x_adv: (pos.x_advance as f32 * self.size as f32 / units_per_em as f32)
-                            .round() as i32,
-                        region,
-                        break_property: glyph_break_property,
-                    };
-
+                    // Add to the atlas.
+                    let region;
+                    let glyph;
                     if index != 0 {
+                        let (final_bitmap, final_width, final_height, final_metrics) =
+                            if self.mode == FontMode::Msdf {
+                                // 为 SDF 增加 Padding，以便距离场能向外扩散
+                                let padding = 4;
+                                let spread = 4.0;
+                                let (sdf_data, w, h) =
+                                    generate_sdf(&bitmap, metrics.width, metrics.height, padding, spread);
+
+                                let mut rgba_data = Vec::with_capacity(w * h * 4);
+                                for val in sdf_data {
+                                    rgba_data.extend_from_slice(&[val, val, val, 255]);
+                                }
+
+                                let mut m = metrics.clone();
+                                m.width = w;
+                                m.height = h;
+                                m.xmin -= padding as i32;
+                                m.ymin -= padding as i32;
+
+                                (rgba_data, w, h, m)
+                            } else {
+                                (bitmap, metrics.width, metrics.height, metrics)
+                            };
+
+                        // Advance atlas row if necessary.
+                        if self.next_glyph_position.x + final_width as u32 > FONT_ATLAS_SIZE {
+                            self.next_glyph_position.x = 0;
+                            self.next_glyph_position.y += self.max_height_of_current_row;
+                            self.max_height_of_current_row = 0;
+                        }
+
+                        // Check if we ran out of space in the atlas.
+                        if self.next_glyph_position.y + final_height as u32 > FONT_ATLAS_SIZE {
+                            self.reset_atlas();
+                            return (vec![], vec![]);
+                        }
+
+                        for col in 0..final_width {
+                            for row in 0..final_height {
+                                let x = self.next_glyph_position.x + col as u32;
+                                let y = self.next_glyph_position.y + row as u32;
+
+                                let pixel_idx = row * final_width + col;
+                                match &mut self.atlas_image {
+                                    DynamicImage::ImageLuma8(img) => {
+                                        img.put_pixel(x, y, Luma([final_bitmap[pixel_idx]]));
+                                    }
+                                    DynamicImage::ImageRgba8(img) => {
+                                        let r = final_bitmap[pixel_idx * 4];
+                                        let g = final_bitmap[pixel_idx * 4 + 1];
+                                        let b = final_bitmap[pixel_idx * 4 + 2];
+                                        let a = final_bitmap[pixel_idx * 4 + 3];
+                                        img.put_pixel(x, y, image::Rgba([r, g, b, a]));
+                                    }
+                                    _ => panic!("Unsupported atlas format"),
+                                }
+                            }
+                        }
+
+                        region = Some(RectI::new(
+                            Vector2I::new(
+                                self.next_glyph_position.x as i32,
+                                self.next_glyph_position.y as i32,
+                            ),
+                            Vector2I::new(final_width as i32, final_height as i32),
+                        ));
+
+                        self.next_glyph_position.x += final_width as u32;
+                        self.max_height_of_current_row =
+                            max(self.max_height_of_current_row, final_height as u32);
+
+                        glyph = Glyph {
+                            index,
+                            text: glyph_text,
+                            unicode_characters,
+                            offset: IVec2::new(final_metrics.xmin, -final_metrics.ymin),
+                            bitmap_size: IVec2::new(
+                                final_metrics.width as i32,
+                                final_metrics.height as i32,
+                            ),
+                            bounds: Vec4::new(
+                                final_metrics.bounds.xmin,
+                                final_metrics.bounds.ymin,
+                                final_metrics.bounds.xmin + final_metrics.bounds.width,
+                                final_metrics.bounds.ymin + final_metrics.bounds.height,
+                            ),
+                            x_adv: (pos.x_advance as f32 * self.size as f32 / units_per_em as f32)
+                                .round() as i32,
+                            region,
+                            break_property: glyph_break_property,
+                        };
+
                         self.glyph_cache.insert(index, glyph.clone());
-                        log::trace!(
-                            "New glyph added to font cache: {} - {}",
-                            glyph.index,
-                            glyph.text
-                        );
+                    } else {
+                        region = None;
+                        glyph = Glyph {
+                            index,
+                            text: glyph_text,
+                            unicode_characters,
+                            offset: IVec2::new(metrics.xmin, -metrics.ymin),
+                            bitmap_size: IVec2::new(metrics.width as i32, metrics.height as i32),
+                            bounds: Vec4::new(
+                                metrics.bounds.xmin,
+                                metrics.bounds.ymin,
+                                metrics.bounds.xmin + metrics.bounds.width,
+                                metrics.bounds.ymin + metrics.bounds.height,
+                            ),
+                            x_adv: (pos.x_advance as f32 * self.size as f32 / units_per_em as f32)
+                                .round() as i32,
+                            region,
+                            break_property: glyph_break_property,
+                        };
                     }
 
                     // Add this region to the total atlas region that we need to update.
@@ -508,6 +581,63 @@ impl DynamicFont {
 
         (glyphs, glyph_paras)
     }
+}
+
+fn generate_sdf(
+    bitmap: &[u8],
+    width: usize,
+    height: usize,
+    padding: usize,
+    spread: f32,
+) -> (Vec<u8>, usize, usize) {
+    let new_width = width + padding * 2;
+    let new_height = height + padding * 2;
+    let mut sdf = vec![0u8; new_width * new_height];
+
+    let get_val = |x: isize, y: isize| -> bool {
+        if x < 0 || x >= width as isize || y < 0 || y >= height as isize {
+            false
+        } else {
+            bitmap[y as usize * width + x as usize] > 127
+        }
+    };
+
+    for y in 0..new_height {
+        for x in 0..new_width {
+            let old_x = x as isize - padding as isize;
+            let old_y = y as isize - padding as isize;
+
+            let is_inside = get_val(old_x, old_y);
+            let mut min_dist_sq = spread * spread;
+
+            let search_radius = spread.ceil() as isize;
+            for dy in -search_radius..=search_radius {
+                for dx in -search_radius..=search_radius {
+                    let nx = old_x + dx;
+                    let ny = old_y + dy;
+
+                    if get_val(nx, ny) != is_inside {
+                        let dist_sq = (dx as f32).powi(2) + (dy as f32).powi(2);
+                        if dist_sq < min_dist_sq {
+                            min_dist_sq = dist_sq;
+                        }
+                    }
+                }
+            }
+
+            let dist = min_dist_sq.sqrt();
+            let norm_dist = if is_inside {
+                0.5 + (dist / (2.0 * spread))
+            } else {
+                0.5 - (dist / (2.0 * spread))
+            };
+
+            sdf[y * new_width + x] = (norm_dist.clamp(0.0, 1.0) * 255.0) as u8;
+        }
+    }
+
+    (sdf, new_width, new_height)
+}
 
     // /// Uses allsorts for shaping.
     // /// Returned glyphs are text context independent.
@@ -712,4 +842,3 @@ impl DynamicFont {
     //
     //     (glyphs, glyph_lines)
     // }
-}
