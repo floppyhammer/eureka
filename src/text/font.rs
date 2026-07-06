@@ -10,6 +10,7 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::ops::Range;
+use std::sync::Arc;
 use std::time::Instant;
 use unicode_bidi::BidiInfo;
 use unicode_linebreak::{break_property, BreakClass};
@@ -69,8 +70,19 @@ pub(crate) struct Glyph {
 pub(crate) const FONT_ATLAS_SIZE: u32 = 2048;
 
 pub(crate) struct Font {
-    res_path: String,
-    raw_data: Vec<u8>,
+    pub(crate) raw_data: Vec<u8>,
+    pub(crate) fontdue_font: fontdue::Font,
+}
+
+impl Font {
+    pub(crate) fn from_bytes(buffer: Vec<u8>) -> Self {
+        let fontdue_font =
+            fontdue::Font::from_bytes(buffer.clone(), fontdue::FontSettings::default()).unwrap();
+        Self {
+            raw_data: buffer,
+            fontdue_font,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,10 +92,8 @@ pub enum FontMode {
 }
 
 pub(crate) struct DynamicFont {
-    /// Raw font data.
-    raw_font_data: Vec<u8>,
-
-    fontdue_font: fontdue::Font,
+    /// Shared font data.
+    pub font: Arc<Font>,
 
     /// Font size in pixel.
     pub size: u32,
@@ -119,13 +129,13 @@ impl DynamicFont {
         imported_texture_cache: &mut TextureCache,
         mode: FontMode,
     ) -> Self {
-        // Read the font data.
         let mut f = File::open(path).expect("No font file found!");
         let metadata = fs::metadata(path).expect("Unable to read font file metadata!");
         let mut buffer = vec![0; metadata.len() as usize];
         f.read(&mut buffer).expect("Font buffer overflow!");
 
-        Self::load_from_memory(buffer, render_server, imported_texture_cache, mode)
+        let font = Arc::new(Font::from_bytes(buffer));
+        Self::new(font, render_server, imported_texture_cache, mode)
     }
 
     pub(crate) fn load_from_memory(
@@ -134,13 +144,17 @@ impl DynamicFont {
         imported_texture_cache: &mut TextureCache,
         mode: FontMode,
     ) -> Self {
+        let font = Arc::new(Font::from_bytes(buffer));
+        Self::new(font, render_server, imported_texture_cache, mode)
+    }
+
+    pub(crate) fn new(
+        font: Arc<Font>,
+        render_server: &RenderContext,
+        imported_texture_cache: &mut TextureCache,
+        mode: FontMode,
+    ) -> Self {
         let now = Instant::now();
-
-        // Clone the raw data, as it will be consumed when we create a fontdue font below.
-        let raw_font_data = buffer.clone();
-
-        let fontdue_font =
-            fontdue::Font::from_bytes(buffer, fontdue::FontSettings::default()).unwrap();
 
         let atlas_image = match mode {
             FontMode::Raster => {
@@ -160,18 +174,15 @@ impl DynamicFont {
         )
         .unwrap();
 
-        // let atlas_bind_group = render_server.create_sprite2d_bind_group(&atlas_texture);
-
         log::info!(
-            "Loading font file took {} milliseconds (Mode: {:?})",
+            "Loading dynamic font took {} milliseconds (Mode: {:?})",
             now.elapsed().as_millis(),
             mode
         );
 
         Self {
-            raw_font_data,
-            fontdue_font,
-            size: if mode == FontMode::Msdf { 128 } else { 32 }, // MSDF 需要更高的源分辨率
+            font,
+            size: if mode == FontMode::Msdf { 128 } else { 32 },
             mode,
             atlas_image,
             atlas_texture,
@@ -184,11 +195,13 @@ impl DynamicFont {
 
     pub(crate) fn get_ascent(&mut self) -> f32 {
         let metrics = self
+            .font
             .fontdue_font
             .horizontal_line_metrics(self.size as f32)
             .unwrap();
         return metrics.ascent;
     }
+
 
     /// Upload atlas data to the atlas texture.
     pub(crate) fn upload(
@@ -284,7 +297,7 @@ impl DynamicFont {
         //     println!("Character: {}", c);
         // }
 
-        let face = rustybuzz::Face::from_slice(&self.raw_font_data, 0).unwrap();
+        let face = rustybuzz::Face::from_slice(&self.font.raw_data, 0).unwrap();
 
         let units_per_em = face.units_per_em();
 
@@ -405,7 +418,7 @@ impl DynamicFont {
 
                     // Rasterize and get the layout metrics for the character.
                     let (metrics, bitmap) =
-                        self.fontdue_font.rasterize_indexed(index, self.size as f32);
+                        self.font.fontdue_font.rasterize_indexed(index, self.size as f32);
 
                     // For debugging.
                     // let buffer: &[u8] = &bitmap;

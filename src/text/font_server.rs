@@ -6,6 +6,7 @@ use crate::render::{RenderContext, TextureCache};
 use crate::text::{DynamicFont, FONT_ATLAS_SIZE};
 use glam::{Vec2, Vec4};
 use std::collections::HashMap;
+use std::sync::Arc;
 use unicode_linebreak::BreakClass;
 
 pub struct FontServer {
@@ -64,14 +65,16 @@ impl FontServer {
         // 处理缓存中的 Buffer，并根据需要派生 MSDF 模式
         let cached_paths: Vec<_> = temp_buffer_cache.keys().cloned().collect();
         for actual_path in cached_paths {
-            let buffer = temp_buffer_cache.get(&actual_path).unwrap();
+            let buffer = temp_buffer_cache.remove(&actual_path).unwrap();
             let path_str = actual_path.to_string_lossy().to_string();
+
+            let font_asset = Arc::new(crate::text::Font::from_bytes(buffer));
 
             // 1. 创建原始模式（Raster）
             let raster_key = if path_str.starts_with("system://") { "default".to_string() } else { path_str.clone() };
             if !self.fonts.contains_key(&raster_key) {
-                let font = crate::text::DynamicFont::load_from_memory(
-                    buffer.clone(),
+                let font = crate::text::DynamicFont::new(
+                    font_asset.clone(),
                     render_server,
                     imported_texture_cache,
                     crate::text::FontMode::Raster,
@@ -84,8 +87,8 @@ impl FontServer {
             let msdf_key = path_str.replace(".ttf", "_msdf.ttf");
             if !self.fonts.contains_key(&msdf_key) {
                 log::info!("Auto-creating MSDF variant for font: {}", path_str);
-                let font = crate::text::DynamicFont::load_from_memory(
-                    buffer.clone(),
+                let font = crate::text::DynamicFont::new(
+                    font_asset,
                     render_server,
                     imported_texture_cache,
                     crate::text::FontMode::Msdf,

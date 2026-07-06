@@ -158,11 +158,11 @@ impl App {
             .contains(&wgpu::PresentMode::Mailbox)
         {
             wgpu::PresentMode::Mailbox
-        } else if surface_capabilities
-            .present_modes
-            .contains(&wgpu::PresentMode::Immediate)
-        {
-            wgpu::PresentMode::Immediate
+        // } else if surface_capabilities
+        //     .present_modes
+        //     .contains(&wgpu::PresentMode::Immediate)
+        // {
+        //     wgpu::PresentMode::Immediate
         } else {
             wgpu::PresentMode::Fifo
         };
