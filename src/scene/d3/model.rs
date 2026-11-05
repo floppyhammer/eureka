@@ -1,5 +1,3 @@
-use crate::animation::property::PropertyProvider;
-use crate::core::Singletons;
 use crate::math::aabb::Aabb;
 use crate::math::transform::Transform3d;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard};
@@ -11,7 +9,6 @@ use crate::render::{
 use anyhow::Context;
 use anyhow::*;
 use glam::{Mat4, Quat, Vec2, Vec3};
-use std::any::Any;
 use std::path::{Path, PathBuf};
 use std::result::Result::Ok;
 use tobj::LoadOptions;

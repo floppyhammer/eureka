@@ -4,7 +4,7 @@ use crate::render::render_graph::{
     standard_resources, FrameContext, Node,
 };
 use crate::render::vertex::{Vertex3d, VertexBuffer};
-use crate::render::{create_render_pipeline_with_entry, InstanceRaw, Texture};
+use crate::render::{InstanceRaw, Texture};
 use std::any::Any;
 use wgpu::BufferAddress;
 

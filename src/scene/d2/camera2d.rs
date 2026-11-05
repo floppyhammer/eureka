@@ -1,4 +1,4 @@
-use crate::render::camera::{CameraUniform, OrthographicProjection};
+use crate::render::camera::CameraUniform;
 use glam::{Mat4, UVec2};
 
 pub struct Camera2dComponent {
@@ -24,9 +24,14 @@ impl Camera2dComponent {
 
         let view_mat = self.calc_view_matrix(global_transform);
 
-        let mut projection = OrthographicProjection::default();
-        projection.update(self.viewport_size.x as f32, self.viewport_size.y as f32);
-        let proj_mat = projection.calc_matrix();
+        let proj_mat = Mat4::orthographic_rh(
+            0.0,
+            self.viewport_size.x as f32,
+            self.viewport_size.y as f32,
+            0.0,
+            -100.0,
+            100.0,
+        );
 
         let (_, _, translation) = global_transform.to_scale_rotation_translation();
 

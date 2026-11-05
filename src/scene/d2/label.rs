@@ -15,7 +15,7 @@ pub struct LabelComponent {
     pub single_line: bool,
     pub leading: f32,
     pub tracking: f32,
-    pub atlas: Option<Atlas>,
+    pub(crate) atlas: Option<Atlas>,
     pub last_global_transform: Transform2d,
     pub mode: TextMode,
 }
