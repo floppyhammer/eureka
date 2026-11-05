@@ -55,7 +55,16 @@ pub struct ResourcePool {
 
     /// 持久化资源（Persistent）。
     /// 不参与瞬时复用逻辑，通常由用户手动管理其生命周期，常用于 SwapChain 或长期存在的 G-Buffer。
-    persistent_resources: HashMap<String, (VirtualResource, ResourceKey)>,
+    persistent_resources: HashMap<u64, (VirtualResource, ResourceKey)>,
+}
+
+#[inline]
+fn compute_persistent_hash(name: &str, version: u64) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    name.hash(&mut hasher);
+    version.hash(&mut hasher);
+    hasher.finish()
 }
 
 impl ResourcePool {
@@ -192,12 +201,23 @@ impl ResourcePool {
         name: &str,
         key: TextureKey,
     ) -> Texture {
-        if let Some((VirtualResource::Texture(t), old_key)) = self.persistent_resources.get(name) {
+        let key_hash = compute_persistent_hash(name, 0);
+        self.acquire_persistent_texture_by_hash(device, key_hash, Some(name), key)
+    }
+
+    pub fn acquire_persistent_texture_by_hash(
+        &mut self,
+        device: &wgpu::Device,
+        key_hash: u64,
+        label: Option<&str>,
+        key: TextureKey,
+    ) -> Texture {
+        if let Some((VirtualResource::Texture(t), old_key)) = self.persistent_resources.get(&key_hash) {
             if let ResourceKey::Texture(old_texture_key) = old_key {
                 if old_texture_key == &key {
                     return t.clone();
                 } else {
-                    log::info!("Persistent texture '{}' resized. Recreating...", name);
+                    log::info!("Persistent texture [{:?}] resized. Recreating...", label.unwrap_or("persistent_texture"));
                     // 关键修复：扣除旧尺寸的统计值
                     self.total_texture_memory = self.total_texture_memory.saturating_sub(Self::estimate_texture_size(old_texture_key));
                 }
@@ -205,11 +225,11 @@ impl ResourcePool {
         }
 
         // 如果不存在或者 Key 不匹配，则移除旧的并创建新的
-        self.persistent_resources.remove(name);
+        self.persistent_resources.remove(&key_hash);
 
-        let t = self.acquire_texture_internal(device, key, Some(name));
+        let t = self.acquire_texture_internal(device, key, label);
         self.persistent_resources.insert(
-            name.to_string(),
+            key_hash,
             (
                 VirtualResource::Texture(t.clone()),
                 ResourceKey::Texture(key),
@@ -328,9 +348,9 @@ impl ResourcePool {
         // 使用 version_offset 进行索引偏移。
         // 为了处理无符号减法，我们加上 max_versions 再取模。
         let physical_index = (current_frame + max_versions - version_offset as u64) % max_versions;
-        let internal_name = format!("{}_v{}", name, physical_index);
+        let key_hash = compute_persistent_hash(name, physical_index);
 
-        self.acquire_persistent_texture(device, &internal_name, key)
+        self.acquire_persistent_texture_by_hash(device, key_hash, Some(name), key)
     }
 
     // --- 缓冲区管理 ---
@@ -349,23 +369,34 @@ impl ResourcePool {
         name: &str,
         key: BufferKey,
     ) -> PooledBuffer {
-        if let Some((VirtualResource::Buffer(b), old_key)) = self.persistent_resources.get(name) {
+        let key_hash = compute_persistent_hash(name, 0);
+        self.acquire_persistent_buffer_by_hash(device, key_hash, Some(name), key)
+    }
+
+    pub fn acquire_persistent_buffer_by_hash(
+        &mut self,
+        device: &wgpu::Device,
+        key_hash: u64,
+        label: Option<&str>,
+        key: BufferKey,
+    ) -> PooledBuffer {
+        if let Some((VirtualResource::Buffer(b), old_key)) = self.persistent_resources.get(&key_hash) {
             if let ResourceKey::Buffer(old_buffer_key) = old_key {
                 if old_buffer_key == &key {
                     return b.clone();
                 } else {
-                    log::info!("Persistent buffer '{}' changed. Recreating...", name);
+                    log::info!("Persistent buffer [{:?}] changed. Recreating...", label.unwrap_or("persistent_buffer"));
                     // 关键修复：扣除旧统计值
                     self.total_buffer_memory = self.total_buffer_memory.saturating_sub(old_buffer_key.size);
                 }
             }
         }
 
-        self.persistent_resources.remove(name);
+        self.persistent_resources.remove(&key_hash);
 
-        let (b, actual_key) = self.acquire_buffer_internal(device, key, Some(name));
+        let (b, actual_key) = self.acquire_buffer_internal(device, key, label);
         self.persistent_resources.insert(
-            name.to_string(),
+            key_hash,
             (
                 VirtualResource::Buffer(b.clone()),
                 ResourceKey::Buffer(actual_key),
@@ -455,9 +486,9 @@ impl ResourcePool {
     ) -> PooledBuffer {
         let max_versions = frames_in_flight.max(2);
         let physical_index = (current_frame + max_versions - version_offset as u64) % max_versions;
-        let internal_name = format!("{}_v{}", name, physical_index);
+        let key_hash = compute_persistent_hash(name, physical_index);
 
-        self.acquire_persistent_buffer(device, &internal_name, key)
+        self.acquire_persistent_buffer_by_hash(device, key_hash, Some(name), key)
     }
 
     // --- 采样器管理 ---

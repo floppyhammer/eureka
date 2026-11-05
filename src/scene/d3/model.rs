@@ -671,8 +671,12 @@ impl Model {
         }
 
         for m in raw.meshes {
-            let (v_offset, i_offset) =
-                global_mesh_allocator.allocate(&render_server.queue, &m.vertices, &m.indices);
+            let (v_offset, i_offset) = global_mesh_allocator.allocate(
+                &render_server.device,
+                &render_server.queue,
+                &m.vertices,
+                &m.indices,
+            );
 
             let mesh_id = global_mesh_cache.add(Mesh::new(
                 &m.name,
