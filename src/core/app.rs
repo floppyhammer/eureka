@@ -289,6 +289,25 @@ impl ApplicationHandler for App {
         attributes.title = title.to_string();
         attributes.inner_size = Some(Size::from(self.window_size));
 
+        // 针对 macOS 缺少默认居中以及缩放差异的问题进行显式定位
+        if let Some(primary_monitor) = event_loop.primary_monitor() {
+            let screen_size = primary_monitor.size(); // 获取屏幕物理像素大小
+            let scale_factor = primary_monitor.scale_factor(); // 获取 macOS Retina 缩放因子
+
+            // 将逻辑尺寸转换为当前屏幕对应的物理像素大小
+            let window_physical_size = self.window_size.to_physical::<u32>(scale_factor);
+
+            // 计算完美的居中坐标 (x, y)
+            let x = screen_size.width.saturating_sub(window_physical_size.width) / 2;
+            let y = screen_size.height.saturating_sub(window_physical_size.height) / 2;
+
+            attributes.position = Some(winit::dpi::Position::Physical(
+                winit::dpi::PhysicalPosition::new(x as i32, y as i32)
+            ));
+
+            self.scale_factor = scale_factor;
+        }
+
         let window = Arc::new(event_loop.create_window(attributes).unwrap());
         self.window = Some(window.clone());
 
