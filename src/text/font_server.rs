@@ -169,7 +169,7 @@ impl FontServer {
             }
 
             layout_pos.x = 0.0;
-            layout_pos.y += (font.size as f32 + leading);
+            layout_pos.y += font.size as f32 + leading;
         }
 
         Atlas {
