@@ -1,7 +1,7 @@
 use crate::render::render_backend::{PreparedFrame, RenderBackend};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
-use crate::render::render_graph::{standard_resources, BloomNode, ClearNode, CullingNode, FxaaNode, IBLNode, LightCullingNode, MeshNode, Node, PrePassNode, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, SsgiNode, SsrNode, IndirectApplyNode, TaaNode, ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode};
+use crate::render::render_graph::{standard_resources, BloomNode, ClearNode, CullingNode, DepthPyramidNode, FxaaNode, IBLNode, LightCullingNode, MeshNode, Node, PrePassNode, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, SsgiNode, SsrNode, IndirectApplyNode, TaaNode, ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode};
 use crate::render::RenderContext;
 use std::collections::{HashMap, VecDeque};
 
@@ -44,9 +44,10 @@ impl RenderGraph {
         self.add_node("prepare_materials", PrepareMaterialsNode::default());
         self.add_node("prepare_instances", PrepareInstancesNode::default());
         self.add_node("prepass", PrePassNode::default());
+        self.add_node("depth_pyramid", DepthPyramidNode::default());
+        self.add_node("culling", CullingNode::default());
         self.add_node("ibl", IBLNode::default());
         self.add_node("clear", ClearNode);
-        self.add_node("culling", CullingNode::default());
         self.add_node("shadow", ShadowNode::default());
         self.add_node("light_culling", LightCullingNode::default());
         self.add_node("volumetric", VolumetricNode::default());
@@ -64,17 +65,17 @@ impl RenderGraph {
         self.add_node("fxaa", FxaaNode::default());
         self.add_node("sprite", SpriteNode::default());
 
-        // 基础准备
-        self.add_node_edge("prepare_instances", "culling");
+        // 1. 基础准备
         self.add_node_edge("prepare_view", "culling");
+        self.add_node_edge("prepare_instances", "culling");
 
-        // PrePass 依赖
-        self.add_node_edge("prepare_view", "prepass");
-        self.add_node_edge("prepare_instances", "prepass");
-        self.add_node_edge("prepare_materials", "prepass");
+        // 2. Temporal Hi-Z 遮挡剔除流水线: Culling -> PrePass -> DepthPyramid
         self.add_node_edge("culling", "prepass");
+        self.add_node_edge("prepass", "depth_pyramid");
 
-        // 后续节点对 PrePass 的依赖
+        // 后续节点依赖 Culling 和 PrePass
+        self.add_node_edge("culling", "mesh");
+        self.add_node_edge("culling", "ssao");
         self.add_node_edge("prepass", "ssao");
         self.add_node_edge("prepass", "mesh");
         self.add_node_edge("prepass", "taa");

@@ -692,7 +692,9 @@ impl RenderBackend {
                 aabb_max: mesh.aabb.max.extend(0.0).to_array(),
                 base_instance: current_base_instance,
                 instance_count: instances.len() as u32,
-                _pad: [0; 2],
+                _pad0: 0,
+                _pad1: 0,
+                cone_axis_cutoff: [0.0, 0.0, 0.0, -1.0],
             });
 
             indirect_commands.push(wgpu::util::DrawIndexedIndirectArgs {

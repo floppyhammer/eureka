@@ -138,6 +138,20 @@ pub struct SamplerKey {
 
 impl Eq for SamplerKey {}
 
+impl SamplerKey {
+    pub fn linear_clamp() -> Self {
+        Self::default()
+    }
+
+    pub fn nearest_clamp() -> Self {
+        Self {
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        }
+    }
+}
+
 impl std::hash::Hash for SamplerKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.address_mode_u.hash(state);
@@ -445,12 +459,20 @@ pub mod standard_resources {
         ResourceId::new("cull_indirect_buffer")
     }
 
+    pub fn prepass_indirect_buffer() -> BufferId {
+        ResourceId::new("prepass_indirect_buffer")
+    }
+
     pub fn transparent_instance_buffer() -> BufferId {
         ResourceId::new("transparent_instance_buffer")
     }
 
     pub fn cull_params_uniform() -> BufferId {
         ResourceId::new("cull_params_uniform")
+    }
+
+    pub fn hiz_depth_pyramid() -> TextureId {
+        ResourceId::new("hiz_depth_pyramid")
     }
 
     pub fn shadow_cascade_buffer() -> BufferId {

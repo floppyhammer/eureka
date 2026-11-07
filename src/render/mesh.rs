@@ -170,7 +170,9 @@ pub(crate) struct MeshMetadata {
     pub(crate) aabb_max: [f32; 4],
     pub(crate) base_instance: u32,
     pub(crate) instance_count: u32,
-    pub(crate) _pad: [u32; 2],
+    pub(crate) _pad0: u32,
+    pub(crate) _pad1: u32,
+    pub(crate) cone_axis_cutoff: [f32; 4],
 }
 
 pub struct MeshRenderResources {

@@ -1,23 +1,32 @@
 use crate::render::camera::{CameraType, CameraUniform};
 use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{
-    standard_resources, FrameContext, Node, NodeResources, ResourceSpec,
+    standard_resources, FrameContext, Node, NodeResources, ResourceSpec, SamplerKey,
 };
 use crate::render::InstanceRaw;
 use std::any::Any;
 use wgpu::BufferAddress;
 
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub(crate) struct CullParams {
+    pub total_instances: u32,
+    pub screen_width: u32,
+    pub screen_height: u32,
+    pub max_mip_level: u32,
+    pub depth_mode: u32, // 0: Standard Depth, 1: Reverse-Z
+    pub use_hiz: u32,    // 0: Disable Hi-Z test, 1: Enable Hi-Z test
+    pub _pad0: u32,
+    pub _pad1: u32,
+}
+
 /// CullingNode 负责在 GPU 端实现高效的实例剔除 (Instance Culling)。
 ///
-/// 它的主要职责是利用 Compute Shader 进行视锥体剔除 (Frustum Culling)，流程如下：
-/// 1. **并行判定**: 每个 GPU 线程处理一个实例，将其 AABB 转换到裁剪空间，判断是否在视锥体内。
-/// 2. **原子计数**: 使用原子操作统计每个 Mesh 的可见实例数量。
-/// 3. **构建间接绘制指令**: 动态更新 `IndirectBuffer` 中的实例数量，使后续渲染节点能通过
-///    `multi_draw_indexed_indirect` 一次性画出所有可见物体。
-/// 4. **生成可见实例缓冲**: 将可见实例的数据紧凑地重新排列到 `cull_visible_instance_buffer` 中。
-///
-/// 通过该节点，CPU 仅需提交一次庞大的实例数据，后续每帧的剔除工作完全在 GPU 端异步完成，
-/// 极大地减轻了 CPU 在 Draw Call 管理上的负担。
+/// 它的主要职责是利用 Compute Shader 进行统一短路剔除流水线：
+/// 1. **视锥体剔除 (Frustum Culling)**: 每个 GPU 线程处理一个实例，进行 Early Exit。
+/// 2. **法线锥背面剔除 (Normal Cone Culling)**: 对 Sub-mesh / Meshlet 包围体做背面剔除。
+/// 3. **Hi-Z 遮挡剔除 (Hi-Z Occlusion Culling)**: 将 AABB 投影到屏幕 UV 空间，在上一帧的 Hi-Z 金字塔上做采样比对。
+/// 4. **原子计数 & 生成可见缓冲**: 将通过测试的可见实例紧凑写入 `cull_visible_instance_buffer`。
 pub struct CullingNode {
     pipeline: Option<wgpu::ComputePipeline>,
 }
@@ -62,6 +71,19 @@ impl Node for CullingNode {
                     wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 ),
             )
+            .optional_input(
+                standard_resources::hiz_depth_pyramid(),
+                ResourceSpec::Texture(crate::render::render_graph::resource::TextureKey {
+                    width: 0,
+                    height: 0,
+                    format: Some(wgpu::TextureFormat::R32Float),
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::STORAGE_BINDING,
+                    layers: 1,
+                    mip_levels: 12,
+                    dimension: wgpu::TextureDimension::D2,
+                }),
+            )
             .output(
                 standard_resources::cull_visible_instance_buffer(),
                 ResourceSpec::buffer(
@@ -81,9 +103,9 @@ impl Node for CullingNode {
                 ),
             )
             .internal(
-                standard_resources::cull_params_uniform(), // 临时资源
+                standard_resources::cull_params_uniform(),
                 ResourceSpec::buffer(
-                    16,
+                    std::mem::size_of::<CullParams>() as u64,
                     wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 ),
             )
@@ -104,16 +126,48 @@ impl Node for CullingNode {
             bytemuck::cast_slice(&context.prepared.indirect_commands),
         );
 
-        // 1. 获取逻辑上的实例总数
         let total_instances =
             (context.prepared.instance_buffer_size / size_of::<InstanceRaw>()) as u32;
 
+        let has_hiz = context.has_resource(&standard_resources::hiz_depth_pyramid());
+        let use_hiz = if context.frame_count() == 0 || !has_hiz { 0 } else { 1 };
+
+        let (screen_width, screen_height, hiz_view_id, hiz_view) = if use_hiz == 1 {
+            let tex = context.texture(&standard_resources::hiz_depth_pyramid());
+            (tex.handle.size.0, tex.handle.size.1, tex.id, tex.view)
+        } else {
+            (
+                context.render_context.surface_config.width,
+                context.render_context.surface_config.height,
+                0u64,
+                context.backend.dummy_2d_view.clone(),
+            )
+        };
+
+        let max_dim = screen_width.max(screen_height);
+        let max_mip_level = if max_dim > 0 {
+            (max_dim as f32).log2().floor() as u32
+        } else {
+            0
+        };
+
         // 2. 获取参数 Buffer 并写入
         let cull_params_buffer = context.buffer(&standard_resources::cull_params_uniform());
+        let cull_params = CullParams {
+            total_instances,
+            screen_width,
+            screen_height,
+            max_mip_level,
+            depth_mode: 0, // Standard Depth
+            use_hiz,
+            _pad0: 0,
+            _pad1: 0,
+        };
+
         context.render_context.queue.write_buffer(
             &cull_params_buffer.buffer,
             0,
-            bytemuck::cast_slice(&[total_instances]),
+            bytemuck::cast_slice(&[cull_params]),
         );
 
         let cull_bind_group_layout = context
@@ -184,6 +238,22 @@ impl Node for CullingNode {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 6,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 7,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                            count: None,
+                        },
                     ],
                     label: Some("Cull Bind Group Layout"),
                 });
@@ -228,7 +298,6 @@ impl Node for CullingNode {
 
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
-        // 找到第一个 D3 相机的索引
         let Some(camera_index) = context
             .extracted
             .cameras
@@ -242,13 +311,13 @@ impl Node for CullingNode {
         let camera_offset = camera_index as u32 * CameraUniform::get_uniform_offset_unit();
 
         let global_instance_buffer = context.buffer(&standard_resources::global_instance_buffer());
-
         let mesh_metadata_buffer = context.buffer(&standard_resources::mesh_metadata_buffer());
-
         let total_instances = context.prepared.instance_buffer_size / size_of::<InstanceRaw>();
 
         let cull_visible_instance_buffer =
             context.buffer(&standard_resources::cull_visible_instance_buffer());
+
+        let hiz_sampler = context.get_sampler(SamplerKey::nearest_clamp());
 
         let cull_bind_group = context.create_bind_group(
             "cull_bind_group_layout",
@@ -258,6 +327,7 @@ impl Node for CullingNode {
                 global_instance_buffer.id,
                 cull_visible_instance_buffer.id,
                 cull_indirect_buffer.id,
+                hiz_view_id,
             ],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -293,6 +363,14 @@ impl Node for CullingNode {
                         wgpu::BindGroupEntry {
                             binding: 5,
                             resource: cull_params_buffer.buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: wgpu::BindingResource::TextureView(&hiz_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: wgpu::BindingResource::Sampler(&hiz_sampler),
                         },
                     ],
                     label: Some("Cull Bind Group"),

@@ -1,6 +1,7 @@
 pub mod bloom;
 pub mod clear;
 pub mod culling;
+pub mod depth_pyramid;
 pub mod fxaa;
 pub mod ibl;
 pub mod light_culling;
@@ -25,6 +26,7 @@ pub mod volumetric;
 pub use bloom::*;
 pub use clear::*;
 pub use culling::*;
+pub use depth_pyramid::*;
 pub use fxaa::*;
 pub use ibl::*;
 pub use light_culling::LightCullingNode;
