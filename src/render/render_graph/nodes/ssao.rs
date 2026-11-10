@@ -1,13 +1,21 @@
 use crate::render::camera::{CameraType, CameraUniform};
 use crate::render::render_backend::PreparedFrame;
-use crate::render::render_graph::{
-    standard_resources, BufferKey, FrameContext, Node, SamplerKey, TextureKey,
-};
-use crate::render::vertex::{Vertex3d, VertexBuffer};
-use crate::render::{create_render_pipeline, InstanceRaw, Texture};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey};
+use crate::render::{create_render_pipeline, Texture, NEXT_RESOURCE_ID, NEXT_VIEW_ID};
 use glam::vec3;
 use std::any::Any;
-use wgpu::BufferAddress;
+use std::collections::HashMap;
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
+use wgpu::util::DeviceExt;
+
+/// SSAO 节点持有的静态 GPU 资源集合，生命周期归属于 SsaoNode 本身，
+/// 与 RenderGraph 管理的瞬态/每帧池化资源（Transient/Pooled）彻底隔离。
+struct SsaoStaticResources {
+    kernel_buffer: wgpu::Buffer,
+    kernel_buffer_id: u64,
+    noise_texture: Texture,
+}
 
 /// SsaoNode 实现了屏幕空间环境光遮蔽 (Screen Space Ambient Occlusion)。
 ///
@@ -20,6 +28,112 @@ use wgpu::BufferAddress;
 pub struct SsaoNode {
     ssao_pipeline: Option<wgpu::RenderPipeline>,   // Calc SSAO.
     blur_pipeline: Option<wgpu::RenderPipeline>,   // Blur SSAO.
+    static_resources: Option<SsaoStaticResources>, // 节点自有的静态资源集合（原子初始化一次）
+}
+
+impl SsaoNode {
+    fn ensure_static_resources(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if self.static_resources.is_some() {
+            return;
+        }
+
+        let mut seed = 42u32;
+
+        // 1. 静态 4x4 旋转噪声纹理 (仅生成并上传一次)
+        let mut noise_data = Vec::with_capacity(16 * 4);
+        for _ in 0..16 {
+            noise_data.push(rand_f32(&mut seed) * 2.0 - 1.0);
+            noise_data.push(rand_f32(&mut seed) * 2.0 - 1.0);
+            noise_data.push(0.0);
+            noise_data.push(0.0);
+        }
+
+        let noise_wgpu_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("SSAO Static Noise Texture"),
+            size: wgpu::Extent3d {
+                width: 4,
+                height: 4,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba32Float,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &noise_wgpu_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            bytemuck::cast_slice(&noise_data),
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * 16),
+                rows_per_image: Some(4),
+            },
+            wgpu::Extent3d {
+                width: 4,
+                height: 4,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let noise_view = noise_wgpu_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("SSAO Static Noise View"),
+            ..Default::default()
+        });
+
+        let noise_texture = Texture {
+            size: (4, 4),
+            texture: noise_wgpu_texture,
+            view: noise_view,
+            format: wgpu::TextureFormat::Rgba32Float,
+            id: NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed),
+            view_id: NEXT_VIEW_ID.fetch_add(1, Ordering::Relaxed),
+            view_cache: Arc::new(Mutex::new(HashMap::new())),
+        };
+
+        // 2. 静态 64 个半球样本核 (仅生成并上传一次)
+        let mut kernel = [0.0f32; 64 * 4];
+        for i in 0..64 {
+            let sample = vec3(
+                rand_f32(&mut seed) * 2.0 - 1.0,
+                rand_f32(&mut seed) * 2.0 - 1.0,
+                rand_f32(&mut seed),
+            )
+            .normalize()
+                * rand_f32(&mut seed);
+
+            let mut scale = i as f32 / 64.0;
+            scale = lerp(0.1, 1.0, scale * scale);
+            let sample = sample * scale;
+
+            kernel[i * 4] = sample.x;
+            kernel[i * 4 + 1] = sample.y;
+            kernel[i * 4 + 2] = sample.z;
+            kernel[i * 4 + 3] = 0.0;
+        }
+
+        let kernel_wgpu_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("SSAO Static Kernel Buffer"),
+            contents: bytemuck::cast_slice(&kernel),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        let kernel_buffer_id = NEXT_RESOURCE_ID.fetch_add(1, Ordering::Relaxed);
+
+        // 原子性一次性赋值
+        self.static_resources = Some(SsaoStaticResources {
+            kernel_buffer: kernel_wgpu_buffer,
+            kernel_buffer_id,
+            noise_texture,
+        });
+    }
 }
 
 impl Default for SsaoNode {
@@ -27,6 +141,7 @@ impl Default for SsaoNode {
         Self {
             ssao_pipeline: None,
             blur_pipeline: None,
+            static_resources: None,
         }
     }
 }
@@ -111,12 +226,6 @@ impl Node for SsaoNode {
         let camera_bind_group_layout = context
             .backend
             .get_bind_group_layout("camera_bind_group_layout")
-            .unwrap()
-            .clone();
-
-        let bindless_bind_group_layout = context
-            .backend
-            .get_bind_group_layout("bindless_bind_group_layout")
             .unwrap()
             .clone();
 
@@ -318,85 +427,15 @@ impl Node for SsaoNode {
                     occlusion_query_set: None,
                     multiview_mask: None,
                 });
+            return;
         }
 
-        // Noise texture (4x4)
-        let noise_texture = context.get_texture(
-            "SSAO Noise Texture",
-            TextureKey {
-                width: 4,
-                height: 4,
-                format: Some(wgpu::TextureFormat::Rgba32Float),
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                layers: 1,
-                mip_levels: 1,
-                dimension: wgpu::TextureDimension::D2,
-            },
-        );
+        // 仅在 SSAO 真正需要执行时确保静态 GPU 资源已初始化 (首帧生成并上传，之后零开销复用)
+        let device = &context.render_context.device;
+        let queue = &context.render_context.queue;
+        self.ensure_static_resources(device, queue);
 
-        let mut noise_data = Vec::new();
-        let mut seed = 42u32;
-        for _ in 0..16 {
-            noise_data.push(rand_f32(&mut seed) * 2.0 - 1.0);
-            noise_data.push(rand_f32(&mut seed) * 2.0 - 1.0);
-            noise_data.push(0.0);
-            noise_data.push(0.0);
-        }
-
-        context.render_context.queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &noise_texture.texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            bytemuck::cast_slice(&noise_data),
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * 16),
-                rows_per_image: Some(4),
-            },
-            wgpu::Extent3d {
-                width: 4,
-                height: 4,
-                depth_or_array_layers: 1,
-            },
-        );
-
-        // 2. Uniforms
-        let mut kernel = [0.0f32; 64 * 4];
-        for i in 0..64 {
-            let sample = vec3(
-                rand_f32(&mut seed) * 2.0 - 1.0,
-                rand_f32(&mut seed) * 2.0 - 1.0,
-                rand_f32(&mut seed),
-            )
-            .normalize()
-                * rand_f32(&mut seed);
-
-            let mut scale = i as f32 / 64.0;
-            scale = lerp(0.1, 1.0, scale * scale);
-            let sample = sample * scale;
-
-            kernel[i * 4] = sample.x;
-            kernel[i * 4 + 1] = sample.y;
-            kernel[i * 4 + 2] = sample.z;
-            kernel[i * 4 + 3] = 0.0;
-        }
-
-        let ssao_uniform_buffer = context.get_buffer(
-            "SSAO Uniform Buffer",
-            BufferKey {
-                size: size_of_val(&kernel) as u64,
-                usage: wgpu::BufferUsages::UNIFORM,
-            },
-        );
-
-        context.render_context.queue.write_buffer(
-            &ssao_uniform_buffer.buffer,
-            0,
-            bytemuck::cast_slice(&kernel),
-        );
+        let static_res = self.static_resources.as_ref().unwrap();
 
         let sampler = context.get_sampler(SamplerKey {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -414,161 +453,160 @@ impl Node for SsaoNode {
             ..Default::default()
         });
 
-        if !skip_ssao {
-            let (ssao_bind_group, blur_bind_group) = {
-                let ssao_bind_group_layout = context
-                    .backend
-                    .get_bind_group_layout("ssao_bind_group_layout")
-                    .unwrap()
-                    .clone();
-                let blur_bind_group_layout = context
-                    .backend
-                    .get_bind_group_layout("blur_bind_group_layout")
-                    .unwrap()
-                    .clone();
-
-                let ssao_bind_group = context.create_bind_group(
-                    "ssao_bind_group_layout",
-                    vec![
-                        ssao_uniform_buffer.id,
-                        normal_tex.view_id,
-                        ssao_depth_tex.view_id,
-                        noise_texture.view_id,
-                    ],
-                    |ctx| {
-                        ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                            layout: &ssao_bind_group_layout,
-                            entries: &[
-                                wgpu::BindGroupEntry {
-                                    binding: 0,
-                                    resource: ssao_uniform_buffer.buffer.as_entire_binding(),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 1,
-                                    resource: wgpu::BindingResource::TextureView(&normal_tex.view),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 2,
-                                    resource: wgpu::BindingResource::Sampler(&sampler),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 3,
-                                    resource: wgpu::BindingResource::TextureView(&ssao_depth_tex.view),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 4,
-                                    resource: wgpu::BindingResource::TextureView(&noise_texture.view),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 5,
-                                    resource: wgpu::BindingResource::Sampler(&noise_sampler),
-                                },
-                            ],
-                            label: Some("SSAO Bind Group"),
-                        })
-                    },
-                );
-
-                let blur_bind_group = context.create_bind_group(
-                    "blur_bind_group_layout",
-                    vec![ssao_tex.view_id],
-                    |ctx| {
-                        ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                            layout: &blur_bind_group_layout,
-                            entries: &[
-                                wgpu::BindGroupEntry {
-                                    binding: 0,
-                                    resource: wgpu::BindingResource::TextureView(&ssao_tex.view),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 1,
-                                    resource: wgpu::BindingResource::Sampler(&sampler),
-                                },
-                            ],
-                            label: Some("SSAO Blur Bind Group"),
-                        })
-                    },
-                );
-
-                (ssao_bind_group, blur_bind_group)
-            };
-
-            let camera_bind_group_layout = context
+        let (ssao_bind_group, blur_bind_group) = {
+            let ssao_bind_group_layout = context
                 .backend
-                .get_bind_group_layout("camera_bind_group_layout")
+                .get_bind_group_layout("ssao_bind_group_layout")
+                .unwrap()
+                .clone();
+            let blur_bind_group_layout = context
+                .backend
+                .get_bind_group_layout("blur_bind_group_layout")
                 .unwrap()
                 .clone();
 
-            let camera_buffer = context.buffer(&standard_resources::camera_buffer());
-
-            let camera_bind_group =
-                context.create_bind_group("camera_bind_group_layout", vec![camera_buffer.id], |ctx| {
+            let ssao_bind_group = context.create_bind_group(
+                "ssao_bind_group_layout",
+                vec![
+                    static_res.kernel_buffer_id,
+                    normal_tex.view_id,
+                    ssao_depth_tex.view_id,
+                    static_res.noise_texture.view_id,
+                ],
+                |ctx| {
                     ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                        layout: &camera_bind_group_layout,
-                        entries: &[wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                buffer: &camera_buffer.buffer,
-                                offset: 0,
-                                size: Some(
-                                    wgpu::BufferSize::new(size_of::<CameraUniform>() as u64).unwrap(),
-                                ),
-                            }),
-                        }],
-                        label: Some("Camera Bind Group"),
+                        layout: &ssao_bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: static_res.kernel_buffer.as_entire_binding(),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::TextureView(&normal_tex.view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: wgpu::BindingResource::Sampler(&sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 3,
+                                resource: wgpu::BindingResource::TextureView(&ssao_depth_tex.view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 4,
+                                resource: wgpu::BindingResource::TextureView(&static_res.noise_texture.view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 5,
+                                resource: wgpu::BindingResource::Sampler(&noise_sampler),
+                            },
+                        ],
+                        label: Some("SSAO Bind Group"),
                     })
+                },
+            );
+
+            let blur_bind_group = context.create_bind_group(
+                "blur_bind_group_layout",
+                vec![ssao_tex.view_id],
+                |ctx| {
+                    ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        layout: &blur_bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(&ssao_tex.view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(&sampler),
+                            },
+                        ],
+                        label: Some("SSAO Blur Bind Group"),
+                    })
+                },
+            );
+
+            (ssao_bind_group, blur_bind_group)
+        };
+
+        let camera_bind_group_layout = context
+            .backend
+            .get_bind_group_layout("camera_bind_group_layout")
+            .unwrap()
+            .clone();
+
+        let camera_buffer = context.buffer(&standard_resources::camera_buffer());
+
+        let camera_bind_group =
+            context.create_bind_group("camera_bind_group_layout", vec![camera_buffer.id], |ctx| {
+                ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &camera_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &camera_buffer.buffer,
+                            offset: 0,
+                            size: Some(
+                                wgpu::BufferSize::new(size_of::<CameraUniform>() as u64).unwrap(),
+                            ),
+                        }),
+                    }],
+                    label: Some("Camera Bind Group"),
+                })
+            });
+
+        {
+            let mut render_pass = context
+                .encoder
+                .begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("SSAO Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &ssao_tex.view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
                 });
 
-            {
-                let mut render_pass = context
-                    .encoder
-                    .begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("SSAO Pass"),
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &ssao_tex.view,
-                            depth_slice: None,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                                store: wgpu::StoreOp::Store,
-                            },
-                        })],
-                        depth_stencil_attachment: None,
-                        timestamp_writes: None,
-                        occlusion_query_set: None,
-                        multiview_mask: None,
-                    });
+            let camera_offset = ssao_camera_index as u32 * CameraUniform::get_uniform_offset_unit();
+            render_pass.set_pipeline(self.ssao_pipeline.as_ref().unwrap());
+            render_pass.set_bind_group(0, &camera_bind_group, &[camera_offset]);
+            render_pass.set_bind_group(1, &ssao_bind_group, &[]);
+            render_pass.draw(0..3, 0..1);
+        }
 
-                render_pass.set_pipeline(self.ssao_pipeline.as_ref().unwrap());
-                render_pass.set_bind_group(0, &camera_bind_group, &[0]);
-                render_pass.set_bind_group(1, &ssao_bind_group, &[]);
-                render_pass.draw(0..3, 0..1);
-            }
+        {
+            let mut render_pass = context
+                .encoder
+                .begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("SSAO Blur Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &blur_tex.view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
 
-            {
-                let mut render_pass = context
-                    .encoder
-                    .begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("SSAO Blur Pass"),
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &blur_tex.view,
-                            depth_slice: None,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                                store: wgpu::StoreOp::Store,
-                            },
-                        })],
-                        depth_stencil_attachment: None,
-                        timestamp_writes: None,
-                        occlusion_query_set: None,
-                        multiview_mask: None,
-                    });
-
-                render_pass.set_pipeline(self.blur_pipeline.as_ref().unwrap());
-                render_pass.set_bind_group(0, &blur_bind_group, &[]);
-                render_pass.draw(0..3, 0..1);
-            }
+            render_pass.set_pipeline(self.blur_pipeline.as_ref().unwrap());
+            render_pass.set_bind_group(0, &blur_bind_group, &[]);
+            render_pass.draw(0..3, 0..1);
         }
     }
 }
