@@ -8,6 +8,10 @@ use crate::render::sprite::ExtractedSprite2d;
 use crate::render::{ExtractedMesh, MeshCache, RenderContext, TextureCache};
 use std::sync::{Arc, RwLock};
 
+/// 渲染快照（Render Snapshot / Frame Data）。
+/// 包含了当前帧渲染所需的所有场景数据和状态（如 2D 精灵、网格、相机、光源、天空盒以及后期处理开关等）。
+/// 在每帧开始时从主世界（Main World）提取，并通过 `RenderCommand::Render`
+/// 发送给独立的渲染后端线程（RenderBackend），实现逻辑与渲染的解耦。
 #[derive(Clone, Default)]
 pub struct Extracted {
     pub(crate) sprites: Vec<ExtractedSprite2d>,
@@ -21,13 +25,19 @@ pub struct Extracted {
     pub taa_enabled: bool,
 }
 
-/// Render frontend.
+/// 渲染世界（Render Frontend）。
+/// 负责管理渲染前端与独立渲染后端线程（RenderBackend）之间的通信通道，
+/// 以及跨帧共享的资源缓存（纹理、网格、材质）和显存分配器。
 pub struct RenderWorld {
+    /// 向渲染后端线程发送命令（如渲染快照 RenderCommand::Render、窗口大小调整 RenderCommand::Resize）的通道发送端
     pub sender: std::sync::mpsc::SyncSender<RenderCommand>,
-    /// Shared handles: material textures, sprite textures.
+    /// 共享句柄：纹理缓存
     pub imported_texture_cache: Arc<RwLock<TextureCache>>,
+    /// 共享句柄：网格缓存
     pub imported_mesh_cache: Arc<RwLock<MeshCache>>,
+    /// 共享句柄：材质缓存
     pub imported_material_cache: Arc<RwLock<MaterialCache>>,
+    /// 共享句柄：网格分配器
     pub imported_mesh_allocator: Arc<RwLock<MeshAllocator>>,
 }
 
@@ -43,6 +53,7 @@ impl RenderWorld {
         let channel_cap = (render_context.frames_in_flight.saturating_sub(1)) as usize;
         let (tx, rx) = std::sync::mpsc::sync_channel::<RenderCommand>(channel_cap.max(1));
 
+        // 初始化渲染后端（RenderBackend），负责管理 wgpu 设备交互、渲染管线、渲染图（RenderGraph）及表面配置
         let mut backend = RenderBackend::new(
             &render_context,
             surface,
@@ -52,6 +63,10 @@ impl RenderWorld {
             imported_mesh_allocator.clone(),
         );
 
+        // 启动独立的渲染线程。
+        // 该线程循环接收来自主线程的 RenderCommand 命令：
+        // 1. RenderCommand::Render(extracted)：接收渲染快照并调用 backend.run 执行一帧的图形渲染。
+        // 2. RenderCommand::Resize(w, h)：处理窗口大小改变，重新配置 surface 并清理旧分辨率的显存缓存，防止显存泄漏。
         std::thread::spawn(move || {
             let mut render_context = render_context;
             while let Ok(cmd) = rx.recv() {

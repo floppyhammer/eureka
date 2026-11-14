@@ -153,7 +153,7 @@ impl Node for SsaoNode {
 
     fn node_resources(
         &self,
-        prepared: &PreparedFrame,
+        _prepared: &PreparedFrame,
     ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;

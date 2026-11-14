@@ -3,6 +3,11 @@ use crate::render::render_graph::{standard_resources, SamplerKey};
 use crate::render::render_graph::{FrameContext, Node};
 use std::any::Any;
 
+/// 在现实世界或相机镜头中，当有极亮的物体（如太阳、霓虹灯、爆炸闪光）出现时，
+/// 光线进入相机镜片内部会发生多次散射与折射，导致光芒向外“溢出”，
+/// 在亮光源周围形成一层柔和的光晕（Glare / Bloom）。
+/// 在计算机图形学中，Bloom 的目标就是模拟这种物理光学现象，增强画面的真实感、亮度感和沉浸感。
+
 pub struct BloomNode {
     downsample_pipeline: Option<wgpu::RenderPipeline>,
     upsample_pipeline: Option<wgpu::RenderPipeline>,
