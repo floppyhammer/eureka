@@ -1,15 +1,31 @@
 use crate::render::render_backend::PreparedFrame;
-use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureKey};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureId, TextureKey};
 use crate::render::Texture;
 use std::any::Any;
 
 pub struct SsrNode {
     pipeline: Option<wgpu::RenderPipeline>,
+    input_slot: TextureId,
+    output_slot: TextureId,
 }
 
 impl Default for SsrNode {
     fn default() -> Self {
-        Self { pipeline: None }
+        Self {
+            pipeline: None,
+            input_slot: standard_resources::taa_output(),
+            output_slot: standard_resources::ssr_output(),
+        }
+    }
+}
+
+impl SsrNode {
+    pub fn with_slots(input: TextureId, output: TextureId) -> Self {
+        Self {
+            pipeline: None,
+            input_slot: input,
+            output_slot: output,
+        }
     }
 }
 
@@ -58,7 +74,7 @@ impl Node for SsrNode {
 
         NodeResources::new()
             // 输入：TAA 输出的颜色、PrePass 的 normal/roughness、主深度
-            .input(standard_resources::taa_output(), hdr_spec.clone())
+            .input(self.input_slot.clone(), hdr_spec.clone())
             .input(standard_resources::prepass_normal(), normal_spec)
             .input(standard_resources::main_depth(), depth_spec)
             .input(
@@ -69,7 +85,7 @@ impl Node for SsrNode {
                 ),
             )
             // 输出：SSR 结果
-            .output(standard_resources::ssr_output(), hdr_spec)
+            .output(self.output_slot.clone(), hdr_spec)
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -173,10 +189,10 @@ impl Node for SsrNode {
                 .add_bind_group_layout("ssr_bind_group_layout", bind_group_layout);
         }
 
-        let color_texture = context.texture(&standard_resources::taa_output());
+        let color_texture = context.texture(&self.input_slot);
         let normal_texture = context.texture(&standard_resources::prepass_normal());
         let depth_texture = context.texture(&standard_resources::main_depth());
-        let output_texture = context.texture(&standard_resources::ssr_output());
+        let output_texture = context.texture(&self.output_slot);
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
         // 如果 SSR 未开启，直接清空并跳过后续绘制
@@ -220,7 +236,7 @@ impl Node for SsrNode {
             .clone();
 
         let bind_group = context.create_bind_group(
-            "ssr_bind_group",
+            "ssr_bind_group_layout",
             vec![
                 camera_buffer.id,
                 color_texture.id,

@@ -83,6 +83,9 @@ impl RenderWorld {
                         backend.render_graph.pool.clear_bind_group_cache();
                         backend.render_graph.pool.clear_transient_pools();
                     }
+                    RenderCommand::UpdateConfig(config) => {
+                        backend.set_render_config(config);
+                    }
                 }
             }
         });
@@ -94,5 +97,10 @@ impl RenderWorld {
             imported_material_cache,
             imported_mesh_allocator,
         }
+    }
+
+    /// 向渲染后端发送最新的 RenderGraphConfig。如果配置改变，渲染后端会自动重构 RenderGraph。
+    pub fn update_render_config(&self, config: crate::render::render_graph::RenderGraphConfig) {
+        let _ = self.sender.send(RenderCommand::UpdateConfig(config));
     }
 }

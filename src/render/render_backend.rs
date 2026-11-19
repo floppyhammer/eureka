@@ -1,6 +1,9 @@
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard, MaterialUniform};
 use crate::render::mesh_allocator::MeshAllocator;
-use crate::render::render_graph::RenderGraph;
+use crate::render::render_graph::{
+    AntiAliasingMode, RenderGraph, RenderGraphConfig, SsaoConfig, SsgiConfig, SsrConfig,
+    VolumetricConfig,
+};
 use crate::render::render_world::Extracted;
 use crate::render::sky::{prepare_sky, SkyImportedResources};
 use crate::render::sprite::ExtractedSprite2d;
@@ -49,11 +52,14 @@ pub struct TransparentBatch {
 pub enum RenderCommand {
     Render(Extracted),
     Resize(u32, u32),
+    UpdateConfig(RenderGraphConfig),
 }
 
 /// 运行在独立线程的渲染后端
 pub struct RenderBackend {
     pub(crate) surface: wgpu::Surface<'static>,
+    /// 当前启用的渲染图配置
+    pub(crate) active_config: RenderGraphConfig,
     /// 渲染图，各帧共享
     pub(crate) render_graph: RenderGraph,
     // 保存一些各帧共享的资源
@@ -61,6 +67,8 @@ pub struct RenderBackend {
     pub(crate) dummy_2d_view: wgpu::TextureView,
     pub(crate) dummy_cube_texture: Arc<wgpu::Texture>,
     pub(crate) dummy_cube_view: wgpu::TextureView,
+    pub(crate) dummy_3d_texture: Arc<wgpu::Texture>,
+    pub(crate) dummy_3d_view: wgpu::TextureView,
     // 共享缓存
     pub(crate) imported_texture_cache: Arc<RwLock<TextureCache>>,
     pub(crate) imported_material_cache: Arc<RwLock<MaterialCache>>,
@@ -125,14 +133,35 @@ impl RenderBackend {
                 view_formats: &[],
             });
 
+        let dummy_3d_texture = render_server
+            .device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("dummy 3d texture"),
+                size: wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D3,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+
         let dummy_2d_view = dummy_2d_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let dummy_cube_view = dummy_cube_texture.create_view(&wgpu::TextureViewDescriptor {
             dimension: Some(wgpu::TextureViewDimension::Cube),
             ..Default::default()
         });
+        let dummy_3d_view = dummy_3d_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D3),
+            ..Default::default()
+        });
 
-        let mut render_graph = RenderGraph::new();
-        render_graph.setup_standard_nodes();
+        let active_config = RenderGraphConfig::default();
+        let render_graph = RenderGraph::build_from_config(active_config.clone());
 
         // --- GPU Profiling Setup ---
         let mut timestamp_query_set = None;
@@ -186,10 +215,13 @@ impl RenderBackend {
 
         Self {
             surface,
+            active_config,
             dummy_2d_texture: Arc::new(dummy_2d_texture),
             dummy_2d_view,
             dummy_cube_texture: Arc::new(dummy_cube_texture),
             dummy_cube_view,
+            dummy_3d_texture: Arc::new(dummy_3d_texture),
+            dummy_3d_view,
             render_graph,
             sky_imported_resources,
             imported_texture_cache,
@@ -207,8 +239,53 @@ impl RenderBackend {
         }
     }
 
+    /// 动态更新渲染图配置。若配置发生变更，则按新配置重新组装拓扑结构。
+    pub fn set_render_config(&mut self, config: RenderGraphConfig) {
+        if self.active_config != config {
+            log::info!("Rebuilding RenderGraph with updated config: {:?}", config);
+            self.render_graph = RenderGraph::build_from_config(config.clone());
+            self.active_config = config;
+        }
+    }
+
     pub fn run(&mut self, render_context: &RenderContext, mut extracted: Extracted) {
         let cpu_render_start = std::time::Instant::now();
+
+        // 动态根据 extracted / camera 状态同步渲染图配置
+        let has_volumetric = extracted.cameras.uniforms.iter().any(|u| u.volumetric_enabled != 0);
+        let has_ssr = extracted.cameras.uniforms.iter().any(|u| u.ssr_enabled != 0);
+        let has_ssgi = extracted.cameras.uniforms.iter().any(|u| u.ssgi_enabled != 0);
+
+        let new_config = RenderGraphConfig {
+            shadow: self.active_config.shadow.clone(),
+            ssao: SsaoConfig {
+                enabled: extracted.ssao_enabled,
+                ..self.active_config.ssao
+            },
+            ssgi: SsgiConfig {
+                enabled: has_ssgi,
+                ..self.active_config.ssgi
+            },
+            ssr: SsrConfig {
+                enabled: has_ssr,
+                ..self.active_config.ssr
+            },
+            volumetric: VolumetricConfig {
+                enabled: has_volumetric,
+                ..self.active_config.volumetric
+            },
+            bloom: self.active_config.bloom.clone(),
+            aa_mode: if extracted.taa_enabled {
+                AntiAliasingMode::Taa
+            } else if extracted.fxaa_enabled {
+                AntiAliasingMode::Fxaa
+            } else {
+                AntiAliasingMode::None
+            },
+            tonemapping: self.active_config.tonemapping.clone(),
+        };
+
+        self.set_render_config(new_config);
 
         // 处理旧数据并释放缓冲区
         self.process_timestamps(render_context);

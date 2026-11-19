@@ -1,14 +1,30 @@
 use crate::render::render_backend::PreparedFrame;
-use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureKey};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureId, TextureKey};
 use std::any::Any;
 
 pub struct SsgiNode {
     pipeline: Option<wgpu::RenderPipeline>,
+    input_slot: TextureId,
+    output_slot: TextureId,
 }
 
 impl Default for SsgiNode {
     fn default() -> Self {
-        Self { pipeline: None }
+        Self {
+            pipeline: None,
+            input_slot: standard_resources::taa_output(),
+            output_slot: standard_resources::ssgi_output(),
+        }
+    }
+}
+
+impl SsgiNode {
+    pub fn with_slots(input: TextureId, output: TextureId) -> Self {
+        Self {
+            pipeline: None,
+            input_slot: input,
+            output_slot: output,
+        }
     }
 }
 
@@ -35,7 +51,7 @@ impl Node for SsgiNode {
         });
 
         NodeResources::new()
-            .input(standard_resources::taa_output(), hdr_spec.clone())
+            .input(self.input_slot.clone(), hdr_spec.clone())
             .input(standard_resources::prepass_normal(), ResourceSpec::Texture(TextureKey::default()))
             .input(standard_resources::main_depth(), ResourceSpec::Texture(TextureKey::default()))
             .input(
@@ -45,7 +61,7 @@ impl Node for SsgiNode {
                     wgpu::BufferUsages::UNIFORM,
                 ),
             )
-            .output(standard_resources::ssgi_output(), hdr_spec)
+            .output(self.output_slot.clone(), hdr_spec)
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -107,10 +123,10 @@ impl Node for SsgiNode {
             context.backend.add_bind_group_layout("ssgi_bind_group_layout", bind_group_layout);
         }
 
-        let color = context.texture(&standard_resources::taa_output());
+        let color = context.texture(&self.input_slot);
         let normal = context.texture(&standard_resources::prepass_normal());
         let depth = context.texture(&standard_resources::main_depth());
-        let output = context.texture(&standard_resources::ssgi_output());
+        let output = context.texture(&self.output_slot);
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());
         let sampler = context.get_sampler(SamplerKey { mag_filter: wgpu::FilterMode::Nearest, min_filter: wgpu::FilterMode::Nearest, ..Default::default() });
         let default_sampler = context.get_sampler(SamplerKey::default());

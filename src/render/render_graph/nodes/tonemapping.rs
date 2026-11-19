@@ -1,16 +1,38 @@
 use crate::render::create_render_pipeline;
 use crate::render::render_backend::PreparedFrame;
-use crate::render::render_graph::{standard_resources, SamplerKey};
-use crate::render::render_graph::{FrameContext, Node};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureId};
 use std::any::Any;
 
 pub struct ToneMappingNode {
     pipeline: Option<wgpu::RenderPipeline>,
+    input_slot: TextureId,
+    bloom_slot: Option<TextureId>,
+    output_slot: TextureId,
 }
 
 impl Default for ToneMappingNode {
     fn default() -> Self {
-        Self { pipeline: None }
+        Self {
+            pipeline: None,
+            input_slot: standard_resources::ssr_combined(),
+            bloom_slot: Some(standard_resources::bloom_texture()),
+            output_slot: standard_resources::hdr_resolved(),
+        }
+    }
+}
+
+impl ToneMappingNode {
+    pub fn with_slots(
+        input: TextureId,
+        bloom: Option<TextureId>,
+        output: TextureId,
+    ) -> Self {
+        Self {
+            pipeline: None,
+            input_slot: input,
+            bloom_slot: bloom,
+            output_slot: output,
+        }
     }
 }
 
@@ -25,9 +47,9 @@ impl Node for ToneMappingNode {
     ) -> crate::render::render_graph::resource::NodeResources {
         use crate::render::render_graph::resource::ResourceSpec;
 
-        crate::render::render_graph::resource::NodeResources::new()
+        let mut resources = crate::render::render_graph::resource::NodeResources::new()
             .input(
-                standard_resources::ssr_combined(),
+                self.input_slot.clone(),
                 ResourceSpec::texture(
                     0,
                     0,
@@ -35,9 +57,11 @@ impl Node for ToneMappingNode {
                     wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
                     1,
                 ),
-            )
-            .input(
-                standard_resources::bloom_texture(),
+            );
+
+        if let Some(ref bloom) = self.bloom_slot {
+            resources = resources.input(
+                bloom.clone(),
                 ResourceSpec::texture(
                     0,
                     0,
@@ -45,9 +69,12 @@ impl Node for ToneMappingNode {
                     wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
                     1,
                 ),
-            )
-            .output(
-                standard_resources::hdr_resolved(), // Draw to SDR texture
+            );
+        }
+
+        if self.output_slot != standard_resources::final_output() {
+            resources = resources.output(
+                self.output_slot.clone(),
                 ResourceSpec::texture(
                     0,
                     0,
@@ -55,7 +82,10 @@ impl Node for ToneMappingNode {
                     wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
                     1,
                 ),
-            )
+            );
+        }
+
+        resources
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -126,9 +156,17 @@ impl Node for ToneMappingNode {
                 .add_bind_group_layout("tonemapping_bind_group_layout", bind_group_layout);
         }
 
-        let input_texture = context.texture(&standard_resources::ssr_combined());
-        let bloom_texture = context.texture(&standard_resources::bloom_texture());
-        let output_texture = context.texture(&standard_resources::hdr_resolved());
+        let input_texture = context.texture(&self.input_slot);
+        let (bloom_texture_view, bloom_id) = if let Some(ref bloom_id) = self.bloom_slot {
+            if context.has_resource(bloom_id) {
+                let tex = context.texture(bloom_id);
+                (tex.view.clone(), tex.id)
+            } else {
+                (context.backend.dummy_2d_view.clone(), 0)
+            }
+        } else {
+            (context.backend.dummy_2d_view.clone(), 0)
+        };
 
         let sampler = context.get_sampler(SamplerKey {
             mag_filter: wgpu::FilterMode::Linear,
@@ -144,7 +182,7 @@ impl Node for ToneMappingNode {
 
         let bind_group = context.create_bind_group(
             "tonemapping_bind_group_layout",
-            vec![input_texture.id, bloom_texture.id],
+            vec![input_texture.id, bloom_id],
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("ToneMapping Bind Group"),
@@ -160,19 +198,25 @@ impl Node for ToneMappingNode {
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,
-                            resource: wgpu::BindingResource::TextureView(&bloom_texture.view),
+                            resource: wgpu::BindingResource::TextureView(&bloom_texture_view),
                         },
                     ],
                 })
             },
         );
 
+        let output_view = if self.output_slot == standard_resources::final_output() {
+            context.final_output_view
+        } else {
+            &context.texture(&self.output_slot).view
+        };
+
         let mut render_pass = context
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Tone Mapping Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &output_texture.view,
+                    view: output_view,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {

@@ -1,7 +1,10 @@
 use crate::render::render_backend::{PreparedFrame, RenderBackend};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
-use crate::render::render_graph::{standard_resources, BloomNode, ClearNode, CullingNode, DepthPyramidNode, FxaaNode, IBLNode, LightCullingNode, MeshNode, Node, PrePassNode, PrepareInstancesNode, PrepareMaterialsNode, PrepareViewNode, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime, ResourceSpec, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, SsgiNode, SsrNode, IndirectApplyNode, TaaNode, ToneMappingNode, TransparentMeshNode, VirtualResource, VolumetricApplyNode, VolumetricNode};
+use crate::render::render_graph::{
+    standard_resources, Node, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime,
+    ResourceSpec, VirtualResource,
+};
 use crate::render::RenderContext;
 use std::collections::{HashMap, VecDeque};
 
@@ -38,78 +41,14 @@ impl RenderGraph {
         Self::default()
     }
 
-    /// 初始化标准的渲染管线节点
+    /// 根据给定的 RenderGraphConfig 构建渲染图
+    pub fn build_from_config(config: crate::render::render_graph::config::RenderGraphConfig) -> Self {
+        crate::render::render_graph::builder::RenderGraphBuilder::new(config).build()
+    }
+
+    /// 初始化标准的渲染管线节点（默认使用 High 画质配置）
     pub fn setup_standard_nodes(&mut self) {
-        self.add_node("prepare_view", PrepareViewNode::default());
-        self.add_node("prepare_materials", PrepareMaterialsNode::default());
-        self.add_node("prepare_instances", PrepareInstancesNode::default());
-        self.add_node("prepass", PrePassNode::default());
-        self.add_node("depth_pyramid", DepthPyramidNode::default());
-        self.add_node("culling", CullingNode::default());
-        self.add_node("ibl", IBLNode::default());
-        self.add_node("clear", ClearNode);
-        self.add_node("shadow", ShadowNode::default());
-        self.add_node("light_culling", LightCullingNode::default());
-        self.add_node("volumetric", VolumetricNode::default());
-        self.add_node("volumetric_apply", VolumetricApplyNode::default());
-        self.add_node("ssao", SsaoNode::default());
-        self.add_node("skybox", SkyboxNode::default());
-        self.add_node("mesh", MeshNode::default());
-        self.add_node("transparent_mesh", TransparentMeshNode::default());
-        self.add_node("taa", TaaNode::default());
-        self.add_node("ssgi", SsgiNode::default());
-        self.add_node("ssr", SsrNode::default());
-        self.add_node("indirect_apply", IndirectApplyNode::default());
-        self.add_node("bloom", BloomNode::default());
-        self.add_node("tonemapping", ToneMappingNode::default());
-        self.add_node("fxaa", FxaaNode::default());
-        self.add_node("sprite", SpriteNode::default());
-
-        // 1. 基础准备
-        self.add_node_edge("prepare_view", "culling");
-        self.add_node_edge("prepare_instances", "culling");
-
-        // 2. Temporal Hi-Z 遮挡剔除流水线: Culling -> PrePass -> DepthPyramid
-        self.add_node_edge("culling", "prepass");
-        self.add_node_edge("prepass", "depth_pyramid");
-
-        // 后续节点依赖 Culling 和 PrePass
-        self.add_node_edge("culling", "mesh");
-        self.add_node_edge("culling", "ssao");
-        self.add_node_edge("prepass", "ssao");
-        self.add_node_edge("prepass", "mesh");
-        self.add_node_edge("prepass", "taa");
-        self.add_node_edge("prepass", "ssr");
-
-        // 其它原有依赖
-        self.add_node_edge("prepare_view", "skybox");
-        self.add_node_edge("prepare_view", "light_culling");
-        self.add_node_edge("prepare_view", "volumetric");
-        self.add_node_edge("ibl", "mesh");
-        self.add_node_edge("ibl", "transparent_mesh");
-        self.add_node_edge("shadow", "volumetric");
-        self.add_node_edge("light_culling", "volumetric");
-        self.add_node_edge("shadow", "mesh");
-        self.add_node_edge("light_culling", "mesh");
-        self.add_node_edge("volumetric", "volumetric_apply");
-        self.add_node_edge("ssao", "mesh");
-        self.add_node_edge("clear", "skybox");
-        self.add_node_edge("skybox", "mesh");
-        self.add_node_edge("mesh", "volumetric_apply");
-        self.add_node_edge("volumetric_apply", "transparent_mesh");
-        self.add_node_edge("transparent_mesh", "taa");
-        self.add_node_edge("taa", "ssr");
-        self.add_node_edge("ssao", "ssr");
-        self.add_node_edge("taa", "ssgi");
-        self.add_node_edge("prepass", "ssgi");
-        self.add_node_edge("ssgi", "indirect_apply");
-        self.add_node_edge("ssr", "indirect_apply");
-        self.add_node_edge("indirect_apply", "bloom");
-        self.add_node_edge("bloom", "tonemapping");
-        self.add_node_edge("tonemapping", "fxaa");
-        self.add_node_edge("prepare_view", "sprite");
-        self.add_node_edge("prepare_materials", "sprite");
-        self.add_node_edge("fxaa", "sprite");
+        *self = Self::build_from_config(crate::render::render_graph::config::RenderGraphConfig::default());
     }
 
     /// Adds a new node to the graph.
@@ -304,10 +243,12 @@ impl RenderGraph {
                 active_resources: &mut active_resources,
             };
 
-            // 执行所有节点
+            // 执行所有可用的节点
             for node_name in execution_order {
                 if let Some(node_state) = self.nodes.get_mut(&node_name) {
-                    node_state.node.run(&mut context);
+                    if node_state.node.is_enabled(prepared) {
+                        node_state.node.run(&mut context);
+                    }
                 }
             }
         }
@@ -447,7 +388,7 @@ impl RenderGraph {
     }
 
     /// Sort node running order.
-    fn topological_sort(&self) -> Vec<String> {
+    pub(crate) fn topological_sort(&self) -> Vec<String> {
         let mut in_degree = HashMap::new();
         for (node, deps) in &self.dependencies {
             in_degree.entry(node.clone()).or_insert(0);

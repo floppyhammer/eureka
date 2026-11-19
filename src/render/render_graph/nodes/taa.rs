@@ -13,13 +13,31 @@ use std::any::Any;
 /// 3. **指数移动平均 (EMA)**: 将约束后的历史颜色与当前帧颜色进行加权混合（通常比例为 90% 历史 + 10% 当前）。
 /// 4. **亚像素抖动补偿**: 配合 `PrepareViewNode` 中的亚像素 Jitter 矩阵，在时域上累积细节，
 ///    实现超越原分辨率的抗锯齿效果。
+use crate::render::render_graph::TextureId;
+
 pub struct TaaNode {
     pipeline: Option<wgpu::RenderPipeline>,
+    input_slot: TextureId,
+    output_slot: TextureId,
 }
 
 impl Default for TaaNode {
     fn default() -> Self {
-        Self { pipeline: None }
+        Self {
+            pipeline: None,
+            input_slot: standard_resources::main_color(),
+            output_slot: standard_resources::taa_output(),
+        }
+    }
+}
+
+impl TaaNode {
+    pub fn with_slots(input: TextureId, output: TextureId) -> Self {
+        Self {
+            pipeline: None,
+            input_slot: input,
+            output_slot: output,
+        }
     }
 }
 
@@ -47,7 +65,7 @@ impl Node for TaaNode {
         });
 
         crate::render::render_graph::resource::NodeResources::new()
-            .input(standard_resources::main_color(), hdr_spec.clone())
+            .input(self.input_slot.clone(), hdr_spec.clone())
             .input(standard_resources::prepass_velocity(), ResourceSpec::Texture(TextureKey {
                 width: 0,
                 height: 0,
@@ -61,7 +79,7 @@ impl Node for TaaNode {
                 size: (size_of::<crate::render::camera::CameraUniform>() * 16) as u64,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }))
-            .output(standard_resources::taa_output(), hdr_spec)
+            .output(self.output_slot.clone(), hdr_spec)
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -153,8 +171,8 @@ impl Node for TaaNode {
                 .add_bind_group_layout("taa_bind_group_layout", bind_group_layout);
         }
 
-        let input_texture = context.texture(&standard_resources::main_color());
-        let output_texture = context.texture(&standard_resources::taa_output());
+        let input_texture = context.texture(&self.input_slot);
+        let output_texture = context.texture(&self.output_slot);
         let velocity_texture = context.texture(&standard_resources::prepass_velocity());
         let camera_buffer = context.buffer(&standard_resources::camera_buffer());
 
@@ -202,7 +220,7 @@ impl Node for TaaNode {
             .clone();
 
         let bind_group = context.create_bind_group(
-            "taa_bind_group",
+            "taa_bind_group_layout",
             vec![
                 camera_buffer.id,
                 input_texture.id,

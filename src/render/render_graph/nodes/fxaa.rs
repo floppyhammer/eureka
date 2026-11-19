@@ -1,15 +1,30 @@
 use crate::render::render_backend::PreparedFrame;
-use crate::render::render_graph::{standard_resources, SamplerKey};
-use crate::render::render_graph::{FrameContext, Node};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureId};
 use std::any::Any;
 
 pub struct FxaaNode {
     pipeline: Option<wgpu::RenderPipeline>,
+    input_slot: TextureId,
+    output_slot: TextureId,
 }
 
 impl Default for FxaaNode {
     fn default() -> Self {
-        Self { pipeline: None }
+        Self {
+            pipeline: None,
+            input_slot: standard_resources::hdr_resolved(),
+            output_slot: standard_resources::final_output(),
+        }
+    }
+}
+
+impl FxaaNode {
+    pub fn with_slots(input: TextureId, output: TextureId) -> Self {
+        Self {
+            pipeline: None,
+            input_slot: input,
+            output_slot: output,
+        }
     }
 }
 
@@ -34,16 +49,21 @@ impl Node for FxaaNode {
             dimension: wgpu::TextureDimension::D2,
         });
 
-        crate::render::render_graph::resource::NodeResources::new()
-            .input(standard_resources::hdr_resolved(), color_spec.clone())
-            .output(standard_resources::final_output(), color_spec)
+        let mut resources = crate::render::render_graph::resource::NodeResources::new()
+            .input(self.input_slot.clone(), color_spec.clone())
             .internal(
                 standard_resources::fxaa_settings(),
                 ResourceSpec::buffer(
                     4,
                     wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 ),
-            )
+            );
+
+        if self.output_slot != standard_resources::final_output() {
+            resources = resources.output(self.output_slot.clone(), color_spec);
+        }
+
+        resources
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -113,7 +133,7 @@ impl Node for FxaaNode {
                 .add_bind_group_layout("fxaa_bind_group_layout", bind_group_layout);
         }
 
-        let input_texture = context.texture(&standard_resources::hdr_resolved());
+        let input_texture = context.texture(&self.input_slot);
 
         let fxaa_enabled = context.extracted.fxaa_enabled;
         let pipeline = self.pipeline.as_ref().unwrap();
@@ -161,12 +181,18 @@ impl Node for FxaaNode {
             },
         );
 
+        let output_view = if self.output_slot == standard_resources::final_output() {
+            context.final_output_view
+        } else {
+            &context.texture(&self.output_slot).view
+        };
+
         let mut render_pass = context
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("FXAA Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &context.final_output_view,
+                    view: output_view,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {

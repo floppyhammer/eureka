@@ -1,6 +1,5 @@
 use crate::render::render_backend::PreparedFrame;
-use crate::render::render_graph::{standard_resources, SamplerKey};
-use crate::render::render_graph::{FrameContext, Node};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureId};
 use std::any::Any;
 
 /// 在现实世界或相机镜头中，当有极亮的物体（如太阳、霓虹灯、爆炸闪光）出现时，
@@ -11,6 +10,8 @@ use std::any::Any;
 pub struct BloomNode {
     downsample_pipeline: Option<wgpu::RenderPipeline>,
     upsample_pipeline: Option<wgpu::RenderPipeline>,
+    input_slot: TextureId,
+    output_slot: TextureId,
 }
 
 impl Default for BloomNode {
@@ -18,6 +19,19 @@ impl Default for BloomNode {
         Self {
             downsample_pipeline: None,
             upsample_pipeline: None,
+            input_slot: standard_resources::ssr_combined(),
+            output_slot: standard_resources::bloom_texture(),
+        }
+    }
+}
+
+impl BloomNode {
+    pub fn with_slots(input: TextureId, output: TextureId) -> Self {
+        Self {
+            downsample_pipeline: None,
+            upsample_pipeline: None,
+            input_slot: input,
+            output_slot: output,
         }
     }
 }
@@ -44,8 +58,8 @@ impl Node for BloomNode {
         });
 
         crate::render::render_graph::resource::NodeResources::new()
-            .input(standard_resources::ssr_combined(), color_spec.clone())
-            .output(standard_resources::bloom_texture(), color_spec)
+            .input(self.input_slot.clone(), color_spec.clone())
+            .output(self.output_slot.clone(), color_spec)
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -132,8 +146,8 @@ impl Node for BloomNode {
                 .add_bind_group_layout("bloom_bind_group_layout", bind_group_layout);
         }
 
-        let main_color = context.texture(&standard_resources::ssr_combined());
-        let bloom_output = context.texture(&standard_resources::bloom_texture());
+        let main_color = context.texture(&self.input_slot);
+        let bloom_output = context.texture(&self.output_slot);
 
         let sampler = context.get_sampler(SamplerKey {
             mag_filter: wgpu::FilterMode::Linear,

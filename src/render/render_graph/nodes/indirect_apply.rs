@@ -1,5 +1,5 @@
 use crate::render::render_backend::PreparedFrame;
-use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureKey};
+use crate::render::render_graph::{standard_resources, FrameContext, Node, SamplerKey, TextureId, TextureKey};
 use std::any::Any;
 
 /// IndirectApplyNode 负责将所有的间接光贡献（镜面反射 SSR 和 漫反射 SSGI）合成到主颜色缓冲中。
@@ -8,11 +8,27 @@ use std::any::Any;
 /// 可以显著减少显存带宽消耗，并保持光照计算逻辑的统一。
 pub struct IndirectApplyNode {
     pipeline: Option<wgpu::RenderPipeline>,
+    input_slot: TextureId,
+    output_slot: TextureId,
 }
 
 impl Default for IndirectApplyNode {
     fn default() -> Self {
-        Self { pipeline: None }
+        Self {
+            pipeline: None,
+            input_slot: standard_resources::taa_output(),
+            output_slot: standard_resources::ssr_combined(),
+        }
+    }
+}
+
+impl IndirectApplyNode {
+    pub fn with_slots(input: TextureId, output: TextureId) -> Self {
+        Self {
+            pipeline: None,
+            input_slot: input,
+            output_slot: output,
+        }
     }
 }
 
@@ -39,10 +55,10 @@ impl Node for IndirectApplyNode {
         });
 
         NodeResources::new()
-            .input(standard_resources::taa_output(), hdr_spec.clone())
+            .input(self.input_slot.clone(), hdr_spec.clone())
             .optional_input(standard_resources::ssr_output(), hdr_spec.clone())
             .optional_input(standard_resources::ssgi_output(), hdr_spec.clone())
-            .output(standard_resources::ssr_combined(), hdr_spec)
+            .output(self.output_slot.clone(), hdr_spec)
     }
 
     fn run(&mut self, context: &mut FrameContext) {
@@ -121,8 +137,8 @@ impl Node for IndirectApplyNode {
                 .add_bind_group_layout("indirect_apply_bind_group_layout", bind_group_layout);
         }
 
-        let color_texture = context.texture(&standard_resources::taa_output());
-        let output_texture = context.texture(&standard_resources::ssr_combined());
+        let color_texture = context.texture(&self.input_slot);
+        let output_texture = context.texture(&self.output_slot);
 
         let ssr_texture_view = if context.has_resource(&standard_resources::ssr_output()) {
             context.texture(&standard_resources::ssr_output()).view
@@ -161,7 +177,7 @@ impl Node for IndirectApplyNode {
         }
 
         let bind_group = context.create_bind_group(
-            "indirect_apply_bind_group",
+            "indirect_apply_bind_group_layout",
             resource_ids,
             |ctx| {
                 ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {

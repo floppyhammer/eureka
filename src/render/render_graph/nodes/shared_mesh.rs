@@ -92,7 +92,7 @@ pub fn common_mesh_resources(resources: NodeResources, prepared: &PreparedFrame)
             standard_resources::cluster_config_buffer(),
             ResourceSpec::buffer(0, wgpu::BufferUsages::UNIFORM),
         )
-        .input(
+        .optional_input(
             standard_resources::volumetric_lighting_texture(),
             ResourceSpec::Texture(TextureKey {
                 width: crate::render::light::CLUSTER_GRID_SIZE[0],
@@ -352,10 +352,15 @@ pub fn get_mesh_bind_groups(
         array_layer_count: Some(MAX_SHADOWED_POINT_LIGHTS as u32 * 6),
         ..Default::default()
     });
-    let vol_view = volumetric_tex.get_view(&wgpu::TextureViewDescriptor {
-        dimension: Some(wgpu::TextureViewDimension::D3),
-        ..Default::default()
-    });
+    let (vol_view0, vol_view_id) = if context.has_resource(&standard_resources::volumetric_lighting_texture()) {
+        let volumetric_tex = context.texture(&standard_resources::volumetric_lighting_texture());
+        volumetric_tex.get_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D3),
+            ..Default::default()
+        })
+    } else {
+        (context.backend.dummy_3d_view.clone(), 0)
+    };
     let (sky_view, sky_view_id) = if let Some(id) = context.backend.sky_imported_resources.texture {
         let cache = context.backend.imported_texture_cache.read().unwrap();
         let t = cache.get(id).unwrap();
@@ -378,7 +383,7 @@ pub fn get_mesh_bind_groups(
             pt_shadow_view.1,
             ssao_blur.view_id,
             sky_view_id,
-            vol_view.1,
+            vol_view_id,
             cascade_buffer.id,
             pt_storage.id,
             grid.id,
@@ -441,7 +446,7 @@ pub fn get_mesh_bind_groups(
                     },
                     wgpu::BindGroupEntry {
                         binding: 12,
-                        resource: wgpu::BindingResource::TextureView(&vol_view.0),
+                        resource: wgpu::BindingResource::TextureView(&vol_view0),
                     },
                     wgpu::BindGroupEntry {
                         binding: 13,
