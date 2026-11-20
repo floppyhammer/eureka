@@ -71,8 +71,8 @@ impl RenderWorld {
             let mut render_context = render_context;
             while let Ok(cmd) = rx.recv() {
                 match cmd {
-                    RenderCommand::Render(extracted) => {
-                        backend.run(&render_context, extracted);
+                    RenderCommand::Render(extracted, tris, textures_delta, scale_factor) => {
+                        backend.run(&render_context, extracted, tris, textures_delta, scale_factor);
                     }
                     RenderCommand::Resize(w, h) => {
                         render_context.surface_config.width = w;

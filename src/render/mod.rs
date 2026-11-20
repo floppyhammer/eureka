@@ -1,4 +1,5 @@
 pub(crate) mod atlas;
+pub(crate) mod egui_debug;
 pub(crate) mod gizmo;
 pub(crate) mod light;
 pub(crate) mod mesh;

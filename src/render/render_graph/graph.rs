@@ -72,6 +72,14 @@ impl RenderGraph {
             .and_then(|s| s.node.as_any_mut().downcast_mut::<T>())
     }
 
+    pub fn node_names(&self) -> Vec<&str> {
+        self.nodes.keys().map(|s| s.as_str()).collect()
+    }
+
+    pub fn dependencies(&self) -> &HashMap<String, Vec<String>> {
+        &self.dependencies
+    }
+
     /// Adds a dependency edge between two nodes. Node `to` will run after node `from`.
     pub fn add_node_edge(&mut self, from: impl Into<String>, to: impl Into<String>) {
         let from = from.into();
@@ -387,9 +395,9 @@ impl RenderGraph {
         log::info!("{}", mermaid);
     }
 
-    /// Sort node running order.
-    pub(crate) fn topological_sort(&self) -> Vec<String> {
-        let mut in_degree = HashMap::new();
+    /// Sort node running order deterministically.
+    pub fn topological_sort(&self) -> Vec<String> {
+        let mut in_degree: HashMap<String, usize> = HashMap::new();
         for (node, deps) in &self.dependencies {
             in_degree.entry(node.clone()).or_insert(0);
             for _dep in deps {
@@ -397,7 +405,7 @@ impl RenderGraph {
             }
         }
 
-        let mut enables = HashMap::new();
+        let mut enables: HashMap<String, Vec<String>> = HashMap::new();
         for (node, deps) in &self.dependencies {
             for dep in deps {
                 enables
@@ -407,22 +415,27 @@ impl RenderGraph {
             }
         }
 
-        let mut queue = VecDeque::new();
+        for next_nodes in enables.values_mut() {
+            next_nodes.sort();
+        }
+
+        // 使用 BTreeSet 作为就绪队列，消除 HashMap 迭代的不确定性，确保每次拓扑排序的序号恒定不变
+        let mut available: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for (node, &degree) in &in_degree {
             if degree == 0 {
-                queue.push_back(node.clone());
+                available.insert(node.clone());
             }
         }
 
         let mut result = Vec::new();
-        while let Some(node) = queue.pop_front() {
+        while let Some(node) = available.pop_first() {
             result.push(node.clone());
             if let Some(next_nodes) = enables.get(&node) {
                 for next in next_nodes {
                     let count = in_degree.get_mut(next).unwrap();
                     *count -= 1;
                     if *count == 0 {
-                        queue.push_back(next.clone());
+                        available.insert(next.clone());
                     }
                 }
             }

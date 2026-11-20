@@ -14,6 +14,7 @@ use crate::render::{
 use crate::scene::Bvh;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use crate::render::egui_debug::EguiBackendRenderer;
 
 pub struct PreparedFrame {
     pub(crate) extracted: Extracted,
@@ -50,7 +51,7 @@ pub struct TransparentBatch {
 }
 
 pub enum RenderCommand {
-    Render(Extracted),
+    Render(Extracted, Vec<egui::ClippedPrimitive>, egui::TexturesDelta, f32),
     Resize(u32, u32),
     UpdateConfig(RenderGraphConfig),
 }
@@ -58,6 +59,7 @@ pub enum RenderCommand {
 /// 运行在独立线程的渲染后端
 pub struct RenderBackend {
     pub(crate) surface: wgpu::Surface<'static>,
+    pub(crate) egui_backend_renderer: Option<EguiBackendRenderer>,
     /// 当前启用的渲染图配置
     pub(crate) active_config: RenderGraphConfig,
     /// 渲染图，各帧共享
@@ -97,6 +99,8 @@ impl RenderBackend {
         imported_material_cache: Arc<RwLock<MaterialCache>>,
         imported_mesh_allocator: Arc<RwLock<MeshAllocator>>,
     ) -> Self {
+        let surface_format = render_server.surface_config.format;
+        let egui_backend_renderer = Some(EguiBackendRenderer::new(&render_server.device, surface_format));
         let sky_imported_resources = SkyImportedResources::new();
 
         let dummy_2d_texture = render_server
@@ -215,6 +219,7 @@ impl RenderBackend {
 
         Self {
             surface,
+            egui_backend_renderer,
             active_config,
             dummy_2d_texture: Arc::new(dummy_2d_texture),
             dummy_2d_view,
@@ -248,7 +253,18 @@ impl RenderBackend {
         }
     }
 
-    pub fn run(&mut self, render_context: &RenderContext, mut extracted: Extracted) {
+    pub fn run(
+        &mut self,
+        render_context: &RenderContext,
+        mut extracted: Extracted,
+        tris: Vec<egui::ClippedPrimitive>,
+        textures_delta: egui::TexturesDelta,
+        scale_factor: f32,
+    ) {
+        if let Some(renderer) = &mut self.egui_backend_renderer {
+            renderer.receive_textures_delta(textures_delta);
+        }
+
         let cpu_render_start = std::time::Instant::now();
 
         // 动态根据 extracted / camera 状态同步渲染图配置
@@ -322,6 +338,20 @@ impl RenderBackend {
         let cmd_buf = graph.run(render_context, self, &prepared_frame, &final_output_view);
         self.render_graph = graph;
 
+        // 3. Render Egui Debug UI
+        let egui_cmd_bufs = if let Some(renderer) = &mut self.egui_backend_renderer {
+            Some(renderer.render(
+                &render_context.device,
+                &render_context.queue,
+                &final_output_view,
+                (surface_texture.texture.width(), surface_texture.texture.height()),
+                scale_factor,
+                &tris,
+            ))
+        } else {
+            None
+        };
+
         // 记录 CPU Render Time (仅包含命令录制和数据准备，不包含 GPU 等待)
         render_context.render_cpu_time.store(
             cpu_render_start.elapsed().as_nanos() as u64,
@@ -349,6 +379,9 @@ impl RenderBackend {
 
                 // 2. 加入主渲染任务
                 submission.push(cmd_buf);
+                if let Some(mut egui_bufs) = egui_cmd_bufs {
+                    submission.append(&mut egui_bufs);
+                }
 
                 // 3. 创建结束时间戳并解析
                 let mut end_encoder =
@@ -368,9 +401,15 @@ impl RenderBackend {
                 timestamp_recorded = true;
             } else {
                 submission.push(cmd_buf);
+                if let Some(mut egui_bufs) = egui_cmd_bufs {
+                    submission.append(&mut egui_bufs);
+                }
             }
         } else {
             submission.push(cmd_buf);
+            if let Some(mut egui_bufs) = egui_cmd_bufs {
+                submission.append(&mut egui_bufs);
+            }
         }
 
         render_context.queue.submit(submission);

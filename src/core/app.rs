@@ -28,6 +28,7 @@ pub struct App {
     pub world: World,
     pub render_world: Option<RenderWorld>,
     pub singletons: Option<Singletons>,
+    pub egui_main: Option<crate::render::egui_debug::EguiMain>,
     initialized: bool,
     /// We keep the event loop in an option to take it when running.
     event_loop: Option<EventLoop<()>>,
@@ -62,6 +63,7 @@ impl App {
             world,
             render_world: None,
             singletons: None,
+            egui_main: None,
             initialized: false,
             event_loop: Some(event_loop),
             setup_callback: None,
@@ -270,9 +272,30 @@ impl App {
 
         // Send to render thread using try_send to avoid blocking the logic thread.
         // If the render thread is too far behind, we just skip this frame's extraction.
-        let _ = render_world
+        let sender = render_world.sender.clone();
+        let (tris, textures_delta, scale_factor) = if let Some(egui) = &mut self.egui_main {
+            let window = self.window.as_ref().unwrap();
+            egui.run(window, &mut |new_config| {
+                let _ = sender.send(RenderCommand::UpdateConfig(new_config));
+            })
+        } else {
+            (Vec::new(), egui::TexturesDelta::default(), 1.0)
+        };
+
+        if let Err(e) = render_world
             .sender
-            .try_send(RenderCommand::Render(extracted));
+            .try_send(RenderCommand::Render(extracted, tris, textures_delta, scale_factor))
+        {
+            let unsent_cmd = match e {
+                std::sync::mpsc::TrySendError::Full(c) => Some(c),
+                std::sync::mpsc::TrySendError::Disconnected(c) => Some(c),
+            };
+            if let Some(RenderCommand::Render(_, _, unsent_delta, _)) = unsent_cmd {
+                if let Some(egui) = &mut self.egui_main {
+                    egui.recover_textures_delta(unsent_delta);
+                }
+            }
+        }
     }
 }
 
@@ -324,6 +347,8 @@ impl ApplicationHandler for App {
         let render_world = RenderWorld::new(render_context.clone(), surface);
         let font_server = FontServer::new(&mut asset_server);
 
+        self.egui_main = Some(crate::render::egui_debug::EguiMain::new(&window));
+
         self.singletons = Some(Singletons {
             time,
             render_context,
@@ -353,6 +378,17 @@ impl ApplicationHandler for App {
             _ => return,
         };
 
+        let (egui_consumed, egui_repaint) = if let Some(egui) = &mut self.egui_main {
+            let response = egui.handle_window_event(&window, &event);
+            (response.consumed, response.repaint)
+        } else {
+            (false, false)
+        };
+
+        if egui_repaint {
+            window.request_redraw();
+        }
+
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(physical_size) => {
@@ -380,8 +416,10 @@ impl ApplicationHandler for App {
                 }
             }
             _ => {
-                // Other input events should be handled by the input server.
-                self.input(&event);
+                // Other input events should be handled by the input server if not consumed by egui.
+                if !egui_consumed {
+                    self.input(&event);
+                }
             }
         }
     }

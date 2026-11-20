@@ -18,6 +18,9 @@ wgpu = { version = "29.0.3" }
 pollster = "0.4.0"
 bytemuck = { version = "1.4", features = ["derive"] }
 anyhow = "1.0"
+egui = "0.35"
+egui-wgpu = "0.35"
+egui-winit = "0.35"
 # For .obj loading.
 tobj = "4.0.0"
 # For glTF loading.
