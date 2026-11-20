@@ -6,9 +6,7 @@ use eureka::scene::{
     DirectionalLightComponent, GlobalTransform, LabelComponent, Name, PointLightComponent,
     SkyAssetPending,
 };
-use eureka::window::InputContent;
 use glam::{Quat, Vec2, Vec3};
-use winit::keyboard::KeyCode;
 
 // 示例专用的逻辑组件
 struct RotatingLogic;
@@ -56,7 +54,7 @@ fn main() {
         // 3. 添加标签实体
         world.ecs.spawn((
             Name("Settings".into()),
-            LabelComponent::new("SSAO (1): ON | AA (2): TAA | Volumetric (3): OFF | SSR (4): OFF | SSGI (5): OFF"),
+            LabelComponent::new("Text Overlay"),
             CTransform2d(Transform2d {
                 position: Vec2::new(20.0, 20.0),
                 ..Transform2d::default()
@@ -193,101 +191,15 @@ fn main() {
     // 添加自定义更新逻辑：太阳（方向光）旋转
     app.add_update(|app, dt| {
         let world = &mut app.world;
-        for (transform, light, logic) in world.ecs.query_mut::<(
+        for (transform, _light, logic) in world.ecs.query_mut::<(
             &mut CTransform3d,
-            &mut DirectionalLightComponent,
+            &DirectionalLightComponent,
             &mut SunLogic,
         )>() {
             logic.timer += dt * logic.speed;
 
             // 让太阳绕 X 轴旋转（模拟东升西落）
             transform.0.rotation = Quat::from_rotation_x(logic.timer);
-        }
-    });
-
-    // 添加自定义输入处理：设置控制
-    app.add_update(|app, _dt| {
-        let world = &mut app.world;
-        let input_server = &app.singletons.as_ref().unwrap().input_server;
-
-        for event in input_server.events() {
-            if let InputContent::Key(e) = &event.content {
-                if e.pressed {
-                    match e.key_code {
-                        KeyCode::Digit1 => {
-                            // 切换 SSAO
-                            for camera in world.ecs.query_mut::<&mut Camera3dComponent>() {
-                                camera.ssao_enabled = !camera.ssao_enabled;
-                            }
-                        }
-                        KeyCode::Digit2 => {
-                            // 切换抗锯齿模式: OFF -> FXAA -> TAA -> OFF
-                            for camera in world.ecs.query_mut::<&mut Camera3dComponent>() {
-                                if camera.taa_enabled {
-                                    camera.taa_enabled = false;
-                                    camera.fxaa_enabled = false;
-                                } else if camera.fxaa_enabled {
-                                    camera.fxaa_enabled = false;
-                                    camera.taa_enabled = true;
-                                } else {
-                                    camera.fxaa_enabled = true;
-                                    camera.taa_enabled = false;
-                                }
-                            }
-                        }
-                        KeyCode::Digit3 => {
-                            // 切换 Volumetric
-                            for camera in world.ecs.query_mut::<&mut Camera3dComponent>() {
-                                camera.volumetric_enabled = !camera.volumetric_enabled;
-                            }
-                        }
-                        KeyCode::Digit4 => {
-                            // 切换 SSR
-                            for camera in world.ecs.query_mut::<&mut Camera3dComponent>() {
-                                camera.ssr_enabled = !camera.ssr_enabled;
-                            }
-                        }
-                        KeyCode::Digit5 => {
-                            // 切换 SSGI
-                            for camera in world.ecs.query_mut::<&mut Camera3dComponent>() {
-                                camera.ssgi_enabled = !camera.ssgi_enabled;
-                            }
-                        }
-                        _ => {}
-                    }
-
-                    // 更新标签显示
-                    let mut ssao_enabled = true;
-                    let mut aa_mode = "OFF";
-                    let mut volumetric_enabled = true;
-                    let mut ssr_enabled = true;
-                    let mut ssgi_enabled = true;
-                    for camera in world.ecs.query::<&Camera3dComponent>().iter() {
-                        ssao_enabled = camera.ssao_enabled;
-                        if camera.taa_enabled {
-                            aa_mode = "TAA";
-                        } else if camera.fxaa_enabled {
-                            aa_mode = "FXAA";
-                        }
-                        volumetric_enabled = camera.volumetric_enabled;
-                        ssr_enabled = camera.ssr_enabled;
-                        ssgi_enabled = camera.ssgi_enabled;
-                        break;
-                    }
-
-                    for label in world.ecs.query_mut::<&mut LabelComponent>() {
-                        label.text = format!(
-                            "SSAO (1): {} | AA (2): {} | Volumetric (3): {} | SSR (4): {} | SSGI (5): {}",
-                            if ssao_enabled { "ON" } else { "OFF" },
-                            aa_mode,
-                            if volumetric_enabled { "ON" } else { "OFF" },
-                            if ssr_enabled { "ON" } else { "OFF" },
-                            if ssgi_enabled { "ON" } else { "OFF" }
-                        );
-                        label.text_is_dirty = true;
-                    }
-                }
-            }
         }
     });
 

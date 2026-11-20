@@ -62,6 +62,8 @@ pub struct RenderBackend {
     pub(crate) egui_backend_renderer: Option<EguiBackendRenderer>,
     /// 当前启用的渲染图配置
     pub(crate) active_config: RenderGraphConfig,
+    /// 当前启用的 3D 摄像机状态
+    pub(crate) active_has_3d: bool,
     /// 渲染图，各帧共享
     pub(crate) render_graph: RenderGraph,
     // 保存一些各帧共享的资源
@@ -165,7 +167,8 @@ impl RenderBackend {
         });
 
         let active_config = RenderGraphConfig::default();
-        let render_graph = RenderGraph::build_from_config(active_config.clone());
+        let active_has_3d = true;
+        let render_graph = RenderGraph::build_from_config_and_camera(active_config.clone(), active_has_3d);
 
         // --- GPU Profiling Setup ---
         let mut timestamp_query_set = None;
@@ -221,6 +224,7 @@ impl RenderBackend {
             surface,
             egui_backend_renderer,
             active_config,
+            active_has_3d,
             dummy_2d_texture: Arc::new(dummy_2d_texture),
             dummy_2d_view,
             dummy_cube_texture: Arc::new(dummy_cube_texture),
@@ -246,10 +250,16 @@ impl RenderBackend {
 
     /// 动态更新渲染图配置。若配置发生变更，则按新配置重新组装拓扑结构。
     pub fn set_render_config(&mut self, config: RenderGraphConfig) {
-        if self.active_config != config {
-            log::info!("Rebuilding RenderGraph with updated config: {:?}", config);
-            self.render_graph = RenderGraph::build_from_config(config.clone());
+        self.set_render_config_and_camera(config, self.active_has_3d);
+    }
+
+    /// 动态更新渲染图配置与 3D 摄像机状态。若配置或 3D 状态发生变更，则重新组装拓扑结构。
+    pub fn set_render_config_and_camera(&mut self, config: RenderGraphConfig, has_3d: bool) {
+        if self.active_config != config || self.active_has_3d != has_3d {
+            log::info!("Rebuilding RenderGraph with config: {:?}, has_3d: {}", config, has_3d);
+            self.render_graph = RenderGraph::build_from_config_and_camera(config.clone(), has_3d);
             self.active_config = config;
+            self.active_has_3d = has_3d;
         }
     }
 
@@ -271,6 +281,7 @@ impl RenderBackend {
         let has_volumetric = extracted.cameras.uniforms.iter().any(|u| u.volumetric_enabled != 0);
         let has_ssr = extracted.cameras.uniforms.iter().any(|u| u.ssr_enabled != 0);
         let has_ssgi = extracted.cameras.uniforms.iter().any(|u| u.ssgi_enabled != 0);
+        let has_3d = extracted.cameras.types.iter().any(|t| *t == crate::render::camera::CameraType::D3);
 
         let new_config = RenderGraphConfig {
             shadow: self.active_config.shadow.clone(),
@@ -291,17 +302,25 @@ impl RenderBackend {
                 ..self.active_config.volumetric
             },
             bloom: self.active_config.bloom.clone(),
-            aa_mode: if extracted.taa_enabled {
-                AntiAliasingMode::Taa
-            } else if extracted.fxaa_enabled {
-                AntiAliasingMode::Fxaa
+            aa_mode: if has_3d {
+                if extracted.taa_enabled {
+                    AntiAliasingMode::Taa
+                } else if extracted.fxaa_enabled {
+                    AntiAliasingMode::Fxaa
+                } else {
+                    self.active_config.aa_mode
+                }
             } else {
-                AntiAliasingMode::None
+                match self.active_config.aa_mode {
+                    AntiAliasingMode::Taa => AntiAliasingMode::None,
+                    AntiAliasingMode::TaaAndFxaa => AntiAliasingMode::Fxaa,
+                    other => other,
+                }
             },
             tonemapping: self.active_config.tonemapping.clone(),
         };
 
-        self.set_render_config(new_config);
+        self.set_render_config_and_camera(new_config, has_3d);
 
         // 处理旧数据并释放缓冲区
         self.process_timestamps(render_context);

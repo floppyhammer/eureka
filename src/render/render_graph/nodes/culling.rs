@@ -42,6 +42,10 @@ impl Node for CullingNode {
         self
     }
 
+    fn is_enabled(&self, prepared: &PreparedFrame) -> bool {
+        crate::render::render_graph::has_3d_camera(prepared)
+    }
+
     fn node_resources(&self, prepared: &PreparedFrame) -> NodeResources {
         let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
             * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;

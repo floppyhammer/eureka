@@ -274,6 +274,8 @@ impl App {
         // If the render thread is too far behind, we just skip this frame's extraction.
         let sender = render_world.sender.clone();
         let (tris, textures_delta, scale_factor) = if let Some(egui) = &mut self.egui_main {
+            let has_3d = self.world.ecs.query::<(&crate::scene::Camera3dComponent, &crate::scene::ActiveCamera)>().iter().next().is_some();
+            egui.has_3d = has_3d;
             let window = self.window.as_ref().unwrap();
             egui.run(window, &mut |new_config| {
                 let _ = sender.send(RenderCommand::UpdateConfig(new_config));

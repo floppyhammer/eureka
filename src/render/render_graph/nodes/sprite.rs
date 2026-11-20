@@ -166,6 +166,13 @@ impl Node for SpriteNode {
         let vertex_buffer = context.buffer(&standard_resources::sprite_vertex_buffer());
         let index_buffer = context.buffer(&standard_resources::sprite_index_buffer());
 
+        let has_3d = context.extracted.cameras.types.iter().any(|t| *t == crate::render::camera::CameraType::D3);
+        let load_op = if has_3d {
+            wgpu::LoadOp::Load
+        } else {
+            wgpu::LoadOp::Clear(wgpu::Color::BLACK)
+        };
+
         let mut render_pass = context
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -175,7 +182,7 @@ impl Node for SpriteNode {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load, // 在 3D 映射后的画面上叠加 UI
+                        load: load_op, // 3D存在时叠加，纯2D时清空背景
                         store: wgpu::StoreOp::Store,
                     },
                 })],

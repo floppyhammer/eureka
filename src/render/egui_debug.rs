@@ -18,6 +18,7 @@ pub struct EguiMain {
     pub canvas_pan: egui::Vec2,
     pub canvas_zoom: f32,
     pub auto_layout_done: bool,
+    pub has_3d: bool,
 }
 
 impl EguiMain {
@@ -38,7 +39,7 @@ impl EguiMain {
             egui_ctx,
             egui_state,
             show_config_inspector: true,
-            show_node_graph: true,
+            show_node_graph: false,
             node_positions: HashMap::new(),
             selected_node: None,
             config,
@@ -46,6 +47,7 @@ impl EguiMain {
             canvas_pan: egui::vec2(30.0, 30.0),
             canvas_zoom: 1.0,
             auto_layout_done: false,
+            has_3d: true,
         }
     }
 
@@ -61,7 +63,7 @@ impl EguiMain {
         let raw_input = self.egui_state.take_egui_input(window);
         let mut config_changed = false;
         let mut cfg = self.config.clone();
-        let temp_graph = RenderGraph::build_from_config(cfg.clone());
+        let temp_graph = RenderGraph::build_from_config_and_camera(cfg.clone(), self.has_3d);
         let ctx = self.egui_ctx.clone();
 
         self.egui_ctx.begin_pass(raw_input);
@@ -157,7 +159,7 @@ impl EguiMain {
     ) {
         egui::Window::new("Eureka Viewport Controls")
             .show(ctx, |ui| {
-                ui.checkbox(&mut self.show_config_inspector, "Config Inspector");
+                ui.checkbox(&mut self.show_config_inspector, "Render Config Inspector");
                 ui.checkbox(&mut self.show_node_graph, "Render Graph Node Topology");
             });
 

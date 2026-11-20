@@ -10,16 +10,39 @@ use crate::render::render_graph::nodes::{
 /// 基于 RenderGraphConfig 动态组装并连接渲染图的 Builder。
 pub struct RenderGraphBuilder {
     config: RenderGraphConfig,
+    has_3d: bool,
 }
 
 impl RenderGraphBuilder {
     pub fn new(config: RenderGraphConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            has_3d: true,
+        }
+    }
+
+    pub fn with_3d(mut self, has_3d: bool) -> Self {
+        self.has_3d = has_3d;
+        self
     }
 
     /// 根据配置动态构建包含节点与依赖边的 RenderGraph。
     pub fn build(self) -> RenderGraph {
         let mut graph = RenderGraph::new();
+
+        if !self.has_3d {
+            // 2D-only 渲染图构建 (纯 2D 极简渲染图，用于 3D 引擎中的 2D 文字与图片 UI)
+            graph.add_node("prepare_view", PrepareViewNode::default());
+            graph.add_node("prepare_materials", PrepareMaterialsNode::default());
+            graph.add_node("clear", ClearNode);
+            graph.add_node("sprite", SpriteNode::default());
+
+            graph.add_node_edge("prepare_view", "sprite");
+            graph.add_node_edge("prepare_materials", "sprite");
+            graph.add_node_edge("clear", "sprite");
+
+            return graph;
+        }
 
         // -----------------------------------------------------------------
         // 1. 基础必备节点 (Base Core Nodes)
@@ -244,5 +267,18 @@ mod tests {
             assert!(order.contains(&"sprite".to_string()));
             assert!(order.contains(&"mesh".to_string()));
         }
+    }
+
+    #[test]
+    fn test_render_graph_builder_2d_only() {
+        let config = RenderGraphConfig::default();
+        let graph = RenderGraphBuilder::new(config).with_3d(false).build();
+        let order = graph.topological_sort();
+        assert!(!order.is_empty(), "2D execution order should not be empty");
+        assert!(order.contains(&"sprite".to_string()));
+        assert!(order.contains(&"prepare_view".to_string()));
+        assert!(order.contains(&"clear".to_string()));
+        assert!(!order.contains(&"mesh".to_string()), "2D-only graph should not contain 3D mesh node");
+        assert!(!order.contains(&"shadow".to_string()), "2D-only graph should not contain shadow node");
     }
 }

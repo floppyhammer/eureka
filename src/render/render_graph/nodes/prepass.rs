@@ -36,6 +36,10 @@ impl Node for PrePassNode {
         self
     }
 
+    fn is_enabled(&self, prepared: &PreparedFrame) -> bool {
+        crate::render::render_graph::has_3d_camera(prepared)
+    }
+
     fn node_resources(
         &self,
         prepared: &PreparedFrame,

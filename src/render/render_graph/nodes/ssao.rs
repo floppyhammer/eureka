@@ -151,6 +151,10 @@ impl Node for SsaoNode {
         self
     }
 
+    fn is_enabled(&self, prepared: &PreparedFrame) -> bool {
+        crate::render::render_graph::has_3d_camera(prepared)
+    }
+
     fn node_resources(
         &self,
         _prepared: &PreparedFrame,

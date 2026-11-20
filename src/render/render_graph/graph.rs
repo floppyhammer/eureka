@@ -41,9 +41,16 @@ impl RenderGraph {
         Self::default()
     }
 
+    /// 根据给定的 RenderGraphConfig 和 3D 摄像机存在状态构建渲染图
+    pub fn build_from_config_and_camera(config: crate::render::render_graph::config::RenderGraphConfig, has_3d: bool) -> Self {
+        crate::render::render_graph::builder::RenderGraphBuilder::new(config)
+            .with_3d(has_3d)
+            .build()
+    }
+
     /// 根据给定的 RenderGraphConfig 构建渲染图
     pub fn build_from_config(config: crate::render::render_graph::config::RenderGraphConfig) -> Self {
-        crate::render::render_graph::builder::RenderGraphBuilder::new(config).build()
+        Self::build_from_config_and_camera(config, true)
     }
 
     /// 初始化标准的渲染管线节点（默认使用 High 画质配置）

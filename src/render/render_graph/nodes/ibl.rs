@@ -26,6 +26,10 @@ impl Node for IBLNode {
         self
     }
 
+    fn is_enabled(&self, prepared: &PreparedFrame) -> bool {
+        crate::render::render_graph::has_3d_camera(prepared)
+    }
+
     fn node_resources(&self, _prepared: &PreparedFrame) -> NodeResources {
         NodeResources::new()
             .persistent_output(
