@@ -156,11 +156,8 @@ impl EguiMain {
                         .push(*entity);
                 }
                 None => {
-                    // 检查是否有父节点
-                    let has_parent = entities.iter().any(|e| e.2 == Some(*entity));
-                    if !has_parent {
-                        roots.push(*entity);
-                    }
+                    // No parent component → this entity is a root
+                    roots.push(*entity);
                 }
             }
         }
