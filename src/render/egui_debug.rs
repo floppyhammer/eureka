@@ -26,6 +26,15 @@ pub struct EguiMain {
     pub selected_entity: Option<hecs::Entity>,
 }
 
+impl Drop for EguiMain {
+    fn drop(&mut self) {
+        // Clear pending texture deltas to avoid epaint's TexturesDelta drop panic.
+        // When the app shuts down, the render thread may have already stopped,
+        // so any pending deltas can never be applied.
+        self.pending_textures_delta.clear();
+    }
+}
+
 impl EguiMain {
     pub fn new(window: &Window) -> Self {
         let egui_ctx = egui::Context::default();
@@ -76,19 +85,24 @@ impl EguiMain {
 
         self.egui_ctx.begin_pass(raw_input);
         self.ui(&ctx, config, &temp_graph, &mut config_changed, ecs);
-        let full_output = self.egui_ctx.end_pass();
+        let mut full_output = self.egui_ctx.end_pass();
 
         self.egui_state.handle_platform_output(window, full_output.platform_output);
 
         let pixels_per_point = full_output.pixels_per_point;
         let tris = self.egui_ctx.tessellate(full_output.shapes, pixels_per_point);
 
-        {
-            let td = &full_output.textures_delta;
-            for (id, deltas) in td.set.iter() {
-                self.pending_textures_delta.set.entry(*id).or_default().extend(deltas.clone());
+        // Take ownership of textures_delta from full_output to avoid the Drop panic.
+        // We must fully consume `td` (drain all fields) so that when `td` is dropped,
+        // it is empty and doesn't trigger the debug_assert in TexturesDelta::drop.
+        let mut td = std::mem::take(&mut full_output.textures_delta);
+        for (id, deltas) in td.set.drain() {
+            for delta in deltas {
+                self.pending_textures_delta.push(id, delta);
             }
-            self.pending_textures_delta.free.extend(td.free.iter().cloned());
+        }
+        for id in td.free.drain() {
+            self.pending_textures_delta.free(id);
         }
 
         let delta_to_send = std::mem::take(&mut self.pending_textures_delta);
@@ -747,11 +761,13 @@ impl EguiBackendRenderer {
         }
     }
 
-    pub fn receive_textures_delta(&mut self, textures_delta: egui::TexturesDelta) {
-        for (id, deltas) in textures_delta.set.iter() {
-            self.pending_set_textures.push((*id, deltas.clone().into_iter().collect()));
+    pub fn receive_textures_delta(&mut self, mut textures_delta: egui::TexturesDelta) {
+        // Fully consume textures_delta by draining its contents into pending queues.
+        // This ensures `textures_delta` is empty when dropped, avoiding the debug_assert panic.
+        for (id, deltas) in textures_delta.set.drain() {
+            self.pending_set_textures.push((id, deltas.into_iter().collect()));
         }
-        self.pending_free_textures.extend(textures_delta.free.iter().cloned());
+        self.pending_free_textures.extend(textures_delta.free.drain());
     }
 
     pub fn render(
