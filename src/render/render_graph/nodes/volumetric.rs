@@ -74,7 +74,7 @@ impl Node for VolumetricNode {
                     wgpu::BufferUsages::UNIFORM,
                 ),
             )
-            .input(
+            .optional_input(
                 standard_resources::point_shadow_map(),
                 ResourceSpec::Texture(TextureKey {
                     width: 512,
@@ -87,7 +87,7 @@ impl Node for VolumetricNode {
                     dimension: wgpu::TextureDimension::D2,
                 }),
             )
-            .input(
+            .optional_input(
                 standard_resources::directional_shadow_map(),
                 ResourceSpec::Texture(TextureKey {
                     width: 2048,
@@ -100,7 +100,7 @@ impl Node for VolumetricNode {
                     dimension: wgpu::TextureDimension::D2,
                 }),
             )
-            .input(
+            .optional_input(
                 standard_resources::shadow_cascade_buffer(),
                 ResourceSpec::buffer(
                     size_of::<crate::render::light::CascadeUniform>() as u64,

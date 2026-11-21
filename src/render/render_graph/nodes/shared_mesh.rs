@@ -17,7 +17,7 @@ pub fn common_mesh_resources(resources: NodeResources, prepared: &PreparedFrame)
             standard_resources::camera_buffer(),
             ResourceSpec::buffer(camera_buffer_size as u64, wgpu::BufferUsages::UNIFORM),
         )
-        .input(
+        .optional_input(
             standard_resources::shadow_cascade_buffer(),
             ResourceSpec::buffer(
                 size_of::<CascadeUniform>() as u64,
