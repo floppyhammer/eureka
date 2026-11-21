@@ -176,9 +176,6 @@ pub(crate) struct MeshMetadata {
 }
 
 pub struct MeshRenderResources {
-    // pub(crate) dummy_2d_view: wgpu::TextureView,
-    // pub(crate) dummy_cube_view: wgpu::TextureView,
-    // pub(crate) dummy_sampler: wgpu::Sampler,
     pub(crate) bindless_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) bindless_bind_group: Option<wgpu::BindGroup>,
 
@@ -201,24 +198,3 @@ pub(crate) struct MeshInstanceInfo {
     pub(crate) base_instance: u32,
     pub(crate) instance_count: u32,
 }
-
-// impl MeshRenderResources {
-//     pub(crate) fn new(render_server: &RenderContext) -> Self {
-//
-//         Self {
-//             bindless_bind_group_layout,
-//             bindless_bind_group: None,
-//             materials_storage_buffer: None,
-//             material_cache: MaterialCache::new(),
-//             mesh_allocator: MeshAllocator::new(&render_server.device),
-//             global_instance_buffer: None,
-//             mesh_metadata_buffer: None,
-//             mesh_id_to_index: HashMap::new(),
-//             draw_counts: Vec::new(),
-//             mesh_infos: Vec::new(),
-//             indirect_commands: vec![],
-//         }
-//     }
-//
-//
-// }

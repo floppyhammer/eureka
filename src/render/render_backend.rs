@@ -1,3 +1,4 @@
+use crate::render::egui_debug::EguiBackendRenderer;
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard, MaterialUniform};
 use crate::render::mesh_allocator::MeshAllocator;
 use crate::render::render_graph::{AntiAliasingMode, RenderGraph, RenderGraphConfig};
@@ -11,7 +12,6 @@ use crate::render::{
 use crate::scene::Bvh;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use crate::render::egui_debug::EguiBackendRenderer;
 
 pub struct PreparedFrame {
     pub(crate) extracted: Extracted,
@@ -48,7 +48,12 @@ pub struct TransparentBatch {
 }
 
 pub enum RenderCommand {
-    Render(Extracted, Vec<egui::ClippedPrimitive>, egui::TexturesDelta, f32),
+    Render(
+        Extracted,
+        Vec<egui::ClippedPrimitive>,
+        egui::TexturesDelta,
+        f32,
+    ),
     Resize(u32, u32),
     UpdateConfig(RenderGraphConfig),
 }
@@ -99,7 +104,10 @@ impl RenderBackend {
         imported_mesh_allocator: Arc<RwLock<MeshAllocator>>,
     ) -> Self {
         let surface_format = render_server.surface_config.format;
-        let egui_backend_renderer = Some(EguiBackendRenderer::new(&render_server.device, surface_format));
+        let egui_backend_renderer = Some(EguiBackendRenderer::new(
+            &render_server.device,
+            surface_format,
+        ));
         let sky_imported_resources = SkyImportedResources::new();
 
         let dummy_2d_texture = render_server
@@ -165,7 +173,8 @@ impl RenderBackend {
 
         let active_config = RenderGraphConfig::default();
         let active_has_3d = true;
-        let render_graph = RenderGraph::build_from_config_and_camera(active_config.clone(), active_has_3d);
+        let render_graph =
+            RenderGraph::build_from_config_and_camera(active_config.clone(), active_has_3d);
 
         // --- GPU Profiling Setup ---
         let mut timestamp_query_set = None;
@@ -253,7 +262,11 @@ impl RenderBackend {
     /// 动态更新渲染图配置与 3D 摄像机状态。若配置或 3D 状态发生变更，则重新组装拓扑结构。
     pub fn set_render_config_and_camera(&mut self, config: RenderGraphConfig, has_3d: bool) {
         if self.active_config != config || self.active_has_3d != has_3d {
-            log::info!("Rebuilding RenderGraph with config: {:?}, has_3d: {}", config, has_3d);
+            log::info!(
+                "Rebuilding RenderGraph with config: {:?}, has_3d: {}",
+                config,
+                has_3d
+            );
             self.render_graph = RenderGraph::build_from_config_and_camera(config.clone(), has_3d);
             self.active_config = config;
             self.active_has_3d = has_3d;
@@ -274,7 +287,11 @@ impl RenderBackend {
 
         let cpu_render_start = std::time::Instant::now();
 
-        let has_3d = extracted.cameras.types.iter().any(|t| *t == crate::render::camera::CameraType::D3);
+        let has_3d = extracted
+            .cameras
+            .types
+            .iter()
+            .any(|t| *t == crate::render::camera::CameraType::D3);
 
         let target_config = if has_3d {
             extracted.render_config.clone()
@@ -301,7 +318,8 @@ impl RenderBackend {
                 texture
             }
             wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
-                self.surface.configure(&render_context.device, &render_context.surface_config);
+                self.surface
+                    .configure(&render_context.device, &render_context.surface_config);
                 return;
             }
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
@@ -331,7 +349,10 @@ impl RenderBackend {
                 &render_context.device,
                 &render_context.queue,
                 &final_output_view,
-                (surface_texture.texture.width(), surface_texture.texture.height()),
+                (
+                    surface_texture.texture.width(),
+                    surface_texture.texture.height(),
+                ),
                 scale_factor,
                 &tris,
             ))
@@ -467,7 +488,9 @@ impl RenderBackend {
             let material_cache = self.imported_material_cache.read().unwrap();
             for mesh in &extracted.meshes {
                 let is_transparent = if let Some(material_id) = mesh.material_id {
-                    material_cache.get(&material_id).map_or(false, |m| m.transparent)
+                    material_cache
+                        .get(&material_id)
+                        .map_or(false, |m| m.transparent)
                 } else {
                     false
                 };
@@ -780,7 +803,11 @@ impl RenderBackend {
 
         for mesh_id in sorted_meshes {
             let instances = &grouped_instances[&mesh_id];
-            let mesh = mesh_cache.get(mesh_id).unwrap();
+
+            let Some(mesh) = mesh_cache.get(mesh_id) else {
+                log::warn!("Skipping missing mesh: {:?}", mesh_id);
+                continue;
+            };
 
             mesh_id_to_index.insert(mesh_id, mesh_metadatas.len() as u32);
 
