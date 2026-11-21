@@ -58,24 +58,18 @@ impl EguiMain {
     pub fn run(
         &mut self,
         window: &Window,
-        on_config_changed: &mut dyn FnMut(RenderGraphConfig),
+        config: &mut RenderGraphConfig,
     ) -> (Vec<egui::ClippedPrimitive>, egui::TexturesDelta, f32) {
         let raw_input = self.egui_state.take_egui_input(window);
         let mut config_changed = false;
-        let mut cfg = self.config.clone();
-        let temp_graph = RenderGraph::build_from_config_and_camera(cfg.clone(), self.has_3d);
+        let temp_graph = RenderGraph::build_from_config_and_camera(config.clone(), self.has_3d);
         let ctx = self.egui_ctx.clone();
 
         self.egui_ctx.begin_pass(raw_input);
-        self.ui(&ctx, &mut cfg, &temp_graph, &mut config_changed);
+        self.ui(&ctx, config, &temp_graph, &mut config_changed);
         let full_output = self.egui_ctx.end_pass();
 
         self.egui_state.handle_platform_output(window, full_output.platform_output);
-
-        if config_changed {
-            self.config = cfg.clone();
-            on_config_changed(cfg);
-        }
 
         let pixels_per_point = full_output.pixels_per_point;
         let tris = self.egui_ctx.tessellate(full_output.shapes, pixels_per_point);

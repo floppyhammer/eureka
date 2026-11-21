@@ -61,7 +61,7 @@ impl Node for PrepareViewNode {
                 .add_bind_group_layout("camera_bind_group_layout", camera_bind_group_layout);
         }
 
-        let uniforms = context.extracted.cameras.uniforms.clone();
+        let uniforms = &context.extracted.cameras.uniforms;
 
         // No cameras.
         if uniforms.is_empty() {

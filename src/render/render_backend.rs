@@ -1,9 +1,6 @@
 use crate::render::material::{MaterialCache, MaterialId, MaterialStandard, MaterialUniform};
 use crate::render::mesh_allocator::MeshAllocator;
-use crate::render::render_graph::{
-    AntiAliasingMode, RenderGraph, RenderGraphConfig, SsaoConfig, SsgiConfig, SsrConfig,
-    VolumetricConfig,
-};
+use crate::render::render_graph::{AntiAliasingMode, RenderGraph, RenderGraphConfig};
 use crate::render::render_world::Extracted;
 use crate::render::sky::{prepare_sky, SkyImportedResources};
 use crate::render::sprite::ExtractedSprite2d;
@@ -277,50 +274,21 @@ impl RenderBackend {
 
         let cpu_render_start = std::time::Instant::now();
 
-        // 动态根据 extracted / camera 状态同步渲染图配置
-        let has_volumetric = extracted.cameras.uniforms.iter().any(|u| u.volumetric_enabled != 0);
-        let has_ssr = extracted.cameras.uniforms.iter().any(|u| u.ssr_enabled != 0);
-        let has_ssgi = extracted.cameras.uniforms.iter().any(|u| u.ssgi_enabled != 0);
         let has_3d = extracted.cameras.types.iter().any(|t| *t == crate::render::camera::CameraType::D3);
 
-        let new_config = RenderGraphConfig {
-            shadow: self.active_config.shadow.clone(),
-            ssao: SsaoConfig {
-                enabled: extracted.ssao_enabled,
-                ..self.active_config.ssao
-            },
-            ssgi: SsgiConfig {
-                enabled: has_ssgi,
-                ..self.active_config.ssgi
-            },
-            ssr: SsrConfig {
-                enabled: has_ssr,
-                ..self.active_config.ssr
-            },
-            volumetric: VolumetricConfig {
-                enabled: has_volumetric,
-                ..self.active_config.volumetric
-            },
-            bloom: self.active_config.bloom.clone(),
-            aa_mode: if has_3d {
-                if extracted.taa_enabled {
-                    AntiAliasingMode::Taa
-                } else if extracted.fxaa_enabled {
-                    AntiAliasingMode::Fxaa
-                } else {
-                    self.active_config.aa_mode
-                }
-            } else {
-                match self.active_config.aa_mode {
-                    AntiAliasingMode::Taa => AntiAliasingMode::None,
-                    AntiAliasingMode::TaaAndFxaa => AntiAliasingMode::Fxaa,
-                    other => other,
-                }
-            },
-            tonemapping: self.active_config.tonemapping.clone(),
+        let target_config = if has_3d {
+            extracted.render_config.clone()
+        } else {
+            let mut cfg = extracted.render_config.clone();
+            cfg.aa_mode = match cfg.aa_mode {
+                AntiAliasingMode::Taa => AntiAliasingMode::None,
+                AntiAliasingMode::TaaAndFxaa => AntiAliasingMode::Fxaa,
+                other => other,
+            };
+            cfg
         };
 
-        self.set_render_config_and_camera(new_config, has_3d);
+        self.set_render_config_and_camera(target_config, has_3d);
 
         // 处理旧数据并释放缓冲区
         self.process_timestamps(render_context);

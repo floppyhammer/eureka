@@ -136,7 +136,7 @@ pub struct RenderGraphConfig {
 
 impl Default for RenderGraphConfig {
     fn default() -> Self {
-        Self::high()
+        Self::medium()
     }
 }
 

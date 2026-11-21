@@ -20,9 +20,7 @@ pub struct Extracted {
     pub(crate) cameras: ExtractedCameras,
     pub(crate) lights: ExtractedLights,
     pub(crate) sky: Option<ExtractedSky>,
-    pub fxaa_enabled: bool,
-    pub ssao_enabled: bool,
-    pub taa_enabled: bool,
+    pub render_config: crate::render::render_graph::RenderGraphConfig,
 }
 
 /// 渲染世界（Render Frontend）。

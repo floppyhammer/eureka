@@ -1,4 +1,5 @@
 use crate::render::camera::CameraUniform;
+use crate::render::render_graph::config::{AntiAliasingMode, RenderGraphConfig};
 use crate::window::{InputContent, InputEvent, InputServer};
 use glam::{Mat4, UVec2, Vec3};
 use winit::event::MouseButton;
@@ -12,12 +13,7 @@ pub struct Camera3dComponent {
     pub fov: f32,
     pub near: f32,
     pub far: f32,
-    pub ssao_enabled: bool,
-    pub fxaa_enabled: bool,
-    pub taa_enabled: bool,
-    pub volumetric_enabled: bool,
-    pub ssr_enabled: bool,
-    pub ssgi_enabled: bool,
+    pub render_config: RenderGraphConfig,
     pub viewport_size: UVec2,
     pub frame_count: u64,
     pub prev_view_proj: Mat4, // 新增：保存上一帧的矩阵
@@ -29,12 +25,7 @@ impl Camera3dComponent {
             fov: DEFAULT_FOV,
             near: DEFAULT_NEAR,
             far: DEFAULT_FAR,
-            ssao_enabled: true,
-            fxaa_enabled: false,
-            taa_enabled: true,
-            volumetric_enabled: false,
-            ssr_enabled: false,
-            ssgi_enabled: false,
+            render_config: RenderGraphConfig::default(),
             viewport_size: UVec2::new(1280, 720),
             frame_count: 0,
             prev_view_proj: Mat4::IDENTITY,
@@ -56,8 +47,13 @@ impl Camera3dComponent {
         let unjittered_proj = Mat4::perspective_rh(self.fov, aspect_ratio, self.near, self.far);
         let mut proj_mat = unjittered_proj;
 
+        let has_taa = matches!(
+            self.render_config.aa_mode,
+            AntiAliasingMode::Taa | AntiAliasingMode::TaaAndFxaa
+        );
+
         // TAA Jittering
-        if self.taa_enabled {
+        if has_taa {
             let jitter = self.get_halton_jitter(self.frame_count);
             let prev_jitter = self.get_halton_jitter(self.frame_count.wrapping_sub(1));
 
@@ -94,11 +90,11 @@ impl Camera3dComponent {
         // 关键：这里使用的是存储的上一帧矩阵
         uniform.prev_view_proj = self.prev_view_proj.to_cols_array_2d();
 
-        uniform.ssao_enabled = if self.ssao_enabled { 1 } else { 0 };
-        uniform.volumetric_enabled = if self.volumetric_enabled { 1 } else { 0 };
-        uniform.taa_enabled = if self.taa_enabled { 1 } else { 0 };
-        uniform.ssr_enabled = if self.ssr_enabled { 1 } else { 0 };
-        uniform.ssgi_enabled = if self.ssgi_enabled { 1 } else { 0 };
+        uniform.ssao_enabled = if self.render_config.ssao.enabled { 1 } else { 0 };
+        uniform.volumetric_enabled = if self.render_config.volumetric.enabled { 1 } else { 0 };
+        uniform.taa_enabled = if has_taa { 1 } else { 0 };
+        uniform.ssr_enabled = if self.render_config.ssr.enabled { 1 } else { 0 };
+        uniform.ssgi_enabled = if self.render_config.ssgi.enabled { 1 } else { 0 };
         uniform.frame_count = self.frame_count as u32;
         uniform._pad = [0; 2];
 

@@ -261,6 +261,23 @@ impl App {
             return;
         };
 
+        // Send to render thread using try_send to avoid blocking the logic thread.
+        // If the render thread is too far behind, we just skip this frame's extraction.
+        let (tris, textures_delta, scale_factor) = if let Some(egui) = &mut self.egui_main {
+            let window = self.window.as_ref().unwrap();
+            let mut camera_query = self.world.ecs.query_mut::<(&mut crate::scene::Camera3dComponent, &crate::scene::ActiveCamera)>();
+            if let Some((camera, _)) = camera_query.into_iter().next() {
+                egui.has_3d = true;
+                egui.run(window, &mut camera.render_config)
+            } else {
+                egui.has_3d = false;
+                let mut fallback_config = crate::render::render_graph::RenderGraphConfig::default();
+                egui.run(window, &mut fallback_config)
+            }
+        } else {
+            (Vec::new(), egui::TexturesDelta::default(), 1.0)
+        };
+
         // Extract render entities from the draw commands.
         let extracted = self.world.extract_render_objects();
 
@@ -269,20 +286,6 @@ impl App {
             &singletons.render_context,
             &mut render_world.imported_texture_cache.write().unwrap(),
         );
-
-        // Send to render thread using try_send to avoid blocking the logic thread.
-        // If the render thread is too far behind, we just skip this frame's extraction.
-        let sender = render_world.sender.clone();
-        let (tris, textures_delta, scale_factor) = if let Some(egui) = &mut self.egui_main {
-            let has_3d = self.world.ecs.query::<(&crate::scene::Camera3dComponent, &crate::scene::ActiveCamera)>().iter().next().is_some();
-            egui.has_3d = has_3d;
-            let window = self.window.as_ref().unwrap();
-            egui.run(window, &mut |new_config| {
-                let _ = sender.send(RenderCommand::UpdateConfig(new_config));
-            })
-        } else {
-            (Vec::new(), egui::TexturesDelta::default(), 1.0)
-        };
 
         if let Err(e) = render_world
             .sender

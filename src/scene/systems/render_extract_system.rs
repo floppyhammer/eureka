@@ -7,12 +7,10 @@ use hecs::World;
 pub fn extract_render_objects(ecs: &mut World) -> Extracted {
     let mut extracted = Extracted::default();
 
-    // 提取渲染设置 (从摄像机组件获取)
-    for camera in ecs.query::<&Camera3dComponent>().iter() {
-        extracted.fxaa_enabled = camera.fxaa_enabled;
-        extracted.ssao_enabled = camera.ssao_enabled;
-        extracted.taa_enabled = camera.taa_enabled;
-        // 只取第一个摄像机的设置
+    // 提取渲染设置 (从活跃 3D 摄像机组件获取 render_config)
+    for (camera, _) in ecs.query::<(&Camera3dComponent, &ActiveCamera)>().iter() {
+        extracted.render_config = camera.render_config.clone();
+        // 暂时只取第一个摄像机的设置
         break;
     }
 

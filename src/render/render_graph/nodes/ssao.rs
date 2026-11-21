@@ -408,7 +408,7 @@ impl Node for SsaoNode {
         }
 
         // 如果全局禁用，或者没有任何相机需要，则跳过SSAO计算
-        let skip_ssao = !context.extracted.ssao_enabled
+        let skip_ssao = !context.extracted.render_config.ssao.enabled
             || !camera_wants_ssao;
 
         if skip_ssao {

@@ -135,7 +135,11 @@ impl Node for FxaaNode {
 
         let input_texture = context.texture(&self.input_slot);
 
-        let fxaa_enabled = context.extracted.fxaa_enabled;
+        use crate::render::render_graph::config::AntiAliasingMode;
+        let fxaa_enabled = matches!(
+            context.extracted.render_config.aa_mode,
+            AntiAliasingMode::Fxaa | AntiAliasingMode::TaaAndFxaa
+        );
         let pipeline = self.pipeline.as_ref().unwrap();
 
         let sampler = context.get_sampler(SamplerKey {
