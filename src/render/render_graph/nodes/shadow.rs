@@ -152,7 +152,7 @@ impl Node for ShadowNode {
                 &pipeline_layout,
                 None,
                 Some(Texture::DEPTH_FORMAT),
-                &[Vertex3d::desc(), InstanceRaw::desc()],
+                &[Some(Vertex3d::desc()), Some(InstanceRaw::desc())],
                 shader,
                 "Shadow Pipeline",
                 false,

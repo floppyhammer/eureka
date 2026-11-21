@@ -151,7 +151,7 @@ impl Node for PrePassNode {
                     module: &device.create_shader_module(shader),
                     entry_point: Some("vs_main"),
                     compilation_options: Default::default(),
-                    buffers: &[Vertex3d::desc(), InstanceRaw::desc()],
+                    buffers: &[Some(Vertex3d::desc()), Some(InstanceRaw::desc())],
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &device.create_shader_module(wgpu::ShaderModuleDescriptor {

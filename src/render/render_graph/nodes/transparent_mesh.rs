@@ -86,7 +86,7 @@ impl Node for TransparentMeshNode {
 
             self.pipeline = Some(create_render_pipeline(
                 device, &pipeline_layout, Some(wgpu::TextureFormat::Rgba16Float), Some(Texture::DEPTH_FORMAT),
-                &[Vertex3d::desc(), InstanceRaw::desc()],
+                &[Some(Vertex3d::desc()), Some(InstanceRaw::desc())],
                 wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(source.into()) },
                 "Transparent Mesh", true, Some(wgpu::Face::Back),
             ));

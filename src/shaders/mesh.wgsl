@@ -1,3 +1,5 @@
+enable wgpu_binding_array;
+
 #import eureka::camera::Camera
 
 @group(0) @binding(0)

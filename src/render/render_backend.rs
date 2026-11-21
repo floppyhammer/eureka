@@ -420,8 +420,10 @@ impl RenderBackend {
             }
         }
 
-        render_context.queue.submit(submission);
-        surface_texture.present();
+        for cmd_buf in submission {
+            render_context.queue.submit(std::iter::once(cmd_buf));
+        }
+        render_context.queue.present(surface_texture);
 
         if timestamp_recorded {
             let dest_buf = &self.timestamp_destination_buffers[self.current_timestamp_index];
@@ -451,7 +453,7 @@ impl RenderBackend {
             if flag.load(std::sync::atomic::Ordering::Acquire) {
                 let slice = buffer.slice(..);
                 {
-                    let data = slice.get_mapped_range();
+                    let data = slice.get_mapped_range().expect("Failed to get mapped range");
                     let timestamps: &[u64] = bytemuck::cast_slice(&data[..]);
                     if timestamps.len() >= 2 {
                         let diff = timestamps[1].wrapping_sub(timestamps[0]);

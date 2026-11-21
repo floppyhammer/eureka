@@ -107,6 +107,7 @@ impl App {
                 power_preference: wgpu::PowerPreference::HighPerformance, // 强制请求高性能显卡
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                apply_limit_buckets: true,
             })
             .await
             .expect("Failed to find an appropriate adapter!");

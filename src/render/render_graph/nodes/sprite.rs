@@ -138,7 +138,7 @@ impl Node for SpriteNode {
                 &pipeline_layout,
                 Some(context.render_context.surface_config.format),
                 Some(Texture::DEPTH_FORMAT),
-                &[Vertex2d::desc()],
+                &[Some(Vertex2d::desc())],
                 shader,
                 "sprite bindless",
                 true,

@@ -74,21 +74,26 @@ impl EguiMain {
         let pixels_per_point = full_output.pixels_per_point;
         let tris = self.egui_ctx.tessellate(full_output.shapes, pixels_per_point);
 
-        self.pending_textures_delta.set.extend(full_output.textures_delta.set);
-        self.pending_textures_delta.free.extend(full_output.textures_delta.free);
+        {
+            let td = &full_output.textures_delta;
+            for (id, deltas) in td.set.iter() {
+                self.pending_textures_delta.set.entry(*id).or_default().extend(deltas.clone());
+            }
+            self.pending_textures_delta.free.extend(td.free.iter().cloned());
+        }
 
         let delta_to_send = std::mem::take(&mut self.pending_textures_delta);
 
         (tris, delta_to_send, pixels_per_point)
     }
 
-    pub fn recover_textures_delta(&mut self, unsent: egui::TexturesDelta) {
-        let mut combined_set = unsent.set;
-        combined_set.extend(self.pending_textures_delta.set.drain(..));
+    pub fn recover_textures_delta(&mut self, mut unsent: egui::TexturesDelta) {
+        let mut combined_set = std::mem::take(&mut unsent.set);
+        combined_set.extend(self.pending_textures_delta.set.drain());
         self.pending_textures_delta.set = combined_set;
 
-        let mut combined_free = unsent.free;
-        combined_free.extend(self.pending_textures_delta.free.drain(..));
+        let mut combined_free = std::mem::take(&mut unsent.free);
+        combined_free.extend(self.pending_textures_delta.free.drain());
         self.pending_textures_delta.free = combined_free;
     }
 
@@ -159,7 +164,7 @@ impl EguiMain {
 
         // 1. Config Inspector Window
         if self.show_config_inspector {
-            egui::Window::new("⚙️ Render Graph Config Inspector")
+            egui::Window::new("Render Graph Config Inspector")
                 .open(&mut self.show_config_inspector)
                 .show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -232,7 +237,7 @@ impl EguiMain {
                         if ui.checkbox(&mut config.tonemapping.enabled, "Enabled").changed() { *config_changed = true; }
                         ui.separator();
 
-                        ui.heading("🔍 Debug Viewmode");
+                        ui.heading("Debug Viewmode");
                         egui::ComboBox::from_label("Viewmode")
                             .selected_text(format!("{:?}", config.debug_viewmode))
                             .show_ui(ui, |ui| {
@@ -249,7 +254,7 @@ impl EguiMain {
         // 2. Interactive Node Graph Window
         if self.show_node_graph {
             let mut show_node_graph = self.show_node_graph;
-            egui::Window::new("📊 Render Graph Node Topology (Interactive)")
+            egui::Window::new("Render Graph Node Topology (Interactive)")
                 .open(&mut show_node_graph)
                 .default_size(egui::vec2(850.0, 500.0))
                 .show(ctx, |ui| {
@@ -268,24 +273,24 @@ impl EguiMain {
 
                     // Toolbar
                     ui.horizontal(|ui| {
-                        if ui.button("🔄 Auto Layout").on_hover_text("Rearrange nodes by topological execution depth").clicked() {
+                        if ui.button("Auto Layout").on_hover_text("Rearrange nodes by topological execution depth").clicked() {
                             self.auto_layout(render_graph);
                         }
-                        if ui.button("🔍 Reset View").clicked() {
+                        if ui.button("Reset View").clicked() {
                             self.canvas_pan = egui::vec2(20.0, 20.0);
                             self.canvas_zoom = 1.0;
                         }
-                        if ui.button("➕").on_hover_text("Zoom in").clicked() {
+                        if ui.button("+").on_hover_text("Zoom in").clicked() {
                             self.canvas_zoom = (self.canvas_zoom * 1.15).min(2.5);
                         }
-                        if ui.button("➖").on_hover_text("Zoom out").clicked() {
+                        if ui.button("-").on_hover_text("Zoom out").clicked() {
                             self.canvas_zoom = (self.canvas_zoom / 1.15).max(0.4);
                         }
                         ui.separator();
                         let total_edges: usize = dependencies.values().map(|v| v.len()).sum();
                         ui.label(format!("Nodes: {} | Edges: {} | Zoom: {:.0}%", node_names.len(), total_edges, self.canvas_zoom * 100.0));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.weak("💡 Pan: Drag background | Zoom: Mouse wheel");
+                            ui.weak("Pan: Drag background | Zoom: Mouse wheel");
                         });
                     });
                     ui.separator();
@@ -573,7 +578,7 @@ fn node_visual_info(name: &str) -> (&'static str, egui::Color32, egui::Color32) 
 
 pub struct EguiBackendRenderer {
     pub renderer: egui_wgpu::Renderer,
-    pub pending_set_textures: Vec<(egui::TextureId, egui::epaint::ImageDelta)>,
+    pub pending_set_textures: Vec<(egui::TextureId, Vec<egui::epaint::ImageDelta>)>,
     pub pending_free_textures: Vec<egui::TextureId>,
 }
 
@@ -588,8 +593,10 @@ impl EguiBackendRenderer {
     }
 
     pub fn receive_textures_delta(&mut self, textures_delta: egui::TexturesDelta) {
-        self.pending_set_textures.extend(textures_delta.set);
-        self.pending_free_textures.extend(textures_delta.free);
+        for (id, deltas) in textures_delta.set.iter() {
+            self.pending_set_textures.push((*id, deltas.clone().into_iter().collect()));
+        }
+        self.pending_free_textures.extend(textures_delta.free.iter().cloned());
     }
 
     pub fn render(
@@ -605,8 +612,10 @@ impl EguiBackendRenderer {
             self.renderer.free_texture(&id);
         }
 
-        for (id, image_delta) in self.pending_set_textures.drain(..) {
-            self.renderer.update_texture(device, queue, id, &image_delta);
+        for (id, image_deltas) in self.pending_set_textures.drain(..) {
+            for image_delta in image_deltas {
+                self.renderer.update_texture(device, queue, id, &image_delta);
+            }
         }
 
         if tris.is_empty() {

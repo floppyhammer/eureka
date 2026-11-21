@@ -127,7 +127,7 @@ impl Node for SkyboxNode {
                 &pipeline_layout,
                 Some(wgpu::TextureFormat::Rgba16Float),
                 Some(Texture::DEPTH_FORMAT),
-                &[VertexSky::desc()],
+                &[Some(VertexSky::desc())],
                 shader,
                 "Skybox Pipeline",
                 false,
