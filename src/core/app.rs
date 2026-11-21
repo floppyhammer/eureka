@@ -266,14 +266,28 @@ impl App {
         // If the render thread is too far behind, we just skip this frame's extraction.
         let (tris, textures_delta, scale_factor) = if let Some(egui) = &mut self.egui_main {
             let window = self.window.as_ref().unwrap();
-            let mut camera_query = self.world.ecs.query_mut::<(&mut crate::scene::Camera3dComponent, &crate::scene::ActiveCamera)>();
-            if let Some((camera, _)) = camera_query.into_iter().next() {
+            
+            // First, get the camera config (mutable borrow)
+            let mut has_3d = false;
+            let mut config_to_use: Option<crate::render::render_graph::RenderGraphConfig> = None;
+            {
+                let mut camera_query = self.world.ecs.query::<(&crate::scene::Camera3dComponent, &crate::scene::ActiveCamera)>();
+                for (camera, _) in camera_query.iter() {
+                    has_3d = true;
+                    config_to_use = Some(camera.render_config.clone());
+                    break;
+                }
+            }
+            
+            // Then run egui with the config and ecs reference (separate borrow)
+            if has_3d {
                 egui.has_3d = true;
-                egui.run(window, &mut camera.render_config)
+                let mut config = config_to_use.unwrap_or_default();
+                egui.run(window, &mut config, &self.world.ecs)
             } else {
                 egui.has_3d = false;
                 let mut fallback_config = crate::render::render_graph::RenderGraphConfig::default();
-                egui.run(window, &mut fallback_config)
+                egui.run(window, &mut fallback_config, &self.world.ecs)
             }
         } else {
             (Vec::new(), egui::TexturesDelta::default(), 1.0)

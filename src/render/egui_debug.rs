@@ -2,6 +2,7 @@ use crate::render::render_graph::config::{
     AntiAliasingMode, DebugViewmode, RenderGraphConfig,
 };
 use crate::render::render_graph::RenderGraph;
+use hecs::World as EcsWorld;
 use std::collections::{BTreeMap, HashMap};
 use winit::event::WindowEvent;
 use winit::window::Window;
@@ -11,6 +12,7 @@ pub struct EguiMain {
     pub egui_state: egui_winit::State,
     pub show_config_inspector: bool,
     pub show_node_graph: bool,
+    pub show_scene_tree: bool,
     pub node_positions: HashMap<String, egui::Pos2>,
     pub selected_node: Option<String>,
     pub config: RenderGraphConfig,
@@ -19,6 +21,9 @@ pub struct EguiMain {
     pub canvas_zoom: f32,
     pub auto_layout_done: bool,
     pub has_3d: bool,
+    // Scene tree state
+    pub expanded_nodes: std::collections::HashSet<u32>,
+    pub selected_entity: Option<hecs::Entity>,
 }
 
 impl EguiMain {
@@ -40,6 +45,7 @@ impl EguiMain {
             egui_state,
             show_config_inspector: true,
             show_node_graph: false,
+            show_scene_tree: true,
             node_positions: HashMap::new(),
             selected_node: None,
             config,
@@ -48,6 +54,8 @@ impl EguiMain {
             canvas_zoom: 1.0,
             auto_layout_done: false,
             has_3d: true,
+            expanded_nodes: std::collections::HashSet::new(),
+            selected_entity: None,
         }
     }
 
@@ -59,6 +67,7 @@ impl EguiMain {
         &mut self,
         window: &Window,
         config: &mut RenderGraphConfig,
+        ecs: &EcsWorld,
     ) -> (Vec<egui::ClippedPrimitive>, egui::TexturesDelta, f32) {
         let raw_input = self.egui_state.take_egui_input(window);
         let mut config_changed = false;
@@ -66,7 +75,7 @@ impl EguiMain {
         let ctx = self.egui_ctx.clone();
 
         self.egui_ctx.begin_pass(raw_input);
-        self.ui(&ctx, config, &temp_graph, &mut config_changed);
+        self.ui(&ctx, config, &temp_graph, &mut config_changed, ecs);
         let full_output = self.egui_ctx.end_pass();
 
         self.egui_state.handle_platform_output(window, full_output.platform_output);
@@ -95,6 +104,138 @@ impl EguiMain {
         let mut combined_free = std::mem::take(&mut unsent.free);
         combined_free.extend(self.pending_textures_delta.free.drain());
         self.pending_textures_delta.free = combined_free;
+    }
+
+    /// 显示场景实体树
+    fn show_scene_tree_ui(&mut self, ui: &mut egui::Ui, ecs: &EcsWorld) {
+        // 获取所有实体及其名称和父子关系
+        let mut entities: Vec<(hecs::Entity, Option<String>, Option<hecs::Entity>)> = Vec::new();
+
+        // 查询所有有Name组件的实体
+        {
+            let mut query = ecs.query::<(hecs::Entity, &crate::scene::Name)>();
+            for (entity, name) in query.iter() {
+                entities.push((entity, Some(name.0.clone()), None));
+            }
+        }
+
+        // 查询所有有Parent组件的实体
+        {
+            let mut query = ecs.query::<(hecs::Entity, &crate::scene::Parent)>();
+            for (entity, parent) in query.iter() {
+                if let Some(entry) = entities.iter_mut().find(|e| e.0 == entity) {
+                    entry.2 = Some(parent.0);
+                }
+            }
+        }
+
+        // 构建父子关系映射
+        let mut children_map: HashMap<hecs::Entity, Vec<hecs::Entity>> = HashMap::new();
+        let mut roots: Vec<hecs::Entity> = Vec::new();
+
+        for (entity, _name, parent) in &entities {
+            match parent {
+                Some(parent_entity) => {
+                    children_map
+                        .entry(*parent_entity)
+                        .or_default()
+                        .push(*entity);
+                }
+                None => {
+                    // 检查是否有父节点
+                    let has_parent = entities.iter().any(|e| e.2 == Some(*entity));
+                    if !has_parent {
+                        roots.push(*entity);
+                    }
+                }
+            }
+        }
+
+        // 如果没有根节点，将所有实体作为根节点
+        if roots.is_empty() && !entities.is_empty() {
+            roots.push(entities[0].0);
+        }
+
+        // 显示根节点
+        for root in &roots {
+            self.show_entity_node(ui, ecs, *root, &children_map, 0);
+        }
+
+        // 显示选中实体的详细信息
+        if let Some(selected) = self.selected_entity {
+            ui.separator();
+            ui.heading("Entity Details");
+
+            // 获取名称
+            if let Ok(name) = ecs.get::<&crate::scene::Name>(selected) {
+                ui.label(format!("Name: {}", name.0));
+            }
+            ui.label(format!("Entity ID: {:?}", selected));
+        }
+    }
+
+    /// 递归显示实体节点
+    fn show_entity_node(
+        &mut self,
+        ui: &mut egui::Ui,
+        ecs: &EcsWorld,
+        entity: hecs::Entity,
+        children_map: &HashMap<hecs::Entity, Vec<hecs::Entity>>,
+        depth: usize,
+    ) {
+        // 获取实体名称
+        let name = ecs.get::<&crate::scene::Name>(entity)
+            .map(|n| n.0.clone())
+            .unwrap_or_else(|_| format!("Entity {:?}", entity));
+
+        // 获取子节点
+        let children = children_map.get(&entity).cloned().unwrap_or_default();
+        let has_children = !children.is_empty();
+
+        // 使用 entity 的 index 和 generation 作为唯一标识
+        let entity_id = entity.id();
+
+        // 确定图标（使用普通 ASCII 字符，避免 emoji 字体问题）
+        let icon = if has_children {
+            if self.expanded_nodes.contains(&entity_id) {
+                "[-]"
+            } else {
+                "[+]"
+            }
+        } else {
+            "[ ]"
+        };
+
+        // 检查是否选中
+        let is_selected = self.selected_entity == Some(entity);
+
+        // 创建可点击的节点
+        let response = ui.horizontal(|ui| {
+            ui.add_space((depth * 15) as f32);
+            let icon_response = ui.button(icon);
+            if icon_response.clicked() && has_children {
+                if self.expanded_nodes.contains(&entity_id) {
+                    self.expanded_nodes.remove(&entity_id);
+                } else {
+                    self.expanded_nodes.insert(entity_id);
+                }
+            }
+            let name_response = ui.selectable_label(is_selected, &name);
+            if name_response.clicked() {
+                self.selected_entity = Some(entity);
+            }
+            name_response
+        });
+
+        // 高亮选中项 - 添加tooltip
+        response.inner.on_hover_text(&name);
+
+        // 递归显示子节点
+        if has_children && self.expanded_nodes.contains(&entity_id) {
+            for child in &children {
+                self.show_entity_node(ui, ecs, *child, children_map, depth + 1);
+            }
+        }
     }
 
     pub fn auto_layout(&mut self, render_graph: &RenderGraph) {
@@ -155,11 +296,13 @@ impl EguiMain {
         config: &mut RenderGraphConfig,
         render_graph: &RenderGraph,
         config_changed: &mut bool,
+        ecs: &EcsWorld,
     ) {
         egui::Window::new("Eureka Viewport Controls")
             .show(ctx, |ui| {
                 ui.checkbox(&mut self.show_config_inspector, "Render Config Inspector");
                 ui.checkbox(&mut self.show_node_graph, "Render Graph Node Topology");
+                ui.checkbox(&mut self.show_scene_tree, "Scene Entities");
             });
 
         // 1. Config Inspector Window
@@ -554,6 +697,18 @@ impl EguiMain {
                     }
                 });
             self.show_node_graph = show_node_graph;
+        }
+
+        // 3. Scene Tree Window
+        if self.show_scene_tree {
+            let mut show_scene_tree = self.show_scene_tree;
+            egui::Window::new("Scene Entities")
+                .open(&mut show_scene_tree)
+                .default_size(egui::vec2(300.0, 400.0))
+                .show(ctx, |ui| {
+                    self.show_scene_tree_ui(ui, ecs);
+                });
+            self.show_scene_tree = show_scene_tree;
         }
     }
 }
