@@ -572,4 +572,8 @@ pub mod standard_resources {
     pub fn ssr_history() -> TextureId {
         ResourceId::new("ssr_history")
     }
+
+    pub fn debug_viewmode_uniform() -> BufferId {
+        ResourceId::new("debug_viewmode_uniform")
+    }
 }

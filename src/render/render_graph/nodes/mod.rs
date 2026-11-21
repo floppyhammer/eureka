@@ -1,6 +1,7 @@
 pub mod bloom;
 pub mod clear;
 pub mod culling;
+pub mod debug_viewmode;
 pub mod depth_pyramid;
 pub mod fxaa;
 pub mod ibl;
@@ -26,6 +27,7 @@ pub mod volumetric;
 pub use bloom::*;
 pub use clear::*;
 pub use culling::*;
+pub use debug_viewmode::*;
 pub use depth_pyramid::*;
 pub use fxaa::*;
 pub use ibl::*;

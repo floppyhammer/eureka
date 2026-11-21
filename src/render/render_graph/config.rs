@@ -7,6 +7,17 @@ pub enum AntiAliasingMode {
     TaaAndFxaa,
 }
 
+/// 调试视图模式，用于可视化渲染管线中间缓冲区
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DebugViewmode {
+    #[default]
+    Default,      // 正常渲染输出
+    Normals,      // 法线可视化 (RGB = XYZ)
+    Depth,        // 深度缓冲区 (线性化深度)
+    Velocity,     // 运动矢量 (Motion Vectors)
+    Prepass,      // PrePass 法线/粗糙度 (RGBA)
+}
+
 /// 阴影渲染配置
 #[derive(Debug, Clone, PartialEq)]
 pub struct ShadowConfig {
@@ -132,6 +143,7 @@ pub struct RenderGraphConfig {
     pub bloom: BloomConfig,
     pub aa_mode: AntiAliasingMode,
     pub tonemapping: ToneMappingConfig,
+    pub debug_viewmode: DebugViewmode,
 }
 
 impl Default for RenderGraphConfig {
@@ -173,6 +185,7 @@ impl RenderGraphConfig {
             },
             aa_mode: AntiAliasingMode::Fxaa,
             tonemapping: ToneMappingConfig { enabled: true },
+            debug_viewmode: DebugViewmode::Default,
         }
     }
 
@@ -208,6 +221,7 @@ impl RenderGraphConfig {
             },
             aa_mode: AntiAliasingMode::Taa,
             tonemapping: ToneMappingConfig { enabled: true },
+            debug_viewmode: DebugViewmode::Default,
         }
     }
 
@@ -243,6 +257,7 @@ impl RenderGraphConfig {
             },
             aa_mode: AntiAliasingMode::Taa,
             tonemapping: ToneMappingConfig { enabled: true },
+            debug_viewmode: DebugViewmode::Default,
         }
     }
 
@@ -278,6 +293,7 @@ impl RenderGraphConfig {
             },
             aa_mode: AntiAliasingMode::TaaAndFxaa,
             tonemapping: ToneMappingConfig { enabled: true },
+            debug_viewmode: DebugViewmode::Default,
         }
     }
 }

@@ -1,10 +1,10 @@
 use crate::render::render_graph::config::{AntiAliasingMode, RenderGraphConfig};
 use crate::render::render_graph::graph::RenderGraph;
 use crate::render::render_graph::nodes::{
-    BloomNode, ClearNode, CullingNode, DepthPyramidNode, FxaaNode, IBLNode, IndirectApplyNode,
-    LightCullingNode, MeshNode, PrePassNode, PrepareInstancesNode, PrepareMaterialsNode,
-    PrepareViewNode, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, SsgiNode, SsrNode, TaaNode,
-    ToneMappingNode, TransparentMeshNode, VolumetricApplyNode, VolumetricNode,
+    BloomNode, ClearNode, CullingNode, DebugViewmodeNode, DepthPyramidNode, FxaaNode, IBLNode,
+    IndirectApplyNode, LightCullingNode, MeshNode, PrePassNode, PrepareInstancesNode,
+    PrepareMaterialsNode, PrepareViewNode, ShadowNode, SkyboxNode, SpriteNode, SsaoNode, SsgiNode,
+    SsrNode, TaaNode, ToneMappingNode, TransparentMeshNode, VolumetricApplyNode, VolumetricNode,
 };
 
 /// 基于 RenderGraphConfig 动态组装并连接渲染图的 Builder。
@@ -238,10 +238,16 @@ impl RenderGraphBuilder {
             last_stage = "fxaa".to_string();
         }
 
-        // 2D Sprite UI 最终叠加
+        // Debug Viewmode 节点：替换最终输出，可视化中间缓冲区
+        // 必须在 sprite 之前，因为 sprite 也写入 final_output
+        graph.add_node("debug_viewmode", DebugViewmodeNode::default());
+        graph.add_node_edge("prepass", "debug_viewmode");
+        graph.add_node_edge(&last_stage, "debug_viewmode");
+
+        // 2D Sprite UI 最终叠加（在 debug_viewmode 之后）
         graph.add_node_edge("prepare_view", "sprite");
         graph.add_node_edge("prepare_materials", "sprite");
-        graph.add_node_edge(&last_stage, "sprite");
+        graph.add_node_edge("debug_viewmode", "sprite");
 
         graph
     }

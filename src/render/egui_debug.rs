@@ -1,5 +1,5 @@
 use crate::render::render_graph::config::{
-    AntiAliasingMode, RenderGraphConfig,
+    AntiAliasingMode, DebugViewmode, RenderGraphConfig,
 };
 use crate::render::render_graph::RenderGraph;
 use std::collections::{BTreeMap, HashMap};
@@ -230,6 +230,18 @@ impl EguiMain {
 
                         ui.heading("Tonemapping");
                         if ui.checkbox(&mut config.tonemapping.enabled, "Enabled").changed() { *config_changed = true; }
+                        ui.separator();
+
+                        ui.heading("🔍 Debug Viewmode");
+                        egui::ComboBox::from_label("Viewmode")
+                            .selected_text(format!("{:?}", config.debug_viewmode))
+                            .show_ui(ui, |ui| {
+                                if ui.selectable_value(&mut config.debug_viewmode, DebugViewmode::Default, "Default (Normal)").changed() { *config_changed = true; }
+                                if ui.selectable_value(&mut config.debug_viewmode, DebugViewmode::Normals, "Normals").changed() { *config_changed = true; }
+                                if ui.selectable_value(&mut config.debug_viewmode, DebugViewmode::Depth, "Depth").changed() { *config_changed = true; }
+                                if ui.selectable_value(&mut config.debug_viewmode, DebugViewmode::Velocity, "Velocity").changed() { *config_changed = true; }
+                                if ui.selectable_value(&mut config.debug_viewmode, DebugViewmode::Prepass, "Prepass (Normal + Roughness)").changed() { *config_changed = true; }
+                            });
                     });
                 });
         }
