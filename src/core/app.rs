@@ -94,6 +94,7 @@ impl App {
         window: Arc<Window>,
         render_cpu_time: Arc<std::sync::atomic::AtomicU64>,
         gpu_time: Arc<std::sync::atomic::AtomicU64>,
+        render_frame_count: Arc<std::sync::atomic::AtomicU64>,
     ) -> (RenderContext, wgpu::Surface<'static>) {
         // Context for all other wgpu objects.
         let instance = wgpu::Instance::default();
@@ -189,6 +190,7 @@ impl App {
                 frames_in_flight,
                 render_cpu_time,
                 gpu_time,
+                render_frame_count,
             ),
             surface,
         )
@@ -361,6 +363,7 @@ impl ApplicationHandler for App {
             window.clone(),
             time.render_cpu_time.clone(),
             time.gpu_time.clone(),
+            time.render_frame_count.clone(),
         ));
 
         let mut asset_server = AssetServer::new();

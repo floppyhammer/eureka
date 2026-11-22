@@ -5,13 +5,20 @@ use std::time::SystemTime;
 pub struct Time {
     startup_time: SystemTime,
 
-    last_frame_time: SystemTime,
-    /// Frame time.
+    last_logic_tick_time: SystemTime,
+    /// Frame delta time in seconds.
     delta: f64,
-    /// Approximate FPS over the last second.
-    fps: f32,
 
-    last_time_updated_fps: SystemTime,
+    /// Logic FPS over the last second.
+    logic_fps: f32,
+    /// Render FPS over the last second.
+    render_fps: f32,
+
+    logic_frame_counter: u32,
+    pub render_frame_count: Arc<AtomicU64>,
+    last_render_frame_count_snapshot: u64,
+
+    last_profile_log_time: SystemTime,
 
     // Profiling stats in nanoseconds
     pub logic_time: Arc<AtomicU64>,
@@ -21,12 +28,17 @@ pub struct Time {
 
 impl Time {
     pub fn new() -> Self {
+        let now = SystemTime::now();
         Self {
-            startup_time: SystemTime::now(),
-            last_frame_time: SystemTime::now(),
+            startup_time: now,
+            last_logic_tick_time: now,
             delta: 0.0,
-            fps: 0.0,
-            last_time_updated_fps: SystemTime::now(),
+            logic_fps: 0.0,
+            render_fps: 0.0,
+            logic_frame_counter: 0,
+            render_frame_count: Arc::new(AtomicU64::new(0)),
+            last_render_frame_count_snapshot: 0,
+            last_profile_log_time: now,
             logic_time: Arc::new(AtomicU64::new(0)),
             render_cpu_time: Arc::new(AtomicU64::new(0)),
             gpu_time: Arc::new(AtomicU64::new(0)),
@@ -36,7 +48,7 @@ impl Time {
     pub fn tick(&mut self) {
         let now = SystemTime::now();
 
-        match self.last_frame_time.elapsed() {
+        match self.last_logic_tick_time.elapsed() {
             Ok(elapsed) => {
                 self.delta = elapsed.as_secs_f64();
             }
@@ -44,26 +56,37 @@ impl Time {
                 println!("Error: {:?}", e);
             }
         }
+        self.last_logic_tick_time = now;
+        self.logic_frame_counter += 1;
 
-        if self.last_time_updated_fps.elapsed().unwrap().as_secs_f64() > 1.0 {
-            self.last_time_updated_fps = now;
-            self.fps = 1.0 / self.delta as f32;
+        if let Ok(elapsed) = self.last_profile_log_time.elapsed() {
+            let elapsed_secs = elapsed.as_secs_f64();
+            if elapsed_secs >= 1.0 {
+                let current_render_frames = self.render_frame_count.load(Ordering::Relaxed);
+                let render_frames_delta =
+                    current_render_frames.saturating_sub(self.last_render_frame_count_snapshot);
+                self.last_render_frame_count_snapshot = current_render_frames;
 
-            let logic_ms = self.logic_time.load(Ordering::Relaxed) as f64 / 1_000_000.0;
-            let render_cpu_ms = self.render_cpu_time.load(Ordering::Relaxed) as f64 / 1_000_000.0;
-            let gpu_ms = self.gpu_time.load(Ordering::Relaxed) as f64 / 1_000_000.0;
+                self.logic_fps = (self.logic_frame_counter as f64 / elapsed_secs) as f32;
+                self.render_fps = (render_frames_delta as f64 / elapsed_secs) as f32;
 
-            println!(
-                "FPS: {:>6.2} | CPU Logic: {:>6.2}ms | CPU Render: {:>6.2}ms | GPU: {:>6.2}ms",
-                self.fps, logic_ms, render_cpu_ms, gpu_ms
-            );
+                self.logic_frame_counter = 0;
+                self.last_profile_log_time = now;
+
+                let logic_ms = self.logic_time.load(Ordering::Relaxed) as f64 / 1_000_000.0;
+                let render_cpu_ms = self.render_cpu_time.load(Ordering::Relaxed) as f64 / 1_000_000.0;
+                let gpu_ms = self.gpu_time.load(Ordering::Relaxed) as f64 / 1_000_000.0;
+
+                println!(
+                    "Logic FPS: {:>6.2} | Render FPS: {:>6.2} | CPU Logic: {:>6.2}ms | CPU Render: {:>6.2}ms | GPU: {:>6.2}ms",
+                    self.logic_fps, self.render_fps, logic_ms, render_cpu_ms, gpu_ms
+                );
+            }
         }
-
-        self.last_frame_time = now;
     }
 
     pub fn get_delta(&self) -> f64 {
-        return self.delta;
+        self.delta
     }
 
     pub fn get_elapsed(&self) -> f64 {
@@ -77,6 +100,14 @@ impl Time {
     }
 
     pub fn get_fps(&self) -> f32 {
-        self.fps
+        self.render_fps
+    }
+
+    pub fn get_logic_fps(&self) -> f32 {
+        self.logic_fps
+    }
+
+    pub fn get_render_fps(&self) -> f32 {
+        self.render_fps
     }
 }

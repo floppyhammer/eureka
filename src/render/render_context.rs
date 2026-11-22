@@ -12,6 +12,7 @@ pub struct RenderContext {
 
     pub render_cpu_time: Arc<AtomicU64>,
     pub gpu_time: Arc<AtomicU64>,
+    pub render_frame_count: Arc<AtomicU64>,
 }
 
 impl RenderContext {
@@ -22,6 +23,7 @@ impl RenderContext {
         frames_in_flight: u32,
         render_cpu_time: Arc<AtomicU64>,
         gpu_time: Arc<AtomicU64>,
+        render_frame_count: Arc<AtomicU64>,
     ) -> Self {
         let now = Instant::now();
 
@@ -32,6 +34,7 @@ impl RenderContext {
             frames_in_flight,
             render_cpu_time,
             gpu_time,
+            render_frame_count,
         };
 
         let elapsed_time = now.elapsed();

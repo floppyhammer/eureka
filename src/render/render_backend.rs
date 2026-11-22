@@ -285,8 +285,6 @@ impl RenderBackend {
             renderer.receive_textures_delta(textures_delta);
         }
 
-        let cpu_render_start = std::time::Instant::now();
-
         let has_3d = extracted
             .cameras
             .types
@@ -334,6 +332,9 @@ impl RenderBackend {
         let final_output_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+
+        // 正确记录 CPU Render 实际耗时（排除在 get_current_texture 中等待垂直同步的阻塞时间）
+        let cpu_render_start = std::time::Instant::now();
 
         // 1. Prepare frame data
         let prepared_frame = self.prepare(render_context, &mut extracted);
@@ -443,6 +444,10 @@ impl RenderBackend {
 
         // 必须调用 poll(Poll) 来推进异步映射的进度，但这不会阻塞线程
         let _ = render_context.device.poll(wgpu::PollType::Poll);
+
+        render_context
+            .render_frame_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn process_timestamps(&mut self, render_context: &RenderContext) {
