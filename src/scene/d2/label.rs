@@ -36,6 +36,16 @@ impl LabelComponent {
         }
     }
 
+    /// 更新文本内容并自动标记 text_is_dirty，确保 UI 渲染层重新生成字体图集
+    pub fn set_text(&mut self, text: impl Into<String>) {
+        let new_text = text.into();
+        if self.text != new_text {
+            self.text = new_text;
+            self.text_is_dirty = true;
+            self.layout_is_dirty = true;
+        }
+    }
+
     pub fn with_mode(mut self, mode: TextMode) -> Self {
         self.mode = mode;
         self

@@ -51,12 +51,12 @@ fn main() {
             ActiveCamera,
         ));
 
-        // 3. 添加标签实体
+        // 3. 添加标签实体 (显示在左下角，避免被 egui inspector 遮挡)
         world.ecs.spawn((
             Name("Settings".into()),
             LabelComponent::new("Text Overlay"),
             CTransform2d(Transform2d {
-                position: Vec2::new(20.0, 20.0),
+                position: Vec2::new(20.0, 680.0),
                 ..Transform2d::default()
             }),
             GlobalTransform::default(),
@@ -200,6 +200,30 @@ fn main() {
 
             // 让太阳绕 X 轴旋转（模拟东升西落）
             transform.0.rotation = Quat::from_rotation_x(logic.timer);
+        }
+    });
+
+    // 添加自定义更新逻辑：实时更新性能 Overlay 文本，并保持固定在屏幕左下角
+    app.add_update(|app, _dt| {
+        let (log_str, screen_height) = if let Some(s) = &app.singletons {
+            (
+                s.time.get_log_string().to_string(),
+                s.render_context.surface_config.height as f32,
+            )
+        } else {
+            (String::new(), 720.0)
+        };
+
+        let world = &mut app.world;
+        for (label, transform, name) in
+            world.ecs.query_mut::<(&mut LabelComponent, &mut CTransform2d, &Name)>()
+        {
+            if name.0 == "Settings" {
+                label.set_text(log_str);
+                // 自动适应屏幕高度，定位在左下角 (留出 35px 边距)
+                transform.0.position = Vec2::new(20.0, (screen_height - 35.0).max(20.0));
+                break;
+            }
         }
     });
 

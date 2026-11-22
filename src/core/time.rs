@@ -19,6 +19,7 @@ pub struct Time {
     last_render_frame_count_snapshot: u64,
 
     last_profile_log_time: SystemTime,
+    profiler_string: String,
 
     // Profiling stats in nanoseconds
     pub logic_time: Arc<AtomicU64>,
@@ -29,6 +30,7 @@ pub struct Time {
 impl Time {
     pub fn new() -> Self {
         let now = SystemTime::now();
+        let default_profiler_str = "Logic FPS:   0.00 | Render FPS:   0.00 | CPU Logic:   0.00ms | CPU Render:   0.00ms | GPU:   0.00ms".to_string();
         Self {
             startup_time: now,
             last_logic_tick_time: now,
@@ -39,6 +41,7 @@ impl Time {
             render_frame_count: Arc::new(AtomicU64::new(0)),
             last_render_frame_count_snapshot: 0,
             last_profile_log_time: now,
+            profiler_string: default_profiler_str,
             logic_time: Arc::new(AtomicU64::new(0)),
             render_cpu_time: Arc::new(AtomicU64::new(0)),
             gpu_time: Arc::new(AtomicU64::new(0)),
@@ -61,7 +64,7 @@ impl Time {
 
         if let Ok(elapsed) = self.last_profile_log_time.elapsed() {
             let elapsed_secs = elapsed.as_secs_f64();
-            if elapsed_secs >= 1.0 {
+            if elapsed_secs >= 0.5 {
                 let current_render_frames = self.render_frame_count.load(Ordering::Relaxed);
                 let render_frames_delta =
                     current_render_frames.saturating_sub(self.last_render_frame_count_snapshot);
@@ -77,10 +80,12 @@ impl Time {
                 let render_cpu_ms = self.render_cpu_time.load(Ordering::Relaxed) as f64 / 1_000_000.0;
                 let gpu_ms = self.gpu_time.load(Ordering::Relaxed) as f64 / 1_000_000.0;
 
-                println!(
+                self.profiler_string = format!(
                     "Logic FPS: {:>6.2} | Render FPS: {:>6.2} | CPU Logic: {:>6.2}ms | CPU Render: {:>6.2}ms | GPU: {:>6.2}ms",
                     self.logic_fps, self.render_fps, logic_ms, render_cpu_ms, gpu_ms
                 );
+
+                println!("{}", self.profiler_string);
             }
         }
     }
@@ -109,5 +114,15 @@ impl Time {
 
     pub fn get_render_fps(&self) -> f32 {
         self.render_fps
+    }
+
+    /// 获取最新的性能分析 Profiler 日志文本字符串
+    pub fn get_log_string(&self) -> &str {
+        &self.profiler_string
+    }
+
+    /// 获取最新的性能分析 Profiler 日志文本字符串
+    pub fn get_profiler_string(&self) -> &str {
+        &self.profiler_string
     }
 }
