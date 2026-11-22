@@ -594,7 +594,7 @@ impl EguiMain {
                         self.auto_layout(render_graph);
                     }
 
-                    let node_names = render_graph.node_names();
+                    let mut node_names = render_graph.node_names();
                     let dependencies = render_graph.dependencies();
                     let topo_order = render_graph.topological_sort();
                     let execution_steps: HashMap<String, usize> = topo_order
@@ -683,117 +683,150 @@ impl EguiMain {
                         }
                     }
 
+                    // Deterministic sort with active (selected/hovered) nodes last (top of z-stack)
+                    node_names.sort_by(|a, b| {
+                        let a_active = Some(*a) == self.selected_node.as_deref() || hovered_node.as_deref() == Some(*a);
+                        let b_active = Some(*b) == self.selected_node.as_deref() || hovered_node.as_deref() == Some(*b);
+                        if a_active != b_active {
+                            a_active.cmp(&b_active)
+                        } else {
+                            a.cmp(b)
+                        }
+                    });
+
                     // 1. Draw Edges (Smooth Cubic Bézier Curves with directional indicators)
+                    // Collect and sort edges deterministically, with related (highlighted) edges last (on top)
+                    let mut sorted_edges: Vec<(&String, &String)> = Vec::new();
                     for (to_node, from_nodes) in dependencies {
+                        for from_node in from_nodes {
+                            sorted_edges.push((from_node, to_node));
+                        }
+                    }
+                    sorted_edges.sort_by(|(from_a, to_a), (from_b, to_b)| {
+                        let a_related = self.selected_node.as_deref() == Some(from_a.as_str())
+                            || self.selected_node.as_deref() == Some(to_a.as_str())
+                            || hovered_node.as_deref() == Some(from_a.as_str())
+                            || hovered_node.as_deref() == Some(to_a.as_str());
+                        let b_related = self.selected_node.as_deref() == Some(from_b.as_str())
+                            || self.selected_node.as_deref() == Some(to_b.as_str())
+                            || hovered_node.as_deref() == Some(from_b.as_str())
+                            || hovered_node.as_deref() == Some(to_b.as_str());
+
+                        if a_related != b_related {
+                            a_related.cmp(&b_related)
+                        } else {
+                            (from_a, to_a).cmp(&(from_b, to_b))
+                        }
+                    });
+
+                    for (from_node, to_node) in sorted_edges {
                         let to_rect = match node_rects.get(to_node) {
                             Some(r) => *r,
                             None => continue,
                         };
-                        for from_node in from_nodes {
-                            let from_rect = match node_rects.get(from_node) {
-                                Some(r) => *r,
-                                None => continue,
-                            };
+                        let from_rect = match node_rects.get(from_node) {
+                            Some(r) => *r,
+                            None => continue,
+                        };
 
-                            let p1 = from_rect.right_center();
-                            let p2 = to_rect.left_center();
+                        let p1 = from_rect.right_center();
+                        let p2 = to_rect.left_center();
 
-                            let is_related = self.selected_node.as_deref() == Some(from_node.as_str())
-                                || self.selected_node.as_deref() == Some(to_node.as_str())
-                                || hovered_node.as_deref() == Some(from_node.as_str())
-                                || hovered_node.as_deref() == Some(to_node.as_str());
+                        let is_related = self.selected_node.as_deref() == Some(from_node.as_str())
+                            || self.selected_node.as_deref() == Some(to_node.as_str())
+                            || hovered_node.as_deref() == Some(from_node.as_str())
+                            || hovered_node.as_deref() == Some(to_node.as_str());
 
-                            let stroke = if is_related {
-                                egui::Stroke::new(2.5 * zoom.max(0.7), egui::Color32::from_rgb(255, 205, 70))
-                            } else if self.selected_node.is_some() || hovered_node.is_some() {
-                                egui::Stroke::new(1.0 * zoom.max(0.5), egui::Color32::from_rgba_unmultiplied(70, 95, 125, 60))
-                            } else {
-                                egui::Stroke::new(1.5 * zoom.max(0.6), egui::Color32::from_rgb(90, 135, 185))
-                            };
+                        let stroke = if is_related {
+                            egui::Stroke::new(2.5 * zoom.max(0.7), egui::Color32::from_rgb(255, 205, 70))
+                        } else if self.selected_node.is_some() || hovered_node.is_some() {
+                            egui::Stroke::new(1.0 * zoom.max(0.5), egui::Color32::from_rgba_unmultiplied(70, 95, 125, 60))
+                        } else {
+                            egui::Stroke::new(1.5 * zoom.max(0.6), egui::Color32::from_rgb(90, 135, 185))
+                        };
 
-                            // Cubic Bézier calculation
-                            let dx = (p2.x - p1.x).abs().max(40.0 * zoom) * 0.5;
-                            let c1 = p1 + egui::vec2(dx, 0.0);
-                            let c2 = p2 - egui::vec2(dx, 0.0);
+                        // Cubic Bézier calculation
+                        let dx = (p2.x - p1.x).abs().max(40.0 * zoom) * 0.5;
+                        let c1 = p1 + egui::vec2(dx, 0.0);
+                        let c2 = p2 - egui::vec2(dx, 0.0);
 
-                            let bezier = egui::epaint::CubicBezierShape::from_points_stroke(
-                                [p1, c1, c2, p2],
-                                false,
-                                egui::Color32::TRANSPARENT,
-                                stroke,
-                            );
-                            painter.add(bezier);
+                        let bezier = egui::epaint::CubicBezierShape::from_points_stroke(
+                            [p1, c1, c2, p2],
+                            false,
+                            egui::Color32::TRANSPARENT,
+                            stroke,
+                        );
+                        painter.add(bezier);
 
-                            // Connector circles
-                            painter.circle_filled(p1, 3.5 * zoom.max(0.6), stroke.color);
-                            painter.circle_filled(p2, 3.5 * zoom.max(0.6), stroke.color);
+                        // Connector circles
+                        painter.circle_filled(p1, 3.5 * zoom.max(0.6), stroke.color);
+                        painter.circle_filled(p2, 3.5 * zoom.max(0.6), stroke.color);
 
-                            // Directional arrow at destination port
-                            let arrow_len = 8.0 * zoom.max(0.6);
-                            let arrow_w = 4.0 * zoom.max(0.6);
-                            let a1 = p2 - egui::vec2(arrow_len, -arrow_w);
-                            let a2 = p2 - egui::vec2(arrow_len, arrow_w);
-                            painter.line_segment([a1, p2], stroke);
-                            painter.line_segment([a2, p2], stroke);
+                        // Directional arrow at destination port
+                        let arrow_len = 8.0 * zoom.max(0.6);
+                        let arrow_w = 4.0 * zoom.max(0.6);
+                        let a1 = p2 - egui::vec2(arrow_len, -arrow_w);
+                        let a2 = p2 - egui::vec2(arrow_len, arrow_w);
+                        painter.line_segment([a1, p2], stroke);
+                        painter.line_segment([a2, p2], stroke);
 
-                            // Draw resource info labels only on highlighted edges (related to selected/hovered node)
-                            if is_related {
-                                let edge_resources = render_graph.edge_resources(from_node, to_node);
-                                if !edge_resources.is_empty() {
-                                    // Compute midpoint of the bezier curve (t=0.5)
-                                    let t = 0.5_f32;
-                                    let mt = 1.0_f32 - t;
-                                    let mt3 = mt * mt * mt;
-                                    let t3 = t * t * t;
-                                    let mid = egui::pos2(
-                                        mt3 * p1.x + 3.0 * mt * mt * t * c1.x + 3.0 * mt * t * t * c2.x + t3 * p2.x,
-                                        mt3 * p1.y + 3.0 * mt * mt * t * c1.y + 3.0 * mt * t * t * c2.y + t3 * p2.y,
+                        // Draw resource info labels only on highlighted edges (related to selected/hovered node)
+                        if is_related {
+                            let edge_resources = render_graph.edge_resources(from_node, to_node);
+                            if !edge_resources.is_empty() {
+                                // Compute midpoint of the bezier curve (t=0.5)
+                                let t = 0.5_f32;
+                                let mt = 1.0_f32 - t;
+                                let mt3 = mt * mt * mt;
+                                let t3 = t * t * t;
+                                let mid = egui::pos2(
+                                    mt3 * p1.x + 3.0 * mt * mt * t * c1.x + 3.0 * mt * t * t * c2.x + t3 * p2.x,
+                                    mt3 * p1.y + 3.0 * mt * mt * t * c1.y + 3.0 * mt * t * t * c2.y + t3 * p2.y,
+                                );
+
+                                let label_color = egui::Color32::from_rgb(255, 220, 100);
+                                let font_id = egui::FontId::monospace((8.5 * zoom.max(0.5)).max(7.0));
+
+                                for (idx, res_info) in edge_resources.iter().enumerate() {
+                                    let label = match &res_info.spec {
+                                        crate::render::render_graph::resource::ResourceSpec::Texture(tk) => {
+                                            let fmt_str = match tk.format {
+                                                Some(f) => format!("{:?}", f),
+                                                None => "?".to_string(),
+                                            };
+                                            let w = if tk.width == 0 { "?".to_string() } else { tk.width.to_string() };
+                                            let h = if tk.height == 0 { "?".to_string() } else { tk.height.to_string() };
+                                            format!("{}: {}×{}", fmt_str, w, h)
+                                        }
+                                        crate::render::render_graph::resource::ResourceSpec::Buffer(bk) => {
+                                            format!("Buf: {}B", bk.size)
+                                        }
+                                        crate::render::render_graph::resource::ResourceSpec::Sampler(_) => {
+                                            "Sampler".to_string()
+                                        }
+                                    };
+
+                                    // Offset each label vertically if there are multiple resources
+                                    let y_offset = idx as f32 * 11.0 * zoom.max(0.5);
+                                    let text_pos = mid + egui::vec2(0.0, -8.0 * zoom.max(0.5) - y_offset);
+
+                                    // Background pill for readability
+                                    let galley = painter.layout(
+                                        label.clone(),
+                                        font_id.clone(),
+                                        label_color,
+                                        f32::MAX,
+                                    );
+                                    let bg_rect = galley.rect.translate(text_pos.to_vec2());
+                                    let padding = egui::vec2(3.0 * zoom.max(0.4), 1.5 * zoom.max(0.4));
+                                    let bg_rect = bg_rect.expand2(padding);
+                                    painter.rect_filled(
+                                        bg_rect,
+                                        2.0 * zoom.max(0.3),
+                                        egui::Color32::from_rgba_unmultiplied(18, 22, 30, 200),
                                     );
 
-                                    let label_color = egui::Color32::from_rgb(255, 220, 100);
-                                    let font_id = egui::FontId::monospace((8.5 * zoom.max(0.5)).max(7.0));
-
-                                    for (idx, res_info) in edge_resources.iter().enumerate() {
-                                        let label = match &res_info.spec {
-                                            crate::render::render_graph::resource::ResourceSpec::Texture(tk) => {
-                                                let fmt_str = match tk.format {
-                                                    Some(f) => format!("{:?}", f),
-                                                    None => "?".to_string(),
-                                                };
-                                                let w = if tk.width == 0 { "?".to_string() } else { tk.width.to_string() };
-                                                let h = if tk.height == 0 { "?".to_string() } else { tk.height.to_string() };
-                                                format!("{}: {}×{}", fmt_str, w, h)
-                                            }
-                                            crate::render::render_graph::resource::ResourceSpec::Buffer(bk) => {
-                                                format!("Buf: {}B", bk.size)
-                                            }
-                                            crate::render::render_graph::resource::ResourceSpec::Sampler(_) => {
-                                                "Sampler".to_string()
-                                            }
-                                        };
-
-                                        // Offset each label vertically if there are multiple resources
-                                        let y_offset = idx as f32 * 11.0 * zoom.max(0.5);
-                                        let text_pos = mid + egui::vec2(0.0, -8.0 * zoom.max(0.5) - y_offset);
-
-                                        // Background pill for readability
-                                        let galley = painter.layout(
-                                            label.clone(),
-                                            font_id.clone(),
-                                            label_color,
-                                            f32::MAX,
-                                        );
-                                        let bg_rect = galley.rect.translate(text_pos.to_vec2());
-                                        let padding = egui::vec2(3.0 * zoom.max(0.4), 1.5 * zoom.max(0.4));
-                                        let bg_rect = bg_rect.expand2(padding);
-                                        painter.rect_filled(
-                                            bg_rect,
-                                            2.0 * zoom.max(0.3),
-                                            egui::Color32::from_rgba_unmultiplied(18, 22, 30, 200),
-                                        );
-
-                                        painter.galley(text_pos, galley, label_color);
-                                    }
+                                    painter.galley(text_pos, galley, label_color);
                                 }
                             }
                         }
