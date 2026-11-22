@@ -314,6 +314,13 @@ pub struct NodeResources {
     pub internals: Vec<ResourceDecl>,
 }
 
+/// 描述两条节点之间的共享资源信息（用于 UI 展示）
+#[derive(Clone, Debug)]
+pub struct EdgeResourceInfo {
+    pub name: String,
+    pub spec: ResourceSpec,
+}
+
 impl NodeResources {
     pub fn new() -> Self {
         Self {

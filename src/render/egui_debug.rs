@@ -557,6 +557,67 @@ impl EguiMain {
                             let a2 = p2 - egui::vec2(arrow_len, arrow_w);
                             painter.line_segment([a1, p2], stroke);
                             painter.line_segment([a2, p2], stroke);
+
+                            // Draw resource info labels only on highlighted edges (related to selected/hovered node)
+                            if is_related {
+                                let edge_resources = render_graph.edge_resources(from_node, to_node);
+                                if !edge_resources.is_empty() {
+                                    // Compute midpoint of the bezier curve (t=0.5)
+                                    let t = 0.5_f32;
+                                    let mt = 1.0_f32 - t;
+                                    let mt3 = mt * mt * mt;
+                                    let t3 = t * t * t;
+                                    let mid = egui::pos2(
+                                        mt3 * p1.x + 3.0 * mt * mt * t * c1.x + 3.0 * mt * t * t * c2.x + t3 * p2.x,
+                                        mt3 * p1.y + 3.0 * mt * mt * t * c1.y + 3.0 * mt * t * t * c2.y + t3 * p2.y,
+                                    );
+
+                                    let label_color = egui::Color32::from_rgb(255, 220, 100);
+                                    let font_id = egui::FontId::monospace((8.5 * zoom.max(0.5)).max(7.0));
+
+                                    for (idx, res_info) in edge_resources.iter().enumerate() {
+                                        let label = match &res_info.spec {
+                                            crate::render::render_graph::resource::ResourceSpec::Texture(tk) => {
+                                                let fmt_str = match tk.format {
+                                                    Some(f) => format!("{:?}", f),
+                                                    None => "?".to_string(),
+                                                };
+                                                let w = if tk.width == 0 { "?".to_string() } else { tk.width.to_string() };
+                                                let h = if tk.height == 0 { "?".to_string() } else { tk.height.to_string() };
+                                                format!("{}: {}×{}", fmt_str, w, h)
+                                            }
+                                            crate::render::render_graph::resource::ResourceSpec::Buffer(bk) => {
+                                                format!("Buf: {}B", bk.size)
+                                            }
+                                            crate::render::render_graph::resource::ResourceSpec::Sampler(_) => {
+                                                "Sampler".to_string()
+                                            }
+                                        };
+
+                                        // Offset each label vertically if there are multiple resources
+                                        let y_offset = idx as f32 * 11.0 * zoom.max(0.5);
+                                        let text_pos = mid + egui::vec2(0.0, -8.0 * zoom.max(0.5) - y_offset);
+
+                                        // Background pill for readability
+                                        let galley = painter.layout(
+                                            label.clone(),
+                                            font_id.clone(),
+                                            label_color,
+                                            f32::MAX,
+                                        );
+                                        let bg_rect = galley.rect.translate(text_pos.to_vec2());
+                                        let padding = egui::vec2(3.0 * zoom.max(0.4), 1.5 * zoom.max(0.4));
+                                        let bg_rect = bg_rect.expand2(padding);
+                                        painter.rect_filled(
+                                            bg_rect,
+                                            2.0 * zoom.max(0.3),
+                                            egui::Color32::from_rgba_unmultiplied(18, 22, 30, 200),
+                                        );
+
+                                        painter.galley(text_pos, galley, label_color);
+                                    }
+                                }
+                            }
                         }
                     }
 

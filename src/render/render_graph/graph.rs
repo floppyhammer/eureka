@@ -2,8 +2,8 @@ use crate::render::render_backend::{PreparedFrame, RenderBackend};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
 use crate::render::render_graph::{
-    standard_resources, Node, ResourceDecl, ResourceId, ResourceKey, ResourceLifetime,
-    ResourceSpec, VirtualResource,
+    standard_resources, EdgeResourceInfo, Node, ResourceDecl, ResourceId, ResourceKey,
+    ResourceLifetime, ResourceSpec, VirtualResource,
 };
 use crate::render::RenderContext;
 use std::collections::{HashMap, VecDeque};
@@ -400,6 +400,74 @@ impl RenderGraph {
         mermaid.push_str("```\n");
 
         log::info!("{}", mermaid);
+    }
+
+    /// Returns the shared resources between two connected nodes.
+    /// For an edge `from_node -> to_node`, finds resources that `from_node` outputs
+    /// and `to_node` inputs, along with their texture/buffer specs.
+    pub fn edge_resources(&self, from_node: &str, to_node: &str) -> Vec<EdgeResourceInfo> {
+
+        let from_state = match self.nodes.get(from_node) {
+            Some(s) => s,
+            None => return Vec::new(),
+        };
+        let to_state = match self.nodes.get(to_node) {
+            Some(s) => s,
+            None => return Vec::new(),
+        };
+
+        // Create a minimal PreparedFrame for node_resources() call
+        let prepared = crate::render::render_backend::PreparedFrame {
+            extracted: Default::default(),
+            texture_index_map: Default::default(),
+            material_index_map: Default::default(),
+            material_uniforms: Default::default(),
+            bindless_texture_ids: Default::default(),
+            opaque_meshes: Default::default(),
+            transparent_meshes: Default::default(),
+            bvh: Default::default(),
+            all_instances: Default::default(),
+            mesh_id_to_index: Default::default(),
+            draw_counts: Default::default(),
+            mesh_infos: Default::default(),
+            mesh_metadatas: Default::default(),
+            indirect_commands: Default::default(),
+            instance_buffer_size: 0,
+            indirect_buffer_size: 0,
+            sorted_transparent_instances: Default::default(),
+            transparent_draw_batches: Default::default(),
+        };
+
+        let from_resources = from_state.node.node_resources(&prepared);
+        let to_resources = to_state.node.node_resources(&prepared);
+
+        // Collect output resource names from `from_node`
+        let from_output_names: std::collections::HashSet<&str> = from_resources
+            .outputs
+            .iter()
+            .map(|d| d.id.name())
+            .collect();
+
+        // Find matching inputs in `to_node` that share the same resource name
+        let mut results = Vec::new();
+        for decl in &to_resources.inputs {
+            if from_output_names.contains(decl.id.name()) {
+                // Find the corresponding output from from_node to get the spec
+                if let Some(from_decl) = from_resources.outputs.iter().find(|d| d.id.name() == decl.id.name()) {
+                    results.push(EdgeResourceInfo {
+                        name: decl.id.name().to_string(),
+                        spec: from_decl.spec.clone(),
+                    });
+                } else {
+                    results.push(EdgeResourceInfo {
+                        name: decl.id.name().to_string(),
+                        spec: decl.spec.clone(),
+                    });
+                }
+            }
+        }
+
+        results
     }
 
     /// Sort node running order deterministically.
