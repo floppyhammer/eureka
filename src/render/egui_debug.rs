@@ -1,6 +1,4 @@
-use crate::render::render_graph::config::{
-    AntiAliasingMode, DebugViewmode, RenderGraphConfig,
-};
+use crate::render::render_graph::config::{AntiAliasingMode, DebugViewmode, RenderGraphConfig};
 use crate::render::render_graph::RenderGraph;
 use hecs::World as EcsWorld;
 use std::collections::{BTreeMap, HashMap};
@@ -68,7 +66,11 @@ impl EguiMain {
         }
     }
 
-    pub fn handle_window_event(&mut self, window: &Window, event: &WindowEvent) -> egui_winit::EventResponse {
+    pub fn handle_window_event(
+        &mut self,
+        window: &Window,
+        event: &WindowEvent,
+    ) -> egui_winit::EventResponse {
         self.egui_state.on_window_event(window, event)
     }
 
@@ -87,10 +89,13 @@ impl EguiMain {
         self.ui(&ctx, config, &temp_graph, &mut config_changed, ecs);
         let mut full_output = self.egui_ctx.end_pass();
 
-        self.egui_state.handle_platform_output(window, full_output.platform_output);
+        self.egui_state
+            .handle_platform_output(window, full_output.platform_output);
 
         let pixels_per_point = full_output.pixels_per_point;
-        let tris = self.egui_ctx.tessellate(full_output.shapes, pixels_per_point);
+        let tris = self
+            .egui_ctx
+            .tessellate(full_output.shapes, pixels_per_point);
 
         // Take ownership of textures_delta from full_output to avoid the Drop panic.
         // We must fully consume `td` (drain all fields) so that when `td` is dropped,
@@ -195,7 +200,8 @@ impl EguiMain {
         depth: usize,
     ) {
         // 获取实体名称
-        let name = ecs.get::<&crate::scene::Name>(entity)
+        let name = ecs
+            .get::<&crate::scene::Name>(entity)
             .map(|n| n.0.clone())
             .unwrap_or_else(|_| format!("Entity {:?}", entity));
 
@@ -309,16 +315,15 @@ impl EguiMain {
         config_changed: &mut bool,
         ecs: &EcsWorld,
     ) {
-        egui::Window::new("Eureka Viewport Controls")
-            .show(ctx, |ui| {
-                ui.checkbox(&mut self.show_config_inspector, "Render Config Inspector");
-                ui.checkbox(&mut self.show_node_graph, "Render Graph Node Topology");
-                ui.checkbox(&mut self.show_scene_tree, "Scene Entities");
-            });
+        egui::Window::new("Eureka Inspector").show(ctx, |ui| {
+            ui.checkbox(&mut self.show_scene_tree, "Scene Entities");
+            ui.checkbox(&mut self.show_config_inspector, "Render Config");
+            ui.checkbox(&mut self.show_node_graph, "Render Graph Topology");
+        });
 
         // 1. Config Inspector Window
         if self.show_config_inspector {
-            egui::Window::new("Render Graph Config Inspector")
+            egui::Window::new("Render Config")
                 .open(&mut self.show_config_inspector)
                 .show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -344,62 +349,235 @@ impl EguiMain {
                         ui.separator();
 
                         ui.heading("Shadows");
-                        if ui.checkbox(&mut config.shadow.enabled, "Enabled").changed() { *config_changed = true; }
-                        if ui.add(egui::Slider::new(&mut config.shadow.map_resolution, 512..=4096).text("Resolution")).changed() { *config_changed = true; }
-                        if ui.add(egui::Slider::new(&mut config.shadow.cascade_count, 1..=8).text("Cascades")).changed() { *config_changed = true; }
+                        if ui.checkbox(&mut config.shadow.enabled, "Enabled").changed() {
+                            *config_changed = true;
+                        }
+                        if ui
+                            .add(
+                                egui::Slider::new(&mut config.shadow.map_resolution, 512..=4096)
+                                    .text("Resolution"),
+                            )
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
+                        if ui
+                            .add(
+                                egui::Slider::new(&mut config.shadow.cascade_count, 1..=8)
+                                    .text("Cascades"),
+                            )
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
                         ui.separator();
 
                         ui.heading("SSAO");
-                        if ui.checkbox(&mut config.ssao.enabled, "Enabled").changed() { *config_changed = true; }
-                        if ui.add(egui::Slider::new(&mut config.ssao.sample_count, 8..=128).text("Samples")).changed() { *config_changed = true; }
-                        if ui.add(egui::Slider::new(&mut config.ssao.radius, 0.1..=5.0).text("Radius")).changed() { *config_changed = true; }
+                        if ui.checkbox(&mut config.ssao.enabled, "Enabled").changed() {
+                            *config_changed = true;
+                        }
+                        if ui
+                            .add(
+                                egui::Slider::new(&mut config.ssao.sample_count, 8..=128)
+                                    .text("Samples"),
+                            )
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
+                        if ui
+                            .add(
+                                egui::Slider::new(&mut config.ssao.radius, 0.1..=5.0)
+                                    .text("Radius"),
+                            )
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
                         ui.separator();
 
                         ui.heading("SSGI");
-                        if ui.checkbox(&mut config.ssgi.enabled, "Enabled").changed() { *config_changed = true; }
-                        if ui.add(egui::Slider::new(&mut config.ssgi.ray_steps, 8..=128).text("Ray Steps")).changed() { *config_changed = true; }
+                        if ui.checkbox(&mut config.ssgi.enabled, "Enabled").changed() {
+                            *config_changed = true;
+                        }
+                        if ui
+                            .add(
+                                egui::Slider::new(&mut config.ssgi.ray_steps, 8..=128)
+                                    .text("Ray Steps"),
+                            )
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
                         ui.separator();
 
                         ui.heading("SSR");
-                        if ui.checkbox(&mut config.ssr.enabled, "Enabled").changed() { *config_changed = true; }
-                        if ui.add(egui::Slider::new(&mut config.ssr.max_steps, 16..=256).text("Max Steps")).changed() { *config_changed = true; }
+                        if ui.checkbox(&mut config.ssr.enabled, "Enabled").changed() {
+                            *config_changed = true;
+                        }
+                        if ui
+                            .add(
+                                egui::Slider::new(&mut config.ssr.max_steps, 16..=256)
+                                    .text("Max Steps"),
+                            )
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
                         ui.separator();
 
                         ui.heading("Volumetric Lighting");
-                        if ui.checkbox(&mut config.volumetric.enabled, "Enabled").changed() { *config_changed = true; }
-                        if ui.add(egui::Slider::new(&mut config.volumetric.sample_count, 8..=128).text("Samples")).changed() { *config_changed = true; }
+                        if ui
+                            .checkbox(&mut config.volumetric.enabled, "Enabled")
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
+                        if ui
+                            .add(
+                                egui::Slider::new(&mut config.volumetric.sample_count, 8..=128)
+                                    .text("Samples"),
+                            )
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
                         ui.separator();
 
                         ui.heading("Bloom");
-                        if ui.checkbox(&mut config.bloom.enabled, "Enabled").changed() { *config_changed = true; }
-                        if ui.add(egui::Slider::new(&mut config.bloom.intensity, 0.0..=5.0).text("Intensity")).changed() { *config_changed = true; }
-                        if ui.add(egui::Slider::new(&mut config.bloom.threshold, 0.0..=5.0).text("Threshold")).changed() { *config_changed = true; }
+                        if ui.checkbox(&mut config.bloom.enabled, "Enabled").changed() {
+                            *config_changed = true;
+                        }
+                        if ui
+                            .add(
+                                egui::Slider::new(&mut config.bloom.intensity, 0.0..=5.0)
+                                    .text("Intensity"),
+                            )
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
+                        if ui
+                            .add(
+                                egui::Slider::new(&mut config.bloom.threshold, 0.0..=5.0)
+                                    .text("Threshold"),
+                            )
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
                         ui.separator();
 
                         ui.heading("Anti-Aliasing");
                         egui::ComboBox::from_label("AA Mode")
                             .selected_text(format!("{:?}", config.aa_mode))
                             .show_ui(ui, |ui| {
-                                if ui.selectable_value(&mut config.aa_mode, AntiAliasingMode::None, "None").changed() { *config_changed = true; }
-                                if ui.selectable_value(&mut config.aa_mode, AntiAliasingMode::Fxaa, "FXAA").changed() { *config_changed = true; }
-                                if ui.selectable_value(&mut config.aa_mode, AntiAliasingMode::Taa, "TAA").changed() { *config_changed = true; }
-                                if ui.selectable_value(&mut config.aa_mode, AntiAliasingMode::TaaAndFxaa, "TAA + FXAA").changed() { *config_changed = true; }
+                                if ui
+                                    .selectable_value(
+                                        &mut config.aa_mode,
+                                        AntiAliasingMode::None,
+                                        "None",
+                                    )
+                                    .changed()
+                                {
+                                    *config_changed = true;
+                                }
+                                if ui
+                                    .selectable_value(
+                                        &mut config.aa_mode,
+                                        AntiAliasingMode::Fxaa,
+                                        "FXAA",
+                                    )
+                                    .changed()
+                                {
+                                    *config_changed = true;
+                                }
+                                if ui
+                                    .selectable_value(
+                                        &mut config.aa_mode,
+                                        AntiAliasingMode::Taa,
+                                        "TAA",
+                                    )
+                                    .changed()
+                                {
+                                    *config_changed = true;
+                                }
+                                if ui
+                                    .selectable_value(
+                                        &mut config.aa_mode,
+                                        AntiAliasingMode::TaaAndFxaa,
+                                        "TAA + FXAA",
+                                    )
+                                    .changed()
+                                {
+                                    *config_changed = true;
+                                }
                             });
                         ui.separator();
 
                         ui.heading("Tonemapping");
-                        if ui.checkbox(&mut config.tonemapping.enabled, "Enabled").changed() { *config_changed = true; }
+                        if ui
+                            .checkbox(&mut config.tonemapping.enabled, "Enabled")
+                            .changed()
+                        {
+                            *config_changed = true;
+                        }
                         ui.separator();
 
                         ui.heading("Debug Viewmode");
                         egui::ComboBox::from_label("Viewmode")
                             .selected_text(format!("{:?}", config.debug_viewmode))
                             .show_ui(ui, |ui| {
-                                if ui.selectable_value(&mut config.debug_viewmode, DebugViewmode::Default, "Default (Normal)").changed() { *config_changed = true; }
-                                if ui.selectable_value(&mut config.debug_viewmode, DebugViewmode::Normals, "Normals").changed() { *config_changed = true; }
-                                if ui.selectable_value(&mut config.debug_viewmode, DebugViewmode::Depth, "Depth").changed() { *config_changed = true; }
-                                if ui.selectable_value(&mut config.debug_viewmode, DebugViewmode::Velocity, "Velocity").changed() { *config_changed = true; }
-                                if ui.selectable_value(&mut config.debug_viewmode, DebugViewmode::Prepass, "Prepass (Normal + Roughness)").changed() { *config_changed = true; }
+                                if ui
+                                    .selectable_value(
+                                        &mut config.debug_viewmode,
+                                        DebugViewmode::Default,
+                                        "Default (Normal)",
+                                    )
+                                    .changed()
+                                {
+                                    *config_changed = true;
+                                }
+                                if ui
+                                    .selectable_value(
+                                        &mut config.debug_viewmode,
+                                        DebugViewmode::Normals,
+                                        "Normals",
+                                    )
+                                    .changed()
+                                {
+                                    *config_changed = true;
+                                }
+                                if ui
+                                    .selectable_value(
+                                        &mut config.debug_viewmode,
+                                        DebugViewmode::Depth,
+                                        "Depth",
+                                    )
+                                    .changed()
+                                {
+                                    *config_changed = true;
+                                }
+                                if ui
+                                    .selectable_value(
+                                        &mut config.debug_viewmode,
+                                        DebugViewmode::Velocity,
+                                        "Velocity",
+                                    )
+                                    .changed()
+                                {
+                                    *config_changed = true;
+                                }
+                                if ui
+                                    .selectable_value(
+                                        &mut config.debug_viewmode,
+                                        DebugViewmode::Prepass,
+                                        "Prepass (Normal + Roughness)",
+                                    )
+                                    .changed()
+                                {
+                                    *config_changed = true;
+                                }
                             });
                     });
                 });
@@ -408,7 +586,7 @@ impl EguiMain {
         // 2. Interactive Node Graph Window
         if self.show_node_graph {
             let mut show_node_graph = self.show_node_graph;
-            egui::Window::new("Render Graph Node Topology (Interactive)")
+            egui::Window::new("Render Graph Topology")
                 .open(&mut show_node_graph)
                 .default_size(egui::vec2(850.0, 500.0))
                 .show(ctx, |ui| {
@@ -787,19 +965,51 @@ impl EguiMain {
 
 fn node_visual_info(name: &str) -> (&'static str, egui::Color32, egui::Color32) {
     if name.starts_with("prepare") {
-        ("PREP", egui::Color32::from_rgb(24, 52, 64), egui::Color32::from_rgb(90, 190, 225))
+        (
+            "PREP",
+            egui::Color32::from_rgb(24, 52, 64),
+            egui::Color32::from_rgb(90, 190, 225),
+        )
     } else if name.contains("cull") {
-        ("CULL", egui::Color32::from_rgb(52, 34, 68), egui::Color32::from_rgb(180, 130, 230))
+        (
+            "CULL",
+            egui::Color32::from_rgb(52, 34, 68),
+            egui::Color32::from_rgb(180, 130, 230),
+        )
     } else if name == "shadow" {
-        ("SHADOW", egui::Color32::from_rgb(68, 42, 20), egui::Color32::from_rgb(240, 150, 70))
+        (
+            "SHADOW",
+            egui::Color32::from_rgb(68, 42, 20),
+            egui::Color32::from_rgb(240, 150, 70),
+        )
     } else if name == "prepass" || name == "depth_pyramid" {
-        ("DEPTH", egui::Color32::from_rgb(20, 58, 62), egui::Color32::from_rgb(70, 210, 210))
-    } else if name.contains("ssao") || name.contains("ssgi") || name.contains("ssr") || name.contains("volumetric") {
-        ("LIGHT/FX", egui::Color32::from_rgb(64, 30, 64), egui::Color32::from_rgb(220, 110, 220))
+        (
+            "DEPTH",
+            egui::Color32::from_rgb(20, 58, 62),
+            egui::Color32::from_rgb(70, 210, 210),
+        )
+    } else if name.contains("ssao")
+        || name.contains("ssgi")
+        || name.contains("ssr")
+        || name.contains("volumetric")
+    {
+        (
+            "LIGHT/FX",
+            egui::Color32::from_rgb(64, 30, 64),
+            egui::Color32::from_rgb(220, 110, 220),
+        )
     } else if name == "taa" || name == "fxaa" || name == "bloom" || name.contains("tone") {
-        ("POST", egui::Color32::from_rgb(24, 60, 36), egui::Color32::from_rgb(90, 210, 130))
+        (
+            "POST",
+            egui::Color32::from_rgb(24, 60, 36),
+            egui::Color32::from_rgb(90, 210, 130),
+        )
     } else {
-        ("DRAW", egui::Color32::from_rgb(28, 45, 72), egui::Color32::from_rgb(110, 160, 240))
+        (
+            "DRAW",
+            egui::Color32::from_rgb(28, 45, 72),
+            egui::Color32::from_rgb(110, 160, 240),
+        )
     }
 }
 
@@ -823,9 +1033,11 @@ impl EguiBackendRenderer {
         // Fully consume textures_delta by draining its contents into pending queues.
         // This ensures `textures_delta` is empty when dropped, avoiding the debug_assert panic.
         for (id, deltas) in textures_delta.set.drain() {
-            self.pending_set_textures.push((id, deltas.into_iter().collect()));
+            self.pending_set_textures
+                .push((id, deltas.into_iter().collect()));
         }
-        self.pending_free_textures.extend(textures_delta.free.drain());
+        self.pending_free_textures
+            .extend(textures_delta.free.drain());
     }
 
     pub fn render(
@@ -843,7 +1055,8 @@ impl EguiBackendRenderer {
 
         for (id, image_deltas) in self.pending_set_textures.drain(..) {
             for image_delta in image_deltas {
-                self.renderer.update_texture(device, queue, id, &image_delta);
+                self.renderer
+                    .update_texture(device, queue, id, &image_delta);
             }
         }
 
@@ -860,7 +1073,9 @@ impl EguiBackendRenderer {
             label: Some("Egui Command Encoder"),
         });
 
-        let mut command_buffers = self.renderer.update_buffers(device, queue, &mut encoder, tris, &screen_descriptor);
+        let mut command_buffers =
+            self.renderer
+                .update_buffers(device, queue, &mut encoder, tris, &screen_descriptor);
 
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -880,9 +1095,8 @@ impl EguiBackendRenderer {
                 multiview_mask: None,
             });
 
-            let rpass_static: &mut wgpu::RenderPass<'static> = unsafe {
-                std::mem::transmute(&mut rpass as &mut wgpu::RenderPass<'_>)
-            };
+            let rpass_static: &mut wgpu::RenderPass<'static> =
+                unsafe { std::mem::transmute(&mut rpass as &mut wgpu::RenderPass<'_>) };
             self.renderer.render(rpass_static, tris, &screen_descriptor);
         }
 
