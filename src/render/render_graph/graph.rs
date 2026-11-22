@@ -2,7 +2,7 @@ use crate::render::render_backend::{PreparedFrame, RenderBackend};
 use crate::render::render_graph::frame_context::FrameContext;
 use crate::render::render_graph::resource_pool::ResourcePool;
 use crate::render::render_graph::{
-    standard_resources, EdgeResourceInfo, Node, ResourceDecl, ResourceId, ResourceKey,
+    standard_resources, EdgeResourceInfo, Node, NodeResources, ResourceDecl, ResourceId, ResourceKey,
     ResourceLifetime, ResourceSpec, VirtualResource,
 };
 use crate::render::RenderContext;
@@ -400,6 +400,31 @@ impl RenderGraph {
         mermaid.push_str("```\n");
 
         log::info!("{}", mermaid);
+    }
+
+    pub fn node_resources(&self, node_name: &str) -> Option<NodeResources> {
+        let node_state = self.nodes.get(node_name)?;
+        let prepared = crate::render::render_backend::PreparedFrame {
+            extracted: Default::default(),
+            texture_index_map: Default::default(),
+            material_index_map: Default::default(),
+            material_uniforms: Default::default(),
+            bindless_texture_ids: Default::default(),
+            opaque_meshes: Default::default(),
+            transparent_meshes: Default::default(),
+            bvh: Default::default(),
+            all_instances: Default::default(),
+            mesh_id_to_index: Default::default(),
+            draw_counts: Default::default(),
+            mesh_infos: Default::default(),
+            mesh_metadatas: Default::default(),
+            indirect_commands: Default::default(),
+            instance_buffer_size: 0,
+            indirect_buffer_size: 0,
+            sorted_transparent_instances: Default::default(),
+            transparent_draw_batches: Default::default(),
+        };
+        Some(node_state.node.node_resources(&prepared))
     }
 
     /// Returns the shared resources between two connected nodes.

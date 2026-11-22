@@ -799,7 +799,16 @@ impl EguiMain {
                                             format!("{}: {}×{}", fmt_str, w, h)
                                         }
                                         crate::render::render_graph::resource::ResourceSpec::Buffer(bk) => {
-                                            format!("Buf: {}B", bk.size)
+                                            let size_str = if bk.size < 1024 {
+                                                format!("{}B", bk.size)
+                                            } else if bk.size < 1024 * 1024 {
+                                                format!("{:.1}KB", bk.size as f64 / 1024.0)
+                                            } else if bk.size < 1024 * 1024 * 1024 {
+                                                format!("{:.1}MB", bk.size as f64 / (1024.0 * 1024.0))
+                                            } else {
+                                                format!("{:.1}GB", bk.size as f64 / (1024.0 * 1024.0 * 1024.0))
+                                            };
+                                            format!("Buf: {}", size_str)
                                         }
                                         crate::render::render_graph::resource::ResourceSpec::Sampler(_) => {
                                             "Sampler".to_string()
@@ -940,17 +949,7 @@ impl EguiMain {
 
                     // 3. Bottom Detail Panel for Selected Node
                     if let Some(selected) = self.selected_node.clone() {
-                        let incoming: Vec<String> = dependencies.get(&selected).cloned().unwrap_or_default();
-                        let outgoing: Vec<String> = dependencies
-                            .iter()
-                            .filter_map(|(to_node, from_nodes)| {
-                                if from_nodes.contains(&selected) {
-                                    Some(to_node.clone())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
+                        let node_res = render_graph.node_resources(&selected);
 
                         let step_str = execution_steps
                             .get(&selected)
@@ -959,19 +958,28 @@ impl EguiMain {
 
                         let mut deselect = false;
                         egui::Area::new(egui::Id::new("node_detail_popup"))
-                            .fixed_pos(canvas_rect.left_bottom() + egui::vec2(10.0, -90.0))
+                            .fixed_pos(canvas_rect.left_bottom() + egui::vec2(10.0, -120.0))
                             .show(ctx, |ui| {
                                 egui::Frame::popup(ui.style()).fill(egui::Color32::from_rgba_unmultiplied(20, 24, 30, 240)).show(ui, |ui| {
                                     ui.set_max_width(450.0);
                                     ui.horizontal(|ui| {
                                         ui.label(egui::RichText::new(&selected).strong().color(egui::Color32::GOLD));
                                         ui.weak(format!("({})", step_str));
-                                        if ui.small_button("✖").clicked() {
+                                        if ui.small_button("X").clicked() {
                                             deselect = true;
                                         }
                                     });
-                                    ui.small(format!("Inputs ({}): {}", incoming.len(), incoming.join(", ")));
-                                    ui.small(format!("Outputs ({}): {}", outgoing.len(), outgoing.join(", ")));
+                                    if let Some(res) = node_res {
+                                        let inputs: Vec<String> = res.inputs.iter().map(format_resource_decl).collect();
+                                        let outputs: Vec<String> = res.outputs.iter().map(format_resource_decl).collect();
+                                        let internals: Vec<String> = res.internals.iter().map(format_resource_decl).collect();
+
+                                        ui.small(format!("Inputs ({}): {}", inputs.len(), if inputs.is_empty() { "None".to_string() } else { inputs.join(", ") }));
+                                        ui.small(format!("Outputs ({}): {}", outputs.len(), if outputs.is_empty() { "None".to_string() } else { outputs.join(", ") }));
+                                        ui.small(format!("Internals ({}): {}", internals.len(), if internals.is_empty() { "None".to_string() } else { internals.join(", ") }));
+                                    } else {
+                                        ui.small("No resource info available");
+                                    }
                                 });
                             });
                         if deselect {
@@ -1044,6 +1052,39 @@ fn node_visual_info(name: &str) -> (&'static str, egui::Color32, egui::Color32) 
             egui::Color32::from_rgb(110, 160, 240),
         )
     }
+}
+
+fn format_resource_decl(decl: &crate::render::render_graph::resource::ResourceDecl) -> String {
+    let name = decl.id.name();
+    let detail = match &decl.spec {
+        crate::render::render_graph::resource::ResourceSpec::Texture(tk) => {
+            let fmt_str = match tk.format {
+                Some(f) => format!("{:?}", f),
+                None => "?".to_string(),
+            };
+            if tk.width > 0 && tk.height > 0 {
+                format!(" [{} {}×{}]", fmt_str, tk.width, tk.height)
+            } else {
+                format!(" [{}]", fmt_str)
+            }
+        }
+        crate::render::render_graph::resource::ResourceSpec::Buffer(bk) => {
+            let size_str = if bk.size < 1024 {
+                format!("{}B", bk.size)
+            } else if bk.size < 1024 * 1024 {
+                format!("{:.1}KB", bk.size as f64 / 1024.0)
+            } else if bk.size < 1024 * 1024 * 1024 {
+                format!("{:.1}MB", bk.size as f64 / (1024.0 * 1024.0))
+            } else {
+                format!("{:.1}GB", bk.size as f64 / (1024.0 * 1024.0 * 1024.0))
+            };
+            format!(" [Buf: {}]", size_str)
+        }
+        crate::render::render_graph::resource::ResourceSpec::Sampler(_) => {
+            " [Sampler]".to_string()
+        }
+    };
+    format!("{}{}", name, detail)
 }
 
 pub struct EguiBackendRenderer {
