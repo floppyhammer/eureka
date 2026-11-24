@@ -162,8 +162,7 @@ impl Node for SsaoNode {
         use crate::render::render_graph::resource::{ResourceSpec, TextureKey};
         use crate::render::render_graph::standard_resources;
 
-        let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
-            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+        let camera_buffer_size = CameraUniform::get_max_uniform_buffer_size();
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(

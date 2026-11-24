@@ -45,8 +45,7 @@ impl Node for VolumetricNode {
         };
         use crate::render::Texture;
 
-        let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
-            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+        let camera_buffer_size = CameraUniform::get_max_uniform_buffer_size();
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(
@@ -375,8 +374,7 @@ impl Node for VolumetricApplyNode {
         use crate::render::camera::CameraUniform;
         use crate::render::light::ClusterConfig;
 
-        let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
-            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+        let camera_buffer_size = CameraUniform::get_max_uniform_buffer_size();
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(

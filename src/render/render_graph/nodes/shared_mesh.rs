@@ -8,7 +8,7 @@ use crate::render::Texture;
 
 /// 声明 Mesh 渲染通用的资源依赖
 pub fn common_mesh_resources(resources: NodeResources, prepared: &PreparedFrame) -> NodeResources {
-    let camera_buffer_size = CameraUniform::get_uniform_offset_unit() * 16;
+    let camera_buffer_size = CameraUniform::get_max_uniform_buffer_size();
     let material_buffer_size =
         prepared.material_uniforms.len() * size_of::<crate::render::material::MaterialUniform>();
 

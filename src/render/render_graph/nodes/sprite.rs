@@ -32,8 +32,7 @@ impl Node for SpriteNode {
         use crate::render::render_graph::standard_resources;
         use crate::render::Texture;
 
-        let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
-            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+        let camera_buffer_size = CameraUniform::get_max_uniform_buffer_size();
 
         let material_buffer_size = prepared.material_uniforms.len()
             * size_of::<crate::render::material::MaterialUniform>();

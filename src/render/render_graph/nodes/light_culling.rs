@@ -43,8 +43,7 @@ impl Node for LightCullingNode {
         let total_clusters =
             (CLUSTER_GRID_SIZE[0] * CLUSTER_GRID_SIZE[1] * CLUSTER_GRID_SIZE[2]) as u64;
 
-        let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
-            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+        let camera_buffer_size = CameraUniform::get_max_uniform_buffer_size();
 
         crate::render::render_graph::resource::NodeResources::new()
             .input(

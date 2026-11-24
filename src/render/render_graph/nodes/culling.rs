@@ -47,8 +47,7 @@ impl Node for CullingNode {
     }
 
     fn node_resources(&self, prepared: &PreparedFrame) -> NodeResources {
-        let camera_buffer_size = CameraUniform::get_uniform_offset_unit()
-            * crate::render::render_graph::nodes::prepare_view::MAX_CAMERAS;
+        let camera_buffer_size = CameraUniform::get_max_uniform_buffer_size();
 
         let metadata_buffer_size = (prepared.mesh_metadatas.len()
             * size_of::<crate::render::mesh::MeshMetadata>())
@@ -109,7 +108,7 @@ impl Node for CullingNode {
             .internal(
                 standard_resources::cull_params_uniform(),
                 ResourceSpec::buffer(
-                    std::mem::size_of::<CullParams>() as u64,
+                    size_of::<CullParams>() as u64,
                     wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 ),
             )
@@ -134,7 +133,11 @@ impl Node for CullingNode {
             (context.prepared.instance_buffer_size / size_of::<InstanceRaw>()) as u32;
 
         let has_hiz = context.has_resource(&standard_resources::hiz_depth_pyramid());
-        let use_hiz = if context.frame_count() == 0 || !has_hiz { 0 } else { 1 };
+        let use_hiz = if context.frame_count() == 0 || !has_hiz {
+            0
+        } else {
+            1
+        };
 
         let (screen_width, screen_height, hiz_view_id, hiz_view) = if use_hiz == 1 {
             let tex = context.texture(&standard_resources::hiz_depth_pyramid());
@@ -280,8 +283,10 @@ impl Node for CullingNode {
                 immediate_size: 0,
             });
 
-            let source = include_str!("../../../shaders/cull.wgsl")
-                .replace("#import eureka::camera::Camera", crate::render::camera::CAMERA_STRUCT_WGSL);
+            let source = include_str!("../../../shaders/cull.wgsl").replace(
+                "#import eureka::camera::Camera",
+                crate::render::camera::CAMERA_STRUCT_WGSL,
+            );
 
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Cull Shader"),

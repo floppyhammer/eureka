@@ -34,6 +34,7 @@ impl ExtractedCameras {
 }
 
 pub(crate) const CAMERA_STRUCT_WGSL: &str = include_str!("../shaders/camera.wgsl");
+pub(crate) const MAX_CAMERAS: u32 = 16;
 
 // We need this for Rust to store our data correctly for the shaders.
 #[repr(C)]
@@ -94,6 +95,10 @@ impl CameraUniform {
         let size = size_of::<CameraUniform>() as u32;
 
         (size + offset_alignment - 1) & !(offset_alignment - 1)
+    }
+
+    pub(crate) fn get_max_uniform_buffer_size() -> u32 {
+        Self::get_uniform_offset_unit() * MAX_CAMERAS
     }
 }
 

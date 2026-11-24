@@ -8,8 +8,6 @@ use std::any::Any;
 #[derive(Default)]
 pub struct PrepareViewNode;
 
-pub(crate) const MAX_CAMERAS: u32 = 16;
-
 impl Node for PrepareViewNode {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -22,7 +20,7 @@ impl Node for PrepareViewNode {
         use crate::render::camera::CameraUniform;
         use crate::render::render_graph::resource::ResourceSpec;
 
-        let camera_buffer_size = CameraUniform::get_uniform_offset_unit() * MAX_CAMERAS;
+        let camera_buffer_size = CameraUniform::get_max_uniform_buffer_size();
 
         // 输出为一个包含所有相机 uniform 的大缓冲区
         crate::render::render_graph::resource::NodeResources::new().output(
