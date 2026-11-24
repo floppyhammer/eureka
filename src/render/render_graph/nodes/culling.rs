@@ -3,7 +3,6 @@ use crate::render::render_backend::PreparedFrame;
 use crate::render::render_graph::{
     standard_resources, FrameContext, Node, NodeResources, ResourceSpec, SamplerKey,
 };
-use crate::render::InstanceRaw;
 use std::any::Any;
 use wgpu::BufferAddress;
 
@@ -129,8 +128,7 @@ impl Node for CullingNode {
             bytemuck::cast_slice(&context.prepared.indirect_commands),
         );
 
-        let total_instances =
-            (context.prepared.instance_buffer_size / size_of::<InstanceRaw>()) as u32;
+        let total_instances = context.prepared.all_instances.len() as u32;
 
         let has_hiz = context.has_resource(&standard_resources::hiz_depth_pyramid());
         let use_hiz = if context.frame_count() == 0 || !has_hiz {
@@ -321,7 +319,7 @@ impl Node for CullingNode {
 
         let global_instance_buffer = context.buffer(&standard_resources::global_instance_buffer());
         let mesh_metadata_buffer = context.buffer(&standard_resources::mesh_metadata_buffer());
-        let total_instances = context.prepared.instance_buffer_size / size_of::<InstanceRaw>();
+        let total_instances = context.prepared.all_instances.len();
 
         let cull_visible_instance_buffer =
             context.buffer(&standard_resources::cull_visible_instance_buffer());
