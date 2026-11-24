@@ -458,7 +458,9 @@ impl RenderBackend {
             if flag.load(std::sync::atomic::Ordering::Acquire) {
                 let slice = buffer.slice(..);
                 {
-                    let data = slice.get_mapped_range().expect("Failed to get mapped range");
+                    let data = slice
+                        .get_mapped_range()
+                        .expect("Failed to get mapped range");
                     let timestamps: &[u64] = bytemuck::cast_slice(&data[..]);
                     if timestamps.len() >= 2 {
                         let diff = timestamps[1].wrapping_sub(timestamps[0]);
@@ -761,7 +763,8 @@ impl RenderBackend {
         )
     }
 
-    // 准备网格
+    /// 在 CPU 端把一帧中需要绘制的不透明网格整理成 GPU 绘制所需的数据：
+    /// 将同一个网格的多个实例放在一起，生成实例缓冲数据、网格元数据和间接绘制命令。
     pub(crate) fn prepare_instances(
         &self,
         extracted_meshes: &Vec<ExtractedMesh>,
@@ -777,6 +780,7 @@ impl RenderBackend {
         usize,
         usize,
     ) {
+        // 把同一网格的实例放到一起
         let mut grouped_instances: HashMap<MeshId, Vec<InstanceRaw>> = HashMap::new();
 
         for mesh in extracted_meshes {
@@ -804,17 +808,22 @@ impl RenderBackend {
         let mut mesh_id_to_index: HashMap<MeshId, u32> = HashMap::new();
         let mut mesh_infos: Vec<MeshInstanceInfo> = Vec::new();
 
+        // 给所有网格的实例安排在同一个连续的实例数组/缓冲区中时，记录每个网格实例段的起始位置。
         let mut current_base_instance = 0u32;
+
         let mut sorted_meshes: Vec<_> = grouped_instances.keys().cloned().collect();
+
+        // 由于原始分组容器是 HashMap，这一步让后续数组的排列顺序不依赖哈希表的迭代顺序。
         sorted_meshes.sort_by_key(|id| id.0);
 
         for mesh_id in sorted_meshes {
-            let instances = &grouped_instances[&mesh_id];
-
             let Some(mesh) = mesh_cache.get(mesh_id) else {
                 log::warn!("Skipping missing mesh: {:?}", mesh_id);
                 continue;
             };
+
+            // 同一网格的所有实例
+            let instances = &grouped_instances[&mesh_id];
 
             mesh_id_to_index.insert(mesh_id, mesh_metadatas.len() as u32);
 
@@ -824,7 +833,7 @@ impl RenderBackend {
                 instance_count: instances.len() as u32,
             });
 
-            mesh_metadatas.push(crate::render::mesh::MeshMetadata {
+            mesh_metadatas.push(MeshMetadata {
                 aabb_min: mesh.aabb.min.extend(0.0).to_array(),
                 aabb_max: mesh.aabb.max.extend(0.0).to_array(),
                 base_instance: current_base_instance,
@@ -834,6 +843,8 @@ impl RenderBackend {
                 cone_axis_cutoff: [0.0, 0.0, 0.0, -1.0],
             });
 
+            // 这里的 instance_count 表示经过 GPU 剔除后可见的实例数，而不是网格原本拥有的实例总数；
+            // 在 CPU 准备阶段还不知道哪些实例最终可见，所以先设为 0。
             indirect_commands.push(wgpu::util::DrawIndexedIndirectArgs {
                 index_count: mesh.index_count,
                 instance_count: 0,
@@ -847,7 +858,8 @@ impl RenderBackend {
         }
 
         let instance_buffer_size = all_instances.len() * size_of::<InstanceRaw>();
-        let indirect_buffer_size = indirect_commands.len() * 20;
+        let indirect_buffer_size =
+            indirect_commands.len() * size_of::<wgpu::util::DrawIndexedIndirectArgs>();
         let draw_counts = vec![indirect_commands.len() as u32];
 
         (
